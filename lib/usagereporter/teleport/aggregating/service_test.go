@@ -146,3 +146,38 @@ func TestResourcePresenceReporting(t *testing.T) {
 		require.True(t, proto.Equal(r1, reports[0]))
 	}
 }
+
+func TestResourcePresenceReportSplitting(t *testing.T) {
+	resKindReports := make([]*prehogv1.ResourceKindPresenceReport, 0, 7)
+	resKinds := []prehogv1.ResourceKind{1, 2, 3, 4, 5, 6, 7}
+	maxResourceIdsPerReport := 20000 // Should be more than can be persisted in single report
+	for _, kind := range resKinds {
+		kindReport := prehogv1.ResourceKindPresenceReport{
+			ResourceKind: kind,
+			ResourceIds:  make([]uint64, 0, maxResourceIdsPerReport),
+		}
+		for i := 0; i < maxResourceIdsPerReport; i++ {
+			kindReport.ResourceIds = append(kindReport.ResourceIds, uint64(i))
+		}
+		resKindReports = append(resKindReports, &kindReport)
+	}
+
+	reports, err := prepareResourcePresenceReports([]byte("clusterName"), []byte("reporterHostID"), time.Now(), resKindReports)
+	require.NoError(t, err)
+	require.Greater(t, len(reports), len(resKindReports))                                        // some reports were split into two
+	require.Less(t, len(reports[0].ResourceKindReports[0].ResourceIds), maxResourceIdsPerReport) // reports have less resource id than passed
+
+	// reassemble resource ids per resource kind and ensure that nothing was lost
+	resourceIdsPerKind := make(map[prehogv1.ResourceKind][]uint64)
+	for _, kind := range resKinds {
+		resourceIdsPerKind[kind] = make([]uint64, 0, maxResourceIdsPerReport)
+	}
+	for _, report := range reports {
+		for _, kindReport := range report.ResourceKindReports {
+			resourceIdsPerKind[kindReport.ResourceKind] = append(resourceIdsPerKind[kindReport.ResourceKind], kindReport.ResourceIds...)
+		}
+	}
+	for _, resKindReport := range resKindReports {
+		require.ElementsMatchf(t, resKindReport.ResourceIds, resourceIdsPerKind[resKindReport.ResourceKind], "resource ids for resource kind %v do not match", resKindReport.ResourceKind)
+	}
+}

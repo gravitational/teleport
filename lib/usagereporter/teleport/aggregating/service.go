@@ -17,6 +17,7 @@ package aggregating
 import (
 	"context"
 	"time"
+	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -105,21 +106,27 @@ func prepareResourcePresenceReports(
 		}
 
 		// We're over the size limit, so we need to split the report and try again.
-		excessSize := proto.Size(report) - maxItemSize
-		kindReportsAcc := make([]*prehogv1.ResourceKindPresenceReport, 0, len(records)-1)
+		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(records)-1)
+
+		emptyKindReportSize := proto.Size(&prehogv1.ResourceKindPresenceReport{
+			ResourceKind: records[0].GetResourceKind(),
+			ResourceIds:  make([]uint64, 1), // need to have non-empty slice to calculate size
+		})
+		singleItemSize := int(unsafe.Sizeof(uint64(0)))
 
 		for _, kindReport := range records {
-			if proto.Size(kindReport) <= excessSize {
+			if proto.Size(report)+proto.Size(kindReport) <= maxItemSize {
 				// This kind report fits, so we're done.
-				kindReportsAcc = append(kindReportsAcc, kindReport)
+				report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
 				records = records[1:]
 				continue // try next kind report
 			}
 
-			excessElementsCount := int((float64(proto.Size(kindReport)-excessSize) / float64(proto.Size(kindReport))) * float64(len(kindReport.GetResourceIds())))
-			if excessElementsCount >= len(kindReport.GetResourceIds()) {
+			freeSize := maxItemSize - proto.Size(report)
+			elementsToFit := (freeSize - emptyKindReportSize) / singleItemSize
+			if elementsToFit <= 0 {
 				// This kind report is too big to fit even if we remove all elements,
-				continue // try to insert it into next report
+				break // try to insert it into next report
 			}
 
 			// Split the kind report into two fragments, the first of which will be
@@ -127,20 +134,23 @@ func prepareResourcePresenceReports(
 			// the next report.
 			kindReport1 := &prehogv1.ResourceKindPresenceReport{
 				ResourceKind: kindReport.GetResourceKind(),
-				ResourceIds:  kindReport.GetResourceIds()[:len(kindReport.GetResourceIds())-excessElementsCount],
+				ResourceIds:  kindReport.GetResourceIds()[:elementsToFit],
 			}
 
 			// Add the first fragment to the current report.
-			kindReportsAcc = append(kindReportsAcc, kindReport1)
+			report.ResourceKindReports = append(report.ResourceKindReports, kindReport1)
 
-			kindReport.ResourceIds = kindReport.GetResourceIds()[len(kindReport.GetResourceIds())-excessElementsCount:]
+			kindReport2 := &prehogv1.ResourceKindPresenceReport{
+				ResourceKind: kindReport.GetResourceKind(),
+				ResourceIds:  kindReport.GetResourceIds()[elementsToFit:],
+			}
+
+			records = append([]*prehogv1.ResourceKindPresenceReport{kindReport2}, records[1:]...)
 		}
-
-		report.ResourceKindReports = kindReportsAcc
 
 		// Sanity check that report is still fits
 		if proto.Size(report) > maxItemSize {
-			return nil, trace.LimitExceeded("failed to marshal resource presence report within size limit (this is a bug)")
+			return nil, trace.LimitExceeded("failed to marshal resource presence report of %d within size limit of %d bytes (this is a bug)", proto.Size(report), maxItemSize)
 		}
 
 		reports = append(reports, report)
