@@ -388,7 +388,7 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time": startTime,
 			}).Error("Failed to persist resource presence report, dropping data.")
-			return
+			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)

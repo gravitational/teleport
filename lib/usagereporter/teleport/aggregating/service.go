@@ -38,7 +38,7 @@ const (
 const (
 	userActivityReportsPrefix     = "userActivityReports"
 	userActivityReportsLock       = "userActivityReportsLock"
-	ResourcePresenceReportsPrefix = "ResourcePresenceReports"
+	ResourcePresenceReportsPrefix = "resourcePresenceReports"
 )
 
 // userActivityReportKey returns the backend key for a user activity report with
@@ -112,7 +112,7 @@ func prepareResourcePresenceReports(
 			ResourceKind: records[0].GetResourceKind(),
 			ResourceIds:  make([]uint64, 1), // need to have non-empty slice to calculate size
 		})
-		singleItemSize := int(unsafe.Sizeof(uint64(0)))
+		const singleItemSize = 8
 
 		for _, kindReport := range records {
 			if proto.Size(report)+proto.Size(kindReport) <= maxItemSize {
