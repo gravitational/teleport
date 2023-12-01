@@ -123,6 +123,12 @@ type License interface {
 	GetAccountID() string
 
 	// GetFeatureSource returns where the features should be loaded from.
+	//
+	// Deprecated.
+	// FeatureSource was used to differentiate between
+	// cloud+team vs cloud+enterprise. cloud+enterprise read from license
+	// and cloud+team read from salescenter. With the new EUB product,
+	// all cloud+ will read from salescenter.
 	GetFeatureSource() FeatureSource
 
 	// GetCustomTheme returns the name of the WebUI custom theme
@@ -555,6 +561,12 @@ type LicenseSpecV3 struct {
 	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
 	// FeatureSource is the source of the set of enabled feature
+	//
+	// Deprecated.
+	// FeatureSource was used to differentiate between
+	// cloud+team vs cloud+enterprise. cloud+enterprise read from license
+	// and cloud+team read from salescenter. With the new EUB product,
+	// all cloud+ will read from salescenter.
 	FeatureSource FeatureSource `json:"feature_source"`
 	// CustomTheme is the name of the WebUI custom theme
 	CustomTheme string `json:"custom_theme,omitempty"`
