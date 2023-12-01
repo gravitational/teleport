@@ -34,9 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     env:
-      OSS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport:v${{ inputs.teleport-version }}
-      ENT_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:v${{ inputs.teleport-version }}
-      FIPS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:v${{ inputs.teleport-version }}-fips
+      OSS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport:${{ inputs.teleport-version }}
+      ENT_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:${{ inputs.teleport-version }}
+      FIPS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:${{ inputs.teleport-version }}-fips
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
