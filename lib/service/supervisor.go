@@ -283,6 +283,15 @@ var metricsServicesRunning = prometheus.NewGaugeVec(
 )
 var metricsServicesRunningMap = map[string]string{
 	"discovery.init": "discovery_service",
+	"ssh.node": "ssh_service",
+	"auth.tls": "auth_service",
+	"proxy.init": "proxy_service",
+	"kube.init": "kubernetes_service",
+	"apps.start": "application_service",
+	"db.init": "database_service",
+	"windows_desktop.init": "windows_desktop_service",
+	"okta.init": "okta_service",
+	"jamf.init": "jamf_service",
 }
 
 func (s *LocalSupervisor) serve(srv Service) {
