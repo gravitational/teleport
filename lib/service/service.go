@@ -139,6 +139,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -982,7 +983,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Services:                process.getInstanceRoles(),
 		Hostname:                cfg.Hostname,
 		ExternalUpgrader:        upgraderKind,
-		ExternalUpgraderVersion: upgraderVersion,
+		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
