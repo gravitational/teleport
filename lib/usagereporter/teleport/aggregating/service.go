@@ -17,7 +17,6 @@ package aggregating
 import (
 	"context"
 	"time"
-	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -75,7 +74,7 @@ func prepareUserActivityReport(
 // resourcePresenceReportKey returns the backend key for a resource presence report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
-func ResourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
+func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
 	return backend.Key(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
@@ -263,7 +262,7 @@ func (r reportService) upsertResourcePresenceReport(ctx context.Context, report 
 	}
 
 	if _, err := r.b.Put(ctx, backend.Item{
-		Key:     ResourcePresenceReportKey(reportUUID, startTime),
+		Key:     resourcePresenceReportKey(reportUUID, startTime),
 		Value:   wire,
 		Expires: startTime.Add(ttl),
 	}); err != nil {
@@ -284,7 +283,7 @@ func (r reportService) deleteResourcePresenceReport(ctx context.Context, report 
 		return trace.BadParameter("missing start_time")
 	}
 
-	if err := r.b.Delete(ctx, ResourcePresenceReportKey(reportUUID, startTime)); err != nil {
+	if err := r.b.Delete(ctx, resourcePresenceReportKey(reportUUID, startTime)); err != nil {
 		return trace.Wrap(err)
 	}
 
