@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -215,6 +216,75 @@ func TestAccessRequestSearch(t *testing.T) {
 			// We append a newline to the expected output to esnure that the table
 			// does not contain any more rows than expected.
 			require.Contains(t, captureStdout.String(), tc.wantTable()+"\n")
+		})
+	}
+}
+
+func TestShowRequestTable(t *testing.T) {
+	createdAtTime := time.Now()
+	expiresTime := time.Now().Add(time.Hour)
+	assumeTime := createdAtTime.Add(30 * time.Minute)
+	tests := []struct {
+		name      string
+		reqs      []types.AccessRequest
+		wantPresent []string
+	}{
+		{
+			name: "Access Requests without assume time",
+			reqs: []types.AccessRequest{
+				&types.AccessRequestV3{
+					Metadata: types.Metadata{
+						Name: "someName",
+						Expires: &expiresTime,
+					},
+					Spec: types.AccessRequestSpecV3{
+						User:  "someUser",
+						Roles: []string{"role1", "role2"},
+
+						Expires:    expiresTime,
+						SessionTTL: expiresTime,
+						Created:    createdAtTime,
+					},
+				},
+			},
+			wantPresent: []string{"someName", "someUser", "role1,role2"},
+		},
+		{
+			name: "Access Requests with assume time",
+			reqs: []types.AccessRequest{
+				&types.AccessRequestV3{
+					Metadata: types.Metadata{
+						Name: "someName",
+						Expires: &expiresTime,
+					},
+					Spec: types.AccessRequestSpecV3{
+						User:  "someUser",
+						Roles: []string{"role1", "role2"},
+
+						Expires:    expiresTime,
+						SessionTTL: expiresTime,
+						AssumeTime: &assumeTime,
+						Created:    createdAtTime,
+					},
+				},
+			},
+			wantPresent: []string{"someName", "someUser", "role1,role2", assumeTime.UTC().Format(time.RFC822)},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			captureStdout := new(bytes.Buffer)
+			cf := &CLIConf{
+				OverrideStdout: captureStdout,
+			}
+			err := showRequestTable(cf, tc.reqs)
+			require.NoError(t, err)
+			for _, wanted := range tc.wantPresent {
+				require.Contains(t, captureStdout.String(), wanted)
+			}
 		})
 	}
 }

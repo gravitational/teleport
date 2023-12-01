@@ -964,6 +964,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *authpb.Requ
 		Reason:      req.Reason,
 		Annotations: req.Annotations,
 		Roles:       req.Roles,
+		AssumeTime:  req.AssumeTime,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}

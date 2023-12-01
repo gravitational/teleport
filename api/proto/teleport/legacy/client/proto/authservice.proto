@@ -355,6 +355,12 @@ message RequestStateSetter {
   // Roles, if present, overrides the existing set of roles associated
   // with the access request.
   repeated string Roles = 6 [(gogoproto.jsontag) = "roles,omitempty"];
+  // AssumeTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeTime = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_time"
+  ];
 }
 
 // RequestID is the unique identifier of an access request.

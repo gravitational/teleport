@@ -2181,6 +2181,13 @@ message AccessReview {
   // AccessList is the access list that this request was promoted to.
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeTime = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_time"
+  ];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -2347,6 +2354,13 @@ message AccessRequestSpecV3 {
   // was promoted to. Used by WebUI to display the title of the access list.
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeTime = 21 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_time"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
