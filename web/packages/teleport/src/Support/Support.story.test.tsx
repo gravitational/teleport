@@ -49,7 +49,8 @@ test('support Enterprise', () => {
 });
 
 test('support Enterprise with CTA', () => {
-  cfg.isUsageBasedBilling = true;
+  cfg.isEnterprise = true;
+  cfg.isTeam = true;
   const { container } = render(<SupportEnterpriseWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

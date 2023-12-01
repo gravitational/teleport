@@ -15,9 +15,15 @@
  */
 
 import { CtaEvent } from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
+// These URLs are the shorten URL version. These marketing URL's
+// are defined in the "next" repo.
+// eg: https://github.com/gravitational/next/pull/2298
 const UPGRADE_TEAM_URL = 'https://goteleport.com/r/upgrade-team';
 const UPGRADE_COMMUNITY_URL = 'https://goteleport.com/r/upgrade-community';
+// UPGRADE_IGS_URL is enterprise upgrading to enterprise with Identity Governance & Security
+const UPGRADE_IGS_URL = 'https://goteleport.com/r/upgrade-igs';
 
 function getParams(
   version: string,
@@ -32,10 +38,12 @@ function getParams(
 export function getSalesURL(
   version: string,
   isEnterprise: boolean,
-  isUsageBased: boolean,
   event?: CtaEvent
 ) {
-  const url = isUsageBased ? UPGRADE_TEAM_URL : UPGRADE_COMMUNITY_URL;
+  let url = UPGRADE_COMMUNITY_URL;
+  if (isEnterprise) {
+    url = cfg.isTeam ? UPGRADE_TEAM_URL : UPGRADE_IGS_URL;
+  }
   const params = getParams(version, isEnterprise, event);
   return `${url}?${params}`;
 }
