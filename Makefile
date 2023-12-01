@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.2.0
+VERSION=14.2.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -1460,4 +1460,4 @@ rustup-install-target-toolchain:
 # usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
 .PHONY: changelog
 changelog:
-	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
+	@python3 ./build.assets/changelog.py BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
