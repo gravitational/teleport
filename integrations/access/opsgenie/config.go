@@ -36,8 +36,6 @@ type Config struct {
 	// AccessTokenProvider provides a method to get the bearer token
 	// for use when authorizing to a 3rd-party provider API.
 	AccessTokenProvider auth.AccessTokenProvider
-	// StatusSink defines a destination for PluginStatus
-	StatusSink common.StatusSink
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values

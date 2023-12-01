@@ -52,11 +52,17 @@ type Features struct {
 	SAML bool
 	// AccessControls enables FIPS access controls
 	AccessControls bool
-	// AdvancedAccessWorkflows enables advanced access workflows
+	// Currently this flag is to gate actions from OSS clusters.
 	//
-	// This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
-	// product. It will still be used for backwards compatibility for legacy feature support
-	// where existing licenses before EUB should still have the same support as before.
+	// Determining support for access request is currently determined by:
+	//   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
+	//   introduced with Enterprise Usage Based (EUB) product.
+	//   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
+	//   where before EUB, it was unlimited.
+	//
+	// AdvancedAccessWorkflows is currently set to true for all
+	// enterprise editions (team, cloud, on-prem). Historically, access request
+	// was only available for enterprise cloud and enterprise on-prem.
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
@@ -96,17 +102,21 @@ type Features struct {
 	AccessList AccessListFeature
 	// AccessMonitoring holds its namesake feature settings.
 	AccessMonitoring AccessMonitoringFeature
+	// ProductType describes the product being used.
+	ProductType ProductType
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
 // Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
 type DeviceTrustFeature struct {
-	// Enabled is true if the Device Trust feature is enabled.
+	// Currently this flag is to gate actions from OSS clusters.
 	//
-	// This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
-	// product. It will still be used for backwards compatibility for legacy feature support
-	// where existing licenses before EUB should still have the same support as before.
+	// Determining support for device trust is currently determined by:
+	//   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
+	//   introduced with Enterprise Usage Based (EUB) product.
+	//   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
+	//   where before EUB, it was unlimited.
 	Enabled bool
 	// DevicesUsageLimit is the usage-based limit for the number of
 	// registered/enrolled devices, at the implementation's discretion.
@@ -139,6 +149,7 @@ type AccessMonitoringFeature struct {
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
+		ProductType:             proto.ProductType(f.ProductType),
 		Kubernetes:              f.Kubernetes,
 		App:                     f.App,
 		DB:                      f.DB,
@@ -172,6 +183,29 @@ func (f Features) ToProto() *proto.Features {
 			CreateLimit: int32(f.AccessList.CreateLimit),
 		},
 	}
+}
+
+// ProductType is the type of product.
+type ProductType int32
+
+const (
+	ProductTypeUnknown ProductType = 0
+	// ProductTypeTeam is Teleport ProductTypeTeam product.
+	ProductTypeTeam ProductType = 1
+	// ProductTypeEUB is Teleport Enterprise Usage Based product.
+	ProductTypeEUB ProductType = 2
+)
+
+// IsLegacy describes the legacy enterprise product that existed before the
+// usage-based product was introduced. Some features (Device Trust, for example)
+// require the IGS add-on in usage-based products but are included for legacy
+// licenses.
+func (f Features) IsLegacy() bool {
+	return !f.IsUsageBasedBilling
+}
+
+func (f Features) IGSEnabled() bool {
+	return f.IdentityGovernanceSecurity
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
