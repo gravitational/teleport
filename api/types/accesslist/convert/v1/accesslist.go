@@ -57,16 +57,6 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		recurrence.DayOfMonth = accesslist.ReviewDayOfMonth(msg.Spec.Audit.Recurrence.DayOfMonth)
 	}
 
-	ownership := accesslist.InclusionUnspecified
-	if enumValue, ok := fromInclusionProto(msg.Spec.OwnershipMode); ok {
-		ownership = enumValue
-	}
-
-	membership := accesslist.InclusionUnspecified
-	if enumValue, ok := fromInclusionProto(msg.Spec.MembershipMode); ok {
-		membership = enumValue
-	}
-
 	var notifications accesslist.Notifications
 	if msg.Spec.Audit.Notifications != nil {
 		if msg.Spec.Audit.Notifications.Start != nil {
@@ -94,12 +84,12 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Recurrence:    recurrence,
 			Notifications: notifications,
 		},
-		Membership: membership,
+		Membership: fromInclusionProto(msg.Spec.Membership),
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
 		},
-		Ownership: ownership,
+		Ownership: fromInclusionProto(msg.Spec.Ownership),
 		OwnershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
@@ -135,24 +125,14 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		}
 	}
 
-	ownership := accesslistv1.Inclusion_INCLUSION_EXPLICIT
-	if enumVal, ok := toInclusionProto(accessList.Spec.Ownership); ok {
-		ownership = enumVal
-	}
-
-	membership := accesslistv1.Inclusion_INCLUSION_EXPLICIT
-	if enumVal, ok := toInclusionProto(accessList.Spec.Membership); ok {
-		membership = enumVal
-	}
-
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
-			Title:          accessList.Spec.Title,
-			Description:    accessList.Spec.Description,
-			OwnershipMode:  ownership,
-			MembershipMode: membership,
-			Owners:         owners,
+			Title:       accessList.Spec.Title,
+			Description: accessList.Spec.Description,
+			Ownership:   toInclusionProto(accessList.Spec.Ownership),
+			Membership:  toInclusionProto(accessList.Spec.Membership),
+			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
 				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
 				Recurrence: &accesslistv1.Recurrence{

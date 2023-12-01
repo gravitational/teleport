@@ -161,7 +161,7 @@ func TestFromProtoNils(t *testing.T) {
 
 	t.Run("membership", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.MembershipMode = accesslistv1.Inclusion_INCLUSION_UNSPECIFIED
+		msg.Spec.Membership = ""
 
 		uut, err := FromProto(msg)
 		require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestFromProtoNils(t *testing.T) {
 
 	t.Run("ownership", func(t *testing.T) {
 		msg := ToProto(newAccessList(t, "access-list"))
-		msg.Spec.OwnershipMode = accesslistv1.Inclusion_INCLUSION_UNSPECIFIED
+		msg.Spec.Ownership = ""
 
 		uut, err := FromProto(msg)
 		require.NoError(t, err)

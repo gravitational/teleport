@@ -36,8 +36,8 @@ message AccessList {
 
 // AccessListSpec is the specification for an access list.
 message AccessListSpec {
-  reserved 7, 9, 10;
-  reserved "members", "ownership", "membership";
+  reserved 7;
+  reserved "members";
 
   // description is an optional plaintext description of the access list.
   string description = 1;
@@ -64,11 +64,23 @@ message AccessListSpec {
   // title is a plaintext short description of the access list.
   string title = 8;
 
-  // membership_mode defines how list membership is applied.
-  Inclusion membership_mode = 11;
+  // membership defines how list membership is applied. There are two possible
+  // values:
+  //   `explicit` (default): To be considered ag member of the access list, a
+  //                         user must both meet the `membership_requires`
+  //                         conditions AND be explicitly added to the list.
+  //   `implicit`: Any user meeting the `membership_requires` conditions will automatically
+  //             be cosidered a member of this list.
+  string membership = 9;
 
-  // ownership_mode defines how list ownership of this list is determined.
-  Inclusion ownership_mode = 12;
+  // ownership defines how list ownership of this list is determined. There are
+  // two possible values:
+  //   `explicit` (default): To be considered an owner of the access list, a user
+  //                         must both meet the `ownership_requires` conditions AND be
+  //                         explicitly added to the list.
+  //   `implicit`: Any user meeting the `ownership_requires` conditions will automatically
+  //             be considered an owner of this list.
+  string ownership = 10;
 }
 
 // AccessListOwner is an owner of an access list.
@@ -159,27 +171,6 @@ message Member {
   MemberSpec spec = 2;
 }
 
-// Inclusion defines how list ownership and membersip of an AcessList is
-// determined and enforced. In practice there are two possible values:
-// INCLUSION_EXPLICIT and INCLUSION_IMPLICIT, with INCLUSION_UNSPECIFIED
-// reserved for detecting unset inclusion values in legacy messages.
-enum Inclusion {
-  // INCLUSION_UNSPECIFIED is reserved for detecting unset inclusion values in
-  // legacy messages. Currently, all cases where an INCLUSION_UNSPECIFIED value
-  // is encountered it should be promoted to INCLUSION_EXPLICIT.
-  INCLUSION_UNSPECIFIED = 0;
-
-  // INCLUSION_EXPLICIT indicates that a user must meet a requirement set AND
-  // be explicitly added to an access list to be included in it. Both list
-  // membership and ownership may be set to INCLUSION_EXPLICIT.
-  INCLUSION_EXPLICIT = 1;
-
-  // INCLUSION_IMPLICIT indicates that a user need only meet a requirement set
-  // to be considered included in a list. Both list membership and ownership
-  // may be set to INCLUSION_IMPLICIT.
-  INCLUSION_IMPLICIT = 2;
-}
-
 // MemberSpec is the specification for an access list member.
 message MemberSpec {
   // associated access list
@@ -206,7 +197,7 @@ message MemberSpec {
 
   // membership defines how list membership was acquired. There are two possible
   // values: `explicit` and `implicit`.
-  Inclusion membership = 8;
+  string membership = 8;
 }
 
 // IneligibleStatus describes how the user is ineligible.

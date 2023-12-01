@@ -17,38 +17,37 @@ limitations under the License.
 package v1
 
 import (
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
-func toInclusionProto(i accesslist.Inclusion) (accesslistv1.Inclusion, bool) {
-	switch i {
-	case accesslist.InclusionUnspecified:
-		return accesslistv1.Inclusion_INCLUSION_UNSPECIFIED, false
+const (
+	inclusionUnspecifiedText string = ""
+	inclusionExplicitText    string = "explicit"
+	inclusionImplicitText    string = "implicit"
+)
 
+func toInclusionProto(i accesslist.Inclusion) string {
+	switch i {
 	case accesslist.InclusionExplicit:
-		return accesslistv1.Inclusion_INCLUSION_EXPLICIT, false
+		return inclusionExplicitText
 
 	case accesslist.InclusionImplicit:
-		return accesslistv1.Inclusion_INCLUSION_IMPLICIT, false
+		return inclusionImplicitText
 
 	default:
-		return 0, false
+		return inclusionUnspecifiedText
 	}
 }
 
-func fromInclusionProto(i accesslistv1.Inclusion) (accesslist.Inclusion, bool) {
-	switch i {
-	case accesslistv1.Inclusion_INCLUSION_UNSPECIFIED:
-		return accesslist.InclusionUnspecified, false
+func fromInclusionProto(text string) accesslist.Inclusion {
+	switch text {
+	case inclusionExplicitText:
+		return accesslist.InclusionExplicit
 
-	case accesslistv1.Inclusion_INCLUSION_EXPLICIT:
-		return accesslist.InclusionExplicit, false
-
-	case accesslistv1.Inclusion_INCLUSION_IMPLICIT:
-		return accesslist.InclusionImplicit, false
+	case inclusionImplicitText:
+		return accesslist.InclusionImplicit
 
 	default:
-		return 0, false
+		return accesslist.InclusionUnspecified
 	}
 }

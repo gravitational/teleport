@@ -49,6 +49,18 @@ const (
 	inclusionExplicitText    string = "explicit"
 )
 
+var inclusionToText map[Inclusion]string = map[Inclusion]string{
+	InclusionUnspecified: inclusionUnspecifiedText,
+	InclusionExplicit:    inclusionExplicitText,
+	InclusionImplicit:    inclusionImplicitText,
+}
+
+var textToInclusion map[string]Inclusion = map[string]Inclusion{
+	inclusionUnspecifiedText: InclusionUnspecified,
+	inclusionExplicitText:    InclusionExplicit,
+	inclusionImplicitText:    InclusionImplicit,
+}
+
 // MarshalYAML implements custom YAML marshaling for the Inclusion
 // type, rendering the value in YAML as a self-describing string,
 // rather than a cryptic number.
@@ -83,19 +95,11 @@ func (i Inclusion) String() string {
 // marshall implements all of the marshaling behavior common to
 // the top-level marshalers.
 func (i Inclusion) marshal() (string, error) {
-	switch i {
-	case InclusionUnspecified:
-		return inclusionUnspecifiedText, nil
-
-	case InclusionExplicit:
-		return inclusionExplicitText, nil
-
-	case InclusionImplicit:
-		return inclusionImplicitText, nil
-
-	default:
-		return "", trace.BadParameter("invalid inclusion value: %d", uint(i))
+	if text, ok := inclusionToText[i]; ok {
+		return text, nil
 	}
+
+	return "", trace.BadParameter("invalid inclusion value: %d", uint(i))
 }
 
 // UnmarshalYAML implements custom YAML un-marshaling for an Inclusion value,
@@ -123,21 +127,10 @@ func (i *Inclusion) UnmarshalJSON(data []byte) error {
 // unmarshal implements all of the un-marshaling operation common to both the
 // JSON and YAML un-marshaler.
 func (i *Inclusion) unmarshal(text string) error {
-	var val Inclusion
-	switch text {
-	case inclusionUnspecifiedText:
-		val = InclusionUnspecified
-
-	case inclusionExplicitText:
-		val = InclusionExplicit
-
-	case inclusionImplicitText:
-		val = InclusionImplicit
-
-	default:
-		return trace.BadParameter("Invalid inclusion mode text %q", text)
+	if value, ok := textToInclusion[text]; ok {
+		(*i) = value
+		return nil
 	}
 
-	(*i) = val
-	return nil
+	return trace.BadParameter("Invalid inclusion mode text %q", text)
 }

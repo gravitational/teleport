@@ -37,11 +37,6 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	membership := accesslist.InclusionUnspecified
-	if enumVal, ok := fromInclusionProto(msg.Spec.Membership); ok {
-		membership = enumVal
-	}
-
 	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListMemberSpec{
 		AccessList: msg.Spec.AccessList,
 		Name:       msg.Spec.Name,
@@ -49,7 +44,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		Expires:    msg.Spec.Expires.AsTime(),
 		Reason:     msg.Spec.Reason,
 		AddedBy:    msg.Spec.AddedBy,
-		Membership: membership,
+		Membership: fromInclusionProto(msg.Spec.Membership),
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
@@ -85,11 +80,6 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
 	}
 
-	membership := accesslistv1.Inclusion_INCLUSION_UNSPECIFIED
-	if enumVal, ok := toInclusionProto(member.Spec.Membership); ok {
-		membership = enumVal
-	}
-
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
 		Spec: &accesslistv1.MemberSpec{
@@ -99,7 +89,7 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			Expires:          timestamppb.New(member.Spec.Expires),
 			Reason:           member.Spec.Reason,
 			AddedBy:          member.Spec.AddedBy,
-			Membership:       membership,
+			Membership:       toInclusionProto(member.Spec.Membership),
 			IneligibleStatus: ineligibleStatus,
 		},
 	}
