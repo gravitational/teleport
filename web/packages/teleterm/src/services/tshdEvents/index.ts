@@ -207,6 +207,10 @@ function createService(logger: Logger): {
           }
         );
     },
+    promptMFA: () => {
+      // TODO (joerger): Handle MFA prompt with totp/webauthn modal.
+      logger.info('Received prompt mfa request');
+    },
   };
 
   return { service, subscribeToTshdEvent };
