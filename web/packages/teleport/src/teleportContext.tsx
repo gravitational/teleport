@@ -68,15 +68,20 @@ class TeleportContext implements types.Context {
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isUsageBasedBilling`
+  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
   // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isUsageBasedBilling,
-    activeSessions: cfg.isUsageBasedBilling,
-    accessRequests: cfg.isUsageBasedBilling,
-    premiumSupport: cfg.isUsageBasedBilling,
-    trustedDevices: cfg.isUsageBasedBilling,
-    externalCloudAudit: cfg.isUsageBasedBilling,
+    authConnectors: cfg.isTeam,
+    activeSessions: cfg.isTeam,
+    premiumSupport: cfg.isTeam,
+    externalCloudAudit: cfg.isTeam,
+    // Below should be locked for the following cases:
+    //  1) is team
+    //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
+    accessRequests:
+      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+    trustedDevices:
+      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
   // init fetches data required for initial rendering of components.
