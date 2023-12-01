@@ -815,7 +815,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 		{
 			desc: "EKS fetcher is skipped on initialization error (missing region)",
 			cloudClients: &cloud.TestCloudClients{
-				STS: &mocks.STSMock{AssumeRoleErrors: map[string]error{"arn:aws:iam::123456789012:role/teleport-role": trace.AccessDenied("unauthorized")}},
+				STS: &mocks.STSMock{},
 				EKS: &mocks.EKSMock{},
 			},
 			matchers: Matchers{

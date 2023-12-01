@@ -38,13 +38,11 @@ import (
 // STSMock mocks AWS STS API.
 type STSMock struct {
 	stsiface.STSAPI
-	ARN              string
-	URL              *url.URL
-	AssumeRoleErrors map[string]error
-
-	mu                     sync.Mutex
+	ARN                    string
+	URL                    *url.URL
 	assumedRoleARNs        []string
 	assumedRoleExternalIDs []string
+	mu                     sync.Mutex
 }
 
 func (m *STSMock) GetAssumedRoleARNs() []string {
@@ -79,13 +77,8 @@ func (m *STSMock) AssumeRole(in *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, er
 func (m *STSMock) AssumeRoleWithContext(ctx aws.Context, in *sts.AssumeRoleInput, _ ...request.Option) (*sts.AssumeRoleOutput, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	roleArn := aws.StringValue(in.RoleArn)
-	if val, ok := m.AssumeRoleErrors[roleArn]; ok {
-		return nil, val
-	}
-
-	if !slices.Contains(m.assumedRoleARNs, roleArn) {
-		m.assumedRoleARNs = append(m.assumedRoleARNs, roleArn)
+	if !slices.Contains(m.assumedRoleARNs, aws.StringValue(in.RoleArn)) {
+		m.assumedRoleARNs = append(m.assumedRoleARNs, aws.StringValue(in.RoleArn))
 		m.assumedRoleExternalIDs = append(m.assumedRoleExternalIDs, aws.StringValue(in.ExternalId))
 	}
 	expiry := time.Now().Add(60 * time.Minute)
