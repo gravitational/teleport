@@ -5921,7 +5921,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
+	if f.IsLegacy() || f.IGSEnabled() {
 		return nil // unlimited
 	}
 	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
