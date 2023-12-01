@@ -183,11 +183,11 @@ type TerminalServiceClient interface {
 	GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(ctx context.Context, in *ListUnifiedResourcesRequest, opts ...grpc.CallOption) (*ListUnifiedResourcesResponse, error)
-	// GetUserPreferences returns the preferences for a given user.
+	// GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
 	GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error)
-	// UpdateUserPreferences updates the preferences for a given user.
+	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
-	UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*UpdateUserPreferencesResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -576,8 +576,8 @@ func (c *terminalServiceClient) GetUserPreferences(ctx context.Context, in *GetU
 	return out, nil
 }
 
-func (c *terminalServiceClient) UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
+func (c *terminalServiceClient) UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*UpdateUserPreferencesResponse, error) {
+	out := new(UpdateUserPreferencesResponse)
 	err := c.cc.Invoke(ctx, TerminalService_UpdateUserPreferences_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -695,11 +695,11 @@ type TerminalServiceServer interface {
 	GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error)
-	// GetUserPreferences returns the preferences for a given user.
+	// GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
 	GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error)
-	// UpdateUserPreferences updates the preferences for a given user.
+	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
-	UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*EmptyResponse, error)
+	UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -818,7 +818,7 @@ func (UnimplementedTerminalServiceServer) ListUnifiedResources(context.Context, 
 func (UnimplementedTerminalServiceServer) GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserPreferences not implemented")
 }
-func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*EmptyResponse, error) {
+func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserPreferences not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}

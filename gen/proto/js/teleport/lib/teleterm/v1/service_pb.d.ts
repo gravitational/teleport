@@ -1848,6 +1848,30 @@ export namespace UpdateUserPreferencesRequest {
     }
 }
 
+export class UpdateUserPreferencesResponse extends jspb.Message { 
+
+    hasUserPreferences(): boolean;
+    clearUserPreferences(): void;
+    getUserPreferences(): UserPreferences | undefined;
+    setUserPreferences(value?: UserPreferences): UpdateUserPreferencesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateUserPreferencesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateUserPreferencesResponse): UpdateUserPreferencesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateUserPreferencesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateUserPreferencesResponse;
+    static deserializeBinaryFromReader(message: UpdateUserPreferencesResponse, reader: jspb.BinaryReader): UpdateUserPreferencesResponse;
+}
+
+export namespace UpdateUserPreferencesResponse {
+    export type AsObject = {
+        userPreferences?: UserPreferences.AsObject,
+    }
+}
+
 export class UserPreferences extends jspb.Message { 
 
     hasClusterPreferences(): boolean;

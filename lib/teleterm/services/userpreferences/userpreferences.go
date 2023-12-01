@@ -23,43 +23,95 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
-func Get(ctx context.Context, client Client) (*api.UserPreferences, error) {
-	preferences, err := client.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
+func Get(ctx context.Context, rootClient Client, leafClient Client) (*api.UserPreferences, error) {
+	rootPreferencesResponse, err := rootClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rootPreferences := rootPreferencesResponse.GetPreferences()
+
+	var leafPreferences *userpreferencesv1.UserPreferences
+	if leafClient != nil {
+		preferences, err := leafClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		leafPreferences = preferences.GetPreferences()
+	}
+
+	clusterPreferences := rootPreferences.GetClusterPreferences()
+	if leafPreferences != nil {
+		clusterPreferences = leafPreferences.GetClusterPreferences()
+	}
+
 	return &api.UserPreferences{
-		ClusterPreferences:         preferences.GetPreferences().ClusterPreferences,
-		UnifiedResourcePreferences: preferences.GetPreferences().UnifiedResourcePreferences,
+		UnifiedResourcePreferences: rootPreferences.UnifiedResourcePreferences,
+		ClusterPreferences:         clusterPreferences,
 	}, nil
 }
 
 // Update updates the preferences for a given user.
 // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
-func Update(ctx context.Context, client Client, newPreferences *api.UserPreferences) error {
+func Update(ctx context.Context, rootClient Client, leafClient Client, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
 	// We have to fetch the full user preferences struct and modify only
 	// the fields that change.
 	// Calling `UpsertUserPreferences` with only the modified values would reset
 	// the rest of the preferences.
-	currentPreferencesResponse, err := client.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
+	rootPreferencesResponse, err := rootClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	rootPreferences := rootPreferencesResponse.GetPreferences()
+
+	var leafPreferences *userpreferencesv1.UserPreferences
+	if leafClient != nil {
+		response, err := leafClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		leafPreferences = response.GetPreferences()
 	}
 
-	currentPreferences := currentPreferencesResponse.GetPreferences()
+	hasUnifiedResourcePreferencesForRoot := newPreferences.UnifiedResourcePreferences != nil
+	hasClusterPreferencesForRoot := newPreferences.ClusterPreferences != nil && leafPreferences == nil
 
-	if newPreferences.UnifiedResourcePreferences != nil {
-		currentPreferences.UnifiedResourcePreferences = newPreferences.UnifiedResourcePreferences
+	if hasUnifiedResourcePreferencesForRoot || hasClusterPreferencesForRoot {
+		if hasUnifiedResourcePreferencesForRoot {
+			rootPreferences.UnifiedResourcePreferences = newPreferences.UnifiedResourcePreferences
+		}
+		if hasClusterPreferencesForRoot {
+			rootPreferences.ClusterPreferences = newPreferences.ClusterPreferences
+		}
+
+		err = rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
+			Preferences: rootPreferences,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	if newPreferences.ClusterPreferences != nil {
-		currentPreferences.ClusterPreferences = newPreferences.ClusterPreferences
+
+	hasClusterPreferencesForLeaf := newPreferences.ClusterPreferences != nil && leafPreferences != nil
+	if hasClusterPreferencesForLeaf {
+		leafPreferences.ClusterPreferences = newPreferences.ClusterPreferences
+
+		err = leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
+			Preferences: leafPreferences,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	err = client.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
-		Preferences: currentPreferences,
-	})
+	updatedPreferences := &api.UserPreferences{
+		ClusterPreferences:         rootPreferences.ClusterPreferences,
+		UnifiedResourcePreferences: rootPreferences.UnifiedResourcePreferences,
+	}
+	if leafPreferences != nil {
+		updatedPreferences.ClusterPreferences = leafPreferences.ClusterPreferences
+	}
 
-	return trace.Wrap(err)
+	return updatedPreferences, nil
 }
 
 // Client represents auth.ClientI methods used by [Get] and [Update].

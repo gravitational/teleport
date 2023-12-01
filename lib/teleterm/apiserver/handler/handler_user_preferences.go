@@ -37,16 +37,18 @@ func (s *Handler) GetUserPreferences(ctx context.Context, req *api.GetUserPrefer
 	return &api.GetUserPreferencesResponse{UserPreferences: preferences}, nil
 }
 
-func (s *Handler) UpdateUserPreferences(ctx context.Context, req *api.UpdateUserPreferencesRequest) (*api.EmptyResponse, error) {
+func (s *Handler) UpdateUserPreferences(ctx context.Context, req *api.UpdateUserPreferencesRequest) (*api.UpdateUserPreferencesResponse, error) {
 	clusterURI, err := uri.Parse(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.DaemonService.UpdateUserPreferences(ctx, clusterURI, req.GetUserPreferences())
+	updated, err := s.DaemonService.UpdateUserPreferences(ctx, clusterURI, req.GetUserPreferences())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.EmptyResponse{}, nil
+	return &api.UpdateUserPreferencesResponse{
+		UserPreferences: updated,
+	}, nil
 }

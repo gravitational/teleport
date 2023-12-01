@@ -147,11 +147,11 @@ service TerminalService {
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
   // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
   rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
-  // GetUserPreferences returns the preferences for a given user.
+  // GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
   rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
-  // UpdateUserPreferences updates the preferences for a given user.
+  // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
   // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
-  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (EmptyResponse);
+  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse);
 }
 
 message EmptyResponse {}
@@ -570,6 +570,10 @@ message GetUserPreferencesResponse {
 message UpdateUserPreferencesRequest {
   string cluster_uri = 1;
   UserPreferences user_preferences = 2;
+}
+
+message UpdateUserPreferencesResponse {
+  UserPreferences user_preferences = 1;
 }
 
 // UserPreferences is a subset of teleport.userpreferences.v1.UserPreferences.

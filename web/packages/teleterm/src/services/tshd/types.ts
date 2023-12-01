@@ -291,7 +291,7 @@ export type TshClient = {
   updateUserPreferences: (
     params: apiService.UpdateUserPreferencesRequest.AsObject,
     abortSignal?: TshAbortSignal
-  ) => void;
+  ) => Promise<UserPreferences>;
 };
 
 export type TshAbortController = {

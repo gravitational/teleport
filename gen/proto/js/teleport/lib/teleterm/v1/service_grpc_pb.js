@@ -722,6 +722,17 @@ function deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest(buffe
   return teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateUserPreferencesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest');
@@ -1218,7 +1229,7 @@ listUnifiedResources: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
   },
-  // GetUserPreferences returns the preferences for a given user.
+  // GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
 getUserPreferences: {
     path: '/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences',
     requestStream: false,
@@ -1230,18 +1241,18 @@ getUserPreferences: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_GetUserPreferencesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetUserPreferencesResponse,
   },
-  // UpdateUserPreferences updates the preferences for a given user.
+  // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
 updateUserPreferences: {
     path: '/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences',
     requestStream: false,
     responseStream: false,
     requestType: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.EmptyResponse,
+    responseType: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse,
     requestSerialize: serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest,
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
   },
 };
 

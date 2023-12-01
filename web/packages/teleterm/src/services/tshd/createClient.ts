@@ -887,7 +887,7 @@ export default function createClient(
     updateUserPreferences(
       params: api.UpdateUserPreferencesRequest.AsObject,
       abortSignal?: types.TshAbortSignal
-    ): Promise<void> {
+    ): Promise<api.UserPreferences.AsObject> {
       const userPreferences = new UserPreferences();
       if (params.userPreferences.clusterPreferences) {
         userPreferences.setClusterPreferences(
@@ -917,12 +917,13 @@ export default function createClient(
           .setClusterUri(params.clusterUri)
           .setUserPreferences(userPreferences);
 
-        return new Promise<void>((resolve, reject) => {
-          callRef.current = tshd.updateUserPreferences(req, err => {
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.updateUserPreferences(req, (err, response) => {
             if (err) {
               reject(err);
             } else {
-              resolve();
+              const res = response.toObject();
+              resolve(res.userPreferences);
             }
           });
         });
