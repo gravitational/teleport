@@ -18,6 +18,8 @@ import React from 'react';
 import { render, screen, waitFor } from 'design/utils/testing';
 import { AttemptStatus } from 'shared/hooks/useAsync';
 
+import { act } from '@testing-library/react';
+
 import {
   makeLoggedInUser,
   makeRootCluster,
@@ -75,7 +77,7 @@ describe('setup of DocumentConnectMyComputer', () => {
 
     render(elementToRender);
 
-    screen.getByText('Connect').click();
+    act(() => screen.getByText('Connect').click());
 
     const step = await screen.findByTestId('Joining the cluster');
 
@@ -100,7 +102,7 @@ describe('setup of DocumentConnectMyComputer', () => {
     render(elementToRender);
 
     // Start the setup.
-    screen.getByText('Connect').click();
+    act(() => screen.getByText('Connect').click());
 
     // Wait for the setup to finish.
     const step = await screen.findByTestId('Joining the cluster');
@@ -131,7 +133,7 @@ describe('setup of DocumentConnectMyComputer', () => {
     render(elementToRender);
 
     // Start the setup and wait for the last step to fail.
-    screen.getByText('Connect').click();
+    act(() => screen.getByText('Connect').click());
     const step = await screen.findByTestId('Joining the cluster');
     await waitFor(
       () => expect(step).toHaveAttribute('data-teststatus', 'error'),
@@ -139,7 +141,7 @@ describe('setup of DocumentConnectMyComputer', () => {
     );
 
     // Retry the setup and wait for the last step to succeed.
-    screen.getByText('Retry').click();
+    act(() => screen.getByText('Retry').click());
     await waitFor(
       () => expect(step).toHaveAttribute('data-teststatus', 'success'),
       { container: step }

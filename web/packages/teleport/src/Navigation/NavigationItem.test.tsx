@@ -22,6 +22,8 @@ import { generatePath, Router } from 'react-router';
 
 import { createMemoryHistory, MemoryHistory } from 'history';
 
+import { act } from '@testing-library/react';
+
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import TeleportContext from 'teleport/teleportContext';
 
@@ -101,7 +103,7 @@ describe('navigation items', () => {
   it('should render the feature link correctly', () => {
     render(getNavigationItem({ ctx, history }));
 
-    expect(screen.getByText('Users').closest('a')).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute(
       'href',
       '/web/cluster/root/feature'
     );
@@ -110,14 +112,14 @@ describe('navigation items', () => {
   it('should change the feature link to the leaf cluster when navigating to a leaf cluster', () => {
     render(getNavigationItem({ ctx, history }));
 
-    expect(screen.getByText('Users').closest('a')).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute(
       'href',
       '/web/cluster/root/feature'
     );
 
-    history.push('/web/cluster/leaf/feature');
+    act(() => history.push('/web/cluster/leaf/feature'));
 
-    expect(screen.getByText('Users').closest('a')).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute(
       'href',
       '/web/cluster/leaf/feature'
     );

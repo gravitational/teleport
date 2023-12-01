@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
@@ -28,14 +28,16 @@ const WorkspaceContext = React.createContext<{
   accessRequestsService: AccessRequestsService;
 }>(null);
 
-export const WorkspaceContextProvider: React.FC<{
-  value: {
-    rootClusterUri: RootClusterUri;
-    localClusterUri: ClusterUri;
-    documentsService: DocumentsService;
-    accessRequestsService: AccessRequestsService;
-  };
-}> = props => {
+export const WorkspaceContextProvider: React.FC<
+  PropsWithChildren<{
+    value: {
+      rootClusterUri: RootClusterUri;
+      localClusterUri: ClusterUri;
+      documentsService: DocumentsService;
+      accessRequestsService: AccessRequestsService;
+    };
+  }>
+> = props => {
   return <WorkspaceContext.Provider {...props} />;
 };
 

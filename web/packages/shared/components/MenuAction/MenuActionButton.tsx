@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import Menu from 'design/Menu';
 import { ButtonBorder } from 'design';
 import { ChevronDown } from 'design/Icon';
@@ -28,7 +28,9 @@ type Props = MenuProps & {
   menuProps?: MenuProps;
 };
 
-export default class MenuActionIcon extends React.Component<Props> {
+export default class MenuActionIcon extends React.Component<
+  PropsWithChildren<Props>
+> {
   anchorEl = null;
 
   state = {

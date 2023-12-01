@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-export const MockWorkspaceContextProvider: React.FC<{
-  rootClusterUri?: RootClusterUri;
-}> = props => {
+export const MockWorkspaceContextProvider: React.FC<
+  PropsWithChildren<{
+    rootClusterUri?: RootClusterUri;
+  }>
+> = props => {
   const appContext = useAppContext();
 
   const rootClusterUri =

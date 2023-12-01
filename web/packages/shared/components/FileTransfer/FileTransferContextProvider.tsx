@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import React, { useContext, useState, FC, createContext } from 'react';
+import React, {
+  useContext,
+  useState,
+  FC,
+  createContext,
+  PropsWithChildren,
+} from 'react';
 
 import { FileTransferDialogDirection } from './FileTransferStateless';
 import { FilesStore, useFilesStore } from './useFilesStore';
@@ -27,9 +33,11 @@ const FileTransferContext = createContext<{
   filesStore: FilesStore;
 }>(null);
 
-export const FileTransferContextProvider: FC<{
-  openedDialog?: FileTransferDialogDirection;
-}> = props => {
+export const FileTransferContextProvider: FC<
+  PropsWithChildren<{
+    openedDialog?: FileTransferDialogDirection;
+  }>
+> = props => {
   const filesStore = useFilesStore();
   const [openedDialog, setOpenedDialog] = useState<
     FileTransferDialogDirection | undefined

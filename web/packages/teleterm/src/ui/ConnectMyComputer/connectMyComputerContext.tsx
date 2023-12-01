@@ -17,6 +17,7 @@
 import React, {
   createContext,
   FC,
+  PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
@@ -113,9 +114,11 @@ export interface ConnectMyComputerContext {
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
 
-export const ConnectMyComputerContextProvider: FC<{
-  rootClusterUri: RootClusterUri;
-}> = ({ rootClusterUri, children }) => {
+export const ConnectMyComputerContextProvider: FC<
+  PropsWithChildren<{
+    rootClusterUri: RootClusterUri;
+  }>
+> = ({ rootClusterUri, children }) => {
   const ctx = useAppContext();
   const {
     mainProcessClient,

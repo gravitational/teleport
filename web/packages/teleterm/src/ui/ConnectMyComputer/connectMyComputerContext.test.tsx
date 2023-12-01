@@ -17,7 +17,7 @@
 import { EventEmitter } from 'node:events';
 
 import React from 'react';
-import { act, renderHook } from '@testing-library/react-hooks';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -205,7 +205,7 @@ test('failed autostart flips the workspace autoStart flag to false', async () =>
     true
   );
 
-  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+  const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
@@ -256,7 +256,7 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     true
   );
 
-  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+  const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );

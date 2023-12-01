@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { useTheme } from 'styled-components';
 
 import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
@@ -25,7 +25,7 @@ type Props = {
   sticky?: boolean;
 };
 
-export const ToolTipNoPermBadge: React.FC<Props> = ({
+export const ToolTipNoPermBadge: React.FC<PropsWithChildren<Props>> = ({
   children,
   borderRadius = 2,
   badgeTitle = BadgeTitle.LackingPermissions,

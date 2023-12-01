@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import TeleportContext from './teleportContext';
 
@@ -22,7 +22,7 @@ import TeleportContext from './teleportContext';
 // access TeleportContext instance from within the virtual DOM
 const ReactContext = React.createContext<TeleportContext>(null);
 
-const TeleportContextProvider: React.FC<Props> = props => {
+const TeleportContextProvider: React.FC<PropsWithChildren<Props>> = props => {
   return <ReactContext.Provider value={props.ctx} children={props.children} />;
 };
 

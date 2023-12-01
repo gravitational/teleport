@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { Box, Card, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
@@ -133,7 +133,7 @@ export const Support = ({
   );
 };
 
-export const DataContainer: React.FC<{ title: string }> = ({
+export const DataContainer: React.FC<PropsWithChildren<{ title: string }>> = ({
   title,
   children,
 }) => (

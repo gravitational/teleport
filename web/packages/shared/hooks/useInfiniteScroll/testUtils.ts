@@ -15,7 +15,6 @@
  */
 
 import 'whatwg-fetch';
-import { RenderResult } from '@testing-library/react-hooks';
 
 import { Node } from 'teleport/services/nodes';
 
@@ -94,12 +93,10 @@ export function newFetchFunc({
   };
 }
 
-export function resourceNames(result: RenderResult<{ resources: Node[] }>) {
-  return result.current.resources.map(r => r.hostname);
+export function resourceNames(result: { resources: Node[] }) {
+  return result.resources.map(r => r.hostname);
 }
 
-export function resourceClusterIds(
-  result: RenderResult<{ resources: Node[] }>
-) {
-  return result.current.resources.map(r => r.clusterId);
+export function resourceClusterIds(result: { resources: Node[] }) {
+  return result.resources.map(r => r.clusterId);
 }

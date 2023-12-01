@@ -47,6 +47,7 @@ const service = {
   },
 
   fetchUser(username: string) {
+    console.log('here');
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 

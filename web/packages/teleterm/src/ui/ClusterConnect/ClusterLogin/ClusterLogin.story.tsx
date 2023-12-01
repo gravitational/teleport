@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { Box } from 'design';
 import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
@@ -325,7 +325,7 @@ export const SsoPrompt = () => {
   );
 };
 
-const TestContainer: React.FC = ({ children }) => (
+const TestContainer: React.FC<PropsWithChildren<unknown>> = ({ children }) => (
   <>
     <span>Bordered box is not part of the component</span>
     <Box

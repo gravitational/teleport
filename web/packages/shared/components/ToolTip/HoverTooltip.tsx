@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 import { Popover, Flex, Text } from 'design';
 
-export const HoverTooltip: React.FC<{
-  tipContent: string | undefined;
-  showOnlyOnOverflow?: boolean;
-  className?: string;
-}> = ({ tipContent, children, showOnlyOnOverflow = false, className }) => {
+export const HoverTooltip: React.FC<
+  PropsWithChildren<{
+    tipContent: string | undefined;
+    showOnlyOnOverflow?: boolean;
+    className?: string;
+  }>
+> = ({ tipContent, children, showOnlyOnOverflow = false, className }) => {
   const [anchorEl, setAnchorEl] = useState<Element | undefined>();
   const open = Boolean(anchorEl);
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
@@ -25,9 +25,11 @@ import { IAppContext } from 'teleterm/ui/types';
 
 import { MockAppContext } from './mocks';
 
-export const MockAppContextProvider: React.FC<{
-  appContext?: IAppContext;
-}> = props => {
+export const MockAppContextProvider: React.FC<
+  PropsWithChildren<{
+    appContext?: IAppContext;
+  }>
+> = props => {
   const appContext = new MockAppContext();
   return (
     <DndProvider backend={HTML5Backend}>

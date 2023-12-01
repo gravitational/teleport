@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { Box, ButtonPrimary, ButtonSecondary, ButtonText } from 'design';
 
 export const ActionButtons = ({
@@ -74,10 +74,12 @@ export const ActionButtons = ({
   );
 };
 
-export const AlternateInstructionButton: React.FC<{
-  onClick(): void;
-  disabled?: boolean;
-}> = ({ onClick, children, disabled = false }) => {
+export const AlternateInstructionButton: React.FC<
+  PropsWithChildren<{
+    onClick(): void;
+    disabled?: boolean;
+  }>
+> = ({ onClick, children, disabled = false }) => {
   return (
     <ButtonText
       disabled={disabled}

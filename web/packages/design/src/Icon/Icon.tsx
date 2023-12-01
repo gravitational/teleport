@@ -14,12 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
 import { space, color, borderRadius } from 'design/system';
 
-export function Icon({ size = 'medium', children, ...otherProps }: Props) {
+export function Icon({
+  size = 'medium',
+  children,
+  ...otherProps
+}: PropsWithChildren<Props>) {
   let iconSize = size;
   if (size === 'small') {
     iconSize = 16;

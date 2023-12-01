@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 import { Popover, Box } from 'design';
 
@@ -25,7 +25,7 @@ type Props = {
   color: string;
 };
 
-export const ToolTipBadge: React.FC<Props> = ({
+export const ToolTipBadge: React.FC<PropsWithChildren<Props>> = ({
   children,
   borderRadius = 2,
   badgeTitle,

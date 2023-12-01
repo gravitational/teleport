@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, waitFor } from '@testing-library/react';
 
 import cfg from 'teleport/config';
 
@@ -75,7 +75,7 @@ afterEach(() => {
 
 describe('components/BannerList/useAlerts', () => {
   it('fetches cluster alerts on load', async () => {
-    const { result, waitFor } = renderHook(() => useAlerts());
+    const { result } = renderHook(() => useAlerts());
     await waitFor(() => {
       expect(result.current.alerts).toEqual(ALERTS);
     });
@@ -83,7 +83,7 @@ describe('components/BannerList/useAlerts', () => {
 
   it('will not return upgrade suggestions on dashboards', async () => {
     cfg.isDashboard = true;
-    const { result, waitFor } = renderHook(() => useAlerts());
+    const { result } = renderHook(() => useAlerts());
     await waitFor(() => {
       const alerts = result.current.alerts;
       alerts.forEach(alert => {
@@ -94,7 +94,7 @@ describe('components/BannerList/useAlerts', () => {
   });
 
   it('provides a method that dismisses alerts for 24h', async () => {
-    const { result, waitFor } = renderHook(() => useAlerts());
+    const { result } = renderHook(() => useAlerts());
     await waitFor(() => {
       expect(result.current.alerts).toEqual(ALERTS);
     });
@@ -113,7 +113,7 @@ describe('components/BannerList/useAlerts', () => {
     });
     localStorage.setItem('disabledAlerts', dismissed);
 
-    const { result, waitFor } = renderHook(() => useAlerts());
+    const { result } = renderHook(() => useAlerts());
     await waitFor(() => {
       expect(result.current.alerts).toEqual(ALERTS.slice(-1));
     });

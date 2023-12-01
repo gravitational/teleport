@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { IAppContext } from 'teleterm/ui/types';
 
 export const AppReactContext = React.createContext<IAppContext>(null);
 
-const AppContextProvider: React.FC<Props> = props => {
+const AppContextProvider: React.FC<PropsWithChildren<Props>> = props => {
   return <AppReactContext.Provider {...props} />;
 };
 

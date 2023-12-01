@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { FC, useEffect } from 'react';
+import React, { FC, PropsWithChildren, useEffect } from 'react';
 import styled from 'styled-components';
 import { ButtonIcon, Flex, Text } from 'design';
 import { CircleCheck, Cross, Warning } from 'design/Icon';
@@ -88,7 +88,7 @@ export function FileListItem(props: FileListItemProps) {
   );
 }
 
-const Error: FC = props => {
+const Error: FC<PropsWithChildren<unknown>> = props => {
   return (
     <Flex alignItems="center" mt={1}>
       <Warning size="small" mr={1} color="inherit" />

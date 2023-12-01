@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect } from 'react';
+import React, { PropsWithChildren, useEffect } from 'react';
 import { throttle } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -43,7 +43,7 @@ const events = [
   'pointerdown',
 ];
 
-const Authenticated: React.FC = ({ children }) => {
+const Authenticated: React.FC<PropsWithChildren<unknown>> = ({ children }) => {
   const { attempt, setAttempt } = useAttempt('processing');
 
   useEffect(() => {
