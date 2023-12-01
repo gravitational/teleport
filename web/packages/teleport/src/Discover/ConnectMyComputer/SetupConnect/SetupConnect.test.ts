@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, waitFor } from '@testing-library/react';
 
 import * as useTeleport from 'teleport/useTeleport';
 import NodeService, { Node } from 'teleport/services/nodes';
@@ -62,7 +62,7 @@ describe('usePollForConnectMyComputerNode', () => {
       .spyOn(useTeleport, 'default')
       .mockReturnValue({ nodeService } as TeleportContext);
 
-    const { result, waitForValueToChange } = renderHook(() =>
+    const { result } = renderHook(() =>
       usePollForConnectMyComputerNode({
         username: 'alice',
         clusterId: 'foo',
@@ -71,13 +71,10 @@ describe('usePollForConnectMyComputerNode', () => {
       })
     );
 
-    expect(result.error).toBeUndefined();
     expect(result.current.node).toBeFalsy();
     expect(result.current.isPolling).toBe(true);
 
-    await waitForValueToChange(() => result.current.node, { interval: 3 });
-
-    expect(result.current.node).toEqual(expectedNode);
+    await waitFor(() => expect(result.current.node).toEqual(expectedNode));
     expect(result.current.isPolling).toBe(false);
   });
 
@@ -109,18 +106,14 @@ describe('usePollForConnectMyComputerNode', () => {
       .spyOn(useTeleport, 'default')
       .mockReturnValue({ nodeService, userService } as TeleportContext);
 
-    const { result, rerender, waitFor, waitForValueToChange } = renderHook(
-      usePollForConnectMyComputerNode,
-      {
-        initialProps: {
-          reloadUser: false,
-          username: 'alice',
-          clusterId: 'foo',
-          pingInterval: 1,
-        },
-      }
-    );
-    expect(result.error).toBeUndefined();
+    const { result, rerender } = renderHook(usePollForConnectMyComputerNode, {
+      initialProps: {
+        reloadUser: false,
+        username: 'alice',
+        clusterId: 'foo',
+        pingInterval: 1,
+      },
+    });
     await waitFor(() => {
       expect(nodeService.fetchNodes).toHaveBeenCalled();
     });
@@ -132,12 +125,12 @@ describe('usePollForConnectMyComputerNode', () => {
       clusterId: 'foo',
       pingInterval: 1,
     });
-    expect(result.error).toBeUndefined();
 
-    await waitForValueToChange(() => result.current.node, { interval: 3 });
+    await waitFor(() => expect(result.current.node).toBeDefined());
+
     expect(userService.reloadUser).toHaveBeenCalled();
 
-    expect(result.current.node).toEqual(expectedNode);
+    await waitFor(() => expect(result.current.node).toEqual(expectedNode));
     expect(result.current.isPolling).toBe(false);
   });
 });

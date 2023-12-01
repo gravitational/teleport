@@ -19,6 +19,7 @@
 import React, {
   createContext,
   FC,
+  PropsWithChildren,
   useCallback,
   useMemo,
   useState,
@@ -39,7 +40,9 @@ enum KeyboardArrowNavigationKeys {
   Enter = 'Enter',
 }
 
-export const KeyboardArrowsNavigation: FC = props => {
+export const KeyboardArrowsNavigation: FC<
+  PropsWithChildren<unknown>
+> = props => {
   const [items, setItems] = useState<RunActiveItemHandler[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 

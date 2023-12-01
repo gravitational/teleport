@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { PropsWithChildren, useEffect, useRef } from 'react';
 
 export enum UserAgent {
   Windows = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/118.0.2088.88',
@@ -29,10 +29,9 @@ export enum UserAgent {
  * level in stories. Useful for creating stories for components which return different results based
  * on the return value of getPlatform.
  */
-export const OverrideUserAgent: React.FC<{ userAgent: UserAgent }> = ({
-  userAgent,
-  children,
-}) => {
+export const OverrideUserAgent: React.FC<
+  PropsWithChildren<{ userAgent: UserAgent }>
+> = ({ userAgent, children }) => {
   const originalUserAgentRef = useRef<string>(window.navigator.userAgent);
 
   if (window.navigator.userAgent !== userAgent) {

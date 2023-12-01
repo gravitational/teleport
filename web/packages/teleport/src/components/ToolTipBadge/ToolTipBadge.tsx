@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 import { Popover, Box } from 'design';
 
@@ -27,7 +27,7 @@ type Props = {
   color: string;
 };
 
-export const ToolTipBadge: React.FC<Props> = ({
+export const ToolTipBadge: React.FC<PropsWithChildren<Props>> = ({
   children,
   borderRadius = 2,
   badgeTitle,
