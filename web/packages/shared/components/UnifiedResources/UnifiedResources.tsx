@@ -30,7 +30,7 @@ import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
   DefaultTab,
