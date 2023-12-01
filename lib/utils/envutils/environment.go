@@ -91,35 +91,13 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	return *env, nil
 }
 
-var unsafeEnvironmentVars = map[string]struct{}{
+var unsafeEnvironmentPrefixes = []string{
 	// Linux
-	// values taken from 'man ld.so' https://man7.org/linux/man-pages/man8/ld.so.8.html
-	"LD_ASSUME_KERNEL":         {},
-	"LD_AUDIT":                 {},
-	"LD_BIND_NOW":              {},
-	"LD_BIND_NOT":              {},
-	"LD_DYNAMIC_WEAK":          {},
-	"LD_LIBRARY_PATH":          {},
-	"LD_ORIGIN_PATH":           {},
-	"LD_POINTER_GUARD":         {},
-	"LD_PREFER_MAP_32BIT_EXEC": {},
-	"LD_PRELOAD":               {},
-	"LD_PROFILE":               {},
-	"LD_RUNPATH":               {},
-	"LD_RPATH":                 {},
-	"LD_USE_LOAD_BIAS":         {},
+	// Covering cases from LD (man ld.so) to prevent injection like LD_PRELOAD
+	"LD_",
 	// macOS
-	// values taken from 'man dyld' https://www.manpagez.com/man/1/dyld/
-	"DYLD_FRAMEWORK_PATH":           {},
-	"DYLD_FALLBACK_FRAMEWORK_PATH":  {},
-	"DYLD_VERSIONED_FRAMEWORK_PATH": {},
-	"DYLD_LIBRARY_PATH":             {},
-	"DYLD_FALLBACK_LIBRARY_PATH":    {},
-	"DYLD_VERSIONED_LIBRARY_PATH":   {},
-	"DYLD_IMAGE_SUFFIX":             {},
-	"DYLD_INSERT_LIBRARIES":         {},
-	"DYLD_SHARED_REGION":            {},
-	"DYLD_SHARED_CACHE_DIR:":        {},
+	// Covering cases from DYLD (man dyld) to prevent injection like DYLD_LIBRARY_PATH
+	"DYLD_",
 }
 
 // SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
@@ -182,8 +160,10 @@ func (e *SafeEnv) isUnsafeKey(preventDuplicates bool, key string) bool {
 	}
 
 	upperKey := strings.ToUpper(key)
-	if _, unsafe := unsafeEnvironmentVars[upperKey]; unsafe {
-		return true
+	for _, prefix := range unsafeEnvironmentPrefixes {
+		if strings.HasPrefix(upperKey, prefix) {
+			return true
+		}
 	}
 
 	if preventDuplicates {
