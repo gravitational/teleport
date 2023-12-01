@@ -46,22 +46,12 @@ On the other hand, allowing clients to reuse webauthn credentials could have
 negative security implications if not handled carefully. Specifically, the
 client and server must clearly define:
 
-1. The webauthn credential's scope - client provided
-2. The number of reuses permitted - client provided
-3. The expiration of the credentials - server enforced (5 minutes)
+1. The webauthn credential's scope is provided by the client
+2. Reuse is requested by the client
+3. Reuse is permitted for the action - server enforced
+4. The expiration of the credentials - server enforced (5 minutes)
 
-Additionally, reusing credentials will be limited to specific scopes where it
-is required. For now, this is only "admin actions", so any other scope will be
-forbidden from reusing webauthn credentials by the Auth server.
-
-The Auth Server will also forbid reuse for specific sensitive admin actions.
-
-- Generating user and host certificates
-- Changes to the CA, including rotation
-- Access requests reviews
-- Account recovery administration
-
-Sensitive operations like "login" and "recovery" must never allow reuse.
+Note: Sensitive operations like "login" and "recovery" must never allow reuse.
 
 ### Proto
 
@@ -77,9 +67,6 @@ message SessionData {
 
 +  // Scope authorized by this webauthn session.
 +  ChallengeScope scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
-+  // AllowReuse indicates that this session can be used multiple times for
-+  // authentication, until the session expires.
-+  bool allow_reuse = 7;
 }
 
 +// Scope is a scope authorized by a webauthn challenge resolution.
@@ -97,14 +84,19 @@ message SessionData {
 +  SCOPE_SESSION = 5;
 +  // Headless login approval.
 +  SCOPE_HEADLESS = 6;
-+  // Used for various administrative actions, such as adding, updating, or deleting
-+  // administrative resources (users, roles, etc.). Admin action webauthn challenges
-+  // can optionally allow a specific number of reuses.
++  // Used for various administrative actions, such as adding, updating, or
++  // deleting administrative resources (users, roles, etc.).
 +  //
-+  // WARNING: this scope should not be used for new MFA capabilities despite its flexibility.
-+  // Instead, new scopes should be added. This scope may also be split into multiple smaller
-+  // scopes in the future.
++  // Note: this scope should not be used for new MFA capabilities that have
++  // more precise scope. Instead, new scopes should be added. This scope may
++  // also be split into multiple smaller scopes in the future.
 +  SCOPE_ADMIN_ACTION = 7;
++  // Webauthn credentials resolved from a challenge with this scope can be
++  // reused for a short span of time before the challenge expires.
++  //
++  // This scope for a select few admin actions and will be rejected by other
++  // admin actions. See the server implementation for details.
++  SCOPE_ADMIN_ACTION_WITH_REUSE = 8;
 +}
 
 // authservice.proto
@@ -121,13 +113,6 @@ message CreateAuthenticateChallengeRequest {
 +  // Scope is a authorization scope for this MFA challenge.
 +  // Required. Only applies to webauthn challenges.
 +  webauthn.ChallengeScope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
-+  // AllowReuse means webauthn credentials resolved from this challenge can be
-+  // reused for a short span of time before the challenge expires.
-+  //
-+  // Reuse is only permitted for specific scopes, and may be further limited
-+  // within these scopes by the discretion of the server.
-+  //  - SCOPE_ADMIN_ACTION
-+  bool AllowReuse = 7 [(gogoproto.jsontag) = "uses,omitempty"];
 }
 ```
 
@@ -137,31 +122,80 @@ Clients will be expected to provide a `Scope` when requesting an MFA challenge
 through `rpc CreateAuthenticateChallenge`. For specific login and device
 management endpoints, the scope will be automatically set on the server side.
 
-Clients can optionally provide optionally provide `AllowReuse=true` if the
-client wants to reuse the resulting webauthn credentials for multiple requests.
+For admin actions, clients can provide either `SCOPE_ADMIN_ACTION` or
+`SCOPE_ADMIN_ACTION_WITH_REUSE` to indicate whether reuse is needed. However,
+the reuse scope is only permitted for a limited number of admin actions.
+See [the server implemenation details](#reuse)
 
 ### Server changes
 
 #### Scope
 
-When verifying a webauthn credential against the user's stored webauthn
-challenge, the Auth Server will check that the stored scope matches the scope
-that the Auth server is verifying for. For example, if the Auth server is
-verifying a webauthn credential for scope "login", but webauthn challenge
-stored for the user has scope "headless", the verification will fail.
+Each MFA action performed by the Auth Server will have an assigned scope. When
+verifying a webauthn credential for the action, the server will check that the
+user's stored webauthn challenge:
+
+1. Matches the webauthn credential, as normal
+2. Matches the scope associated with the action
+
+For example, if the Auth server is verifying a webauthn credential for scope
+"login", but webauthn challenge stored for the user has scope "headless", the
+verification will fail.
+
+Note: some scopes may be inherited, such that one scope can validate another.
+For example, `SCOPE_ADMIN_ACTION` will validate `SCOPE_ADMIN_ACTION_WITH_REUSE`
 
 #### Reuse
 
 After verifying a webauthn credential, the Auth server will check the
-`AllowReuse` field of the stored challenge:
+`Scope` field of the stored challenge. If the scope is
+`SCOPE_ADMIN_ACTION_WITH_REUSE`, the challenge won't be deleted as normal.
 
-- If `false`, the challenge will be deleted and the client's webauthn credentials
-rendered useless.
-- If `true`, the challenge will not be deleted.
+As mentioned in [Security](#security), reuse will only be permitted for specific
+RPCs:
 
-As mentioned in [Security](#security), reuse will only be permitted for the
-`admin action` scope. The Auth server will also forbid reuse for the following
-endpoints:
+- `rpc CreateUser`
+- `rpc UpdateUser`
+- `rpc UpsertUser`
+- `rpc CreateRole`
+- `rpc UpdateRole`
+- `rpc UpsertRoleV2`
+- `rpc UpsertRole`
+- `rpc CreateUserGroup`
+- `rpc UpdateUserGroup`
+- `rpc CreateResetPasswordToken`
+- `rpc SetClusterNetworkingConfig`
+- `rpc SetSessionRecordingConfig`
+- `rpc SetAuthPreference`
+- `rpc SetNetworkRestrictions`
+- `rpc UpsertOIDCConnector`
+- `rpc CreateOIDCAuthRequest`
+- `rpc UpsertSAMLConnector`
+- `rpc CreateSAMLAuthRequest`
+- `rpc UpsertGithubConnector`
+- `rpc CreateGithubAuthRequest`
+- `rpc CreateSAMLIdPServiceProvider`
+- `rpc UpdateSAMLIdPServiceProvider`
+- `rpc UpsertAccessList`
+- `rpc UpsertAccessListWithMembers`
+- `rpc UpsertTokenV2`
+- `rpc CreateTokenV2`
+- `rpc GenerateToken`
+
+These RPCs are currently used for "bulk" requests such as:
+
+- `tctl create -f multiple-resources.yaml` which can perform several
+updates and creates at once.
+- `tctl users add` which creates a user and a reset password token for the user.
+
+The server will refuse to validate a reusable webauthn credential for RPCs not
+in the list above.
+
+This list should be kept to a minimum by opting to create new endpoints which
+contain the full string of actions when feasible.
+
+Reuse should not be extended to sensitive operations, including all of the non
+admin action scopes laid out above and the following admin action endpoints:
 
 - Account recovery management
   - `rpc ChangeUserAuthentication`
@@ -169,10 +203,12 @@ endpoints:
   - `rpc VerifyAccountRecovery`
   - `rpc CompleteAccountRecovery`
   - `rpc CreateAccountRecoveryCodes`
-- Access requests
+- Dynamic access
   - `rpc CreateAccessRequest`
   - `rpc SetAccessRequestState`
   - `rpc SubmitAccessReview`
+  - `AccessRequestPromote`
+  - `CreateAccessListReview`
 - CA management
   - `http rotateCertAuthority`
   - `http rotateExternalCertAuthority`
@@ -202,8 +238,9 @@ required for certain admin actions from several down to one.
 
 ### Backward Compatibility
 
-In order to maintain backwards compatibility with old clients, scope will not
-be enforced until the next major version after this feature is released.
+In order to maintain backwards compatibility with old clients, scope will only
+be enforced opportunistically when provided by the client until the next major
+version after this feature is released.
 
 However, any new features tied to scope, such as webauthn credential reuse,
 will only be permitted to clients that do provide scope.
@@ -240,6 +277,7 @@ message MFAVerificationEvent {
   // anonymized
   string user_name = 1;
   // the mfa device type used for verification. e.g. Webauthn, U2F, or TOTP.
+  // Matches api/types.MFADevice.MFAType.
   string mfa_device_type = 2;
   string scope = 3;
 }
