@@ -907,6 +907,16 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if s.Clock().Now().UTC().After(item.Expires) {
+		// Webauthn session already expired. Some backends do not clean up expired
+		// items in a timely manner, force delete.
+		if err := s.Delete(ctx, item.Key); err != nil {
+			s.log.WithError(err).Debugf("Failed to delete expired webauthn session")
+		}
+		return nil, trace.BadParameter("webauthn session expired")
+	}
+
 	sd := &wanpb.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
