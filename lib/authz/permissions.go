@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -151,10 +152,11 @@ type AuthorizerAccessPoint interface {
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	// TODO(Joerger): Replace with ValidateMFAAuthResponseWithScope once /e is supplying it.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
+	// ValidateMFAAuthResponseWithScope validates an MFA challenge response. If the challenge
+	// response if of type webauthn, this also validates that the challenge response satisfies
+	// the given scope. Returns the device used to solve the challenge (if applicable) and the
+	// username.
+	ValidateMFAAuthResponseWithScope(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredScope webauthnpb.ChallengeScope) (*types.MFADevice, string, error)
 }
 
 // authorizer creates new local authorizer
@@ -444,7 +446,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false /* passwordless */); err != nil {
+	if _, _, err := a.accessPoint.ValidateMFAAuthResponseWithScope(ctx, mfaResp, authContext.User.GetName(), webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION); err != nil {
 		return trace.Wrap(err)
 	}
 

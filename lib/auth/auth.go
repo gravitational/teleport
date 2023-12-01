@@ -5795,20 +5795,6 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-// Returns the device used to solve the challenge (if applicable) and the
-// username.
-//
-// TODO (Joerger):Delete once e is no longer dependendent on it.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	scope := webauthnpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED
-	if passwordless {
-		scope = webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
-	}
-
-	return a.ValidateMFAAuthResponseWithScope(ctx, resp, user, scope)
-}
-
 // ValidateMFAAuthResponseWithScope validates an MFA challenge response. If the challenge
 // response if of type webauthn, this also validates that the challenge response satisfies
 // the given scope. Returns the device used to solve the challenge (if applicable) and the

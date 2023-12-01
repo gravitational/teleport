@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1061,7 +1062,7 @@ type testClient struct {
 	types.Events
 }
 
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+func (c *testClient) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, scope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
 	if resp.GetTOTP().Code == validTOTPCode {
 		return &types.MFADevice{}, "", nil
 	}

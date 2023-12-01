@@ -6742,6 +6742,11 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
 }
 
+// ValidateMFAAuthResponseWithScope not implemented: can only be called locally.
+func (a *ServerWithRoles) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, scope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, err error) {
 	clientAddr := ""
 	if code == events.UserHeadlessLoginRequestedCode {
@@ -6754,7 +6759,6 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 	if code != events.UserHeadlessLoginRequestedCode {
 		// For events.UserHeadlessLoginRequestedCode remote.addr will be the IP of requester.
 		// For other events that IP will be different because user will be approving the request from another machine,
-		// so we mentioned requester IP in the message.
 		message = fmt.Sprintf("Headless login was requested from the address %s", headlessAuthn.ClientIpAddress)
 	}
 	errorMessage := ""
@@ -6870,7 +6874,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
