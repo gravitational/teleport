@@ -121,6 +121,14 @@ on:
         type: boolean
         default: true
 
+      skip-base-image-verify:
+        description: |
+          Should the verification of the signature of the base image be skipped?
+          Only turn this off if it is not possible to verify the signature of a
+          base image (e.g it is not signed).
+        type: boolean
+        default: false
+
       allow-overwrites:
         description: |
           Allow this script to overwrite any tags in the destination image. If
@@ -161,6 +169,8 @@ jobs:
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-built: ${{ steps.check.outputs.build_image }}
+    env:
+      BASE_IMAGE: ${{ inputs.base-image }}
     steps:
       - name: Configure environment
         env:
@@ -266,14 +276,15 @@ jobs:
           tree ./build
 
       - name: Verify base image
+        if: ${{ !inputs.skip-base-image-verify }}
         env:
-          BASE_IMAGE: ${{ inputs.base-image }}
           CERT_IDENTITY: "keyless@distroless.iam.gserviceaccount.com"
           CERT_OIDC_ISSUER: "https://accounts.google.com"
         run: |
           cosign verify ${BASE_IMAGE} --certificate-oidc-issuer="${CERT_OIDC_ISSUER}" --certificate-identity="${CERT_IDENTITY}" > validated-image.json
           BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
-          echo BASE_IMAGE_HASH=${BASE_IMAGE_HASH} >> $GITHUB_ENV
+          # Pin base image to verified hash
+          echo "BASE_IMAGE=${BASE_IMAGE}@${BASE_IMAGE_HASH}" >> "$GITHUB_ENV"
 
       - name: Expand platform names
         id: platforms
@@ -348,7 +359,7 @@ jobs:
           tags: ${{ steps.expand.outputs.tags }}
           sbom: true
           build-args: |
-            BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
             TELEPORT_RELEASE_INFIX=${{ env.DEB_RELEASE_INFIX }}
             ${{ inputs.image-build-args }}
 

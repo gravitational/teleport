@@ -54,7 +54,7 @@ on:
         type: string
         default: ""
 
-run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
+run-name: Build Images for Teleport Spacelift Runner ${{ inputs.source-tag }}
 
 jobs:
   identity:
@@ -70,6 +70,7 @@ jobs:
     outputs:
       teleport_version: ${{ steps.version.outputs.teleport_version }}
       buildbox: ${{ steps.get-buildbox.outputs.buildbox }}
+      base_image: ${{ steps.get-base-image.outputs.base_image }}
     steps:
       - name: Parse version tag
         id: version
@@ -94,8 +95,8 @@ jobs:
         id: get-base-image
         run: |
           BASE_IMAGE="$(make -s -C ./integrations/teleport-spacelift-runner show-base-image)"
-          echo "base-image: $BASE_IMAGE"
-          echo "base-image=$BASE_IMAGE" >> $GITHUB_OUTPUT
+          echo "base_image: $BASE_IMAGE"
+          echo "base_image=$BASE_IMAGE" >> $GITHUB_OUTPUT
 
   build-docker-images:
     name: Build OCI container images
@@ -109,7 +110,8 @@ jobs:
     with:
       # Integrations don't have an enterprise version
       teleport-release: oss
-      base-image: ${{ needs.configure.outputs.base-image }}
+      base-image: ${{ needs.configure.outputs.base_image }}
+      skip-base-image-verify: true
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       source-tag: ${{ inputs.source-tag }}
@@ -122,7 +124,7 @@ jobs:
       allow-overwrites: false
       image-build-args: |
         BUILDBOX=${{ needs.configure.outputs.buildbox }}
-      image-build-context: ./teleport
+      image-build-context: ./teleport/.
       image-build-dockerfile: ./integrations/teleport-spacelift-runner/Dockerfile
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
