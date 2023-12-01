@@ -205,7 +205,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	return tc, nil
 }
 
-type mfaRequest struct {
+type mfaResponse struct {
 	// WebauthnResponse is the response from authenticators.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
@@ -214,8 +214,8 @@ type mfaRequest struct {
 // and use that to generate a cert. This cert is added to the Teleport Client as an authmethod that
 // can be used to connect to a node.
 func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request, tc *client.TeleportClient) error {
-	var mfaReq mfaRequest
-	err := json.Unmarshal([]byte(webauthn), &mfaReq)
+	var mfaResp mfaResponse
+	err := json.Unmarshal([]byte(webauthn), &mfaResp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		Expires:   time.Now().Add(time.Minute).UTC(),
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaResp.WebauthnAssertionResponse),
 			},
 		},
 	})

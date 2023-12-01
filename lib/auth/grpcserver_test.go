@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -1808,10 +1810,9 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					wantRequired :=
-						(role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-							!role.GetPrivateKeyPolicy().MFAVerified() &&
-							!authPref.GetPrivateKeyPolicy().MFAVerified()
+					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+						!role.GetPrivateKeyPolicy().MFAVerified() &&
+						!authPref.GetPrivateKeyPolicy().MFAVerified()
 					var wantMFARequired proto.MFARequired
 					if wantRequired {
 						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES
@@ -3754,7 +3755,7 @@ func TestSAMLValidation(t *testing.T) {
 			client, err := server.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			err = client.UpsertSAMLConnector(ctx, connector)
+			_, err = client.UpsertSAMLConnector(ctx, connector)
 
 			if tc.assertErr != nil {
 				require.Error(t, err)
@@ -3930,8 +3931,12 @@ func TestRoleVersions(t *testing.T) {
 
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
+	originalLabels := map[string]string{"env": "staging"}
 	newRole := func(version string, spec types.RoleSpecV6) types.Role {
 		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+		meta := role.GetMetadata()
+		meta.Labels = maps.Clone(originalLabels)
+		role.SetMetadata(meta)
 		require.NoError(t, err)
 		return role
 	}
@@ -4149,6 +4154,15 @@ func TestRoleVersions(t *testing.T) {
 						} else {
 							require.NoError(t, err)
 						}
+					}
+
+					// Call maybeDowngrade directly to make sure the original
+					// role isn't modified
+					sv, err := semver.NewVersion(clientVersion)
+					if err == nil {
+						_, err := maybeDowngradeRoleToV6(ctx, role.(*types.RoleV6), sv)
+						require.NoError(t, err)
+						require.Equal(t, originalLabels, role.GetMetadata().Labels)
 					}
 				})
 			}

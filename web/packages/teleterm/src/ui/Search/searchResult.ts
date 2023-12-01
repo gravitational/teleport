@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import type { ClusterUri } from 'teleterm/ui/uri';
+import type { ClusterUri, DocumentUri } from 'teleterm/ui/uri';
 import type { Cluster } from 'teleterm/services/tshd/types';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
-import type { SharedUnifiedResource } from 'shared/components/UnifiedResources';
+import type { DocumentClusterResourceKind } from 'teleterm/ui/services/workspacesService';
 
 type ResourceSearchResultBase<
   Result extends resourcesServiceTypes.SearchResult
@@ -28,10 +28,7 @@ type ResourceSearchResultBase<
   score: number;
 };
 
-export type ResourceTypeFilter = Extract<
-  SharedUnifiedResource['resource']['kind'],
-  'node' | 'kube_cluster' | 'db'
->;
+export type ResourceTypeFilter = DocumentClusterResourceKind;
 
 export type SearchResultServer =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultServer>;
@@ -51,6 +48,13 @@ export type SearchResultResourceType = {
   nameMatch: string;
   score: number;
 };
+export type DisplayResults = {
+  kind: 'display-results';
+  value: string;
+  resourceKinds: DocumentClusterResourceKind[];
+  clusterUri: ClusterUri;
+  documentUri: DocumentUri | undefined;
+};
 
 // TODO(gzdunek): find a better name.
 // `ResourcesService` exports `SearchResult` which is then usually imported as `ResourceSearchResult`.
@@ -62,7 +66,10 @@ export type ResourceSearchResult =
 
 export type FilterSearchResult = SearchResultResourceType | SearchResultCluster;
 
-export type SearchResult = ResourceSearchResult | FilterSearchResult;
+export type SearchResult =
+  | ResourceSearchResult
+  | FilterSearchResult
+  | DisplayResults;
 
 export type LabelMatch = {
   kind: 'label-name' | 'label-value';

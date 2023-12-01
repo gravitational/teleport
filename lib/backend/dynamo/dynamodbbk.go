@@ -236,31 +236,29 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		clock:  clockwork.NewRealClock(),
 		buf:    buf,
 	}
+
 	// determine if the FIPS endpoints should be used
 	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
 	if modules.GetModules().IsBoringBinary() {
 		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
 	}
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
+
+	awsConfig := aws.Config{
+		EC2MetadataEnableFallback: aws.Bool(false),
+	}
+	if cfg.Region != "" {
+		awsConfig.Region = aws.String(cfg.Region)
+	}
+	if cfg.AccessKey != "" || cfg.SecretKey != "" {
+		awsConfig.Credentials = credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
+	}
+
 	b.session, err = session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
-		Config: aws.Config{
-			EC2MetadataEnableFallback: aws.Bool(false),
-			UseFIPSEndpoint:           useFIPSEndpoint,
-		},
+		Config:            awsConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	// override the default environment (region + credentials) with the values
-	// from the YAML file:
-	if cfg.Region != "" {
-		b.session.Config.Region = aws.String(cfg.Region)
-	}
-	if cfg.AccessKey != "" || cfg.SecretKey != "" {
-		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
-		b.session.Config.Credentials = creds
 	}
 
 	// Increase the size of the connection pool. This substantially improves the
@@ -276,7 +274,14 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	b.session.Config.HTTPClient = httpClient
 
 	// create DynamoDB service:
-	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session))
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session, &aws.Config{
+		// Setting this on the individual service instead of the session, as DynamoDB Streams
+		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
+		// is available (or whenever AWS adds the missing FIPS endpoints).
+		UseFIPSEndpoint: useFIPSEndpoint,
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

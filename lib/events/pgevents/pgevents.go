@@ -294,6 +294,7 @@ var _ events.AuditLogger = (*Log)(nil)
 
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	var sessionID uuid.UUID
 	if s := events.GetSessionID(event); s != "" {
 		u, err := uuid.Parse(s)

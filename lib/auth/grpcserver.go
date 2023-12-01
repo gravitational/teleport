@@ -61,6 +61,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
@@ -2090,6 +2091,12 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
 		return role, nil
 	}
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared
+	// between multiple clients sessions when notifying about changes in watchers.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
 	hasLabelExpression := false
 	for _, kind := range types.LabelMatcherKinds {
 		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
@@ -2163,11 +2170,13 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 	case types.V3, types.V4, types.V5, types.V6:
 		return r, false, nil
 	case types.V7:
-		var (
-			downgraded types.RoleV6
-			restricted bool
-		)
-		downgraded = *r
+		var restricted bool
+		// Make a shallow copy of the role so that we don't mutate the original.
+		// This is necessary because the role is shared
+		// between multiple clients sessions when notifying about changes in watchers.
+		// If we mutate the original role, it will be mutated for all clients
+		// which can cause panics since it causes a race condition.
+		downgraded := apiutils.CloneProtoMsg(r)
 		downgraded.Version = types.V6
 
 		if len(downgraded.GetKubeResources(types.Deny)) > 0 {
@@ -2225,7 +2234,7 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 			restricted = true
 		}
 
-		return &downgraded, restricted, nil
+		return downgraded, restricted, nil
 	default:
 		return nil, false, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
@@ -3193,7 +3202,7 @@ func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.Create
 
 	v2, ok := created.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", created)
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", created)
 	}
 
 	return v2, nil
@@ -3213,21 +3222,38 @@ func (g *GRPCServer) UpdateSAMLConnector(ctx context.Context, req *authpb.Update
 
 	v2, ok := updated.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", updated)
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", updated)
+	}
+
+	return v2, nil
+}
+
+// UpsertSAMLConnectorV2 creates a new or replaces an existing SAML connector.
+func (g *GRPCServer) UpsertSAMLConnectorV2(ctx context.Context, req *authpb.UpsertSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := auth.ServerWithRoles.UpsertSAMLConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v2, ok := upserted.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", upserted)
 	}
 
 	return v2, nil
 }
 
 // UpsertSAMLConnector upserts a SAML connector.
+// Deprecated: Use [GRPCServer.UpsertSAMLConnectorV2] instead.
 func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
+	if _, err := g.UpsertSAMLConnectorV2(ctx, &authpb.UpsertSAMLConnectorRequest{Connector: samlConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -3308,17 +3334,30 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	}, nil
 }
 
-// UpsertGithubConnector upserts a Github connector.
-func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types.GithubConnectorV3) (*emptypb.Empty, error) {
+// UpsertGithubConnectorV2 creates a new or replaces an existing Github connector.
+func (g *GRPCServer) UpsertGithubConnectorV2(ctx context.Context, req *authpb.UpsertGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	githubConnector, err := services.InitGithubConnector(connector)
+	githubConnector, err := services.InitGithubConnector(req.Connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector); err != nil {
+
+	upserted, err := auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	githubConnectorV3, err := services.ConvertGithubConnector(upserted)
+	return githubConnectorV3, trace.Wrap(err)
+}
+
+// UpsertGithubConnector creates a new or replaces an existing Github connector.
+// Deprecated: Use [GRPCServer.UpsertGithubConnectorV2] instead.
+func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types.GithubConnectorV3) (*emptypb.Empty, error) {
+	if _, err := g.UpsertGithubConnectorV2(ctx, &authpb.UpsertGithubConnectorRequest{Connector: connector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -3340,11 +3379,8 @@ func (g *GRPCServer) UpdateGithubConnector(ctx context.Context, req *authpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	githubConnectorV3, ok := updated.(*types.GithubConnectorV3)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", updated)
-	}
-	return githubConnectorV3, nil
+	githubConnectorV3, err := services.ConvertGithubConnector(updated)
+	return githubConnectorV3, trace.Wrap(err)
 }
 
 // CreateGithubConnector creates a new  Github connector.
@@ -3363,11 +3399,8 @@ func (g *GRPCServer) CreateGithubConnector(ctx context.Context, req *authpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	githubConnectorV3, ok := created.(*types.GithubConnectorV3)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", created)
-	}
-	return githubConnectorV3, nil
+	githubConnectorV3, err := services.ConvertGithubConnector(created)
+	return githubConnectorV3, trace.Wrap(err)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
@@ -5642,6 +5675,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services,
+		AuthServer: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

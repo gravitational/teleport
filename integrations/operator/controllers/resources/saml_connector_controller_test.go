@@ -65,7 +65,8 @@ func (g *samlTestingPrimitives) CreateTeleportResource(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 	saml.SetOrigin(types.OriginKubernetes)
-	return trace.Wrap(g.setup.TeleportClient.UpsertSAMLConnector(ctx, saml))
+	_, err = g.setup.TeleportClient.CreateSAMLConnector(ctx, saml)
+	return trace.Wrap(err)
 }
 
 func (g *samlTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.SAMLConnector, error) {

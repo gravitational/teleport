@@ -542,7 +542,7 @@ type IdentityService interface {
 	// UpdateSAMLConnector updates an existing SAML connector
 	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// UpsertSAMLConnector updates or creates a SAML connector
-	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets SAML connectors list
@@ -561,7 +561,7 @@ type IdentityService interface {
 	// UpdateGithubConnector updates an existing Github connector.
 	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// UpsertGithubConnector creates or updates a Github connector.
-	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector

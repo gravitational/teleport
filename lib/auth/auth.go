@@ -1550,7 +1550,7 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 // emitter rather than falling back to the implementation from [Services] (using
 // the audit log directly, which is almost never what you want).
 func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+	return trace.Wrap(a.emitter.EmitAuditEvent(context.WithoutCancel(ctx), e))
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
@@ -6047,7 +6047,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
+	if f.IsLegacy() || f.IGSEnabled() {
 		return nil // unlimited
 	}
 	monthlyLimit := f.AccessRequests.MonthlyRequestLimit

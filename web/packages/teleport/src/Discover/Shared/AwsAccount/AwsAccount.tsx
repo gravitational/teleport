@@ -73,7 +73,10 @@ export function AwsAccount() {
 
   let roleTemplate = integrationRWE;
   let hasAccess =
-    integrationAccess.create && integrationAccess.list && integrationAccess.use;
+    integrationAccess.create &&
+    integrationAccess.list &&
+    integrationAccess.use &&
+    integrationAccess.read;
 
   // Ensure required permissions based on which flow this is in.
   if (viewConfig.kind === ResourceKind.Database) {

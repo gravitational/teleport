@@ -39,9 +39,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: 'foo',
         filters: [],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: [retryableError, nonRetryableError],
           results: [],
@@ -71,9 +70,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: 'foo',
         filters: [],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [offlineCluster],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: [retryableError],
           results: [],
@@ -111,9 +109,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: 'foo',
         filters: [],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: retryableErrors,
           results: [],
@@ -140,9 +137,8 @@ describe('getActionPickerStatus', () => {
         const status = getActionPickerStatus({
           inputValue: 'foo',
           filters: [{ filter: 'cluster', clusterUri: filteredCluster.uri }],
-          filterActionsAttempt: makeSuccessAttempt([]),
+          filterActions: [],
           allClusters: [filteredCluster, otherOfflineCluster],
-          actionAttempts: [makeSuccessAttempt([])],
           resourceSearchAttempt: makeSuccessAttempt({
             errors: [],
             results: [],
@@ -168,9 +164,8 @@ describe('getActionPickerStatus', () => {
         const status = getActionPickerStatus({
           inputValue: 'foo',
           filters: [{ filter: 'cluster', clusterUri: filteredCluster.uri }],
-          filterActionsAttempt: makeSuccessAttempt([]),
+          filterActions: [],
           allClusters: [filteredCluster, otherOfflineCluster],
-          actionAttempts: [makeSuccessAttempt([])],
           resourceSearchAttempt: makeSuccessAttempt({
             errors: [],
             results: [],
@@ -204,9 +199,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: '',
         filters: [{ filter: 'resource-type', resourceType: 'node' }],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: resourceSearchErrors,
           results: [],
