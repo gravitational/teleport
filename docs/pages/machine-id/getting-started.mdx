@@ -246,6 +246,13 @@ LimitNOFILE=8192
 WantedBy=multi-user.target
 ```
 
+Enable and start the service:
+
+```code
+$ sudo systemctl enable teleport-bot
+$ sudo systemctl start teleport-bot
+```
+
 Now that Machine ID has successfully started, let's investigate the
 `/opt/machine-id` directory to see what was written to disk.
 
