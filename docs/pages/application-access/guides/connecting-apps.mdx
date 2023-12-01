@@ -58,7 +58,7 @@ everyone will log into Teleport.
 
 In this example:
 
-- `teleport.example.com` hosts the Teleport Auth Service and the Teleport Proxy Service that are the 
+- `teleport.example.com` hosts the Teleport Auth Service and the Teleport Proxy Service that are the
   that form the core cluster services of the Teleport Access Platform.
 - `*.teleport.example.com` hosts all of the applications, for example, `grafana.teleport.example.com`.
 
@@ -246,6 +246,13 @@ redirect responses to the application's public address:
 You can configure application access to inject additional headers in the
 requests forwarded to a web application.
 
+<Tabs>
+<TabItem label="teleport.yaml syntax">
+
+For apps defined in the `teleport.yaml` configuration, the `headers` field of
+each app is a list of strings. Be careful to quote the entire value to ensure it
+is parsed correctly.
+
 ```yaml
 - name: "dashboard"
   uri: https://localhost:4321
@@ -263,6 +270,42 @@ requests forwarded to a web application.
     - "Host: dashboard.example.com"
 ```
 
+</TabItem>
+<TabItem label="Dynamic registration syntax">
+
+In a dynamic `app` resource, configure header rewrites with the
+`spec.rewrite.headers` field. The value is a list of mappings that specify the
+name and value of each header you would like to rewrite.
+
+```yaml
+kind: app
+version: v3
+metadata:
+  name: "dashboard"
+spec:
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    headers:
+      # Inject a static header.
+      - name: X-Custom-Header
+        value: example
+      # Inject headers with internal/external user traits.
+      - name: X-Internal-Trait
+        value: "{{internal.logins}}"
+      - name: X-External-Trait
+        value: "{{external.env}}"
+      # Inject header with Teleport-signed JWT token.
+      - name: Authorization
+        value: "Bearer {{internal.jwt}}"
+      # Override Host header.
+      - name: Host
+        value: dashboard.example.com
+```
+
+</TabItem>
+</Tabs>
+
 Headers injected this way override any headers with the same names that may
 be sent by an application. The following headers are reserved and can't be
 rewritten:
@@ -272,10 +315,11 @@ rewritten:
 - Any header matching the pattern `X-Teleport-*`
 - Any header matching the pattern `X-Forwarded-*`
 
-Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
-In the example above, `X-Internal-Trait` header will be populated with the value
-of internal user trait `logins` and `X-External-Trait` header will get the value
-of the user's external `env` trait coming from the identity provider.
+Rewritten header values support the same templating variables as
+[role templates](../../access-controls/guides/role-templates.mdx). In the
+example above, `X-Internal-Trait` header will be populated with the value of
+internal user trait `logins` and `X-External-Trait` header will get the value of
+the user's external `env` trait coming from the identity provider.
 
 Additionally, the `{{internal.jwt}}` template variable will be replaced with
 a JWT token signed by Teleport that contains user identity information. See

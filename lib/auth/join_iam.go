@@ -1,18 +1,20 @@
 /*
-Copyright 2021-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -472,11 +474,11 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 	if cfg.fipsEndpointOption == endpoints.FIPSEndpointStateEnabled &&
 		!slices.Contains(validSTSEndpoints, strings.TrimPrefix(stsClient.Endpoint, "https://")) {
 		// The AWS SDK will generate invalid endpoints when attempting to
-		// resolve the FIPS endpoint for a region which does not have one.
+		// resolve the FIPS endpoint for a region that does not have one.
 		// In this case, try to use the FIPS endpoint in us-east-1. This should
-		// work for all regions in the standard partition. In GovCloud we should
+		// work for all regions in the standard partition. In GovCloud, we should
 		// not hit this because all regional endpoints support FIPS. In China or
-		// other partitions this will fail and FIPS mode will not be supported.
+		// other partitions, this will fail, and FIPS mode will not be supported.
 		log.Infof("AWS SDK resolved FIPS STS endpoint %s, which does not appear to be valid. "+
 			"Attempting to use the FIPS STS endpoint for us-east-1.",
 			stsClient.Endpoint)
