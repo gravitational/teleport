@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -526,6 +527,7 @@ func testAddMFADevice(ctx context.Context, t *testing.T, authClient *Client, opt
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
+		Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
 	authnSolved := opts.authHandler(t, authChal)
@@ -567,6 +569,7 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *Client, 
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
+		Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
 	authnSolved := opts.authHandler(t, authnChal)
@@ -869,6 +872,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
 			},
+			Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		})
 		if err != nil {
 			return nil, err
@@ -1751,6 +1755,7 @@ func testGenerateUserSingleUseCertsUnary(ctx context.Context, t *testing.T, cl *
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
+		Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_SESSION,
 	})
 	require.NoError(t, err, "CreateAuthenticateChallenge")
 
@@ -3369,7 +3374,9 @@ func TestCustomRateLimiting(t *testing.T) {
 			name:  "RPC CreateAuthenticateChallenge",
 			burst: defaults.LimiterBurst,
 			fn: func(clt *Client) error {
-				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
+				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+					Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				})
 				return err
 			},
 		},

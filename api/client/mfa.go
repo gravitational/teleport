@@ -23,17 +23,19 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
-// performMFACeremony retrieves an MFA challenge from the server, prompts the
-// user to answer the challenge, and returns the resulting MFA response.
-func (c *Client) performMFACeremony(ctx context.Context, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+// performAdminActionMFACeremony retrieves an MFA challenge from the server,
+// prompts the user to answer the challenge, and returns the resulting MFA response.
+func (c *Client) performAdminActionMFACeremony(ctx context.Context, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	if c.c.MFAPromptConstructor == nil {
 		return nil, trace.BadParameter("missing PromptAdminRequestMFA field, client cannot perform MFA ceremony")
 	}
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+		Scope:   webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

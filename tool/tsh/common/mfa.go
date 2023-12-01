@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -335,7 +336,9 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 		// Issue the authn challenge.
 		// Required for the registration challenge.
-		authChallenge, err := aci.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
+		authChallenge, err := aci.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -597,6 +600,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 				ContextUser: &proto.ContextUser{},
 			},
+			Scope: webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		})
 		if err != nil {
 			return trace.Wrap(err)

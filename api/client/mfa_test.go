@@ -70,7 +70,7 @@ func TestPerformMFACeremony(t *testing.T) {
 	clt, err := New(ctx, cfg)
 	require.NoError(t, err)
 
-	resp, err := clt.performMFACeremony(ctx)
+	resp, err := clt.performAdminActionMFACeremony(ctx)
 	require.NoError(t, err)
 	require.Equal(t, mfaTestResp.Response, resp.Response)
 }
