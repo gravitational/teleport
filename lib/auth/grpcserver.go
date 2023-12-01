@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
@@ -2406,8 +2407,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
-	const passwordless = false
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, passwordless)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_SESSION)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2429,7 +2429,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
+	if _, _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, false /* passwordless */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2564,7 +2564,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 
 	// Note: authChallenge may be empty if this user has no existing MFA devices.
 	const passwordless = false
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2707,7 +2707,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	user := gctx.User.GetName()
 
 	const passwordless = false
-	authChallenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
+	authChallenge, err := auth.mfaAuthChallenge(ctx, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2938,7 +2938,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 	user := gctx.User.GetName()
 
 	const passwordless = false
-	challenge, err := auth.mfaAuthChallenge(ctx, user, passwordless)
+	challenge, err := auth.mfaAuthChallenge(ctx, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_SESSION)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

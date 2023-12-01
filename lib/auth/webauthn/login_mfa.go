@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -94,28 +95,28 @@ type LoginFlow struct {
 // assertion.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.CredentialAssertion, error) {
+func (f *LoginFlow) Begin(ctx context.Context, user string, scope webauthnpb.ChallengeScope) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.begin(ctx, user, false /* passwordless */)
+	return lf.begin(ctx, user, scope)
 }
 
 // Finish is the second and last step of the LoginFlow.
 // It returns the MFADevice used to solve the challenge. If login is successful,
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, error) {
+func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, validScope webauthnpb.ChallengeScope) (*types.MFADevice, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	dev, _, err := lf.finish(ctx, user, resp, false /* passwordless */)
+	dev, _, err := lf.finish(ctx, user, resp, validScope)
 	return dev, trace.Wrap(err)
 }
 

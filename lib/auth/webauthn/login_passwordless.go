@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -55,7 +56,7 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.begin(ctx, "" /* user */, true /* passwordless */)
+	return lf.begin(ctx, "" /* user */, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN)
 }
 
 // Finish is the last step of the passwordless login flow.
@@ -67,7 +68,7 @@ func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.Credential
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.finish(ctx, "" /* user */, resp, true /* passwordless */)
+	return lf.finish(ctx, "" /* user */, resp, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN)
 }
 
 type passwordlessIdentity struct {
