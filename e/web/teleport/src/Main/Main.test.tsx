@@ -67,6 +67,8 @@ jest.mock('shared/hooks', () => ({
   },
 }));
 
+cfg.oss.isTeam = true;
+
 test('displays questionnaire if unanswered in both survey and preferences', async () => {
   mockUserContextProviderWith(makeTestUserContext());
 
@@ -77,7 +79,6 @@ test('displays questionnaire if unanswered in both survey and preferences', asyn
     );
 
   const ctx = setupContext();
-  cfg.oss.isUsageBasedBilling = true;
   localStorage.clear();
   localStorage.setItem(KeysEnum.ONBOARD_SURVEY, '{"clusterResources": []}');
   localStorage.setItem(
@@ -102,7 +103,6 @@ test('displays questionnaire if unanswered in both survey and preferences', asyn
 test('does not display questionnaire if answered via survey', () => {
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
-  cfg.oss.isUsageBasedBilling = true;
   localStorage.setItem(KeysEnum.ONBOARD_SURVEY, '{"clusterResources": [1]}');
 
   render(
@@ -121,7 +121,6 @@ test('does not display questionnaire if answered via survey', () => {
 test('does not display questionnaire if answered via preferences', () => {
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
-  cfg.oss.isUsageBasedBilling = true;
   localStorage.setItem(
     KeysEnum.USER_PREFERENCES,
     '{"onboard": {"preferredResources": [1]}}'

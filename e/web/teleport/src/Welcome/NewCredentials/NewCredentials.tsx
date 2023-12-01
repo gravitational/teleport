@@ -26,7 +26,7 @@ export function Container({
 }: NewCredentialsContainerProps) {
   const state = useToken(tokenId);
   const [displayOnboardingQuestionnaire, setDisplayOnboardingQuestionnaire] =
-    useState(cfg.oss.isUsageBasedBilling && cfg.oss.isCloud);
+    useState(cfg.oss.isTeam && cfg.oss.isCloud);
 
   const { search } = useLocation();
   const hasInitialUserFlag = new URLSearchParams(search).has(

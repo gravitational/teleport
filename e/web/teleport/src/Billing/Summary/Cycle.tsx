@@ -108,8 +108,8 @@ export const Cycle = ({
   const getSalesLink = () => {
     const version = ctx.storeUser.state.cluster.authVersion;
     const isEnterprise = ctx.isEnterprise;
-    const isUsageBased = cfg.isUsageBasedBilling;
-    return getSalesURL(version, isEnterprise, isUsageBased);
+    const isTeam = cfg.isTeam;
+    return getSalesURL(version, isEnterprise, isTeam);
   };
 
   return (

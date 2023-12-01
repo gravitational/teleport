@@ -12,7 +12,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin-top: 16px;
 }
 
-.c16 {
+.c15 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
@@ -42,7 +42,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin: 0px;
 }
 
-.c17 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -52,7 +52,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin-bottom: 16px;
 }
 
-.c18 {
+.c17 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -60,7 +60,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   text-transform: none;
 }
 
-.c14 {
+.c13 {
   display: block;
   outline: none;
   margin-top: 16px;
@@ -150,28 +150,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  display: flex;
-  color: inherit;
-  text-decoration: none;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  border-radius: 4px;
-  height: 170px;
-  width: 170px;
-  background-color: rgba(255,255,255,0.07);
-  text-align: center;
-  cursor: pointer;
-  opacity: 0.45;
-}
-
-.c12:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c13 {
-  box-sizing: border-box;
-  background-color: #FF6257;
+  background-color: #00BFA5;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
   position: absolute;
@@ -181,7 +160,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   font-size: 10px;
 }
 
-.c15 {
+.c14 {
   display: inline-block;
   height: 100%;
 }
@@ -265,9 +244,8 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c12"
+            class="c9"
             data-testid="tile-external-audit-storage"
-            disabled=""
             href="/web/integrations/new/external-audit-storage"
           >
             <div
@@ -304,10 +282,10 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               AWS External Audit Storage
             </div>
             <div
-              class="c13"
+              class="c12"
               data-testid="tooltip"
             >
-              Enterprise Only
+              New
             </div>
           </a>
           <a
@@ -316,11 +294,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             href="/web/integrations/new/slack"
           >
             <img
-              class="c14 c15"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c15"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -336,11 +314,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             href="/web/integrations/new/jamf"
           >
             <img
-              class="c14 c15"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c15"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -362,12 +340,12 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           Self-Hosted Plugins
         </div>
         <div
-          class="c17"
+          class="c16"
         >
           There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
            
           <a
-            class="c18"
+            class="c17"
             href="https://github.com/gravitational/teleport-plugins"
             rel="noreferrer"
             target="_blank"
@@ -380,18 +358,18 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           class="c8"
         >
           <a
-            class="c18 c9"
+            class="c17 c9"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c14 c15"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c15"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -402,18 +380,18 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c14 c15"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c15"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -447,7 +425,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           class="c8"
         >
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/github-actions/"
             rel="noreferrer"
             target="_blank"
@@ -477,7 +455,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/circleci/"
             rel="noreferrer"
             target="_blank"
@@ -505,7 +483,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/gitlab/"
             rel="noreferrer"
             target="_blank"
@@ -550,7 +528,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/jenkins/"
             rel="noreferrer"
             target="_blank"
@@ -761,7 +739,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/access-guides/ansible/"
             rel="noreferrer"
             target="_blank"
@@ -789,7 +767,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/spacelift/"
             rel="noreferrer"
             target="_blank"
@@ -817,7 +795,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/aws/"
             rel="noreferrer"
             target="_blank"
@@ -857,7 +835,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/gcp/"
             rel="noreferrer"
             target="_blank"
@@ -913,7 +891,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/azure/"
             rel="noreferrer"
             target="_blank"
@@ -1016,7 +994,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/deployment/kubernetes/"
             rel="noreferrer"
             target="_blank"
@@ -1044,7 +1022,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c17 c9"
             href="https://goteleport.com/docs/machine-id/getting-started/"
             rel="noreferrer"
             target="_blank"
@@ -1090,7 +1068,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin-top: 16px;
 }
 
-.c16 {
+.c17 {
   box-sizing: border-box;
   margin-bottom: 8px;
 }
@@ -1120,7 +1098,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin: 0px;
 }
 
-.c17 {
+.c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1130,7 +1108,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin-bottom: 16px;
 }
 
-.c18 {
+.c19 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1138,7 +1116,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   text-transform: none;
 }
 
-.c14 {
+.c15 {
   display: block;
   outline: none;
   margin-top: 16px;
@@ -1259,7 +1237,19 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   font-size: 10px;
 }
 
-.c15 {
+.c14 {
+  box-sizing: border-box;
+  background-color: #00BFA5;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+.c16 {
   display: inline-block;
   height: 100%;
 }
@@ -1349,9 +1339,8 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </div>
           <a
-            class="c9"
+            class="c13"
             data-testid="tile-external-audit-storage"
-            disabled=""
             href="/web/integrations/new/external-audit-storage"
           >
             <div
@@ -1388,10 +1377,10 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               AWS External Audit Storage
             </div>
             <div
-              class="c12"
+              class="c14"
               data-testid="tooltip"
             >
-              Enterprise Only
+              New
             </div>
           </a>
           <a
@@ -1400,11 +1389,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             href="/web/integrations/new/slack"
           >
             <img
-              class="c14 c15"
+              class="c15 c16"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c17"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -1420,11 +1409,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             href="/web/integrations/new/jamf"
           >
             <img
-              class="c14 c15"
+              class="c15 c16"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c17"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -1446,12 +1435,12 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           Self-Hosted Plugins
         </div>
         <div
-          class="c17"
+          class="c18"
         >
           There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
            
           <a
-            class="c18"
+            class="c19"
             href="https://github.com/gravitational/teleport-plugins"
             rel="noreferrer"
             target="_blank"
@@ -1464,18 +1453,18 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           class="c8"
         >
           <a
-            class="c18 c13"
+            class="c19 c13"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c14 c15"
+              class="c15 c16"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c17"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -1486,18 +1475,18 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c14 c15"
+              class="c15 c16"
               src="file_stub"
             />
             <div
-              class="c16"
+              class="c17"
               style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
@@ -1531,7 +1520,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           class="c8"
         >
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/github-actions/"
             rel="noreferrer"
             target="_blank"
@@ -1561,7 +1550,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/circleci/"
             rel="noreferrer"
             target="_blank"
@@ -1589,7 +1578,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/gitlab/"
             rel="noreferrer"
             target="_blank"
@@ -1634,7 +1623,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/jenkins/"
             rel="noreferrer"
             target="_blank"
@@ -1845,7 +1834,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/access-guides/ansible/"
             rel="noreferrer"
             target="_blank"
@@ -1873,7 +1862,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/spacelift/"
             rel="noreferrer"
             target="_blank"
@@ -1901,7 +1890,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/aws/"
             rel="noreferrer"
             target="_blank"
@@ -1941,7 +1930,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/gcp/"
             rel="noreferrer"
             target="_blank"
@@ -1997,7 +1986,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/azure/"
             rel="noreferrer"
             target="_blank"
@@ -2100,7 +2089,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/deployment/kubernetes/"
             rel="noreferrer"
             target="_blank"
@@ -2128,7 +2117,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             </div>
           </a>
           <a
-            class="c18 c13"
+            class="c19 c13"
             href="https://goteleport.com/docs/machine-id/getting-started/"
             rel="noreferrer"
             target="_blank"
@@ -2204,7 +2193,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin: 0px;
 }
 
-.c17 {
+.c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -2214,7 +2203,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin-bottom: 16px;
 }
 
-.c18 {
+.c19 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2310,7 +2299,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c12 {
+.c13 {
   box-sizing: border-box;
   display: flex;
   color: inherit;
@@ -2327,11 +2316,23 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   opacity: 0.45;
 }
 
-.c12:hover {
+.c13:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c13 {
+.c12 {
+  box-sizing: border-box;
+  background-color: #00BFA5;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+.c17 {
   box-sizing: border-box;
   background-color: #FF6257;
   border-top-right-radius: 4px;
@@ -2427,9 +2428,8 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c12"
+            class="c9"
             data-testid="tile-external-audit-storage"
-            disabled=""
             href="/web/integrations/new/external-audit-storage"
           >
             <div
@@ -2466,14 +2466,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               AWS External Audit Storage
             </div>
             <div
-              class="c13"
+              class="c12"
               data-testid="tooltip"
             >
-              Enterprise Only
+              New
             </div>
           </a>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-slack"
             disabled=""
           >
@@ -2492,14 +2492,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-okta"
             disabled=""
           >
@@ -2518,14 +2518,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-opsgenie"
             disabled=""
           >
@@ -2544,14 +2544,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-jamf"
             disabled=""
           >
@@ -2570,14 +2570,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-servicenow"
             disabled=""
           >
@@ -2596,14 +2596,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-jira"
             disabled=""
           >
@@ -2622,14 +2622,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-pagerduty"
             disabled=""
           >
@@ -2648,14 +2648,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-discord"
             disabled=""
           >
@@ -2674,14 +2674,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
           <div
-            class="c12"
+            class="c13"
             data-testid="tile-mattermost"
             disabled=""
           >
@@ -2700,7 +2700,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c17"
               data-testid="tooltip"
             >
               Lacking Permissions
@@ -2718,12 +2718,12 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           Self-Hosted Plugins
         </div>
         <div
-          class="c17"
+          class="c18"
         >
           There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
            
           <a
-            class="c18"
+            class="c19"
             href="https://github.com/gravitational/teleport-plugins"
             rel="noreferrer"
             target="_blank"
@@ -2736,7 +2736,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           class="c8"
         >
           <a
-            class="c18 c9"
+            class="c19 c9"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
@@ -2758,7 +2758,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
@@ -2803,7 +2803,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           class="c8"
         >
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/github-actions/"
             rel="noreferrer"
             target="_blank"
@@ -2833,7 +2833,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/circleci/"
             rel="noreferrer"
             target="_blank"
@@ -2861,7 +2861,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/gitlab/"
             rel="noreferrer"
             target="_blank"
@@ -2906,7 +2906,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/jenkins/"
             rel="noreferrer"
             target="_blank"
@@ -3117,7 +3117,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/access-guides/ansible/"
             rel="noreferrer"
             target="_blank"
@@ -3145,7 +3145,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/spacelift/"
             rel="noreferrer"
             target="_blank"
@@ -3173,7 +3173,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/aws/"
             rel="noreferrer"
             target="_blank"
@@ -3213,7 +3213,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/gcp/"
             rel="noreferrer"
             target="_blank"
@@ -3269,7 +3269,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/azure/"
             rel="noreferrer"
             target="_blank"
@@ -3372,7 +3372,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/deployment/kubernetes/"
             rel="noreferrer"
             target="_blank"
@@ -3400,7 +3400,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c19 c9"
             href="https://goteleport.com/docs/machine-id/getting-started/"
             rel="noreferrer"
             target="_blank"

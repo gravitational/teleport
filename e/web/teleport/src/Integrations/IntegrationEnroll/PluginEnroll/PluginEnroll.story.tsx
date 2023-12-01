@@ -10,7 +10,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import { PluginEnroll } from './PluginEnroll';
 
-const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
+const defaultIsTeamFlag = cfg.isTeam;
 
 export default {
   title: 'TeleportE/Integrations/Enroll',
@@ -19,7 +19,7 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
+          cfg.isTeam = defaultIsTeamFlag;
         };
       }, []);
       return <Story />;
@@ -33,13 +33,13 @@ export const EnrollMattermost = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('mattermost'));
 
 export const EnrollJamf = () => {
-  cfg.isUsageBasedBilling = false;
+  cfg.isTeam = false;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
 };
 
 export const EnrollJamfDisableInTeam = () => {
-  cfg.isUsageBasedBilling = true;
+  cfg.isTeam = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
 };

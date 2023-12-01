@@ -15,7 +15,7 @@ import { IntegrationEnroll } from '../IntegrationEnroll';
 
 describe('test PluginPick.tsx', () => {
   const originalCloudFlag = cfg.isCloud; // should be false
-  const originalUsageBillingFlag = cfg.isUsageBasedBilling; // should be false
+  const originalIsTeamFlag = cfg.isTeam; // should be false
   beforeEach(() => {
     cfg.isCloud = true;
     jest
@@ -29,7 +29,7 @@ describe('test PluginPick.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = originalCloudFlag;
-    cfg.isCloud = originalUsageBillingFlag;
+    cfg.isTeam = originalIsTeamFlag;
     jest.clearAllMocks();
   });
 
@@ -114,7 +114,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('disableForTeam disables jamf plugin tile in team plan', async () => {
-    cfg.isUsageBasedBilling = true;
+    cfg.isTeam = true;
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
     await screen.findByText(/no-code integrations/i);
@@ -125,7 +125,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('show jamf plugin tiles in cloud plan', async () => {
-    cfg.isUsageBasedBilling = false;
+    cfg.isTeam = false;
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
     await screen.findByText(/no-code integrations/i);

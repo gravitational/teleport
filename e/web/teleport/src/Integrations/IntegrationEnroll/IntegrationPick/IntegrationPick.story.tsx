@@ -23,18 +23,21 @@ const onboardSupportPluginKinds: PluginKind[] = [
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
-const defaultIsUsageBasedBillingFlag = cfg.oss.isUsageBasedBilling;
+const defaultIsTeam = cfg.oss.isTeam;
+const defaultIsEnterprise = cfg.oss.isEnterprise;
 
 export default {
   title: 'TeleportE/Integrations/Picker',
   decorators: [
     Story => {
       cfg.oss.isCloud = true;
+      cfg.oss.isEnterprise = true;
       useEffect(() => {
         // Clean up
         return () => {
           cfg.oss.isCloud = defaultIsCloudFlag;
-          cfg.oss.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
+          cfg.oss.isTeam = defaultIsTeam;
+          cfg.oss.isEnterprise = defaultIsEnterprise;
         };
       }, []);
 
@@ -103,7 +106,7 @@ export const NoAccess = () => {
 };
 
 export const RequiresEnterprise = () => {
-  cfg.oss.isUsageBasedBilling = true;
+  cfg.oss.isTeam = true;
   worker.use(
     rest.get(cfg.api.pluginTypesPath, (req, res, ctx) => {
       return res(ctx.json(onboardSupportPluginKinds));

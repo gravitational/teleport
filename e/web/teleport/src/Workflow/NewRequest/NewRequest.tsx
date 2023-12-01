@@ -45,8 +45,8 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { CtaEvent } from 'teleport/services/userEvent';
 import { useUser } from 'teleport/User/UserContext';
 
-import cfg from 'teleport/config';
 import { getSalesURL } from 'teleport/services/sales';
+import cfg from 'teleport/config';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -277,7 +277,10 @@ export function NewRequest(props: State) {
             <Box>
               <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
                 <Text color="buttons.primary.text">
-                  Unlock Unlimited Access Requests with Teleport Enterprise
+                  Unlock Unlimited Access Requests{' '}
+                  {cfg.isTeam
+                    ? 'with Teleport Enterprise'
+                    : 'with Identity Governance & Security'}
                 </Text>
               </ButtonLockedFeature>
             </Box>
@@ -654,11 +657,11 @@ function UsageInfo(usage: { limit: number; used: number }) {
 
   const limitReached = usageLimitReached(usage);
 
+  // TODO
+  // Does not emit event, like it automatically does when using ButtonLockedFeature component
   const getSalesLink = () => {
     const version = ctx.storeUser.state.cluster.authVersion;
-    const isEnterprise = ctx.isEnterprise;
-    const isUsageBased = cfg.isUsageBasedBilling;
-    return getSalesURL(version, isEnterprise, isUsageBased);
+    return getSalesURL(version, cfg.isEnterprise, CtaEvent.CTA_ACCESS_REQUESTS);
   };
 
   return (
@@ -678,7 +681,11 @@ function UsageInfo(usage: { limit: number; used: number }) {
             Your cluster has reached its allocation of {usage.used} access
             requests per month, but{' '}
             <Link href={getSalesLink()} target="_blank">
-              you can get unlimited access requests with Teleport Enterprise.
+              you can get unlimited access requests{' '}
+              {cfg.isTeam
+                ? 'with Teleport Enterprise'
+                : 'with Identity Governance & Security'}
+              .
             </Link>
           </>
         ) : (

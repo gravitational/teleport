@@ -59,8 +59,7 @@ export function SubmittablePluginForm({
     // Else let the default form submission event occur.
   }
 
-  const pluginRequiresEnterprise =
-    plugin.disableForTeam && cfg.oss.isUsageBasedBilling;
+  const pluginRequiresEnterprise = plugin.disableForTeam && cfg.oss.isTeam;
   let wrapperStyle;
   if (pluginRequiresEnterprise) {
     // blurs the form

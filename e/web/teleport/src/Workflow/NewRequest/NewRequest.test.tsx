@@ -9,13 +9,19 @@ import * as userUserContext from 'teleport/User/UserContext';
 
 import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedResource';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+import cfg from 'teleport/config';
 
-import cfg from 'e-teleport/config';
+import ecfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { AccessRequest, makeAccessRequest } from 'e-teleport/services/workflow';
 
 import NewRequest from './NewRequest';
+
+const defaultIsTeamFlag = cfg.isTeam;
+const defaultIsEnterpriseFlag = cfg.isEnterprise;
+const defaultIsUsageBasedBillingFlag = cfg.isUsageBasedBilling;
+const defaultIgsFlag = cfg.isIgsEnabled;
 
 describe('new request behavior', () => {
   const ctx = new TeleportContextE();
@@ -88,9 +94,16 @@ describe('new request behavior', () => {
 
   afterEach(() => {
     cleanup();
+    jest.resetAllMocks();
+
+    cfg.isTeam = defaultIsTeamFlag;
+    cfg.isEnterprise = defaultIsEnterpriseFlag;
+    cfg.isUsageBasedBilling = defaultIsUsageBasedBillingFlag;
+    cfg.isIgsEnabled = defaultIgsFlag;
   });
 
   test('add and remove a resource from table', async () => {
+    cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
     render(Component);
     jest
       .spyOn(ctx.workflowService, 'createAccessRequest')
@@ -147,6 +160,7 @@ describe('new request behavior', () => {
   });
 
   test('clicking on a resource label constructs predicate query', async () => {
+    cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
     render(Component);
 
     // We will use node to test predicate (it will be same for all other agents).
@@ -172,6 +186,7 @@ describe('new request behavior', () => {
   });
 
   test('select all uses node hostnames in checkout', async () => {
+    cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
     jest
       .spyOn(ctx.workflowService, 'fetchResourceRequestRoles')
       .mockResolvedValueOnce(['access']);
@@ -212,6 +227,7 @@ describe('new request behavior', () => {
   });
 
   test('select all buttons work properly', async () => {
+    cfg.isIgsEnabled = true; // skips fetching for usage, not required for this test
     render(Component);
     jest
       .spyOn(ctx.workflowService, 'fetchResourceRequestRoles')
@@ -247,35 +263,81 @@ describe('new request behavior', () => {
     expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
   });
 
-  test('displays usage info when usage-based billing is used', async () => {
-    cfg.oss.isUsageBasedBilling = true;
+  test('legacy renders no usage info', async () => {
+    ecfg.oss.isEnterprise = true;
+    ecfg.oss.isUsageBasedBilling = false;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
-      .mockResolvedValueOnce({
-        trustedDeviceUsage: {
-          devicesUsageLimit: 0,
-          devicesInUse: 0,
-        },
-        accessRequestUsage: {
-          monthlyLimit: 5,
-          monthlyUsed: 3,
-        },
-      });
-    render(Component);
+      .mockResolvedValueOnce(mockUsageWithNotLimitReached);
 
+    render(Component);
+    await waitFor(() => {
+      expect(screen.queryByTestId('usage-info')).not.toBeInTheDocument();
+    });
+  });
+
+  test('eub with igs enabled renders no usage info', async () => {
+    ecfg.oss.isEnterprise = true;
+    ecfg.oss.isUsageBasedBilling = true;
+    ecfg.oss.isTeam = false;
+    ecfg.oss.isIgsEnabled = true;
+    jest
+      .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
+      .mockResolvedValueOnce(mockUsageWithNotLimitReached);
+
+    render(Component);
+    await waitFor(() => {
+      expect(screen.queryByTestId('usage-info')).not.toBeInTheDocument();
+    });
+  });
+
+  test('team renders usage info', async () => {
+    ecfg.oss.isEnterprise = true;
+    ecfg.oss.isUsageBasedBilling = true;
+    ecfg.oss.isTeam = true;
+    ecfg.oss.isIgsEnabled = false;
+    jest
+      .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
+      .mockResolvedValueOnce(mockUsageWithNotLimitReached);
+
+    render(Component);
     await waitFor(() => {
       expect(screen.getByTestId('usage-info')).toBeInTheDocument();
     });
 
-    const usageInfo = screen.getByTestId('usage-info');
+    let usageInfo = screen.getByTestId('usage-info');
     expect(usageInfo).toHaveTextContent(`3 access requests`);
     expect(usageInfo).toHaveTextContent(
       `allocation of 5 access requests per month`
     );
   });
 
-  test('displays upsell link and button when access request limit is reached', async () => {
-    cfg.oss.isUsageBasedBilling = true;
+  test('eub WITHOUT igs enabled renders usage info', async () => {
+    ecfg.oss.isEnterprise = true;
+    ecfg.oss.isUsageBasedBilling = true;
+    ecfg.oss.isTeam = false;
+    ecfg.oss.isIgsEnabled = false;
+    jest
+      .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
+      .mockResolvedValueOnce(mockUsageWithNotLimitReached);
+
+    render(Component);
+    await waitFor(() => {
+      expect(screen.getByTestId('usage-info')).toBeInTheDocument();
+    });
+
+    let usageInfo = screen.getByTestId('usage-info');
+    expect(usageInfo).toHaveTextContent(`3 access requests`);
+    expect(usageInfo).toHaveTextContent(
+      `allocation of 5 access requests per month`
+    );
+  });
+
+  test('team: displays upsell link and button when access request limit is reached', async () => {
+    ecfg.oss.isEnterprise = true;
+    ecfg.oss.isUsageBasedBilling = true;
+    ecfg.oss.isIgsEnabled = false;
+    ecfg.oss.isTeam = true;
     jest
       .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
       .mockResolvedValueOnce({
@@ -288,20 +350,63 @@ describe('new request behavior', () => {
           monthlyUsed: 5,
         },
       });
-    render(Component);
 
+    render(Component);
     await waitFor(() => {
       expect(screen.getByTestId('usage-info')).toBeInTheDocument();
     });
 
-    const usageInfo = screen.getByTestId('usage-info');
-    expect(usageInfo).toHaveTextContent(`reached its allocation`);
-    const upsellLinks = await screen.findAllByRole('link');
+    let ctaTexts = screen.getAllByText(/with teleport enterprise/i);
+    expect(ctaTexts).toHaveLength(2);
+    expect(
+      screen.queryByText(/with identity governance/i)
+    ).not.toBeInTheDocument();
+
+    let upsellLinks = await screen.findAllByRole('link');
     expect(upsellLinks).toHaveLength(2);
     for (const link of upsellLinks) {
       expect(link).toHaveAttribute(
         'href',
-        expect.stringMatching(/https:\/\/goteleport.com\/r\/upgrade/i)
+        expect.stringMatching(/upgrade-team/i)
+      );
+    }
+  });
+
+  test('eub without igs: displays upsell link and button when access request limit is reached', async () => {
+    ecfg.oss.isEnterprise = true;
+    ecfg.oss.isUsageBasedBilling = true;
+    ecfg.oss.isIgsEnabled = false;
+    ecfg.oss.isTeam = false;
+    jest
+      .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
+      .mockResolvedValueOnce({
+        trustedDeviceUsage: {
+          devicesUsageLimit: 0,
+          devicesInUse: 0,
+        },
+        accessRequestUsage: {
+          monthlyLimit: 5,
+          monthlyUsed: 5,
+        },
+      });
+
+    render(Component);
+    await waitFor(() => {
+      expect(screen.getByTestId('usage-info')).toBeInTheDocument();
+    });
+
+    const ctaTexts = screen.getAllByText(/with identity governance/i);
+    expect(ctaTexts).toHaveLength(2);
+    expect(
+      screen.queryByText(/with teleport enterprise/i)
+    ).not.toBeInTheDocument();
+
+    const upsellLinks = screen.getAllByRole('link');
+    expect(upsellLinks).toHaveLength(2);
+    for (const link of upsellLinks) {
+      expect(link).toHaveAttribute(
+        'href',
+        expect.stringMatching(/upgrade-igs/i)
       );
     }
   });
@@ -359,3 +464,14 @@ const nodesResponse = [
     ],
   },
 ];
+
+const mockUsageWithNotLimitReached = {
+  trustedDeviceUsage: {
+    devicesUsageLimit: 0,
+    devicesInUse: 0,
+  },
+  accessRequestUsage: {
+    monthlyLimit: 5,
+    monthlyUsed: 3,
+  },
+};

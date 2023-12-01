@@ -97,7 +97,7 @@ class TeleportEContext extends TeleportContext {
 
     // fetchNonBillableSummaryInformation will do an auth check on the backend for the billing role,
     // we should only fetch if the user has the correct permissions.
-    if (cfg.isUsageBasedBilling && this.getFeatureFlags().billing) {
+    if (cfg.isTeam && this.getFeatureFlags().billing) {
       try {
         await setAndEmitFeatureRecommendationStatus(this.cloudService);
       } catch (err) {

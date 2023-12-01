@@ -58,10 +58,10 @@ export function MainE() {
     );
   }
 
-  const usageBased = cfg.oss.isUsageBasedBilling;
+  const isTeam = cfg.oss.isTeam;
 
-  const usageBasedUpgradeBanner = useMemo(() => {
-    if (!usageBased) {
+  const teamUpgradeBanner = useMemo(() => {
+    if (!isTeam) {
       return;
     }
 
@@ -76,16 +76,16 @@ export function MainE() {
         )}
       />
     );
-  }, [usageBased]);
+  }, [isTeam]);
 
   const billingBanners = [];
-  if (usageBased) {
-    billingBanners.push(usageBasedUpgradeBanner);
+  if (isTeam) {
+    billingBanners.push(teamUpgradeBanner);
   }
 
   const requiresOnboardingSurvey = surveyUnanswered();
   const questionnaire =
-    (usageBased && requiresOnboardingSurvey && Questionnaire) || null;
+    (isTeam && requiresOnboardingSurvey && Questionnaire) || null;
 
   const CustomLogos = {
     bblp: BblpLogo,

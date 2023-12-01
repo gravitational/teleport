@@ -169,7 +169,7 @@ export class FeatureSummary implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.billing && cfg.oss.isUsageBasedBilling;
+    return flags.billing && cfg.oss.isTeam;
   }
 
   navigationItem = {
@@ -192,7 +192,7 @@ export class FeaturePaymentsAndInvoices implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.billing && cfg.oss.isUsageBasedBilling;
+    return flags.billing && cfg.oss.isTeam;
   }
 
   navigationItem = {
@@ -215,7 +215,7 @@ export class FeatureInvoiceSettings implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.billing && cfg.oss.isUsageBasedBilling;
+    return flags.billing && cfg.oss.isTeam;
   }
 
   navigationItem = {

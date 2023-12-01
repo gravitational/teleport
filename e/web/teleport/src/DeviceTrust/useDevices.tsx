@@ -12,7 +12,7 @@ const maxFetchLimit = 5000;
 export const useDevices = () => {
   const ctx = useTeleportE();
 
-  const { attempt, setAttempt, run } = useAttempt('processing');
+  const { attempt, setAttempt } = useAttempt('processing');
 
   // tableDataAndState holds device details and table state for DeviceList.tsx
   const [tableDataAndState, setTableDataAndState] = useState<tableState>({
@@ -30,6 +30,7 @@ export const useDevices = () => {
         startKey: tableDataAndState.startKey,
       })
       .then(response => {
+        setAttempt({ status: 'success' });
         // update tableDataAndState with device list returned from api
         setTableDataAndState({
           items: [...tableDataAndState.items, ...response.items],
@@ -43,7 +44,7 @@ export const useDevices = () => {
   }
 
   useEffect(() => {
-    run(() => fetchData());
+    fetchData();
   }, []);
 
   return {

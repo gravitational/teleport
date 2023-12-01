@@ -26,7 +26,6 @@ export const Container = () => {
 
 export const DeviceTrust = (props: State) => {
   let { attempt, items, fetchData, fetchStatus, showTrustedDevicesCTA } = props;
-
   const isEmpty = items?.length === 0;
   return (
     <FeatureBox>
@@ -49,7 +48,7 @@ export const DeviceTrust = (props: State) => {
               alignItems="center"
             >
               <EmptyList />
-              {showTrustedDevicesCTA && <TeamCTA align="center" />}
+              {showTrustedDevicesCTA && <CallToAction align="center" />}
             </Flex>
           )}
           {!isEmpty && (
@@ -60,7 +59,7 @@ export const DeviceTrust = (props: State) => {
                   fetchData={fetchData}
                   fetchStatus={fetchStatus}
                 />
-                {showTrustedDevicesCTA && <TeamCTA align="end" />}
+                {showTrustedDevicesCTA && <CallToAction align="end" />}
               </Box>
 
               <Box
@@ -100,7 +99,7 @@ export const DeviceTrust = (props: State) => {
   );
 };
 
-const TeamCTA = (props: CTAProps) => {
+const CallToAction = (props: CTAProps) => {
   return (
     <Flex
       flexDirection="column"
@@ -109,7 +108,7 @@ const TeamCTA = (props: CTAProps) => {
       alignItems={props.align}
     >
       <Text color="text.slightlyMuted">
-        <i>Your Team Plan includes five free Trusted Devices.</i>
+        <i>Your plan includes five free Trusted Devices.</i>
       </Text>
       <Text typography="paragraph" mb={2}>
         Want additional devices?

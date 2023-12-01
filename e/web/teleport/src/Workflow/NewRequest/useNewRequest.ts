@@ -125,8 +125,8 @@ export function useNewRequest(ctx: Ctx) {
   } | null>(null);
 
   function fetchUsage() {
-    if (!cfg.isUsageBasedBilling) {
-      // there are no limits on non usage-based billing plans
+    if (cfg.isLegacyEnterprise() || cfg.isIgsEnabled) {
+      // there are no limits on non usage-based or if IGS is enabled.
       return;
     }
 

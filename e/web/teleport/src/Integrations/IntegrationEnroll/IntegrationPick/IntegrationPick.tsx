@@ -193,7 +193,7 @@ function PluginTile({
   const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
 
   const pluginAccess: PluginAccess =
-    plugin.disableForTeam && cfg.isUsageBasedBilling
+    plugin.disableForTeam && cfg.isTeam
       ? 'requires-enterprise'
       : hostedButNoAccess
       ? 'denied'
