@@ -918,6 +918,18 @@ const (
 	// that's used by reverse tunnel agents to know which proxies in each proxy
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
+
+	// OktaAppNameLabel is the individual app name label.
+	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
+
+	// OktaAppDescriptionLabel is the individual app description label.
+	OktaAppDescriptionLabel = TeleportInternalLabelPrefix + "okta-app-description"
+
+	// OktaGroupNameLabel is the individual group name label.
+	OktaGroupNameLabel = TeleportInternalLabelPrefix + "okta-group-name"
+
+	// OktaGroupDescriptionLabel is the individual group description label.
+	OktaGroupDescriptionLabel = TeleportInternalLabelPrefix + "okta-group-description"
 )
 
 const (
