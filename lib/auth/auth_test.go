@@ -939,8 +939,9 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test oidc upsert event
 	oidc.SetDisplay("alpaca")
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+	upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()

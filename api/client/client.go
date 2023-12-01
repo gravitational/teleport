@@ -1875,19 +1875,33 @@ func (c *Client) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
+func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) (types.OIDCConnector, error) {
 	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
-		return trace.BadParameter("invalid type %T", oidcConnector)
+		return nil, trace.BadParameter("invalid type %T", oidcConnector)
 	}
 
-	_, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
+	upserted, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertOIDCConnector(ctx, connector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		if _, err := c.grpc.UpsertOIDCConnector(ctx, connector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		conn, err := c.GetOIDCConnector(ctx, oidcConnector.GetName(), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the secrets with the values from the passed in connector since
+		// the call to GetOIDCConnector above did not request secrets.
+		conn.SetClientSecret(connector.GetClientSecret())
+		conn.SetGoogleServiceAccount(connector.GetGoogleServiceAccount())
+
+		return conn, nil
 	}
-	return trace.Wrap(err)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteOIDCConnector deletes an OIDC connector by name.

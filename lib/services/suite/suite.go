@@ -853,11 +853,9 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 		},
 	}
 
-	err := s.WebS.UpsertOIDCConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetOIDCConnectors(ctx, true)
 	require.NoError(t, err)
@@ -907,8 +905,7 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertOIDCConnector(ctx, connector))
-	upserted, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())

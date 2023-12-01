@@ -173,7 +173,7 @@ type Identity interface {
 	// UpdateOIDCConnector updates an existing OIDC connector.
 	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 	// UpsertOIDCConnector updates or creates an OIDC connector.
-	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC Connector
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
