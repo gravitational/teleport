@@ -54,6 +54,9 @@ type AccessRequestReconcilerConfig struct {
 	// ClusterName is the name of the cluster.
 	ClusterName string
 
+	// LocKWatcher is the lock watcher for the reconciler.
+	LockWatcher *services.LockWatcher
+
 	// AccessPoint is the access point for the access request reconciler.
 	AccessPoint AccessRequestReconcilerAccessPoint
 
@@ -89,6 +92,10 @@ func (c *AccessRequestReconcilerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cluster name is missing")
 	}
 
+	if c.LockWatcher == nil {
+		return trace.BadParameter("lock watcher is missing")
+	}
+
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point is missing")
 	}
@@ -108,6 +115,7 @@ type AccessRequestReconciler struct {
 	log         logrus.FieldLogger
 	clock       clockwork.Clock
 	clusterName string
+	lockWatcher *services.LockWatcher
 
 	accessPoint AccessRequestReconcilerAccessPoint
 	plugins     services.Plugins
@@ -152,6 +160,7 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 		log:                     config.Log,
 		clock:                   config.Clock,
 		clusterName:             config.ClusterName,
+		lockWatcher:             config.LockWatcher,
 		accessPoint:             config.AccessPoint,
 		onReconcile:             config.OnReconcile,
 		plugins:                 config.Plugins,
@@ -625,6 +634,81 @@ func (a *AccessRequestReconciler) getAppServer(ctx context.Context, name string)
 		return nil, trace.BadParameter("expected types.ApplicationServer, found %T", resp.Resources[0])
 	}
 	return appServer, nil
+}
+
+// OnLogin's job is to mark assignments cleaned up when a lock is encountered or to restore assignments when a
+// lock is removed.
+func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) error {
+	locks := a.lockWatcher.GetCurrent()
+	userLocked := false
+	accessRequestsLocked := map[string]struct{}{}
+	for _, lock := range locks {
+		if lock.Target().User == user.GetName() {
+			userLocked = true
+			break
+		}
+		if lock.Target().AccessRequest != "" {
+			accessRequestsLocked[lock.Target().AccessRequest] = struct{}{}
+		}
+	}
+
+	// Cycle through all access requests, looking for access requests that belong to the
+	// given user.
+	accessRequests := a.getAccessRequests()
+	for accessRequestName, resource := range accessRequests {
+		accessRequest, ok := resource.(types.AccessRequest)
+		if !ok {
+			return trace.BadParameter("got %T, expected AccessRequest", resource)
+		}
+
+		// This access request is already expired, so no need to process it. Its
+		// corresponding Okta assignment should also be expired.
+		if a.clock.Now().After(accessRequest.Expiry()) {
+			continue
+		}
+
+		// This access request doesn't target this user.
+		if accessRequest.GetUser() != user.GetName() {
+			continue
+		}
+
+		assignment, err := a.oktaClient.GetOktaAssignment(ctx, accessRequestName)
+		// Access requests for non-Okta resource are expected to have no corresponding
+		// Okta assignment.
+		if trace.IsNotFound(err) {
+			continue
+		} else if err != nil {
+			return trace.Wrap(err)
+		}
+
+		assignmentNeedsUpdate := false
+		_, accessRequestLocked := accessRequestsLocked[accessRequest.GetName()]
+
+		needsLock := userLocked || accessRequestLocked
+
+		if needsLock && accessRequest.Expiry() == assignment.GetCleanupTime() {
+			// If the user or access request is locked and the cleanup time matches the access request expiry time,
+			// update the assignment so that it gets cleaned up immediately.
+			assignmentNeedsUpdate = true
+			assignment.SetFinalized(false)
+			assignment.SetCleanupTime(a.clock.Now())
+		} else if !needsLock && accessRequest.Expiry() != assignment.GetCleanupTime() {
+			// If the user or access request is not locked and the cleanup time does not match the access request
+			// expiry time, update the assignment so that the assignment gets re-processed.
+			assignmentNeedsUpdate = true
+			assignment.SetCleanupTime(accessRequest.Expiry())
+		}
+
+		if assignmentNeedsUpdate {
+			a.log.Debugf("Assignment %s updated", assignment.GetName())
+			_, err = a.oktaClient.UpdateOktaAssignment(ctx, assignment)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func copyAccessRequestMapToAccessRequests(accessRequests map[string]types.AccessRequest) types.AccessRequests {

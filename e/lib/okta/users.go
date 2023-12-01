@@ -27,6 +27,9 @@ const (
 type UserAssignmentCreatorAccessPoint interface {
 	services.RoleGetter
 
+	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
@@ -132,22 +135,35 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return trace.Wrap(err)
 	}
 
-	// It should be okay to get the access info from the user state here because we're only concerned about
-	// the permissions tied to the user and associated permissions granted by access lists.
-	accessInfo := services.AccessInfoFromUserState(userState)
-	accessChecker, err := services.NewAccessChecker(accessInfo, u.clusterName, u.accessPoint)
+	var groups []string
+	var apps []string
+
+	// Only calculate access if a user has no locks in force.
+	locks, err := u.accessPoint.GetLocks(ctx, true, types.LockTarget{
+		User: userState.GetName(),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	groups, err := u.groupTargets(ctx, accessChecker)
-	if err != nil {
-		return trace.Wrap(err, "listing user groups for Okta access calculation")
-	}
+	if len(locks) == 0 {
+		// It should be okay to get the access info from the user state here because we're only concerned about
+		// the permissions tied to the user and associated permissions granted by access lists.
+		accessInfo := services.AccessInfoFromUserState(userState)
+		accessChecker, err := services.NewAccessChecker(accessInfo, u.clusterName, u.accessPoint)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	apps, err := u.appServerTargets(ctx, accessChecker)
-	if err != nil {
-		return trace.Wrap(err, "listing app servers for Okta access calculation")
+		groups, err = u.groupTargets(ctx, accessChecker)
+		if err != nil {
+			return trace.Wrap(err, "listing user groups for Okta access calculation")
+		}
+
+		apps, err = u.appServerTargets(ctx, accessChecker)
+		if err != nil {
+			return trace.Wrap(err, "listing app servers for Okta access calculation")
+		}
 	}
 
 	assignmentName, err := uacAssignmentName(u.hash, userState.GetName(), groups, apps)

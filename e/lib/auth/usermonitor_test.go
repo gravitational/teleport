@@ -33,17 +33,31 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
+var userMonitorCmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+	cmpopts.SortSlices(func(u1, u2 *userloginstate.UserLoginState) bool {
+		return u1.GetName() < u2.GetName()
+	}),
+	cmpopts.SortSlices(func(s1, s2 string) bool {
+		return s1 < s2
+	}),
+}
+
 func TestReconcile(t *testing.T) {
 	tests := []struct {
 		name           string
 		roles          []types.Role
 		users          []types.User
 		states         []*userloginstate.UserLoginState
+		locks          []types.Lock
 		expectedStates []*userloginstate.UserLoginState
+		expectedLocks  map[string]types.LockTarget
 	}{
 		{
 			name:           "no resource",
 			expectedStates: []*userloginstate.UserLoginState{},
+			expectedLocks:  map[string]types.LockTarget{},
 		},
 		{
 			name: "only users, no user login states",
@@ -55,9 +69,22 @@ func TestReconcile(t *testing.T) {
 				newUser(t, "user1", types.UserTypeSSO, "role1", "role2"),
 				newUser(t, "user2", types.UserTypeSSO, "role1"),
 			},
+			locks: []types.Lock{
+				newLock(t, "lock1", types.LockTarget{User: "some-user1"}),
+				newLock(t, "lock2", types.LockTarget{User: "some-user2"}),
+				newLock(t, "lock3", types.LockTarget{Login: "some-login1"}),
+				newLock(t, "lock4", types.LockTarget{Role: "some-role1"}),
+				newLock(t, "lock5", types.LockTarget{AccessRequest: "some-access-request-1"}),
+			},
 			expectedStates: []*userloginstate.UserLoginState{
 				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2"}, types.UserTypeSSO),
 				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
+			},
+			expectedLocks: map[string]types.LockTarget{
+				"lock1": {User: "some-user1"},
+				"lock2": {User: "some-user2"},
+				"lock4": {Role: "some-role1"},
+				"lock5": {AccessRequest: "some-access-request-1"},
 			},
 		},
 		{
@@ -78,6 +105,7 @@ func TestReconcile(t *testing.T) {
 				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2"}, types.UserTypeSSO),
 				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
 			},
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "users rebuilt from user login states",
@@ -93,6 +121,7 @@ func TestReconcile(t *testing.T) {
 				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2"}, types.UserTypeSSO),
 				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
 			},
+			expectedLocks: map[string]types.LockTarget{},
 		},
 	}
 
@@ -120,15 +149,18 @@ func TestReconcile(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			for _, lock := range test.locks {
+				require.NoError(t, svc.authServer.UpsertLock(ctx, lock))
+			}
+
 			require.NoError(t, svc.reconcile(ctx))
 
 			states, err := svc.authServer.GetUserLoginStates(ctx)
 			require.NoError(t, err)
 
-			require.Empty(t, cmp.Diff(test.expectedStates, states, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-				cmpopts.SortSlices(func(u1, u2 *userloginstate.UserLoginState) bool {
-					return u1.GetName() < u2.GetName()
-				})))
+			require.Empty(t, cmp.Diff(test.expectedStates, states, userMonitorCmpOpts...))
+
+			require.Empty(t, cmp.Diff(test.expectedLocks, svc.lockToTarget))
 		})
 	}
 }
@@ -136,12 +168,14 @@ func TestReconcile(t *testing.T) {
 func TestProcessEvent(t *testing.T) {
 	const userName = "test"
 
+	type updateFn func(*testing.T, *auth.Server) types.Event
 	tests := []struct {
 		name                          string
 		setup                         func(*testing.T, *auth.Server)
-		update                        func(*testing.T, *auth.Server) types.Event
+		updates                       []updateFn
 		errAssert                     require.ErrorAssertionFunc
 		expected                      *userloginstate.UserLoginState
+		expectedLocks                 map[string]types.LockTarget
 		expectedOktaAssignmentTargets []types.OktaAssignmentTarget
 	}{
 		{
@@ -149,8 +183,10 @@ func TestProcessEvent(t *testing.T) {
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("resource is empty"))
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				return types.Event{}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					return types.Event{}
+				},
 			},
 		},
 		{
@@ -158,12 +194,15 @@ func TestProcessEvent(t *testing.T) {
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("only modification operations are supported"))
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				return types.Event{
-					Resource: newAccessList(t, "access-list1", []string{"role1"}),
-					Type:     types.OpGet,
-				}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					return types.Event{
+						Resource: newAccessList(t, "access-list1", []string{"role1"}),
+						Type:     types.OpGet,
+					}
+				},
 			},
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "user changes",
@@ -175,16 +214,86 @@ func TestProcessEvent(t *testing.T) {
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				// User should gain access to role4
-				user := newUser(t, userName, types.UserTypeSSO, "role1", "role4")
-				return types.Event{
-					Resource: user,
-					Type:     types.OpPut,
-				}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					// User should gain access to role4
+					user := newUser(t, userName, types.UserTypeSSO, "role1", "role4")
+					return types.Event{
+						Resource: user,
+						Type:     types.OpPut,
+					}
+				},
+			},
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1", "role4"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
+		},
+		{
+			name: "user locked",
+			setup: func(t *testing.T, as *auth.Server) {
+				addUser(t, as, userName, types.UserTypeSSO, "role1")
+				addRoles(t, as, "role2", "role3", "role4")
+
+				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO)
+
+				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
+			},
+			updates: []updateFn{
+				func(t *testing.T, as *auth.Server) types.Event {
+					// User should be excluded from access lists.
+					lock := addLock(t, as, userName, types.LockTarget{
+						User: userName,
+					})
+					return types.Event{
+						Resource: lock,
+						Type:     types.OpPut,
+					}
+				},
 			},
 			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1", "role4"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{
+				userName: {User: userName},
+			},
+		},
+		{
+			name: "user unlocked",
+			setup: func(t *testing.T, as *auth.Server) {
+				addUser(t, as, userName, types.UserTypeSSO, "role1")
+				addRoles(t, as, "role2", "role3")
+
+				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO)
+
+				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
+			},
+			updates: []updateFn{
+				func(t *testing.T, as *auth.Server) types.Event {
+					// User should be excluded from access lists.
+					lock := addLock(t, as, userName, types.LockTarget{
+						User: userName,
+					})
+					return types.Event{
+						Resource: lock,
+						Type:     types.OpPut,
+					}
+				},
+				func(t *testing.T, as *auth.Server) types.Event {
+					// User should now be accepted back into access lists.
+					require.NoError(t, as.DeleteLock(context.Background(), userName))
+					return types.Event{
+						Resource: &types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: userName,
+							},
+							Kind: types.KindLock,
+						},
+						Type: types.OpDelete,
+					}
+				},
+			},
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "user deleted (local)",
@@ -196,17 +305,20 @@ func TestProcessEvent(t *testing.T) {
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				// User should rebuilt without any roles or traits set.
-				require.NoError(t, s.DeleteUser(context.Background(), userName))
-				user := newUser(t, userName, types.UserTypeSSO, "role1", "role4")
-				return types.Event{
-					Resource: user,
-					Type:     types.OpDelete,
-				}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					// User should rebuilt without any roles or traits set.
+					require.NoError(t, s.DeleteUser(context.Background(), userName))
+					user := newUser(t, userName, types.UserTypeSSO, "role1", "role4")
+					return types.Event{
+						Resource: user,
+						Type:     types.OpDelete,
+					}
+				},
 			},
-			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, nil, []string{"role2", "role3"}, types.UserTypeLocal),
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, nil, []string{"role2", "role3"}, types.UserTypeLocal),
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "user deleted (sso)",
@@ -218,17 +330,20 @@ func TestProcessEvent(t *testing.T) {
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				// User should be rebuilt based on the user login state here.
-				require.NoError(t, s.DeleteUser(context.Background(), userName))
-				user := newUser(t, userName, types.UserTypeSSO, "role1", "role4")
-				return types.Event{
-					Resource: user,
-					Type:     types.OpDelete,
-				}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					// User should be rebuilt based on the user login state here.
+					require.NoError(t, s.DeleteUser(context.Background(), userName))
+					user := newUser(t, userName, types.UserTypeSSO, "role1", "role4")
+					return types.Event{
+						Resource: user,
+						Type:     types.OpDelete,
+					}
+				},
 			},
-			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "role changes",
@@ -253,30 +368,33 @@ func TestProcessEvent(t *testing.T) {
 				require.NoError(t, err)
 				require.NoError(t, as.CreateUserGroup(context.Background(), userGroup))
 			},
-			update: func(t *testing.T, as *auth.Server) types.Event {
-				role, err := types.NewRole("role2", types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						GroupLabels: types.Labels{
-							types.Wildcard: []string{types.Wildcard},
-						},
-						Rules: []types.Rule{
-							{
-								Resources: []string{types.KindUserGroup},
-								Verbs:     []string{types.VerbRead, types.VerbList},
+			updates: []updateFn{
+				func(t *testing.T, as *auth.Server) types.Event {
+					role, err := types.NewRole("role2", types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							GroupLabels: types.Labels{
+								types.Wildcard: []string{types.Wildcard},
+							},
+							Rules: []types.Rule{
+								{
+									Resources: []string{types.KindUserGroup},
+									Verbs:     []string{types.VerbRead, types.VerbList},
+								},
 							},
 						},
-					},
-				})
-				require.NoError(t, err)
-				_, err = as.UpsertRole(context.Background(), role)
-				require.NoError(t, err)
-				return types.Event{
-					Resource: role,
-					Type:     types.OpPut,
-				}
+					})
+					require.NoError(t, err)
+					_, err = as.UpsertRole(context.Background(), role)
+					require.NoError(t, err)
+					return types.Event{
+						Resource: role,
+						Type:     types.OpPut,
+					}
+				},
 			},
-			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
 			expectedOktaAssignmentTargets: []types.OktaAssignmentTarget{
 				&types.OktaAssignmentTargetV1{
 					Id:   "ug1",
@@ -296,14 +414,17 @@ func TestProcessEvent(t *testing.T) {
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 				addAccessList(t, as, "access-list2", []string{"role4"})
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				return types.Event{
-					Resource: newAccessListMember(t, "access-list2", userName),
-					Type:     types.OpDelete,
-				}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					return types.Event{
+						Resource: newAccessListMember(t, "access-list2", userName),
+						Type:     types.OpDelete,
+					}
+				},
 			},
-			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "access list membership changes (only user login state)",
@@ -315,14 +436,17 @@ func TestProcessEvent(t *testing.T) {
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 				addAccessList(t, as, "access-list2", []string{"role4"})
 			},
-			update: func(t *testing.T, s *auth.Server) types.Event {
-				return types.Event{
-					Resource: newAccessListMember(t, "access-list2", userName),
-					Type:     types.OpDelete,
-				}
+			updates: []updateFn{
+				func(t *testing.T, s *auth.Server) types.Event {
+					return types.Event{
+						Resource: newAccessListMember(t, "access-list2", userName),
+						Type:     types.OpDelete,
+					}
+				},
 			},
-			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
 			name: "access list itself changes",
@@ -333,17 +457,20 @@ func TestProcessEvent(t *testing.T) {
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 			},
-			update: func(t *testing.T, as *auth.Server) types.Event {
-				accessList := newAccessList(t, "access-list1", []string{"role2", "role3", "role4"})
-				_, err := as.AccessLists.UpsertAccessList(context.Background(), accessList)
-				require.NoError(t, err)
-				return types.Event{
-					Resource: accessList,
-					Type:     types.OpPut,
-				}
+			updates: []updateFn{
+				func(t *testing.T, as *auth.Server) types.Event {
+					accessList := newAccessList(t, "access-list1", []string{"role2", "role3", "role4"})
+					_, err := as.AccessLists.UpsertAccessList(context.Background(), accessList)
+					require.NoError(t, err)
+					return types.Event{
+						Resource: accessList,
+						Type:     types.OpPut,
+					}
+				},
 			},
-			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+			errAssert:     require.NoError,
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+			expectedLocks: map[string]types.LockTarget{},
 		},
 	}
 
@@ -369,9 +496,16 @@ func TestProcessEvent(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, assignments)
 
-			event := test.update(t, svc.authServer)
-			err = svc.processResource(ctx, event.Resource, event.Type)
-			test.errAssert(t, err)
+			// Process each update.
+			var processErrs []error
+			for _, update := range test.updates {
+				event := update(t, svc.authServer)
+				err = svc.processResource(ctx, event.Resource, event.Type)
+				if err != nil {
+					processErrs = append(processErrs, err)
+				}
+			}
+			test.errAssert(t, trace.NewAggregate(processErrs...))
 
 			if err != nil {
 				return
@@ -380,13 +514,12 @@ func TestProcessEvent(t *testing.T) {
 			uls, err := svc.authServer.GetUserLoginState(ctx, userName)
 			require.NoError(t, err)
 
-			require.Empty(t, cmp.Diff(test.expected, uls, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-				cmpopts.SortSlices(func(s1, s2 string) bool {
-					return s1 < s2
-				})))
+			require.Empty(t, cmp.Diff(test.expected, uls, userMonitorCmpOpts...))
 
 			assignments, _, err = svc.authServer.ListOktaAssignments(ctx, 0 /* default page size */, "")
 			require.NoError(t, err)
+
+			require.Empty(t, cmp.Diff(test.expectedLocks, svc.lockToTarget, userMonitorCmpOpts...))
 
 			if test.expectedOktaAssignmentTargets != nil {
 				require.Len(t, assignments, 1)
@@ -571,4 +704,25 @@ func newRole(t *testing.T, roleName string) types.Role {
 	require.NoError(t, err)
 
 	return role
+}
+
+func newLock(t *testing.T, name string, target types.LockTarget) types.Lock {
+	t.Helper()
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+
+	return lock
+}
+
+func addLock(t *testing.T, as *auth.Server, name string, target types.LockTarget) types.Lock {
+	t.Helper()
+
+	lock := newLock(t, name, target)
+
+	require.NoError(t, as.UpsertLock(context.Background(), lock))
+
+	return lock
 }

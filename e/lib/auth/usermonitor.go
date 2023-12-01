@@ -17,6 +17,7 @@ package auth
 import (
 	"context"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -81,6 +83,7 @@ func (u *UserMonitorConfig) CheckAndSetDefaults() error {
 // - Role changes
 // - Access list changes
 // - Access list membership changes.
+// - User locks and lock deletions.
 // The user login hooks attached to the auth service will be re-run, which will allow
 // for dynamic changing of things like Okta assignments. This monitor must be run on
 // the auth server.
@@ -89,6 +92,12 @@ type UserMonitor struct {
 	clock      clockwork.Clock
 	authServer *auth.Server
 	events     types.Events
+
+	// locksToTarget keeps tracks of which locks map to which targets. This allows us to
+	// react quickly when a lock deletion occurs, as we may otherwise have no context
+	// as to what the lock was actually doing.
+	lockToTargetMu sync.Mutex
+	lockToTarget   map[string]types.LockTarget
 }
 
 func NewUserMonitor(ctx context.Context, cfg UserMonitorConfig) (*UserMonitor, error) {
@@ -97,10 +106,11 @@ func NewUserMonitor(ctx context.Context, cfg UserMonitorConfig) (*UserMonitor, e
 	}
 
 	u := &UserMonitor{
-		log:        cfg.Log,
-		clock:      cfg.Clock,
-		authServer: cfg.AuthServer,
-		events:     cfg.Events,
+		log:          cfg.Log,
+		clock:        cfg.Clock,
+		authServer:   cfg.AuthServer,
+		events:       cfg.Events,
+		lockToTarget: map[string]types.LockTarget{},
 	}
 
 	return u, nil
@@ -136,6 +146,22 @@ func (u *UserMonitor) reconciler(ctx context.Context) {
 }
 
 func (u *UserMonitor) reconcile(ctx context.Context) error {
+	// Get all locks and rebuild the lock to target map.
+	locks, err := u.authServer.GetLocks(ctx, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	u.lockToTargetMu.Lock()
+	u.lockToTarget = map[string]types.LockTarget{}
+	for _, lock := range locks {
+		if !isLockSupported(lock.Target()) {
+			continue
+		}
+		u.lockToTarget[lock.GetName()] = lock.Target()
+	}
+	u.lockToTargetMu.Unlock()
+
 	users, err := u.authServer.GetUsers(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -211,6 +237,7 @@ func (u *UserMonitor) newWatcher(ctx context.Context) (types.Watcher, error) {
 			{Kind: types.KindRole},
 			{Kind: types.KindAccessListMember},
 			{Kind: types.KindAccessList},
+			{Kind: types.KindLock},
 		},
 	})
 	return watcher, trace.Wrap(err)
@@ -282,6 +309,8 @@ func (u *UserMonitor) processResource(ctx context.Context, resource types.Resour
 		}
 
 		return trace.Wrap(u.processAccessListChange(ctx, accessList))
+	case types.KindLock:
+		return trace.Wrap(u.processLock(ctx, resource, op))
 	}
 
 	return nil
@@ -405,4 +434,104 @@ func (u *UserMonitor) processAccessListChange(ctx context.Context, accessList *a
 	}
 
 	return nil
+}
+
+func (u *UserMonitor) processLock(ctx context.Context, resource types.Resource, op types.OpType) error {
+	target, valid, err := u.getLockTarget(resource, op)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !valid {
+		return nil
+	}
+
+	return trace.Wrap(u.processLockTarget(ctx, target))
+}
+
+// getLockTarget will return a lock target either from the given event or from the lock to target mapping. It will
+// return a target, whether the target is valid, and an error. This function will also manage the lock to target
+// mapping, which will add to the mapping when op is OpPut and delete from the mapping when op is OpDelete.
+func (u *UserMonitor) getLockTarget(resource types.Resource, op types.OpType) (types.LockTarget, bool, error) {
+	if op == types.OpPut {
+		lock, ok := resource.(types.Lock)
+		if !ok {
+			return types.LockTarget{}, false, trace.BadParameter("got resource %T, expected Lock", resource)
+		}
+
+		target := lock.Target()
+
+		if !isLockSupported(target) {
+			return types.LockTarget{}, false, nil
+		}
+
+		// Record which user the lock is targeting.
+		u.lockToTargetMu.Lock()
+		u.lockToTarget[lock.GetName()] = lock.Target()
+		u.lockToTargetMu.Unlock()
+
+		return target, true, nil
+	}
+
+	// Delete the lock mapping.
+	u.lockToTargetMu.Lock()
+	target, ok := u.lockToTarget[resource.GetName()]
+	delete(u.lockToTarget, resource.GetName())
+	u.lockToTargetMu.Unlock()
+
+	// No supported lock target was found here.
+	if !ok {
+		return types.LockTarget{}, false, nil
+	}
+
+	return target, true, nil
+}
+
+func (u *UserMonitor) processLockTarget(ctx context.Context, target types.LockTarget) error {
+	lockProcessed := false
+	var errs []error
+	if target.User != "" {
+		lockProcessed = true
+		if err := u.rebuildAndProcessUser(ctx, target.User); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+	if target.Role != "" {
+		lockProcessed = true
+		if err := u.processRoleChange(ctx, target.Role); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+
+	if target.AccessRequest != "" {
+		lockProcessed = true
+		accessRequest, err := services.GetAccessRequest(ctx, u.authServer.DynamicAccessExt, target.AccessRequest)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+		} else {
+			if err := u.rebuildAndProcessUser(ctx, accessRequest.GetUser()); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	if !lockProcessed {
+		return trace.BadParameter("unsupported lock targets")
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// isLockSupported will return true if the lock type is supported.
+func isLockSupported(target types.LockTarget) bool {
+	switch {
+	case target.User != "":
+		return true
+	case target.Role != "":
+		return true
+	case target.AccessRequest != "":
+		return true
+	}
+
+	return false
 }

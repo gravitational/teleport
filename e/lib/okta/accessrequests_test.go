@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -28,6 +29,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 		Clock:                   clock,
 		ClusterName:             testClusterName,
 		AccessPoint:             ap,
+		LockWatcher:             newLockWatcher(t, ap),
 		OktaClient:              ap,
 		onReconcileCh:           onReconcileCh,
 		onServiceDisconnectedCh: onServiceDisconnectedCh,
@@ -277,6 +279,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
 				Clock:       clock,
 				ClusterName: testClusterName,
+				LockWatcher: newLockWatcher(t, ap),
 				AccessPoint: ap,
 				OktaClient:  ap,
 			})
@@ -323,11 +326,287 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 	}
 }
 
+func TestOnLogin(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	user1, err := types.NewUser("user1")
+	require.NoError(t, err)
+	user2, err := types.NewUser("user2")
+	require.NoError(t, err)
+
+	// Access requests must be UUIDs, so we'll pre-define them here
+	// for later referencing.
+	arNames := make([]string, 2)
+	for i := 0; i < len(arNames); i++ {
+		arNames[i] = uuid.NewString()
+	}
+
+	// Run multiple cycles where we create/delete locks and run on-login.
+	type lockAndOnLoginCycle struct {
+		locks    []types.Lock
+		expected []types.OktaAssignment
+	}
+
+	tests := []struct {
+		name           string
+		accessRequests []types.AccessRequest
+		expected       []types.OktaAssignment
+		cycles         []lockAndOnLoginCycle
+	}{
+		{
+			name:     "no assignments",
+			expected: []types.OktaAssignment{},
+			cycles: []lockAndOnLoginCycle{
+				{
+					expected: []types.OktaAssignment{},
+				},
+			},
+		},
+		{
+			name: "access requests, no locks",
+			accessRequests: []types.AccessRequest{
+				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group1")),
+				accessRequest(t, arNames[1], user2.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group2")),
+			},
+			expected: []types.OktaAssignment{
+				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+			},
+			cycles: []lockAndOnLoginCycle{
+				{
+					expected: []types.OktaAssignment{
+						assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+						assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+					},
+				},
+			},
+		},
+		{
+			name: "access requests, locks",
+			accessRequests: []types.AccessRequest{
+				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group1")),
+				accessRequest(t, arNames[1], user2.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group2")),
+			},
+			expected: []types.OktaAssignment{
+				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+			},
+			cycles: []lockAndOnLoginCycle{
+				{
+					locks: []types.Lock{
+						lock(t, "lock1", types.LockTarget{User: user1.GetName()}),
+						lock(t, "lock2", types.LockTarget{AccessRequest: arNames[1]}),
+					},
+					expected: []types.OktaAssignment{
+						assignment(t, arNames[0], user1.GetName(), now, constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+						assignment(t, arNames[1], user2.GetName(), now, constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+					},
+				},
+			},
+		},
+		{
+			name: "access requests, delete locks",
+			accessRequests: []types.AccessRequest{
+				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group1")),
+				accessRequest(t, arNames[1], user2.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group2")),
+			},
+			expected: []types.OktaAssignment{
+				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+			},
+			cycles: []lockAndOnLoginCycle{
+				{
+					locks: []types.Lock{
+						lock(t, "lock1", types.LockTarget{User: user1.GetName()}),
+						lock(t, "lock2", types.LockTarget{AccessRequest: arNames[1]}),
+					},
+					expected: []types.OktaAssignment{
+						assignment(t, arNames[0], user1.GetName(), now, constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+						assignment(t, arNames[1], user2.GetName(), now, constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+					},
+				},
+				{
+					expected: []types.OktaAssignment{
+						assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+						assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			clock := clockwork.NewFakeClockAt(now)
+			ap := newTestAccessPoint(t, clock)
+			onReconcileCh := make(chan struct{}, 1)
+			lockWatcher := newLockWatcher(t, ap)
+
+			// Create basic roles and user groups for use by the access requests.
+			role, err := types.NewRole("role1", types.RoleSpecV6{})
+			require.NoError(t, err)
+			_, err = ap.CreateRole(ctx, role)
+			require.NoError(t, err)
+
+			role, err = types.NewRole("role2", types.RoleSpecV6{})
+			require.NoError(t, err)
+			_, err = ap.CreateRole(ctx, role)
+			require.NoError(t, err)
+
+			userGroup := group(t, "group1", types.OriginOkta, testOrgURL)
+			require.NoError(t, ap.CreateUserGroup(ctx, userGroup))
+
+			userGroup = group(t, "group2", types.OriginOkta, testOrgURL)
+			require.NoError(t, ap.CreateUserGroup(ctx, userGroup))
+
+			// Set the service count to 1 to make sure the reconciler is active.
+			ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
+
+			// Start a new reconciler for the test.
+			reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
+				Clock:         clock,
+				ClusterName:   testClusterName,
+				AccessPoint:   ap,
+				LockWatcher:   lockWatcher,
+				OktaClient:    ap,
+				onReconcileCh: onReconcileCh,
+			})
+			require.NoError(t, err)
+			require.NoError(t, reconciler.Start(ctx))
+			t.Cleanup(func() {
+				reconciler.Stop()
+			})
+
+			// Create all the access requests.
+			count := 0
+			for _, accessRequest := range test.accessRequests {
+				count++
+				require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
+				waitForResult(t, onReconcileCh, struct{}{}, 1)
+				ap.SetAccessRequestState(ctx, types.AccessRequestUpdate{
+					RequestID: accessRequest.GetName(),
+					State:     types.RequestState_APPROVED,
+				})
+				waitForResult(t, onReconcileCh, struct{}{}, 1)
+			}
+
+			// Wait for the reconciler to see the access requests.
+			require.EventuallyWithT(t, func(tollect *assert.CollectT) {
+				assert.Len(t, reconciler.accessRequests, count)
+			}, 5*time.Second, 10*time.Millisecond)
+
+			cmpOpts := []cmp.Option{
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+				cmpopts.SortSlices(func(a1, a2 types.OktaAssignment) bool {
+					return a1.GetName() < a2.GetName()
+				}),
+			}
+
+			// Make sure the Okta assignments reflect the access requests.
+			assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(test.expected, assignments, cmpOpts...))
+
+			cycleCount := 0
+			// Lock, run on login, and then test the Okta assignments.
+			for _, cycle := range test.cycles {
+				// Delete all of the locks so that we have a fresh set of locks in the cycle
+				require.NoError(t, ap.DeleteAllLocks(ctx), "cycle %d", cycleCount)
+				require.Eventually(t, func() bool {
+					return len(lockWatcher.GetCurrent()) == 0
+				}, 5*time.Second, 10*time.Millisecond, "cycle %d: lock watcher did not empty", cycleCount)
+
+				// Create the locks.
+				for _, lock := range cycle.locks {
+					// Make sure each lock shows up in the watcher.
+					require.NoError(t, ap.UpsertLock(ctx, lock), "cycle %d", cycleCount)
+					require.Eventually(t, func() bool {
+						for _, currentLock := range lockWatcher.GetCurrent() {
+							if currentLock.GetName() == lock.GetName() && cmp.Diff(currentLock.Target(), lock.Target()) == "" {
+								return true
+							}
+
+						}
+
+						return false
+					}, 5*time.Second, 10*time.Millisecond,
+						"cycle %d: lock %s did not appear in lock watcher with the appropriate target %s", cycleCount, lock.GetName(), lock.Target().String())
+				}
+
+				// Run on-login, which should modify any assignments if locks are present/removed.
+				require.NoError(t, reconciler.OnLogin(ctx, user1), "cycle %d", cycleCount)
+				require.NoError(t, reconciler.OnLogin(ctx, user2), "cycle %d", cycleCount)
+
+				// Make sure the new okta assignments reflect what should appear this cycle.
+				assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(cycle.expected, assignments, cmpOpts...), "cycle %d", cycleCount)
+
+				cycleCount++
+			}
+		})
+	}
+}
+
 func getOktaAssignment(t *testing.T, ap *testAccessPoint, name string) types.OktaAssignment {
+	t.Helper()
+
 	ctx := context.Background()
 
 	accessRequest, err := ap.GetOktaAssignment(ctx, name)
 	require.NoError(t, err)
 
 	return accessRequest
+}
+
+func accessRequest(t *testing.T, name, user string, roles []string, expiry time.Time, resourceIDs ...types.ResourceID) types.AccessRequest {
+	t.Helper()
+
+	accessRequest, err := types.NewAccessRequestWithResources(name, user, roles, resourceIDs)
+	require.NoError(t, err)
+	accessRequest.SetAccessExpiry(expiry)
+
+	return accessRequest
+}
+
+func resourceID(kind, name string) types.ResourceID {
+	return types.ResourceID{
+		ClusterName: testClusterName,
+		Kind:        kind,
+		Name:        name,
+	}
+}
+
+func lock(t *testing.T, name string, target types.LockTarget) types.Lock {
+	t.Helper()
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+
+	return lock
 }

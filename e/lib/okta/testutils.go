@@ -168,14 +168,7 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 
 	emitter := eventstest.NewChannelEmitter(2)
 	client := newTestClient()
-	services.NewLockWatcher(ctx, services.LockWatcherConfig{})
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentOkta,
-			Client:    ap,
-		},
-	})
-	require.NoError(t, err)
+	lockWatcher := newLockWatcher(t, ap)
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testClusterName,
 		AccessPoint: ap,
@@ -209,6 +202,20 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 	require.NoError(t, ap.UpsertProxy(ctx, proxyServer))
 
 	return svc, client, emitter
+}
+
+func newLockWatcher(t *testing.T, ap *testAccessPoint) *services.LockWatcher {
+	t.Helper()
+
+	lockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentOkta,
+			Client:    ap,
+		},
+	})
+	require.NoError(t, err)
+
+	return lockWatcher
 }
 
 // testOktaClient is a testing Okta client that is backed by fixed values.

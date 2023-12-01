@@ -49,6 +49,7 @@ func TestProcessAssignments(t *testing.T) {
 		apps                   types.AppServers
 		deleteOktaAppIDs       map[string]bool
 		appsSkipAddToOkta      bool
+		reconcile              bool
 		assignments            types.OktaAssignments
 		expected               types.OktaAssignments
 		incrementTimeDuration  time.Duration
@@ -119,6 +120,7 @@ func TestProcessAssignments(t *testing.T) {
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL),
 				application(t, hash, "app2", link, types.OriginOkta, testOrgURL),
 			},
+			reconcile: true,
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
@@ -295,6 +297,31 @@ func TestProcessAssignments(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			name: "finalized assignment reprocessed due to later cleanup time",
+			groups: types.UserGroups{
+				group(t, "group1", types.OriginOkta, testOrgURL),
+			},
+			apps: types.AppServers{
+				application(t, hash, "app1", link, types.OriginOkta, testOrgURL),
+			},
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(time.Minute), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+			)},
+			incrementTimeDuration: time.Minute,
+			oktaClientGroupMapping: map[string]map[string]bool{
+				"group1": {"okta-user-id": true},
+			},
+			oktaClientAppMapping: map[string]map[string]bool{
+				"app1": {"okta-user-id": true},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			name: "processing timeout, app retried, group retried",
 			groups: types.UserGroups{
 				group(t, "group1", types.OriginOkta, testOrgURL),
@@ -302,6 +329,7 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL),
 			},
+			reconcile: true,
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusProcessing, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
@@ -410,6 +438,7 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL),
 			},
+			reconcile: true,
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -447,6 +476,7 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL),
 			},
+			reconcile: true,
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime, false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -482,7 +512,10 @@ func TestProcessAssignments(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			clock := clockwork.NewFakeClockAt(startTime)
 			ctx := context.Background()
 			ap := newTestAccessPoint(t, clock)
@@ -532,7 +565,7 @@ func TestProcessAssignments(t *testing.T) {
 
 			clock.Advance(test.incrementTimeDuration)
 
-			err := a.processAssignments(ctx)
+			err := a.processAssignments(ctx, test.reconcile)
 			test.errAssertionFunc(t, err)
 
 			actual, _, err := ap.ListOktaAssignments(ctx, 0, "")

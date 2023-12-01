@@ -6,6 +6,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/e/lib/okta"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type CleanupFuncs []func() error
@@ -44,9 +46,20 @@ func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs Clean
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: eteleport.ComponentOkta,
+			Log:       log,
+			Client:    plugin.authServer.AuthServer,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	oktaAccessRequestReconciler, err := okta.NewAccessRequestReconciler(ctx, &okta.AccessRequestReconcilerConfig{
 		AccessPoint: plugin.authServer.AuthServer,
+		LockWatcher: lockWatcher,
 		OktaClient:  plugin.authServer.AuthServer.OktaClient(),
 		ClusterName: clusterName.GetClusterName(),
 		Plugins:     plugin.plugins,
@@ -63,6 +76,8 @@ func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs Clean
 	if err := oktaAccessRequestReconciler.Start(ctx); err != nil {
 		return cleanupFuncs, trace.Wrap(err, "error starting Okta access requests reconciler")
 	}
+
+	plugin.authServer.AuthServer.RegisterLoginHook(oktaAccessRequestReconciler.OnLogin)
 
 	return cleanupFuncs, nil
 }

@@ -126,7 +126,7 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaClient) {
 		a.assignmentClient = newAssignmentClient(a.log, oktaClient)
 		a.assignmentClientMu.Unlock()
 
-		if err := a.processAssignments(ctx); err != nil {
+		if err := a.processAssignments(ctx, true); err != nil {
 			a.log.Errorf("Error while processing assignments: %v", err)
 		}
 	}
@@ -139,7 +139,7 @@ func (a *assignmentProcessor) stop() {
 
 // processAssignments will iterate through all of the assignments, spawning a goroutine to
 // process each one.
-func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
+func (a *assignmentProcessor) processAssignments(ctx context.Context, reconcile bool) error {
 	var wg sync.WaitGroup
 	assignments := a.assignmentGetter()
 	numAssignments := len(assignments)
@@ -175,7 +175,7 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
 				if !ok {
 					return
 				}
-				errs <- a.processAssignment(ctx, assignment, true /* reconcile */)
+				errs <- a.processAssignment(ctx, assignment, reconcile)
 			}
 		}()
 	}
@@ -204,16 +204,17 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
 
+	cleanupTime := assignment.GetCleanupTime()
+	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
+	needsReprovision := assignment.IsFinalized() && !needsCleanup
+
 	// Skip a finalized assignment, as it's already been cleaned up.
-	if assignment.IsFinalized() {
+	if assignment.IsFinalized() && needsCleanup {
 		return nil
 	}
 
-	cleanupTime := assignment.GetCleanupTime()
-	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
-
 	// We only process non-pending assignments if reconcile is set or if the assignment needs to be cleaned up.
-	if !needsCleanup && !reconcile && assignment.GetStatus() != constants.OktaAssignmentStatusPending {
+	if !needsCleanup && !needsReprovision && !reconcile && assignment.GetStatus() != constants.OktaAssignmentStatusPending {
 		return nil
 	}
 
@@ -228,6 +229,16 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	}
 	if !shouldProcess {
 		return nil
+	}
+
+	// Before we process, set finalized to false if we're re-processing.
+	if assignment.IsFinalized() && !needsCleanup {
+		var updateErr error
+		assignment.SetFinalized(false)
+		assignment, updateErr = a.accessPoint.UpdateOktaAssignment(ctx, assignment)
+		if updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 	}
 
 	if err := assignment.SetStatus(constants.OktaAssignmentStatusProcessing); err != nil {
@@ -298,7 +309,13 @@ func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, nee
 		switch startStatus {
 		case constants.OktaAssignmentStatusPending:
 		case constants.OktaAssignmentStatusSuccessful:
-			// We should only retry successful objects if the time between loops has passes since
+			// If the assignment is marked finalized, it means this assignment was recently unlocked
+			// and we need to re-process it.
+			if assignment.IsFinalized() {
+				return true, nil
+			}
+
+			// Otherwise, we should only retry successful objects if the time between loops has passes since
 			// it last became successful
 			if sinceTransition < timeBetweenAssignmentProcessLoops {
 				return false, nil

@@ -322,7 +322,37 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 
-	// Create an empty user state, which should cause a cleanup of all assignmentssince it has no permissions.
+	// Lock should cause all assignments to be cleaned up.
+	lock, err := types.NewLock("lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: testUser,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, ap.UpsertLock(ctx, lock))
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+
+	expectedAssignment2.SetCleanupTime(clock.Now())
+
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+
+	// Delete lock should restore assignments
+	require.NoError(t, ap.DeleteLock(ctx, "lock"))
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+
+	expectedAssignment2.SetCleanupTime(time.Time{})
+
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+
+	// Create an empty user state, which should cause a cleanup of all assignments since it has no permissions.
 	ap.userState, err = userloginstate.New(header.Metadata{
 		Name: testUser,
 	}, userloginstate.Spec{})
