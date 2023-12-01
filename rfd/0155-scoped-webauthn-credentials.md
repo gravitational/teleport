@@ -67,6 +67,9 @@ message SessionData {
 
 +  // Scope authorized by this webauthn session.
 +  ChallengeScope scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
++  // AllowReuse indicates that this session can be used multiple times for
++  // authentication, until the session expires.
++  bool AllowReuse = 7 [(gogoproto.jsontag) = "allow_reuse,omitempty"];
 }
 
 +// Scope is a scope authorized by a webauthn challenge resolution.
@@ -91,12 +94,6 @@ message SessionData {
 +  // more precise scope. Instead, new scopes should be added. This scope may
 +  // also be split into multiple smaller scopes in the future.
 +  SCOPE_ADMIN_ACTION = 7;
-+  // Webauthn credentials resolved from a challenge with this scope can be
-+  // reused for a short span of time before the challenge expires.
-+  //
-+  // This scope for a select few admin actions and will be rejected by other
-+  // admin actions. See the server implementation for details.
-+  SCOPE_ADMIN_ACTION_WITH_REUSE = 8;
 +}
 
 // authservice.proto
@@ -113,6 +110,12 @@ message CreateAuthenticateChallengeRequest {
 +  // Scope is a authorization scope for this MFA challenge.
 +  // Required. Only applies to webauthn challenges.
 +  webauthn.ChallengeScope Scope = 6 [(gogoproto.jsontag) = "scope,omitempty"];
++  // AllowReuse means webauthn credentials resolved from this challenge can be
++  // reused for a short span of time before the challenge expires.
++  //
++  // Reuse is only permitted for specific actions by the discretion of the server.
++  // See the server implementation for details.
++  bool AllowReuse = 7 [(gogoproto.jsontag) = "allow_reuse,omitempty"];
 }
 ```
 
@@ -122,37 +125,30 @@ Clients will be expected to provide a `Scope` when requesting an MFA challenge
 through `rpc CreateAuthenticateChallenge`. For specific login and device
 management endpoints, the scope will be automatically set on the server side.
 
-For admin actions, clients can provide either `SCOPE_ADMIN_ACTION` or
-`SCOPE_ADMIN_ACTION_WITH_REUSE` to indicate whether reuse is needed. However,
-the reuse scope is only permitted for a limited number of admin actions.
-See [the server implemenation details](#reuse)
+Clients can optionally provide `AllowReuse=true` if the client wants to reuse
+the resulting webauthn credentials for multiple requests. However, the server
+will only permit reuse for a select number of actions. See
+[the server implementation details](#reuse).
 
 ### Server changes
 
 #### Scope
 
-Each MFA action performed by the Auth Server will have an assigned scope. When
-verifying a webauthn credential for the action, the server will check that the
-user's stored webauthn challenge:
-
-1. Matches the webauthn credential, as normal
-2. Matches the scope associated with the action
-
-For example, if the Auth server is verifying a webauthn credential for scope
-"login", but webauthn challenge stored for the user has scope "headless", the
-verification will fail.
-
-Note: some scopes may be inherited, such that one scope can validate another.
-For example, `SCOPE_ADMIN_ACTION` will validate `SCOPE_ADMIN_ACTION_WITH_REUSE`
+When verifying a webauthn credential against the user's stored webauthn
+challenge, the Auth Server will check that the stored scope matches the scope
+that the Auth server is verifying for. For example, if the Auth server is
+verifying a webauthn credential for scope "login", but webauthn challenge
+stored for the user has scope "headless", the verification will fail.
 
 #### Reuse
 
-After verifying a webauthn credential, the Auth server will check the
-`Scope` field of the stored challenge. If the scope is
-`SCOPE_ADMIN_ACTION_WITH_REUSE`, the challenge won't be deleted as normal.
+If an MFA action does not allow reuse, the Auth Server will validate that the
+webauthn challenge has `AllowReuse=false`.
 
-As mentioned in [Security](#security), reuse will only be permitted for specific
-RPCs:
+Additionally, challenges with `AllowReuse=true` will not be deleted immediately,
+instead letting them expire in the backend after 5 minutes.
+
+Initially, reuse will only be permitted for the following admin action RPCs:
 
 - `rpc CreateUser`
 - `rpc UpdateUser`
@@ -187,9 +183,6 @@ These RPCs are currently used for "bulk" requests such as:
 - `tctl create -f multiple-resources.yaml` which can perform several
 updates and creates at once.
 - `tctl users add` which creates a user and a reset password token for the user.
-
-The server will refuse to validate a reusable webauthn credential for RPCs not
-in the list above.
 
 This list should be kept to a minimum by opting to create new endpoints which
 contain the full string of actions when feasible.
