@@ -84,10 +84,12 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Recurrence:    recurrence,
 			Notifications: notifications,
 		},
+		Membership: accesslist.Inclusion(msg.Spec.Membership),
 		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
 		},
+		Ownership: accesslist.Inclusion(msg.Spec.Ownership),
 		OwnershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
@@ -128,6 +130,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		Spec: &accesslistv1.AccessListSpec{
 			Title:       accessList.Spec.Title,
 			Description: accessList.Spec.Description,
+			Ownership:   string(accessList.Spec.Ownership),
+			Membership:  string(accessList.Spec.Membership),
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
 				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),

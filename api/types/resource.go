@@ -660,6 +660,11 @@ func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
 func FriendlyName(resource ResourceWithLabels) string {
 	// Right now, only resources sourced from Okta and nodes have friendly names.
 	if resource.Origin() == OriginOkta {
+		if appName, ok := resource.GetLabel(OktaAppNameLabel); ok {
+			return appName
+		} else if groupName, ok := resource.GetLabel(OktaGroupNameLabel); ok {
+			return groupName
+		}
 		return resource.GetMetadata().Description
 	}
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
@@ -43,6 +45,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -64,6 +67,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1548,7 +1552,7 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 // emitter rather than falling back to the implementation from [Services] (using
 // the audit log directly, which is almost never what you want).
 func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+	return trace.Wrap(a.emitter.EmitAuditEvent(context.WithoutCancel(ctx), e))
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
@@ -5275,9 +5279,9 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	if a.accessMonitoringEnabled {
-		features.IdentityGovernance = a.accessMonitoringEnabled
-	}
+	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
+	// (no other changes necessary)
+	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -5287,6 +5291,24 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
+}
+
+// DELETE IN 16.0
+func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+
+	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
+	// if access monitoring is enabled.
+	if versionExists {
+		clientVersion := semver.New(clientVersionString)
+		supportedVersion := semver.New("14.2.1")
+		if clientVersion.LessThan(*supportedVersion) {
+			features.IdentityGovernance = accessMonitoringEnabled
+		}
+	}
+
+	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
+	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
@@ -6027,7 +6049,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
+	if f.IsLegacy() || f.IGSEnabled() {
 		return nil // unlimited
 	}
 	monthlyLimit := f.AccessRequests.MonthlyRequestLimit

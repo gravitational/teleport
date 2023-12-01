@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -26,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/externalcloudaudit"
+	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -446,8 +448,8 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
-func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
-	return c.APIClient.ExternalCloudAuditClient()
+func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
+	return c.APIClient.ExternalAuditStorageClient()
 }
 
 func (c *Client) UserLoginStateClient() services.UserLoginStates {
@@ -523,7 +525,7 @@ type IdentityService interface {
 	// UpdateOIDCConnector updates an existing OIDC connector.
 	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 	// UpsertOIDCConnector updates or creates an OIDC connector.
-	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets OIDC connectors list
@@ -542,7 +544,7 @@ type IdentityService interface {
 	// UpdateSAMLConnector updates an existing SAML connector
 	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// UpsertSAMLConnector updates or creates a SAML connector
-	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets SAML connectors list
@@ -561,7 +563,7 @@ type IdentityService interface {
 	// UpdateGithubConnector updates an existing Github connector.
 	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// UpsertGithubConnector creates or updates a Github connector.
-	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
@@ -937,11 +939,11 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
 
-	// ExternalCloudAuditClient returns an external cloud audit client.
+	// ExternalAuditStorageClient returns an External Audit Storage client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
-	ExternalCloudAuditClient() *externalcloudaudit.Client
+	ExternalAuditStorageClient() *externalauditstorage.Client
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

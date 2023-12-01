@@ -74,6 +74,9 @@ type AuditEvent interface {
 // Emitter emits audit events.
 type Emitter interface {
 	// EmitAuditEvent emits a single audit event.
+	//
+	// NOTE: when implementing this interface, the context should have
+	// its cancel stripped via `context.WithoutCancel`
 	EmitAuditEvent(context.Context, AuditEvent) error
 }
 

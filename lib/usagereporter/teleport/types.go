@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package usagereporter
 
@@ -907,6 +909,40 @@ func (e *ExternalAuditStorageAuthenticateEvent) Anonymize(a utils.Anonymizer) pr
 	}
 }
 
+// SecurityReportGetResultEvent is emitted when a user requests a security report.
+type SecurityReportGetResultEvent prehogv1a.SecurityReportGetResultEvent
+
+// Anonymize anonymizes the event. Since there is nothing to anonymize, it
+// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+func (e *SecurityReportGetResultEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SecurityReportGetResult{
+			SecurityReportGetResult: &prehogv1a.SecurityReportGetResultEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Name:     e.Name,
+				Days:     e.Days,
+			},
+		},
+	}
+}
+
+// AuditQueryRunEvent is emitted when a user runs an audit query.
+type AuditQueryRunEvent prehogv1a.AuditQueryRunEvent
+
+// Anonymize anonymizes the event. Since there is nothing to anonymize, it
+// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+func (e *AuditQueryRunEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AuditQueryRun{
+			AuditQueryRun: &prehogv1a.AuditQueryRunEvent{
+				UserName:  a.AnonymizeString(e.UserName),
+				Days:      e.Days,
+				IsSuccess: e.IsSuccess,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1316,6 +1352,14 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			IsSuccess:  e.TagExecuteQuery.IsSuccess,
 		}
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_SecurityReportGetResult:
+		ret := &SecurityReportGetResultEvent{
+			UserName: userMD.Username,
+			Name:     e.SecurityReportGetResult.Name,
+			Days:     e.SecurityReportGetResult.Days,
+		}
+		return ret, nil
+
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
