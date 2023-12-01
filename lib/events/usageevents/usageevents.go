@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/internal/context121"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -58,7 +59,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 }
 
 func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	ctx = tcontext.WithoutCancel(ctx)
+	ctx = context121.WithoutCancel(ctx)
 	if err := u.reportAuditEvent(ctx, event); err != nil {
 		// We don't ever want this to fail or bubble up errors, so the best we
 		// can do is complain to the logs.

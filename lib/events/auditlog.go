@@ -38,10 +38,10 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	tcontext "github.com/gravitational/teleport/api/context"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/internal/context121"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -855,7 +855,7 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 
 // EmitAuditEvent adds a new event to the local file log
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	ctx = tcontext.WithoutCancel(ctx)
+	ctx = context121.WithoutCancel(ctx)
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
 	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
