@@ -77,7 +77,7 @@ class TeleportContext implements types.Context {
     externalCloudAudit: cfg.isUsageBasedBilling,
   };
 
-  // hasExternalAuditStorage is used to show or hide the External Audit Storage CTAs
+  // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.
   hasExternalAuditStorage = false;
 
   // init fetches data required for initial rendering of components.
