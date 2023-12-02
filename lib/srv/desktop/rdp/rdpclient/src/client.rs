@@ -351,6 +351,10 @@ impl Client {
                             Client::handle_tdp_sd_write_response(x224_processor.clone(), res)
                                 .await?;
                         }
+                        ClientFunction::HandleTdpSdMoveResponse(res) => {
+                            Client::handle_tdp_sd_move_response(x224_processor.clone(), res)
+                                .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -612,6 +616,21 @@ impl Client {
             .await?
     }
 
+    async fn handle_tdp_sd_move_response(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        res: tdp::SharedDirectoryMoveResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                rdpdr.handle_tdp_sd_move_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
     async fn add_drive(
         x224_processor: Arc<Mutex<X224Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
@@ -773,6 +792,8 @@ enum ClientFunction {
     HandleTdpSdReadResponse(tdp::SharedDirectoryReadResponse),
     /// Corresponds to [`Client::handle_tdp_sd_write_response`]
     HandleTdpSdWriteResponse(tdp::SharedDirectoryWriteResponse),
+    /// Corresponds to [`Client::handle_tdp_sd_move_response`]
+    HandleTdpSdMoveResponse(tdp::SharedDirectoryMoveResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
@@ -925,6 +946,21 @@ impl ClientHandle {
         res: tdp::SharedDirectoryWriteResponse,
     ) -> ClientResult<()> {
         self.send(ClientFunction::HandleTdpSdWriteResponse(res))
+            .await
+    }
+
+    pub fn handle_tdp_sd_move_response(
+        &self,
+        res: tdp::SharedDirectoryMoveResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdMoveResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_move_response_async(
+        &self,
+        res: tdp::SharedDirectoryMoveResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdMoveResponse(res))
             .await
     }
 

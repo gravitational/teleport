@@ -326,7 +326,6 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
-    let res = SharedDirectoryWriteResponse::from(res);
     handle_operation(
         cgo_handle,
         "client_handle_tdp_sd_write_response",
@@ -346,8 +345,11 @@ pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     cgo_handle: CgoHandle,
     res: CGOSharedDirectoryMoveResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_move_response");
-    CGOErrCode::ErrCodeSuccess
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_move_response",
+        move |client_handle| client_handle.handle_tdp_sd_move_response(res),
+    )
 }
 
 /// client_handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU

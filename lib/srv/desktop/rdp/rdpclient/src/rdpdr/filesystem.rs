@@ -1088,6 +1088,26 @@ impl FilesystemBackend {
         }
     }
 
+    pub fn handle_tdp_sd_move_response(
+        &mut self,
+        tdp_resp: tdp::SharedDirectoryMoveResponse,
+    ) -> PduResult<()> {
+        if let Some(handler) = self
+            .pending_sd_move_resp_handlers
+            .remove(&tdp_resp.completion_id)
+        {
+            handler.call(self, tdp_resp)
+        } else {
+            Err(custom_err!(
+                "FilesystemBackend::handle_tdp_sd_move_response",
+                FilesystemBackendError(format!(
+                    "received invalid completion id: {}",
+                    tdp_resp.completion_id
+                ))
+            ))
+        }
+    }
+
     /// Helper function for sending an RDP [`efs::DeviceCreateResponse`] based on an RDP [`efs::DeviceCreateRequest`].
     fn send_device_create_response(
         &self,
