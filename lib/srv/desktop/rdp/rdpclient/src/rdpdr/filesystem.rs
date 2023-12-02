@@ -530,8 +530,7 @@ impl FilesystemBackend {
         // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_main.c#L430-L431
         let io_status = match self.file_cache.get(rdp_req.device_io_request.file_id) {
             Some(file) => {
-                if file.fso.file_type == tdp::FileType::Directory && file.fso.is_empty == tdp::FALSE
-                {
+                if file.fso.is_non_empty_directory() {
                     NtStatus::DIRECTORY_NOT_EMPTY
                 } else {
                     NtStatus::SUCCESS

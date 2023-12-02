@@ -217,6 +217,10 @@ impl FileSystemObject {
         self.file_type == FileType::Directory && self.is_empty == TRUE
     }
 
+    pub fn is_non_empty_directory(&self) -> bool {
+        self.file_type == FileType::Directory && self.is_empty == FALSE
+    }
+
     pub fn is_file(&self) -> bool {
         self.file_type == FileType::File
     }
