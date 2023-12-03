@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services_test
 
@@ -62,7 +66,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		Events:                  local.NewEventsService(bk),
 	}
 	// Add node to the backend.
-	node := newNodeServer(t, "node1", "127.0.0.1:22", false /*tunnel*/)
+	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
@@ -153,7 +157,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	))
 
 	// // Update and remove some resources.
-	nodeUpdated := newNodeServer(t, "node1", "192.168.0.1:22", false /*tunnel*/)
+	nodeUpdated := newNodeServer(t, "node1", "hostname1", "192.168.0.1:22", false /*tunnel*/)
 	_, err = clt.UpsertNode(ctx, nodeUpdated)
 	require.NoError(t, err)
 	err = clt.DeleteApplicationServer(ctx, defaults.Namespace, "app1-host-id", "app1")
@@ -179,6 +183,62 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
+}
+
+func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Presence
+		services.WindowsDesktops
+		services.SAMLIdPServiceProviders
+		types.Events
+	}
+
+	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	require.NoError(t, err)
+
+	clt := &client{
+		Presence:                local.NewPresenceService(bk),
+		WindowsDesktops:         local.NewWindowsDesktopService(bk),
+		SAMLIdPServiceProviders: samlService,
+		Events:                  local.NewEventsService(bk),
+	}
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    clt,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	// add a node
+	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
+	_, err = clt.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		res, _ := w.GetUnifiedResources(ctx)
+		return len(res) == 1
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
+
+	// update a node
+	updatedNode := newNodeServer(t, "node1", "hostname2", "127.0.0.1:22", false /*tunnel*/)
+	_, err = clt.UpsertNode(ctx, updatedNode)
+	require.NoError(t, err)
+
+	// only one resource should still exists with the name "node1" (with hostname updated)
+	assert.Eventually(t, func() bool {
+		res, _ := w.GetUnifiedResources(ctx)
+		return len(res) == 1
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
+
 }
 
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
@@ -215,7 +275,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// add a node
-	node := newNodeServer(t, "node1", "127.0.0.1:22", false /*tunnel*/)
+	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 

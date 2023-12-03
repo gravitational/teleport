@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package player includes an API to play back recorded sessions.
 package player
@@ -19,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"os"
 	"sync/atomic"
 	"time"
 
@@ -64,10 +67,15 @@ type Player struct {
 	// and is inspired by "Rethinking Classical Concurrency Patterns"
 	// by Bryan C. Mills (GopherCon 2018): https://www.youtube.com/watch?v=5zXAHh5tJqQ
 	playPause chan chan struct{}
+
+	// err holds the error (if any) encountered during playback
+	err error
 }
 
 const normalPlayback = math.MinInt64
 
+// Streamer is the underlying streamer that provides
+// access to recorded session events.
 type Streamer interface {
 	StreamSessionEvents(
 		ctx context.Context,
@@ -100,10 +108,7 @@ func New(cfg *Config) (*Player, error) {
 
 	var log logrus.FieldLogger = cfg.Log
 	if log == nil {
-		l := logrus.New().WithField(trace.Component, "player")
-		l.Logger.SetOutput(os.Stdout) // TODO(zmb3) remove
-		l.Logger.SetLevel(logrus.DebugLevel)
-		log = l
+		log = logrus.New().WithField(trace.Component, "player")
 	}
 
 	p := &Player{
@@ -137,6 +142,11 @@ const (
 	maxPlaybackSpeed     = 16
 )
 
+// SetSpeed adjusts the playback speed of the player.
+// It can be called at any time (the player can be in a playing
+// or paused state). A speed of 1.0 plays back at regular speed,
+// while a speed of 2.0 plays back twice as fast as originally
+// recorded. Valid speeds range from 0.25 to 16.0.
 func (p *Player) SetSpeed(s float64) error {
 	if s < minPlaybackSpeed || s > maxPlaybackSpeed {
 		return trace.BadParameter("speed %v is out of range", s)
@@ -146,8 +156,10 @@ func (p *Player) SetSpeed(s float64) error {
 }
 
 func (p *Player) stream() {
-	// TODO(zmb3): consider using context instead of close chan
-	eventsC, errC := p.streamer.StreamSessionEvents(context.TODO(), p.sessionID, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
 	lastDelay := int64(0)
 	for {
 		select {
@@ -155,13 +167,13 @@ func (p *Player) stream() {
 			close(p.emit)
 			return
 		case err := <-errC:
-			// TODO(zmb3): figure out how to surface the error
-			// (probably close the chan and expose a method)
 			p.log.Warn(err)
+			p.err = err
+			close(p.emit)
 			return
 		case evt := <-eventsC:
 			if evt == nil {
-				p.log.Debug("reached end of playback")
+				p.log.Debugf("reached end of playback for session %v", p.sessionID)
 				close(p.emit)
 				return
 			}
@@ -203,7 +215,6 @@ func (p *Player) stream() {
 				lastDelay = currentDelay
 			}
 
-			p.log.Debugf("playing %v (%v)", evt.GetType(), evt.GetID())
 			select {
 			case p.emit <- evt:
 				p.lastPlayed.Store(currentDelay)
@@ -229,7 +240,12 @@ func (p *Player) C() <-chan events.AuditEvent {
 	return p.emit
 }
 
-// TODO(zmb3): add an Err() method to be checked after C is closed
+// Err returns the error (if any) that occurred during playback.
+// It should only be called after the channel returned by [C] is
+// closed.
+func (p *Player) Err() error {
+	return p.err
+}
 
 // Pause temporarily stops the player from emitting events.
 // It is a no-op if playback is currently paused.
@@ -262,7 +278,6 @@ func (p *Player) SetPos(d time.Duration) error {
 // applyDelay "sleeps" for d in a manner that
 // can be canceled
 func (p *Player) applyDelay(d time.Duration) error {
-	p.log.Debugf("waiting %v until next event", d)
 	scaled := float64(d) / p.speed.Load().(float64)
 	select {
 	case <-p.done:

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -62,7 +64,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -89,6 +90,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -2925,12 +2927,14 @@ func TestMultipleConnectors(t *testing.T) {
 	}
 	o, err := types.NewOIDCConnector("foo", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o)
+	upserted, err := s.server.Auth().UpsertOIDCConnector(s.ctx, o)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	o2, err := types.NewOIDCConnector("bar", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
+	upserted, err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 
 	// set the auth preferences to oidc with no connector name
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -4483,7 +4487,7 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertGithubConnector(ctx, github)
+	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{
@@ -7804,25 +7808,20 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	sshGRPCServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			interceptors.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 		grpc.Creds(creds),
 	)
 	t.Cleanup(sshGRPCServer.Stop)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: client,
-		LockWatcher: proxyLockWatcher,
-		Clock:       clock,
-		ServerID:    proxyID,
-		Emitter:     client,
-		Logger:      log,
+		AccessPoint:    client,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          clock,
+		ServerID:       proxyID,
+		Emitter:        client,
+		EmitterContext: ctx,
+		Logger:         log,
 	})
 	require.NoError(t, err)
 
@@ -9355,8 +9354,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, promptMFA, client.WithPresenceClock(presenceClock)))
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaPrompt, client.WithPresenceClock(presenceClock)))
 		},
 	})
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package server
 
@@ -144,10 +146,10 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
+func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:       []Fetcher{},
+		fetchersFn:     fetchersFn,
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
 		pollInterval:   time.Minute,
@@ -157,10 +159,18 @@ func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients clo
 	for _, opt := range opts {
 		opt(&watcher)
 	}
+	return &watcher, nil
+}
+
+// MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
+func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients) ([]Fetcher, error) {
+	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
-			ec2Client, err := clients.GetAWSEC2Client(ctx, region)
+			ec2Client, err := clients.GetAWSEC2Client(ctx, region,
+				cloud.WithCredentialsMaybeIntegration(matcher.Integration),
+			)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -175,10 +185,10 @@ func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients clo
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			watcher.fetchers = append(watcher.fetchers, fetcher)
+			ret = append(ret, fetcher)
 		}
 	}
-	return &watcher, nil
+	return ret, nil
 }
 
 type ec2FetcherConfig struct {

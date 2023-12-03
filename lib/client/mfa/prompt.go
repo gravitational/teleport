@@ -1,65 +1,44 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mfa
 
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/mfa"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
-// AdminMFAHintBeforePrompt is a hint used for MFA prompts for admin-level API requests.
-const AdminMFAHintBeforePrompt = "MFA is required for admin-level API request."
-
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentClient,
-})
-
-// Prompt is an MFA prompt.
-type Prompt struct {
-	// WebauthnLogin performs client-side Webauthn login.
-	WebauthnLogin func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+// PromptConfig contains common mfa prompt config options.
+type PromptConfig struct {
+	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
-	// HintBeforePrompt is an optional hint message to print before an MFA prompt.
-	// It is used to provide context about why the user is being prompted where it may
-	// not be obvious.
-	HintBeforePrompt string
-	// PromptDevicePrefix is an optional prefix printed before "security key" or
-	// "device". It is used to emphasize between different kinds of devices, like
-	// registered vs new.
-	PromptDevicePrefix string
-	// Quiet suppresses users prompts.
-	Quiet bool
+	// WebauthnLoginFunc performs client-side Webauthn login.
+	WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 	// AllowStdinHijack allows stdin hijack during MFA prompts.
 	// Stdin hijack provides a better login UX, but it can be difficult to reason
 	// about and is often a source of bugs.
@@ -75,226 +54,112 @@ type Prompt struct {
 	WebauthnSupported bool
 }
 
-// PromptOpt applies configuration options to a prompt.
-type PromptOpt func(*Prompt)
-
-// WithQuiet sets the prompt's Quiet field.
-func WithQuiet() PromptOpt {
-	return func(p *Prompt) {
-		p.Quiet = true
-	}
-}
-
-// WithHintBeforePrompt sets the prompt's HintBeforePrompt field.
-func WithHintBeforePrompt(hint string) PromptOpt {
-	return func(p *Prompt) {
-		p.HintBeforePrompt = hint
-	}
-}
-
-// WithPromptDevicePrefix sets the prompt's PromptDevicePrefix field.
-func WithPromptDevicePrefix(prefix string) PromptOpt {
-	return func(p *Prompt) {
-		p.PromptDevicePrefix = prefix
-	}
-}
-
-// NewPrompt creates a new prompt with standard behavior.
-// If you want to customize [Prompt], for example for testing purposes, you may
-// create or configure an instance directly, without calling this method.
-func NewPrompt(proxyAddr string) *Prompt {
-	return &Prompt{
-		WebauthnLogin:     wancli.Login,
+// NewPromptConfig returns a prompt config that will induce default behavior.
+func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
+	cfg := &PromptConfig{
 		ProxyAddress:      proxyAddr,
+		WebauthnLoginFunc: wancli.Login,
 		WebauthnSupported: wancli.HasPlatformSupport(),
 	}
+
+	for _, opt := range opts {
+		opt(&cfg.PromptConfig)
+	}
+
+	return cfg
 }
 
-// Run prompts the user to complete MFA authentication challenges according to the prompt's configuration.
-func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	ctx, span := tracing.NewTracer("MFACeremony").Start(
-		ctx,
-		"Run",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
+// RunOpts are mfa prompt run options.
+type RunOpts struct {
+	PromptTOTP     bool
+	PromptWebauthn bool
+}
 
-	// Is there a challenge present?
-	if chal.TOTP == nil && chal.WebauthnChallenge == nil {
-		return &proto.MFAAuthenticateResponse{}, nil
+// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
+func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
+	promptTOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil
+
+	if !promptTOTP && !promptWebauthn {
+		return RunOpts{}, trace.BadParameter("mfa challenge is empty")
 	}
-
-	writer := os.Stderr
-	if p.HintBeforePrompt != "" {
-		fmt.Fprintln(writer, p.HintBeforePrompt)
-	}
-
-	promptDevicePrefix := p.PromptDevicePrefix
-	if promptDevicePrefix != "" {
-		promptDevicePrefix += " "
-	}
-
-	quiet := p.Quiet
-
-	hasTOTP := chal.TOTP != nil
-	hasWebauthn := chal.WebauthnChallenge != nil
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !hasTOTP && !p.WebauthnSupported:
-		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !p.WebauthnSupported:
+	case !promptTOTP && !c.WebauthnSupported:
+		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
+	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
-		hasWebauthn = false
+		promptWebauthn = false
 	}
 
 	// Tweak enabled/disabled methods according to opts.
 	switch {
-	case hasTOTP && p.PreferOTP:
-		hasWebauthn = false
-	case hasWebauthn && p.AuthenticatorAttachment != wancli.AttachmentAuto:
+	case promptTOTP && c.PreferOTP:
+		promptWebauthn = false
+	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
 		// Prefer Webauthn if an specific attachment was requested.
-		hasTOTP = false
-	case hasWebauthn && !p.AllowStdinHijack:
+		promptTOTP = false
+	case promptWebauthn && !c.AllowStdinHijack:
 		// Use strongest auth if hijack is not allowed.
-		hasTOTP = false
+		promptTOTP = false
 	}
 
-	var numGoroutines int
-	if hasTOTP && hasWebauthn {
-		numGoroutines = 2
-	} else {
-		numGoroutines = 1
-	}
+	return RunOpts{promptTOTP, promptWebauthn}, nil
+}
 
-	type response struct {
-		kind string
-		resp *proto.MFAAuthenticateResponse
-		err  error
+func (c PromptConfig) GetWebauthnOrigin() string {
+	if !strings.HasPrefix(c.ProxyAddress, "https://") {
+		return "https://" + c.ProxyAddress
 	}
-	respC := make(chan response, numGoroutines)
+	return c.ProxyAddress
+}
 
-	// Use ctx and wg to clean up after ourselves.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+// MFAGoroutineResponse is an MFA goroutine response.
+type MFAGoroutineResponse struct {
+	Resp *proto.MFAAuthenticateResponse
+	Err  error
+}
+
+// HandleMFAPromptGoroutines spawns MFA prompt goroutines and returns the first successful response,
+// terminating error, or an aggregated error if they all fail.
+func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context.Context, *sync.WaitGroup, chan<- MFAGoroutineResponse)) (*proto.MFAAuthenticateResponse, error) {
+	respC := make(chan MFAGoroutineResponse, 2)
 	var wg sync.WaitGroup
-	cancelAndWait := func() {
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
 		cancel()
+		// wait for all goroutines to complete to ensure there are no leaks.
 		wg.Wait()
-	}
+	}()
 
-	// Use variables below to cancel OTP reads and make sure the goroutine exited.
-	otpWait := &sync.WaitGroup{}
-	otpCtx, otpCancel := context.WithCancel(ctx)
-	defer otpCancel()
+	startGoroutines(ctx, &wg, respC)
 
-	// Fire TOTP goroutine.
-	if hasTOTP {
-		otpWait.Add(1)
-		wg.Add(1)
-		go func() {
-			defer otpWait.Done()
-			defer wg.Done()
-			const kind = "TOTP"
+	// Wait for spawned goroutines above to complete, then close respC.
+	go func() {
+		wg.Wait()
+		close(respC)
+	}()
 
-			// Let Webauthn take the prompt, it knows better if it's necessary.
-			var msg string
-			if !quiet && !hasWebauthn {
-				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
-			}
-
-			otp, err := prompt.Password(otpCtx, writer, prompt.Stdin(), msg)
-			if err != nil {
-				respC <- response{kind: kind, err: err}
-				return
-			}
-			respC <- response{
-				kind: kind,
-				resp: &proto.MFAAuthenticateResponse{
-					Response: &proto.MFAAuthenticateResponse_TOTP{
-						TOTP: &proto.TOTPResponse{Code: otp},
-					},
-				},
-			}
-		}()
-	}
-
-	// Fire Webauthn goroutine.
-	if hasWebauthn {
-		origin := p.ProxyAddress
-		if !strings.HasPrefix(origin, "https://") {
-			origin = "https://" + origin
+	// Wait for a successful response, or terminating error, from the spawned goroutines.
+	// The goroutine above will ensure the response channel is closed once all goroutines are done.
+	var errs []error
+	for resp := range respC {
+		switch err := resp.Err; {
+		case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
+			// Surface error immediately.
+			return nil, trace.Wrap(resp.Err)
+		case err != nil:
+			errs = append(errs, err)
+			// Continue to give the other authn goroutine a chance to succeed.
+			// If both have failed, this will exit the loop.
+			continue
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
-			prompt := wancli.NewDefaultPrompt(ctx, writer)
-			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
-			switch {
-			case quiet:
-				// Do not prompt.
-				prompt.FirstTouchMessage = ""
-				prompt.SecondTouchMessage = ""
-			case hasTOTP: // Webauthn + OTP
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
-
-				// Customize Windows prompt directly.
-				// Note that the platform popup is a modal and will only go away if
-				// canceled.
-				webauthnwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-				defer webauthnwin.ResetPromptPlatformMessage()
-
-			default: // Webauthn only
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
-			}
-			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
-				otpCancel()
-				otpWait.Wait()
-			}}
-
-			resp, _, err := p.WebauthnLogin(ctx, origin, wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				AuthenticatorAttachment: p.AuthenticatorAttachment,
-			})
-			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
-		}()
+		// Return successful response.
+		return resp.Resp, nil
 	}
 
-	for i := 0; i < numGoroutines; i++ {
-		select {
-		case resp := <-respC:
-			switch err := resp.err; {
-			case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
-				// Surface error immediately.
-			case err != nil:
-				log.WithError(err).Debugf("%s authentication failed", resp.kind)
-				continue
-			}
-
-			// Cleanup in-flight goroutines.
-			cancelAndWait()
-			return resp.resp, trace.Wrap(resp.err)
-		case <-ctx.Done():
-			cancelAndWait()
-			return nil, trace.Wrap(ctx.Err())
-		}
-	}
-	cancelAndWait()
-	return nil, trace.BadParameter(
-		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
-}
-
-// mfaPrompt implements wancli.LoginPrompt for MFA logins.
-// In most cases authenticators shouldn't require PINs or additional touches for
-// MFA, but the implementation exists in case we find some unusual
-// authenticators out there.
-type mfaPrompt struct {
-	wancli.LoginPrompt
-	otpCancelAndWait func()
-}
-
-func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancelAndWait()
-	return p.LoginPrompt.PromptPIN()
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "failed to authenticate using available MFA devices")
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -45,13 +47,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -443,7 +445,7 @@ func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFA PromptMFAFunc, applyOpts ...IssueUserCertsOpt) (*Key, error) {
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt, applyOpts ...IssueUserCertsOpt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -558,7 +560,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: proxy.currentCluster,
 		RootAuthClient:    clt,
-		PromptMFA:         promptMFA,
+		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
 		MFARequiredReq:    nil, // No need to check if we got this far.
 		CertsReq:          certsReq,
@@ -1076,7 +1078,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
-		PromptAdminRequestMFA:      proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
+		MFAPromptConstructor:       proxy.teleportClient.NewMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1154,8 +1156,8 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		PromptAdminRequestMFA: proxy.teleportClient.NewMFAPrompt(mfa.WithHintBeforePrompt(mfa.AdminMFAHintBeforePrompt)),
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		MFAPromptConstructor: proxy.teleportClient.NewMFAPrompt,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

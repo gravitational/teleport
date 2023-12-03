@@ -1,45 +1,47 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import {
-  Box,
-  ButtonBorder,
-  ButtonPrimary,
-  Flex,
-  Label as DesignLabel,
-  Text,
-} from 'design';
+import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
-import { Attempt, hasFinished } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  hasFinished,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
-  ClusterSearchFilter,
   ResourceMatch,
-  SearchResult,
   ResourceSearchResult,
+  SearchFilter,
+  SearchResult,
+  SearchResultCluster,
   SearchResultDatabase,
   SearchResultKube,
-  SearchResultServer,
-  SearchResultCluster,
   SearchResultResourceType,
-  SearchFilter,
+  SearchResultServer,
+  DisplayResults,
+  isClusterSearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -49,7 +51,10 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
-import { CrossClusterResourceSearchResult } from '../useSearch';
+import {
+  CrossClusterResourceSearchResult,
+  resourceTypeToReadableName,
+} from '../useSearch';
 
 import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
@@ -70,18 +75,16 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
     addWindowEventListener,
+    advancedSearchEnabled,
+    toggleAdvancedSearch,
   } = useSearchContext();
   const {
-    filterActionsAttempt,
+    displayResultsAction,
+    filterActions,
     resourceActionsAttempt,
     resourceSearchAttempt,
   } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
-  // The order of attempts is important. Filter actions should be displayed before resource actions.
-  const actionAttempts = useMemo(
-    () => [filterActionsAttempt, resourceActionsAttempt],
-    [filterActionsAttempt, resourceActionsAttempt]
-  );
 
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
@@ -109,7 +112,9 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        resetInput();
+        if (!action.preventAutoInputReset) {
+          resetInput();
+        }
         if (!action.preventAutoClose) {
           close();
         }
@@ -125,8 +130,8 @@ export function ActionPicker(props: { input: ReactElement }) {
     if (s.filter === 'resource-type') {
       return (
         <FilterButton
-          key="resource-type"
-          text={s.resourceType}
+          key={`resource-type-${s.resourceType}`}
+          text={resourceTypeToReadableName[s.resourceType]}
           onClick={() => removeFilter(s)}
         />
       );
@@ -155,19 +160,11 @@ export function ActionPicker(props: { input: ReactElement }) {
       getActionPickerStatus({
         inputValue,
         filters,
-        filterActionsAttempt,
-        actionAttempts,
+        filterActions,
         resourceSearchAttempt,
         allClusters: clustersService.getClusters(),
       }),
-    [
-      inputValue,
-      filters,
-      filterActionsAttempt,
-      actionAttempts,
-      resourceSearchAttempt,
-      clustersService,
-    ]
+    [inputValue, filters, filterActions, resourceSearchAttempt, clustersService]
   );
   const showErrorsInModal = useCallback(
     errors =>
@@ -185,6 +182,14 @@ export function ActionPicker(props: { input: ReactElement }) {
     [pauseUserInteraction, modalsService, getClusterName]
   );
 
+  // The order of attempts is important.
+  // Display results action and filter actions should be displayed before resource actions.
+  const resultListAttempts = [
+    makeSuccessAttempt([displayResultsAction]),
+    makeSuccessAttempt(filterActions),
+    resourceActionsAttempt,
+  ];
+
   return (
     <PickerContainer>
       <InputWrapper onKeyDown={handleKeyDown}>
@@ -192,17 +197,14 @@ export function ActionPicker(props: { input: ReactElement }) {
         {props.input}
       </InputWrapper>
       <ResultList<SearchAction>
-        attempts={actionAttempts}
+        attempts={resultListAttempts}
         onPick={onPick}
         onBack={close}
         addWindowEventListener={addWindowEventListener}
         render={item => {
           const Component = ComponentMap[item.searchResult.kind];
           return {
-            key:
-              item.searchResult.kind !== 'resource-type-filter'
-                ? item.searchResult.resource.uri
-                : item.searchResult.resource,
+            key: getKey(item.searchResult),
             Component: (
               <Component
                 searchResult={item.searchResult}
@@ -216,11 +218,26 @@ export function ActionPicker(props: { input: ReactElement }) {
             status={actionPickerStatus}
             getClusterName={getClusterName}
             showErrorsInModal={showErrorsInModal}
+            advancedSearch={{
+              isToggled: advancedSearchEnabled,
+              onToggle: toggleAdvancedSearch,
+            }}
           />
         }
       />
     </PickerContainer>
   );
+}
+
+function getKey(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'resource-type-filter':
+      return searchResult.resource;
+    case 'display-results':
+      return searchResult.value;
+    default:
+      return searchResult.resource.uri;
+  }
 }
 
 export const InputWrapper = styled(Flex).attrs({ px: 2 })`
@@ -244,14 +261,24 @@ const ExtraTopComponents = (props: {
   status: ActionPickerStatus;
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   showErrorsInModal: (errors: ResourceSearchError[]) => void;
+  advancedSearch: AdvancedSearch;
 }) => {
-  const { status, getClusterName, showErrorsInModal } = props;
+  const { status, getClusterName, showErrorsInModal, advancedSearch } = props;
+
+  if (advancedSearch.isToggled) {
+    return <AdvancedSearchEnabledItem advancedSearch={advancedSearch} />;
+  }
 
   switch (status.inputState) {
     case 'no-input': {
       switch (status.searchMode.kind) {
         case 'no-search': {
-          return <TypeToSearchItem hasNoRemainingFilterActions={false} />;
+          return (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={advancedSearch}
+            />
+          );
         }
         case 'preview': {
           const {
@@ -263,6 +290,7 @@ const ExtraTopComponents = (props: {
             <>
               <TypeToSearchItem
                 hasNoRemainingFilterActions={hasNoRemainingFilterActions}
+                advancedSearch={advancedSearch}
               />
               {nonRetryableResourceSearchErrors.length > 0 && (
                 <ResourceSearchErrorsItem
@@ -271,6 +299,7 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
+                  advancedSearch={advancedSearch}
                 />
               )}
             </>
@@ -282,21 +311,39 @@ const ExtraTopComponents = (props: {
       }
     }
     case 'some-input': {
+      const shouldShowResourceSearchErrorsItem =
+        status.nonRetryableResourceSearchErrors.length > 0;
+      const shouldShowNoResultsItem = status.hasNoResults;
+      const shouldShowTypeToSearchItem =
+        !shouldShowResourceSearchErrorsItem && !shouldShowNoResultsItem;
+
       return (
         <>
-          {status.nonRetryableResourceSearchErrors.length > 0 && (
+          {shouldShowResourceSearchErrorsItem && (
             <ResourceSearchErrorsItem
               errors={status.nonRetryableResourceSearchErrors}
               getClusterName={getClusterName}
               showErrorsInModal={() => {
                 showErrorsInModal(status.nonRetryableResourceSearchErrors);
               }}
+              advancedSearch={advancedSearch}
             />
           )}
-          {status.hasNoResults && (
+          {shouldShowNoResultsItem && (
             <NoResultsItem
               clustersWithExpiredCerts={status.clustersWithExpiredCerts}
               getClusterName={getClusterName}
+              // Show the toggle only
+              // when ResourceSearchErrorsItem is not visible
+              advancedSearch={
+                shouldShowResourceSearchErrorsItem ? undefined : advancedSearch
+              }
+            />
+          )}
+          {shouldShowTypeToSearchItem && (
+            <TypeToSearchItem
+              hasNoRemainingFilterActions={false}
+              advancedSearch={advancedSearch}
             />
           )}
         </>
@@ -349,16 +396,14 @@ type ActionPickerStatus =
 export function getActionPickerStatus({
   inputValue,
   filters,
-  filterActionsAttempt,
+  filterActions,
   allClusters,
-  actionAttempts,
   resourceSearchAttempt,
 }: {
   inputValue: string;
   filters: SearchFilter[];
-  filterActionsAttempt: Attempt<SearchAction[]>;
+  filterActions: SearchAction[];
   allClusters: tsh.Cluster[];
-  actionAttempts: Attempt<SearchAction[]>[];
   resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
 }): ActionPickerStatus {
   if (!inputValue) {
@@ -380,9 +425,7 @@ export function getActionPickerStatus({
     //
     // We also know that this attempt is always successful as filters are calculated in a sync way.
     // They're converted into an attempt only to conform to the interface of ResultList.
-    const hasNoRemainingFilterActions =
-      filterActionsAttempt.status === 'success' &&
-      filterActionsAttempt.data.length === 0;
+    const hasNoRemainingFilterActions = filterActions.length === 0;
 
     const nonRetryableResourceSearchErrors =
       resourceSearchAttempt.status === 'success'
@@ -405,11 +448,8 @@ export function getActionPickerStatus({
   let clustersWithExpiredCerts = new Set(
     allClusters.filter(c => !c.connected).map(c => c.uri)
   );
-  const haveActionAttemptsFinished = actionAttempts.every(attempt =>
-    hasFinished(attempt)
-  );
 
-  if (!haveActionAttemptsFinished) {
+  if (!hasFinished(resourceSearchAttempt)) {
     return {
       inputState: 'some-input',
       hasNoResults: false,
@@ -418,26 +458,21 @@ export function getActionPickerStatus({
     };
   }
 
-  const hasNoResults = actionAttempts.every(
-    attempt => attempt.data.length === 0
-  );
+  // resourceSearchAttempt never has error status.
+  const hasNoResults =
+    resourceSearchAttempt.data.results.length === 0 &&
+    filterActions.length === 0;
 
-  // We could assume that resourceSearchAttempt has finished since action attempts depend on it and
-  // we know that they all finished at this point. But we check status explicitly anyway.
-  if (resourceSearchAttempt.status === 'success') {
-    resourceSearchAttempt.data.errors.forEach(err => {
-      if (isRetryable(err.cause)) {
-        clustersWithExpiredCerts.add(err.clusterUri);
-      } else {
-        nonRetryableResourceSearchErrors.push(err);
-      }
-    });
-  }
+  resourceSearchAttempt.data.errors.forEach(err => {
+    if (isRetryable(err.cause)) {
+      clustersWithExpiredCerts.add(err.clusterUri);
+    } else {
+      nonRetryableResourceSearchErrors.push(err);
+    }
+  });
 
   // Make sure we don't list extra clusters with expired certs if a cluster filter is selected.
-  const clusterFilter = filters.find(
-    filter => filter.filter === 'cluster'
-  ) as ClusterSearchFilter;
+  const clusterFilter = filters.find(isClusterSearchFilter);
   if (clusterFilter) {
     const hasClusterCertExpired = clustersWithExpiredCerts.has(
       clusterFilter.clusterUri
@@ -466,11 +501,12 @@ export const ComponentMap: Record<
   database: DatabaseItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
+  'display-results': DisplayResultsItem,
 };
 
 type SearchResultItem<T> = {
   searchResult: T;
-  getOptionalClusterName: (uri: uri.ResourceUri) => string;
+  getOptionalClusterName: (uri: uri.ClusterOrResourceUri) => string;
 };
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
@@ -489,6 +525,42 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   );
 }
 
+function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
+  return (
+    <IconAndContent Icon={icons.Magnifier} iconColor="text.slightlyMuted">
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body1">
+          Display {props.searchResult.value ? 'search' : 'all'} results{' '}
+          {props.searchResult.value && (
+            <>
+              for{' '}
+              <strong>
+                <Highlight
+                  keywords={[props.searchResult.value]}
+                  text={props.searchResult.value}
+                />
+              </strong>
+            </>
+          )}
+          {props.searchResult.documentUri
+            ? ' in the current tab'
+            : ' in a new tab'}
+        </Text>
+        <Box ml="auto">
+          <Text typography="body2" fontSize={0}>
+            {props.getOptionalClusterName(props.searchResult.clusterUri)}
+          </Text>
+        </Box>
+      </Flex>
+    </IconAndContent>
+  );
+}
+
 const resourceIcons: Record<
   SearchResultResourceType['resource'],
   React.ComponentType<{
@@ -497,9 +569,9 @@ const resourceIcons: Record<
     lineHeight: string;
   }>
 > = {
-  kubes: icons.Kubernetes,
-  servers: icons.Server,
-  databases: icons.Database,
+  kube_cluster: icons.Kubernetes,
+  node: icons.Server,
+  db: icons.Database,
 };
 
 function ResourceTypeFilterItem(
@@ -511,10 +583,10 @@ function ResourceTypeFilterItem(
       iconColor="text.slightlyMuted"
     >
       <Text typography="body1">
-        Search only for{' '}
+        Search for{' '}
         <strong>
           <Highlight
-            text={props.searchResult.resource}
+            text={resourceTypeToReadableName[props.searchResult.resource]}
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
@@ -672,6 +744,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
 export function NoResultsItem(props: {
   clustersWithExpiredCerts: Set<uri.ClusterUri>;
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  advancedSearch: AdvancedSearch;
 }) {
   const clustersWithExpiredCerts = Array.from(
     props.clustersWithExpiredCerts,
@@ -692,7 +765,9 @@ export function NoResultsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
-        <Text typography="body1">No matching results found.</Text>
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
+          <Text typography="body1">No matching results found.</Text>
+        </ContentAndAdvancedSearch>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </IconAndContent>
     </NonInteractiveItem>
@@ -701,16 +776,37 @@ export function NoResultsItem(props: {
 
 export function TypeToSearchItem({
   hasNoRemainingFilterActions,
+  advancedSearch,
 }: {
   hasNoRemainingFilterActions: boolean;
+  advancedSearch: AdvancedSearch;
 }) {
   return (
     <NonInteractiveItem>
-      <Text typography="body2">
-        Enter space-separated search terms.
-        {hasNoRemainingFilterActions ||
-          ' Select a filter to narrow down the search.'}
-      </Text>
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
+        <Text typography="body2">
+          Enter space-separated search terms.
+          {hasNoRemainingFilterActions ||
+            ' Select a filter to narrow down the search.'}
+        </Text>
+      </ContentAndAdvancedSearch>
+    </NonInteractiveItem>
+  );
+}
+
+export function AdvancedSearchEnabledItem({
+  advancedSearch,
+}: {
+  advancedSearch: AdvancedSearch;
+}) {
+  return (
+    <NonInteractiveItem>
+      <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
+        <Text typography="body2">
+          Enter the query using the predicate language. Inline results are not
+          available in this mode.
+        </Text>
+      </ContentAndAdvancedSearch>
     </NonInteractiveItem>
   );
 }
@@ -719,6 +815,7 @@ export function ResourceSearchErrorsItem(props: {
   errors: ResourceSearchError[];
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
   showErrorsInModal: () => void;
+  advancedSearch: AdvancedSearch;
 }) {
   const { errors, getClusterName } = props;
 
@@ -739,9 +836,11 @@ export function ResourceSearchErrorsItem(props: {
   return (
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Warning} iconColor="warning.main">
-        <Text typography="body1">
-          Some of the search results are incomplete.
-        </Text>
+        <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
+          <Text typography="body1">
+            Some of the search results are incomplete.
+          </Text>
+        </ContentAndAdvancedSearch>
 
         <Flex gap={2} justifyContent="space-between" alignItems="baseline">
           <span
@@ -873,22 +972,75 @@ function HighlightField(props: {
 
 function FilterButton(props: { text: string; onClick(): void }) {
   return (
-    <ButtonPrimary
-      px={2}
+    <Flex
+      justifyContent="center"
+      alignItems="center"
+      css={`
+        color: ${props => props.theme.colors.buttons.text};
+        background: ${props => props.theme.colors.spotBackground[1]};
+        border-radius: ${props => props.theme.radii[2]}px;
+      `}
+      px="6px"
       size="small"
-      title={props.text}
-      onClick={props.onClick}
     >
-      <span
+      <CloseIcon
+        color="buttons.text"
+        mr={1}
+        mt="1px"
+        title="Remove filter"
+        onClick={props.onClick}
         css={`
-          max-width: calc(${props => props.theme.space[9]}px * 2);
-          text-overflow: ellipsis;
+          cursor: pointer;
+          border-radius: ${props => props.theme.radii[1]}px;
+
+          :hover {
+            background: ${props => props.theme.colors.spotBackground[1]};
+          }
+
+          > svg {
+            height: 13px;
+            width: 13px;
+          }
+        `}
+      />
+      <span
+        title={props.text}
+        css={`
           white-space: nowrap;
-          overflow: hidden;
+          cursor: default;
         `}
       >
         {props.text}
       </span>
-    </ButtonPrimary>
+    </Flex>
+  );
+}
+
+interface AdvancedSearch {
+  isToggled: boolean;
+  onToggle(): void;
+}
+
+function ContentAndAdvancedSearch(
+  props: React.PropsWithChildren<{
+    advancedSearch: AdvancedSearch;
+  }>
+) {
+  return (
+    <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
+      {props.children}
+      {
+        <AdvancedSearchToggle
+          {...props.advancedSearch}
+          css={`
+            //TODO(gzdunek): Remove when we get a toggle that can be displayed
+            // on a white background
+            label > div {
+              border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+            }
+          `}
+        />
+      }
+    </Flex>
   );
 }

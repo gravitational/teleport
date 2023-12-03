@@ -799,6 +799,7 @@
     "tokentokentoken",
     "tolerations",
     "topk",
+    "tpmrm",
     "trustedclusters",
     "trustpolicy",
     "truststore",

@@ -1,18 +1,20 @@
 /*
-Copyright 2020-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -801,21 +803,22 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Add in Teleport specific environment variables.
-	env.AddFull(c.Environment...)
+	env.AddFullTrusted(c.Environment...)
+
+	// If any additional environment variables come from PAM, apply them as well.
+	env.AddFullTrusted(pamEnvironment...)
 
 	// If the server allows reading in of ~/.tsh/environment read it in
 	// and pass environment variables along to new session.
+	// User controlled values are added last to ensure administrator controlled sources take priority (duplicates ignored)
 	if c.PermitUserEnvironment {
 		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
 		userEnvs, err := envutils.ReadEnvironmentFile(filename)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		env.AddFull(userEnvs...)
+		env.AddFullUnique(userEnvs...)
 	}
-
-	// If any additional environment variables come from PAM, apply them as well.
-	env.AddFull(pamEnvironment...)
 
 	// after environment is fully built, set it to cmd
 	cmd.Env = *env
@@ -958,7 +961,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// build env for `teleport exec`
 	env := &envutils.SafeEnv{}
-	env.AddFull(cmdmsg.Environment...)
+	env.AddFullTrusted(cmdmsg.Environment...)
 	env.AddExecEnvironment()
 
 	// Build the "teleport exec" command.

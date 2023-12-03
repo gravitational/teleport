@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mongodb
 
@@ -311,12 +313,12 @@ func (s *TestServer) handleFind(message protocol.Message) (protocol.Message, err
 
 // handleSaslStart makes response to the client's "saslStart" command.
 func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message, error) {
-	opmsg, ok := message.(*protocol.MessageOpQuery)
+	opmsg, ok := message.(*protocol.MessageOpMsg)
 	if !ok {
-		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpMsg but got %T", message)
 	}
 
-	mechanism := opmsg.Query.Lookup("mechanism").StringValue()
+	mechanism := opmsg.BodySection.Document.Lookup("mechanism").StringValue()
 	conversationID := atomic.AddInt32(&s.conversationIdx, 1)
 	s.saslConversationTracker.Store(conversationID, mechanism)
 
@@ -332,12 +334,12 @@ func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message
 // It expects a conversion to be present at `saslConversationTracker`,
 // otherwise it won't be able to define which authentication mechanism to use.
 func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Message, error) {
-	opmsg, ok := message.(*protocol.MessageOpQuery)
+	opmsg, ok := message.(*protocol.MessageOpMsg)
 	if !ok {
-		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpMsg but got %T", message)
 	}
 
-	conversationID := opmsg.Query.Lookup("conversationId").Int32()
+	conversationID := opmsg.BodySection.Document.Lookup("conversationId").Int32()
 	mechanism, ok := s.saslConversationTracker.Load(conversationID)
 	if !ok {
 		return nil, trace.NotFound("conversationID not found")
@@ -353,8 +355,8 @@ func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Mess
 
 // handleAWSIAMSaslStart handles the "saslStart" command for "MONGODB-AWS"
 // authentication.
-func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
-	_, userPass := opmsg.Query.Lookup("payload").Binary()
+func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpMsg) (protocol.Message, error) {
+	_, userPass := opmsg.BodySection.Document.Lookup("payload").Binary()
 	doc, _, ok := bsoncore.ReadDocument(userPass)
 	if !ok {
 		return nil, trace.BadParameter("invalid payload")
@@ -389,8 +391,8 @@ func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol
 
 // handleAWSIAMSaslContinue handles the "saslStart" command for "MONGODB-AWS"
 // authentication.
-func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
-	_, awsSaslPayload := opmsg.Query.Lookup("payload").Binary()
+func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpMsg) (protocol.Message, error) {
+	_, awsSaslPayload := opmsg.BodySection.Document.Lookup("payload").Binary()
 	doc, _, ok := bsoncore.ReadDocument(awsSaslPayload)
 	if !ok {
 		return nil, trace.BadParameter("invalid payload")

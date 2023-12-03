@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
@@ -825,12 +827,17 @@ export default class Codec {
   decodeNotification(buffer: ArrayBuffer): Notification {
     const dv = new DataView(buffer);
     let offset = 0;
+
     offset += byteLength; // eat message type
+
     const messageLength = dv.getUint32(offset);
     offset += uint32Length; // eat messageLength
+
     const message = this.decodeStringMessage(buffer);
     offset += messageLength; // eat message
+
     const severity = dv.getUint8(offset);
+
     return {
       message,
       severity: toSeverity(severity),
@@ -858,8 +865,14 @@ export default class Codec {
   // decodeStringMessage decodes a tdp message of the form
   // | message type (N) | message_length uint32 | message []byte
   private decodeStringMessage(buffer: ArrayBuffer): string {
-    const offset = byteLength + uint32Length; // eat message type and message_length
-    return this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const dv = new DataView(buffer);
+    let offset = byteLength; // eat message type
+    const msgLength = dv.getUint32(offset);
+    offset += uint32Length; // eat messageLength
+
+    return this.decoder.decode(
+      new Uint8Array(buffer.slice(offset, offset + msgLength))
+    );
   }
 
   // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame

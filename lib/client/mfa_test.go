@@ -1,22 +1,27 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client_test
 
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -68,7 +73,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	tests := []struct {
 		name            string
 		challenge       *proto.MFAAuthenticateChallenge
-		customizePrompt func(p *mfa.Prompt)
+		customizePrompt func(p *mfa.PromptConfig)
 	}{
 		{
 			name:      "webauthn only",
@@ -77,7 +82,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 		{
 			name:      "webauthn and OTP",
 			challenge: challengeWebauthnOTP,
-			customizePrompt: func(p *mfa.Prompt) {
+			customizePrompt: func(p *mfa.PromptConfig) {
 				p.AllowStdinHijack = true // required for OTP+WebAuthn prompt.
 			},
 		},
@@ -98,19 +103,17 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return "", ctx.Err()
 			}))
 
-			promptMFA := &mfa.Prompt{
-				ProxyAddress:      proxyAddr,
-				WebauthnSupported: true,
-				WebauthnLogin: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-					return nil, "", wancli.ErrUsingNonRegisteredDevice
-				},
+			promptConfig := mfa.NewPromptConfig(proxyAddr)
+			promptConfig.WebauthnSupported = true
+			promptConfig.WebauthnLoginFunc = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+				return nil, "", wancli.ErrUsingNonRegisteredDevice
 			}
 
 			if test.customizePrompt != nil {
-				test.customizePrompt(promptMFA)
+				test.customizePrompt(promptConfig)
 			}
 
-			_, err := promptMFA.Run(ctx, test.challenge)
+			_, err := mfa.NewCLIPrompt(promptConfig, os.Stderr).Run(ctx, test.challenge)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}

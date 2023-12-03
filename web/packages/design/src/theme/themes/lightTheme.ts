@@ -1,21 +1,33 @@
-/*
-Copyright 2023 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import { darken } from '../utils/colorManipulator';
-import { blue } from '../palette';
+import { darken, lighten } from '../utils/colorManipulator';
+import {
+  blue,
+  green,
+  grey,
+  indigo,
+  orange,
+  pink,
+  purple,
+  red,
+  yellow,
+} from '../palette';
 
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
@@ -186,6 +198,222 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.primary.picton,
     brightMagenta: dataVisualisationColors.primary.purple,
     brightCyan: dataVisualisationColors.primary.cyan,
+  },
+
+  accessGraph: {
+    dotsColor: 'rgba(0, 0, 0, 0.2)',
+    edges: {
+      dynamicMemberOf: {
+        color: purple[700],
+        stroke: purple[500],
+      },
+      memberOf: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      reverse: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      allowed: {
+        color: green[700],
+        stroke: green[300],
+      },
+      disallowed: {
+        color: red[700],
+        stroke: red[300],
+      },
+      restricted: {
+        color: yellow[700],
+        stroke: yellow[900],
+      },
+      default: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedBy: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedAction: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+      requestedResource: {
+        color: 'rgba(0, 0, 0, 0.7)',
+        stroke: '#c6c7c9',
+      },
+    },
+    nodes: {
+      user: {
+        background: lighten(purple[300], 0.9),
+        borderColor: purple[300],
+        typeColor: purple[300],
+        iconBackground: purple[300],
+        handleColor: purple[704],
+        highlightColor: purple[300],
+        label: {
+          background: purple[200],
+          color: purple[700],
+        },
+      },
+      userGroup: {
+        background: lighten(orange[300], 0.9),
+        borderColor: orange[300],
+        typeColor: orange[300],
+        iconBackground: orange[300],
+        handleColor: orange[700],
+        highlightColor: orange[300],
+        label: {
+          background: orange[200],
+          color: orange[700],
+        },
+      },
+      temporaryUserGroup: {
+        background: lighten(orange[200], 0.9),
+        borderColor: orange[200],
+        typeColor: orange[200],
+        iconBackground: orange[200],
+        handleColor: orange[300],
+        highlightColor: orange[200],
+        label: {
+          background: orange[200],
+          color: orange[300],
+        },
+      },
+      resource: {
+        background: lighten(blue[300], 0.9),
+        borderColor: blue[300],
+        typeColor: blue[300],
+        iconBackground: blue[300],
+        handleColor: blue[400],
+        highlightColor: blue[300],
+        label: {
+          background: blue[200],
+          color: blue[700],
+        },
+      },
+      resourceGroup: {
+        background: lighten(pink[300], 0.9),
+        borderColor: pink[300],
+        typeColor: pink[300],
+        iconBackground: pink[300],
+        handleColor: pink[400],
+        highlightColor: pink[300],
+        label: {
+          background: pink[200],
+          color: pink[700],
+        },
+      },
+      temporaryResourceGroup: {
+        background: lighten(pink[200], 0.9),
+        borderColor: pink[200],
+        typeColor: pink[200],
+        iconBackground: pink[200],
+        handleColor: pink[300],
+        highlightColor: pink[200],
+        label: {
+          background: pink[200],
+          color: pink[300],
+        },
+      },
+      allowedAction: {
+        background: lighten(green[300], 0.9),
+        borderColor: green[300],
+        typeColor: green[300],
+        iconBackground: green[300],
+        handleColor: green[400],
+        highlightColor: green[300],
+        label: {
+          background: green[200],
+          color: green[700],
+        },
+      },
+      temporaryAllowedAction: {
+        background: lighten(green[200], 0.9),
+        borderColor: green[200],
+        typeColor: green[200],
+        iconBackground: green[200],
+        handleColor: green[300],
+        highlightColor: green[200],
+        label: {
+          background: green[200],
+          color: green[300],
+        },
+      },
+      disallowedAction: {
+        background: lighten(red[300], 0.9),
+        borderColor: red[300],
+        typeColor: red[300],
+        iconBackground: red[300],
+        handleColor: purple[400],
+        highlightColor: red[300],
+        label: {
+          background: red[200],
+          color: red[700],
+        },
+      },
+      allowedRequest: {
+        background: lighten(indigo[300], 0.9),
+        borderColor: indigo[300],
+        typeColor: indigo[300],
+        iconBackground: indigo[300],
+        handleColor: indigo[400],
+        highlightColor: indigo[300],
+        label: {
+          background: indigo[200],
+          color: indigo[700],
+        },
+      },
+      disallowedRequest: {
+        background: lighten(purple[300], 0.9),
+        borderColor: purple[300],
+        typeColor: purple[300],
+        iconBackground: purple[300],
+        handleColor: purple[400],
+        highlightColor: purple[300],
+        label: {
+          background: purple[200],
+          color: purple[700],
+        },
+      },
+      allowedReview: {
+        background: lighten(indigo[300], 0.9),
+        borderColor: indigo[300],
+        typeColor: indigo[300],
+        iconBackground: indigo[300],
+        handleColor: indigo[400],
+        highlightColor: indigo[300],
+        label: {
+          background: indigo[200],
+          color: indigo[700],
+        },
+      },
+      disallowedReview: {
+        background: lighten(purple[300], 0.9),
+        borderColor: purple[300],
+        typeColor: purple[300],
+        iconBackground: purple[300],
+        handleColor: purple[400],
+        highlightColor: purple[300],
+        label: {
+          background: purple[200],
+          color: purple[700],
+        },
+      },
+      accessRequest: {
+        background: lighten(grey[300], 0.9),
+        borderColor: grey[300],
+        typeColor: grey[700],
+        iconBackground: grey[700],
+        handleColor: grey[400],
+        highlightColor: grey[300],
+        label: {
+          background: grey[200],
+          color: grey[700],
+        },
+      },
+    },
   },
 
   editor: {

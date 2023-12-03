@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { EventEmitter } from 'node:events';
@@ -24,7 +26,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
-
+import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
   makeLoggedInUser,
   makeRootCluster,
@@ -84,9 +86,11 @@ function renderUseConnectMyComputerContextHook(
     wrapper: ({ children }) => (
       <MockAppContextProvider appContext={appContext}>
         <WorkspaceContextProvider value={null}>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
+          <resourcesContext.ResourcesContextProvider>
+            <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+              {children}
+            </ConnectMyComputerContextProvider>
+          </resourcesContext.ResourcesContextProvider>
         </WorkspaceContextProvider>
       </MockAppContextProvider>
     ),
@@ -312,11 +316,13 @@ describe('canUse', () => {
         wrapper: ({ children }) => (
           <MockAppContextProvider appContext={appContext}>
             <WorkspaceContextProvider value={null}>
-              <ConnectMyComputerContextProvider
-                rootClusterUri={rootCluster.uri}
-              >
-                {children}
-              </ConnectMyComputerContextProvider>
+              <resourcesContext.ResourcesContextProvider>
+                <ConnectMyComputerContextProvider
+                  rootClusterUri={rootCluster.uri}
+                >
+                  {children}
+                </ConnectMyComputerContextProvider>
+              </resourcesContext.ResourcesContextProvider>
             </WorkspaceContextProvider>
           </MockAppContextProvider>
         ),
@@ -331,13 +337,29 @@ describe('canUse', () => {
 
 test('removing the agent shows a notification', async () => {
   const { appContext, rootCluster } = getMocks();
+  jest
+    .spyOn(appContext.connectMyComputerService, 'getConnectMyComputerNodeName')
+    .mockResolvedValue(makeServer().name);
+
+  const mockResourcesContext = {
+    requestResourcesRefresh: jest.fn(),
+    onResourcesRefreshRequest: jest.fn(),
+  };
+  jest
+    .spyOn(resourcesContext, 'useResourcesContext')
+    .mockImplementation(() => mockResourcesContext);
 
   const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
 
-  await act(() => result.current.removeAgent());
+  await act(() =>
+    expect(result.current.removeAgent()).resolves.toEqual([
+      undefined,
+      null /* no error */,
+    ])
+  );
 
   expect(appContext.notificationsService.getNotifications()).toEqual([
     {
@@ -346,6 +368,7 @@ test('removing the agent shows a notification', async () => {
       content: 'The agent has been removed.',
     },
   ]);
+  expect(mockResourcesContext.requestResourcesRefresh).toHaveBeenCalledTimes(1);
 });
 
 test('when the user does not have permissions to remove node a custom notification is shown', async () => {
@@ -353,13 +376,28 @@ test('when the user does not have permissions to remove node a custom notificati
   jest
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')
     .mockRejectedValue(new Error('access denied'));
+  jest
+    .spyOn(appContext.connectMyComputerService, 'getConnectMyComputerNodeName')
+    .mockResolvedValue(makeServer().name);
+  const mockResourcesContext = {
+    requestResourcesRefresh: jest.fn(),
+    onResourcesRefreshRequest: jest.fn(),
+  };
+  jest
+    .spyOn(resourcesContext, 'useResourcesContext')
+    .mockImplementation(() => mockResourcesContext);
 
   const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
 
-  await act(() => result.current.removeAgent());
+  await act(() =>
+    expect(result.current.removeAgent()).resolves.toEqual([
+      undefined,
+      null /* no error */,
+    ])
+  );
 
   expect(appContext.notificationsService.getNotifications()).toEqual([
     {
@@ -372,4 +410,5 @@ test('when the user does not have permissions to remove node a custom notificati
       },
     },
   ]);
+  expect(mockResourcesContext.requestResourcesRefresh).not.toHaveBeenCalled();
 });

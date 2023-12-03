@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package envutils
 
@@ -74,7 +78,8 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 			continue
 		}
 
-		env.Add(key, value)
+		// key is added trusted within this context, but should be "AddFullUnique" when combined with any other values
+		env.AddTrusted(key, value)
 	}
 
 	err = scanner.Err()
@@ -86,53 +91,104 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	return *env, nil
 }
 
-var unsafeEnvironmentVars = []string{
+var unsafeEnvironmentVars = map[string]struct{}{
 	// Linux
-	"LD_ASSUME_KERNEL", "LD_AUDIT", "LD_BIND_NOW", "LD_BIND_NOT",
-	"LD_DYNAMIC_WEAK", "LD_LIBRARY_PATH", "LD_ORIGIN_PATH", "LD_POINTER_GUARD", "LD_PREFER_MAP_32BIT_EXEC",
-	"LD_PRELOAD", "LD_PROFILE", "LD_RUNPATH", "LD_RPATH", "LD_USE_LOAD_BIAS",
+	"LD_ASSUME_KERNEL":         {},
+	"LD_AUDIT":                 {},
+	"LD_BIND_NOW":              {},
+	"LD_BIND_NOT":              {},
+	"LD_DYNAMIC_WEAK":          {},
+	"LD_LIBRARY_PATH":          {},
+	"LD_ORIGIN_PATH":           {},
+	"LD_POINTER_GUARD":         {},
+	"LD_PREFER_MAP_32BIT_EXEC": {},
+	"LD_PRELOAD":               {},
+	"LD_PROFILE":               {},
+	"LD_RUNPATH":               {},
+	"LD_RPATH":                 {},
+	"LD_USE_LOAD_BIAS":         {},
 	// macOS
-	"DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+	"DYLD_INSERT_LIBRARIES": {},
+	"DYLD_LIBRARY_PATH":     {},
 }
 
-// SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.
+// SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
+// addition, SafeEnv will ignore any values added if the key already exists.  This allows earlier inserts to take
+// priority and ensure there is no conflicting values.
 type SafeEnv []string
 
-// Add will add the key and value to the environment if it's a safe value to forward on for fork / exec.
-func (e *SafeEnv) Add(k, v string) {
+// AddTrusted will add the key and value to the environment if it's a safe value to forward on for fork / exec.  This
+// will not check for duplicates.
+func (e *SafeEnv) AddTrusted(k, v string) {
+	e.add(false, k, v)
+}
+
+// AddUnique will add the key and value to the environment if it's a safe value to forward on for fork / exec.  If the
+// key already exists (case-insensitive) it will be ignored.
+func (e *SafeEnv) AddUnique(k, v string) {
+	e.add(true, k, v)
+}
+
+func (e *SafeEnv) add(preventDuplicates bool, k, v string) {
 	k = strings.TrimSpace(k)
 	v = strings.TrimSpace(v)
-	if k == "" || k == "=" {
+	if e.unsafeKey(preventDuplicates, k) {
 		return
-	}
-
-	for _, unsafeKey := range unsafeEnvironmentVars {
-		if strings.EqualFold(k, unsafeKey) {
-			return
-		}
 	}
 
 	*e = append(*e, fmt.Sprintf("%s=%s", k, v))
 }
 
-// AddFull adds an exact value, typically in KEY=VALUE format.  This should only be used if they values are already
-// combined.
-func (e *SafeEnv) AddFull(fullValues ...string) {
-valueLoop:
+// AddFullTrusted adds an exact value, in the KEY=VALUE format. This should only be used if they values are already
+// combined.  When the values are separate the [Add] function is generally preferred.  This will not check for
+// duplicates.
+func (e *SafeEnv) AddFullTrusted(fullValues ...string) {
+	e.addFull(false, fullValues)
+}
+
+// AddFullUnique adds an exact value, in the KEY=VALUE format. This should only be used if they values are already
+// combined.  When the values are separate the [Add] function is generally preferred.  If any keys already exists
+// (case-insensitive) they will be ignored.
+func (e *SafeEnv) AddFullUnique(fullValues ...string) {
+	e.addFull(true, fullValues)
+}
+
+func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 	for _, kv := range fullValues {
 		kv = strings.TrimSpace(kv)
 
-		for _, unsafeKey := range unsafeEnvironmentVars {
-			if strings.HasPrefix(strings.ToUpper(kv), unsafeKey) {
-				continue valueLoop
-			}
+		key := strings.SplitN(kv, "=", 2)[0]
+		if e.unsafeKey(preventDuplicates, key) {
+			continue
 		}
 
 		*e = append(*e, kv)
 	}
 }
 
-// AddExecEnvironment will add safe values from [os.Environ].
+func (e *SafeEnv) unsafeKey(preventDuplicates bool, key string) bool {
+	if key == "" || key == "=" {
+		return false
+	}
+
+	upperKey := strings.ToUpper(key)
+	if _, unsafe := unsafeEnvironmentVars[upperKey]; unsafe {
+		return true
+	}
+
+	if preventDuplicates {
+		prefix := upperKey + "="
+		for _, kv := range *e {
+			if strings.HasPrefix(strings.ToUpper(kv), prefix) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// AddExecEnvironment will add safe values from [os.Environ], ignoring any duplicates that may have already been added.
 func (e *SafeEnv) AddExecEnvironment() {
-	e.AddFull(os.Environ()...)
+	e.addFull(true, os.Environ())
 }

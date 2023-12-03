@@ -1,21 +1,29 @@
 /*
-Copyright 2015 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 import 'whatwg-fetch';
-import localStorage from './../localStorage';
+import auth from 'teleport/services/auth/auth';
+
+import { storageService } from '../storageService';
+
 import parseError, { ApiError } from './parseError';
+
+const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
   get(url, abortSignal) {
@@ -63,36 +71,42 @@ const api = {
     });
   },
 
-  fetchJson(url, params) {
-    return new Promise((resolve, reject) => {
-      this.fetch(url, params)
-        .then(response => {
-          if (response.ok) {
-            return response
-              .json()
-              .then(json => resolve(json))
-              .catch(err =>
-                reject(new ApiError(err.message, response, { cause: err }))
-              );
-          } else {
-            return response
-              .json()
-              .then(json => reject(new ApiError(parseError(json), response)))
-              .catch(err => {
-                reject(
-                  new ApiError(
-                    `${response.status} - ${response.url}`,
-                    response,
-                    { cause: err }
-                  )
-                );
-              });
-          }
-        })
-        .catch(err => {
-          reject(err);
-        });
-    });
+  async fetchJson(url, params) {
+    const response = await this.fetch(url, params);
+
+    let json;
+    try {
+      json = await response.json();
+    } catch (err) {
+      const message = response.ok
+        ? err.message
+        : `${response.status} - ${response.url}`;
+      throw new ApiError(message, response, { cause: err });
+    }
+
+    if (response.ok) {
+      return json;
+    }
+
+    // Retry with MFA if we get an admin action missing MFA error.
+    const isAdminActionMfaError = isAdminActionRequiresMfaError(
+      parseError(json)
+    );
+    const isMfaHeaderPresent = params.headers?.[MFA_HEADER];
+    const shouldRetry = isAdminActionMfaError && !isMfaHeaderPresent;
+    if (!shouldRetry) {
+      throw new ApiError(parseError(json), response);
+    }
+    const paramsWithMfaHeader = {
+      ...params,
+      headers: {
+        ...params.headers,
+        [MFA_HEADER]: JSON.stringify({
+          webauthnAssertionResponse: await auth.getWebauthnResponse(),
+        }),
+      },
+    };
+    return this.fetchJson(url, paramsWithMfaHeader);
   },
 
   fetch(url, params = {}) {
@@ -103,6 +117,7 @@ const api = {
     };
 
     options.headers = {
+      ...requestOptions.headers,
       ...options.headers,
       ...getAuthHeaders(),
     };
@@ -145,12 +160,18 @@ export const getXCSRFToken = () => {
 };
 
 export function getAccessToken() {
-  const bearerToken = localStorage.getBearerToken() || {};
+  const bearerToken = storageService.getBearerToken() || {};
   return bearerToken.accessToken;
 }
 
 export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
+}
+
+function isAdminActionRequiresMfaError(errMessage) {
+  return errMessage.includes(
+    'admin-level API request requires MFA verification'
+  );
 }
 
 export default api;

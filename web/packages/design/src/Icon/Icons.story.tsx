@@ -1,18 +1,20 @@
-/*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 
@@ -47,6 +49,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowDown} text="ArrowDown" />
     <IconBox IconCmpt={Icon.ArrowFatLinesUp} text="ArrowFatLinesUp" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
+    <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
@@ -103,6 +106,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.EqualizersVertical} text="EqualizersVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
     <IconBox IconCmpt={Icon.Facebook} text="Facebook" />
+    <IconBox IconCmpt={Icon.FlowArrow} text="FlowArrow" />
     <IconBox IconCmpt={Icon.FolderPlus} text="FolderPlus" />
     <IconBox IconCmpt={Icon.FolderShared} text="FolderShared" />
     <IconBox IconCmpt={Icon.GitHub} text="GitHub" />
@@ -121,6 +125,8 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Lan} text="Lan" />
     <IconBox IconCmpt={Icon.Laptop} text="Laptop" />
     <IconBox IconCmpt={Icon.License} text="License" />
+    <IconBox IconCmpt={Icon.LineSegment} text="LineSegment" />
+    <IconBox IconCmpt={Icon.LineSegments} text="LineSegments" />
     <IconBox IconCmpt={Icon.Link} text="Link" />
     <IconBox IconCmpt={Icon.Linkedin} text="Linkedin" />
     <IconBox IconCmpt={Icon.Linux} text="Linux" />
@@ -131,7 +137,10 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Lock} text="Lock" />
     <IconBox IconCmpt={Icon.Logout} text="Logout" />
     <IconBox IconCmpt={Icon.Magnifier} text="Magnifier" />
+    <IconBox IconCmpt={Icon.MagnifyingMinus} text="MagnifyingMinus" />
+    <IconBox IconCmpt={Icon.MagnifyingPlus} text="MagnifyingPlus" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
+    <IconBox IconCmpt={Icon.Minus} text="Minus" />
     <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
@@ -143,6 +152,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.PaperPlane} text="PaperPlane" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
+    <IconBox IconCmpt={Icon.Plus} text="Plus" />
     <IconBox IconCmpt={Icon.PowerSwitch} text="PowerSwitch" />
     <IconBox IconCmpt={Icon.Profile} text="Profile" />
     <IconBox IconCmpt={Icon.PushPin} text="PushPin" />
@@ -150,6 +160,10 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Question} text="Question" />
     <IconBox IconCmpt={Icon.Refresh} text="Refresh" />
     <IconBox IconCmpt={Icon.Restore} text="Restore" />
+    <IconBox IconCmpt={Icon.Rows} text="Rows" />
+    <IconBox IconCmpt={Icon.Ruler} text="Ruler" />
+    <IconBox IconCmpt={Icon.Run} text="Run" />
+    <IconBox IconCmpt={Icon.Scan} text="Scan" />
     <IconBox IconCmpt={Icon.Server} text="Server" />
     <IconBox IconCmpt={Icon.Share} text="Share" />
     <IconBox IconCmpt={Icon.ShieldCheck} text="ShieldCheck" />
@@ -157,6 +171,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.SlidersVertical} text="SlidersVertical" />
     <IconBox IconCmpt={Icon.Speed} text="Speed" />
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
+    <IconBox IconCmpt={Icon.SquaresFour} text="SquaresFour" />
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Sun} text="Sun" />
     <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />

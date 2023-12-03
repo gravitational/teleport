@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -128,8 +132,19 @@ func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	key := resourceKey(resource)
-	c.resources[key] = resource
 	sortKey := makeResourceSortKey(resource)
+	oldResource, exists := c.resources[key]
+	if exists {
+		// If the resource has changed in such a way that the sort keys
+		// for the nameTree or typeTree change, remove the old entries
+		// from those trees before adding a new one. This can happen
+		// when a node's hostname changes
+		oldSortKey := makeResourceSortKey(oldResource)
+		if string(oldSortKey.byName) != string(sortKey.byName) {
+			c.deleteSortKey(oldSortKey)
+		}
+	}
+	c.resources[key] = resource
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
 	return nil
@@ -147,6 +162,16 @@ func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 	}
 }
 
+func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
+	if _, ok := c.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
+		return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
+	}
+	if _, ok := c.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
+		return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
+	}
+	return nil
+}
+
 // delete removes the item by key, returns NotFound error
 // if item does not exist
 func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) error {
@@ -162,12 +187,7 @@ func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) e
 	sortKey := makeResourceSortKey(resource)
 
 	return c.read(ctx, func(cache *UnifiedResourceCache) error {
-		if _, ok := cache.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
-			return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
-		}
-		if _, ok := cache.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
-			return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
-		}
+		cache.deleteSortKey(sortKey)
 		// delete from resource map
 		delete(c.resources, key)
 		return nil

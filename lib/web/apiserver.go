@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package web implements web proxy handler that provides
 // web interface to view and connect to teleport nodes
@@ -60,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -178,7 +181,7 @@ type proxySettingsGetter interface {
 
 // PresenceChecker is a function that executes an mfa prompt to enforce
 // that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error
+type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error
 
 // Config represents web handler configuration parameters
 type Config struct {
@@ -287,6 +290,9 @@ type Config struct {
 	// Eg, v13.4.3
 	// Optional: uses cloud/stable channel when omitted.
 	AutomaticUpgradesVersionURL string
+
+	// AccessGraphAddr is the address of the Access Graph service GRPC API
+	AccessGraphAddr utils.NetAddr
 }
 
 // SetDefaults ensures proper default values are set if
@@ -883,6 +889,10 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's cluster preferences.
 	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
+
+	// Returns logins included in the Connect My Computer role of the user.
+	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
+	h.GET("/webapi/connectmycomputer/logins", h.WithAuth(h.connectMyComputerLoginsList))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -985,7 +995,14 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessMonitoringEnabled := pingResp.ServerFeatures != nil && pingResp.ServerFeatures.IdentityGovernance
+	accessMonitoringEnabled := pingResp.GetServerFeatures().GetAccessMonitoring().GetEnabled()
+
+	// DELETE IN 16.0
+	// If ServerFeatures.AccessMonitoring is nil, then that means the response came from a older auth
+	// where ServerFeatures.AccessMonitoring field does not exist.
+	if pingResp.GetServerFeatures().GetAccessMonitoring() == nil {
+		accessMonitoringEnabled = pingResp.ServerFeatures != nil && pingResp.ServerFeatures.GetIdentityGovernance()
+	}
 
 	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), h.ClusterFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
@@ -1020,6 +1037,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 // PublicProxyAddr returns the publicly advertised proxy address
 func (h *Handler) PublicProxyAddr() string {
 	return h.cfg.PublicProxyAddr
+}
+
+// AccessGraphAddr returns the TAG API address
+func (h *Handler) AccessGraphAddr() utils.NetAddr {
+	return h.cfg.AccessGraphAddr
 }
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
@@ -1563,6 +1585,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
+		IsTeam:                         clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
+		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -3571,6 +3595,11 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	authClient := h.cfg.ProxyClient
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.RemoteAddr = remoteAddr
 	certs, err := authClient.RegisterUsingToken(r.Context(), &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4072,7 +4101,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
+	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		websession.ClearCookie(w)
 		return nil, trace.AccessDenied("need auth")
@@ -4082,10 +4111,50 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		if err != nil {
 			return nil, trace.AccessDenied("need auth")
 		}
-		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+		if err := sctx.validateBearerToken(r.Context(), creds.Password); err != nil {
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
+
+	if err := parseMFAResponseFromRequest(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sctx, nil
+}
+
+// parseMFAResponse checks for an MFA response in the request header.
+// if found, the mfa response is added to the request context, where
+// it can be recalled to augment client authentication further down
+// the call stack.
+func parseMFAResponseFromRequest(r *http.Request) error {
+	ctx, err := contextWithMFAResponseFromRequestHeader(r.Context(), r.Header)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the request reference with a cloned request with the update ctx.
+	*r = *r.WithContext(ctx)
+	return nil
+}
+
+// contextWithMFAResponseFromRequestHeader attempts to parse an MFA response
+// from the request header. If found, the MFA response is added to the given
+// context and returned.
+func contextWithMFAResponseFromRequestHeader(ctx context.Context, requestHeader http.Header) (context.Context, error) {
+	if mfaResponseJSON := requestHeader.Get("Teleport-MFA-Response"); mfaResponseJSON != "" {
+		var resp mfaResponse
+		if err := json.Unmarshal([]byte(mfaResponseJSON), &resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return mfa.ContextWithMFAResponse(ctx, &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
+			},
+		}), nil
+	}
+
 	return ctx, nil
 }
 

@@ -1,18 +1,20 @@
-/*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
@@ -39,13 +41,25 @@ const cfg = {
   assistEnabled: false,
   automaticUpgrades: false,
   automaticUpgradesTargetVersion: '',
+  // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
+  // the case of a self-hosted license tenant dashboard.
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+  // Historically, this flag used to refer to "Cloud Team" product,
+  // but with the new EUB (Enterprise Usage Based) product, it can mean either EUB or Team.
+  // Use the `isTeam` config flag to determine if product used is Team.
+  // EUB can be determined from a combination of existing config flags eg: `isCloud && !isTeam`.
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
+  // isTeam is true if [Features.ProductType] == Team
+  isTeam: false,
+  // isIgsEnabled refers to Identity Governance & Security product.
+  // It refers to a group of features: access request, device trust,
+  // access list, and access monitoring.
+  isIgsEnabled: false,
 
   configDir: '$HOME/.config',
 
@@ -190,6 +204,7 @@ const cfg = {
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
+    connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -277,6 +292,8 @@ const cfg = {
 
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
+
+    accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -344,6 +361,14 @@ const cfg = {
     if (cfg.auth.authType === 'local') return 'local';
 
     return 'sso';
+  },
+
+  // isLegacyEnterprise describes product that should have legacy support
+  // where certain features access remain unlimited. This was before
+  // product EUB (enterprise usage based) was introduced.
+  // eg: access request and device trust.
+  isLegacyEnterprise() {
+    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
   },
 
   getAuthType() {
@@ -699,6 +724,10 @@ const cfg = {
     return cfg.api.presetRolesPath;
   },
 
+  getConnectMyComputerLoginsUrl() {
+    return cfg.api.connectMyComputerLoginsPath;
+  },
+
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesPath, {
       clusterId,
@@ -843,6 +872,10 @@ const cfg = {
 
   getAccessRequestRoute(requestId?: string) {
     return generatePath(cfg.routes.requests, { requestId });
+  },
+
+  getAccessGraphFeaturesUrl() {
+    return cfg.api.accessGraphFeatures;
   },
 
   getListEc2InstancesUrl(integrationName: string) {

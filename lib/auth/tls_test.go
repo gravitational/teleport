@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -4570,15 +4572,32 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 	return nil, trace.NewAggregate(errs...)
 }
 
+type testTLSServerOptions struct {
+	cacheEnabled bool
+}
+
+type testTLSServerOption func(*testTLSServerOptions)
+
+func withCacheEnabled(enabled bool) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.cacheEnabled = enabled
+	}
+}
+
 // newTestTLSServer is a helper that returns a *TestTLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
 // For more advanced use-cases, call NewTestAuthServer and NewTestTLSServer
 // to provide a more detailed configuration.
-func newTestTLSServer(t testing.TB) *TestTLSServer {
+func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *TestTLSServer {
+	var options testTLSServerOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	as, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Dir:          t.TempDir(),
+		Clock:        clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)
 

@@ -1,24 +1,27 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package postgres
 
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -603,9 +606,12 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 	// by "parameter format codes" in the Bind message (0 - text, 1 - binary).
 	//
 	// Be a bit paranoid and make sure that number of format codes matches the
-	// number of parameters, or there are no format codes in which case all
-	// parameters will be text.
-	if len(formatCodes) != 0 && len(formatCodes) != len(parameters) {
+	// number of parameters, or there are zero or one format codes.
+	// zero format codes applies text format to all params.
+	// one format code applies the same format code to all params.
+	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND
+	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FUNCTIONCALL
+	if len(formatCodes) > 1 && len(formatCodes) != len(parameters) {
 		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v %#v.",
 			parameters, formatCodes)
 		return formatted
@@ -614,23 +620,30 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 		// According to Bind message documentation, if there are no parameter
 		// format codes, it may mean that either there are no parameters, or
 		// that all parameters use default text format.
-		if len(formatCodes) == 0 {
-			formatted = append(formatted, string(p))
-			continue
+		var formatCode int16
+		switch len(formatCodes) {
+		case 0:
+			// use default 0 (text) format for all params.
+		case 1:
+			// apply the same format code to all params.
+			formatCode = formatCodes[0]
+		default:
+			// apply format code corresponding to this param.
+			formatCode = formatCodes[i]
 		}
-		switch formatCodes[i] {
+
+		switch formatCode {
 		case parameterFormatCodeText:
 			// Text parameters can just be converted to their string
 			// representation.
 			formatted = append(formatted, string(p))
 		case parameterFormatCodeBinary:
-			// For binary parameters, just put a placeholder to avoid
-			// spamming the audit log with unreadable info.
-			formatted = append(formatted, "<binary>")
+			// For binary parameters, encode the parameter as a base64 string.
+			formatted = append(formatted, base64.StdEncoding.EncodeToString(p))
 		default:
 			// Should never happen but...
 			logrus.Warnf("Unknown Postgres parameter format code: %#v.",
-				formatCodes[i])
+				formatCode)
 			formatted = append(formatted, "<unknown>")
 		}
 	}

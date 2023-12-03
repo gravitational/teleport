@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package enroll_test
 
@@ -18,7 +22,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -117,6 +120,8 @@ func TestCeremony_Run(t *testing.T) {
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
+
+	linuxDev1 := testenv.NewFakeLinuxDevice()
 	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
@@ -136,6 +141,18 @@ func TestCeremony_Run(t *testing.T) {
 			},
 		},
 		{
+			name: "linux device succeeds",
+			dev:  linuxDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				require.NotNil(t, d, "RunCeremony returned nil device")
+				require.NotNil(t, d.Credential, "device credential is nil")
+				assert.Equal(t, linuxDev1.CredentialID, d.Credential.Id, "device credential mismatch")
+			},
+		},
+		{
 			name: "windows device succeeds",
 			dev:  windowsDev1,
 			assertErr: func(t *testing.T, err error) {
@@ -145,20 +162,6 @@ func TestCeremony_Run(t *testing.T) {
 				require.NotNil(t, d, "RunCeremony returned nil device")
 				require.NotNil(t, d.Credential, "device credential is nil")
 				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
-			},
-		},
-		{
-			name: "linux device fails",
-			dev:  testenv.NewFakeLinuxDevice(),
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				assert.True(
-					t, trace.IsBadParameter(err), "RunCeremony did not return a BadParameter error",
-				)
-				assert.ErrorContains(t, err, "linux", "RunCeremony error mismatch")
-			},
-			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
-				assert.Nil(t, d, "RunCeremony returned an unexpected, non-nil device")
 			},
 		},
 	}

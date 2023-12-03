@@ -223,6 +223,9 @@ enum CTA {
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
   CTA_BILLING_SUMMARY = 7;
+  CTA_ACCESS_LIST = 8;
+  CTA_ACCESS_MONITORING = 9;
+  CTA_EXTERNAL_AUDIT_STORAGE = 10;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -576,6 +579,27 @@ enum FeatureRecommendationStatus {
   FEATURE_RECOMMENDATION_STATUS_DONE = 2;
 }
 
+// TAGExecuteQueryEvent is an event that is emitted
+// when a single query is executed in the Teleport Access Graph.
+// This event is emitted for both successful and failed queries and for
+// successful queries, the total number of nodes and edges is reported.
+message TAGExecuteQueryEvent {
+  // total_nodes is the total amount of nodes returned by the query.
+  int64 total_nodes = 1;
+  // total_edges is the total amount of edges returned by the query.
+  int64 total_edges = 2;
+  // is_success is true if the query was successful and false it if failed.
+  bool is_success = 3;
+}
+
+// SecurityReportGetResultEvent is emitted when the user requests a security report.
+message SecurityReportGetResultEvent {
+  // name is the name of the security report.
+  string name = 1;
+  // days is the time range of the security reports in days.
+  int32 days = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -628,6 +652,8 @@ message UsageEventOneOf {
     UIDiscoverEC2InstanceSelectionEvent ui_discover_ec2_instance_selection = 47;
     UIDiscoverDeployEICEEvent ui_discover_deploy_eice = 48;
     UIDiscoverCreateNodeEvent ui_discover_create_node = 49;
+    TAGExecuteQueryEvent tag_execute_query = 50;
+    SecurityReportGetResultEvent security_report_get_result = 51;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

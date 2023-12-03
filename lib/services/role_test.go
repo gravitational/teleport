@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -2082,6 +2084,7 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 		roleNames[i] = role.GetName()
 	}
 	accessInfo := &AccessInfo{
+		Username:           "alice",
 		Roles:              roleNames,
 		Traits:             nil,
 		AllowedResourceIDs: nil,
@@ -3913,6 +3916,17 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		URI:      "uri",
 	})
 	require.NoError(t, err)
+	dbAutoUser, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "auto-user",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "teleport-admin",
+		},
+	})
+	require.NoError(t, err)
 	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -3968,17 +3982,39 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		},
 	}
 
+	roleAutoUser := &types.RoleV6{
+		Metadata: types.Metadata{Name: "auto-user", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"dev"},
+				DatabaseNames:  []string{"*"},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+		},
+	}
+
 	testCases := []struct {
-		name       string
-		roles      RoleSet
-		server     types.Database
-		enumResult EnumerationResult
+		name             string
+		roles            RoleSet
+		server           types.Database
+		enumDBUserResult EnumerationResult
+		enumDBNameResult EnumerationResult
 	}{
 		{
 			name:   "deny overrides allow",
 			roles:  RoleSet{roleAllowDenySame},
 			server: dbStage,
-			enumResult: EnumerationResult{
+			enumDBUserResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"root": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+			enumDBNameResult: EnumerationResult{
 				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
@@ -3988,7 +4024,12 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			name:   "developer allowed any username in stage database except root",
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbStage,
-			enumResult: EnumerationResult{
+			enumDBUserResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				wildcardAllowed:  true,
+				wildcardDenied:   false,
+			},
+			enumDBNameResult: EnumerationResult{
 				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
@@ -3998,7 +4039,12 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			name:   "developer allowed only specific username/database in prod database",
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbProd,
-			enumResult: EnumerationResult{
+			enumDBUserResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+			enumDBNameResult: EnumerationResult{
 				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
@@ -4008,20 +4054,41 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			name:   "there may be users disallowed from all users",
 			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
 			server: dbProd,
-			enumResult: EnumerationResult{
+			enumDBUserResult: EnumerationResult{
 				allowedDeniedMap: map[string]bool{"dev": false, "root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   true,
+			},
+			enumDBNameResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"dev": false, "root": false},
+				wildcardAllowed:  false,
+				wildcardDenied:   true,
+			},
+		},
+		{
+			name:   "auto-user provisioning enabled",
+			roles:  RoleSet{roleAutoUser},
+			server: dbAutoUser,
+			enumDBUserResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{"alice": true},
+				wildcardAllowed:  false,
+				wildcardDenied:   false,
+			},
+			enumDBNameResult: EnumerationResult{
+				allowedDeniedMap: map[string]bool{},
+				wildcardAllowed:  true,
+				wildcardDenied:   false,
 			},
 		},
 	}
 	for _, tc := range testCases {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 		t.Run(tc.name, func(t *testing.T) {
-			enumResult := accessChecker.EnumerateDatabaseUsers(tc.server)
-			require.Equal(t, tc.enumResult, enumResult)
+			enumResult, err := accessChecker.EnumerateDatabaseUsers(tc.server)
+			require.NoError(t, err)
+			require.Equal(t, tc.enumDBUserResult, enumResult)
 			enumResult = accessChecker.EnumerateDatabaseNames(tc.server)
-			require.Equal(t, tc.enumResult, enumResult)
+			require.Equal(t, tc.enumDBNameResult, enumResult)
 		})
 	}
 }
@@ -7575,6 +7642,10 @@ func (u mockCurrentUser) GetTraits() map[string][]string {
 	return u.traits
 }
 
+func (u mockCurrentUser) GetName() string {
+	return "mockCurrentUser"
+}
+
 func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	user := mockCurrentUser{
 		roles: []string{"dev", "admin"},
@@ -7600,6 +7671,7 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	}
 
 	accessInfo := AccessInfoFromUserState(user)
+	require.Equal(t, "mockCurrentUser", accessInfo.Username)
 	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), accessInfo, "clustername", currentUserRoleGetter)
 	require.NoError(t, err)
 

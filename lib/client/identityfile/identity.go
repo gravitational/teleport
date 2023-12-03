@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package identityfile handles formatting and parsing of identity files.
 package identityfile
@@ -137,6 +139,9 @@ type ConfigWriter interface {
 	// permissions if the file is new.
 	WriteFile(name string, data []byte, perm os.FileMode) error
 
+	// ReadFile reads the file at tpath `name`
+	ReadFile(name string) ([]byte, error)
+
 	// Remove removes a file.
 	Remove(name string) error
 
@@ -150,6 +155,11 @@ type StandardConfigWriter struct{}
 // WriteFile writes data to the named file, creating it if necessary.
 func (s *StandardConfigWriter) WriteFile(name string, data []byte, perm os.FileMode) error {
 	return os.WriteFile(name, data, perm)
+}
+
+// ReadFile reads the file at tpath `name`, returning
+func (s *StandardConfigWriter) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
 }
 
 // Remove removes the named file or (empty) directory.
@@ -389,7 +399,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		// If the user does not want to override,  it will merge the previous kubeconfig
+		// If the user does not want to override, it will merge the previous kubeconfig
 		// with the new entry.
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)
@@ -408,13 +418,13 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			kubeCluster = []string{cfg.KubeClusterName}
 		}
 
-		if err := kubeconfig.Update(cfg.OutputPath, kubeconfig.Values{
+		if err := kubeconfig.UpdateConfig(cfg.OutputPath, kubeconfig.Values{
 			TeleportClusterName: cfg.Key.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
 			TLSServerName:       cfg.KubeTLSServerName,
 			KubeClusters:        kubeCluster,
-		}, cfg.KubeStoreAllCAs); err != nil {
+		}, cfg.KubeStoreAllCAs, writer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

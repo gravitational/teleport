@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package log
 
@@ -19,16 +23,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,16 +71,10 @@ func (a fakeAddr) String() string {
 }
 
 func TestOutput(t *testing.T) {
-	// Set a specific time zone so that the regex doesn't have to match
-	// against any possible timezone. Note this mucks around with the global
-	// time zone which prevents running this test in parallel.
 	loc, err := time.LoadLocation("Africa/Cairo")
 	require.NoError(t, err, "failed getting timezone")
-	oldLoc := time.Local
-	time.Local = loc
-	t.Cleanup(func() {
-		time.Local = oldLoc
-	})
+	clock := clockwork.NewFakeClockAt(time.Now().In(loc))
+	formattedNow := clock.Now().UTC().Format(time.RFC3339)
 
 	t.Run("text", func(t *testing.T) {
 		// fieldsRegex matches all the key value pairs emitted after the message and before the caller. All fields are
@@ -83,7 +86,7 @@ func TestOutput(t *testing.T) {
 		// 2) the message
 		// 3) the fields
 		// 4) the caller
-		outputRegex := regexp.MustCompile("(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+\\d{2}:\\d{2})(\\s+.*)(\".*diag_addr`\\.\")(.*)(\\slog/formatter_test.go:\\d{3})")
+		outputRegex := regexp.MustCompile("(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z)(\\s+.*)(\".*diag_addr`\\.\")(.*)(\\slog/formatter_test.go:\\d{3})")
 
 		tests := []struct {
 			name        string
@@ -135,7 +138,7 @@ func TestOutput(t *testing.T) {
 				logrusLogger.SetOutput(&logrusOutput)
 				logrusLogger.ReplaceHooks(logrus.LevelHooks{})
 				logrusLogger.SetLevel(test.logrusLevel)
-				entry := logrusLogger.WithField(trace.Component, "test")
+				entry := logrusLogger.WithField(trace.Component, "test").WithTime(clock.Now().UTC())
 
 				// Create a slog logger using the custom handler which outputs to a local buffer.
 				var slogOutput bytes.Buffer
@@ -143,16 +146,28 @@ func TestOutput(t *testing.T) {
 					Level:        test.slogLevel,
 					EnableColors: true,
 					WithCaller:   true,
+					ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+						if a.Key == slog.TimeKey {
+							a.Value = slog.StringValue(formattedNow)
+						}
+						return a
+					},
 				}
 				slogLogger := slog.New(NewSlogTextHandler(&slogOutput, slogConfig)).With(trace.Component, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama\n").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Log(test.logrusLevel, message)
+				logrusTestLogLineNumber := func() int {
+					l.WithField("diag_addr", &addr).WithField(trace.ComponentFields, fields).Log(test.logrusLevel, message)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l2.With(trace.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+				slogTestLogLineNumber := func() int {
+					l2.With(trace.ComponentFields, fields).Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// Validate that both loggers produces the same output. The added complexity comes from the fact that
 				// our custom slog handler does NOT sort the additional fields like our logrus formatter does.
@@ -175,8 +190,8 @@ func TestOutput(t *testing.T) {
 				// Match the log message: "Adding diagnostic debugging handlers.\t To connect with profiler, use `go tool pprof diag_addr`.\n"
 				assert.Empty(t, cmp.Diff(logrusMatches[3], slogMatches[3]), "expected output messages to be identical")
 				// The last matches are the caller information
-				assert.Equal(t, " log/formatter_test.go:151", logrusMatches[5])
-				assert.Equal(t, " log/formatter_test.go:155", slogMatches[5])
+				assert.Equal(t, fmt.Sprintf(" log/formatter_test.go:%d", logrusTestLogLineNumber), logrusMatches[5])
+				assert.Equal(t, fmt.Sprintf(" log/formatter_test.go:%d", slogTestLogLineNumber), slogMatches[5])
 
 				// The third matches are the fields which will be key value pairs(animal:llama) separated by a space. Since
 				// logrus sorts the fields and slog doesn't we can't just assert equality and instead build a map of the key
@@ -261,11 +276,17 @@ func TestOutput(t *testing.T) {
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", logErr)
-				l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+				logrusTestLogLineNumber := func() int {
+					l.WithField("diag_addr", &addr).Log(test.logrusLevel, message)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// Add some fields and output the message at the desired log level via slog.
 				l2 := slogLogger.With("test", 123).With("animal", "llama").With("error", logErr)
-				l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+				slogTestLogLineNumber := func() int {
+					l2.Log(context.Background(), test.slogLevel, message, "diag_addr", &addr)
+					return getCallerLineNumber() - 1 // Get the line number of this call, and assume the log call is right above it
+				}()
 
 				// The order of the fields emitted by the two loggers is different, so comparing the output directly
 				// for equality won't work. Instead, a map is built with all the key value pairs, excluding the caller
@@ -279,12 +300,12 @@ func TestOutput(t *testing.T) {
 				logrusCaller, ok := logrusData["caller"].(string)
 				delete(logrusData, "caller")
 				assert.True(t, ok, "caller was missing from logrus output")
-				assert.Equal(t, "log/formatter_test.go:264", logrusCaller)
+				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", logrusTestLogLineNumber), logrusCaller)
 
 				slogCaller, ok := slogData["caller"].(string)
 				delete(slogData, "caller")
 				assert.True(t, ok, "caller was missing from slog output")
-				assert.Equal(t, "log/formatter_test.go:268", slogCaller)
+				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", slogTestLogLineNumber), slogCaller)
 
 				require.Empty(t,
 					cmp.Diff(
@@ -298,7 +319,17 @@ func TestOutput(t *testing.T) {
 	})
 }
 
+func getCallerLineNumber() int {
+	_, _, lineNumber, ok := runtime.Caller(1)
+	if !ok {
+		panic("failed to get the line number of the function calling this")
+	}
+
+	return lineNumber
+}
+
 func BenchmarkFormatter(b *testing.B) {
+	ctx := context.Background()
 	b.ReportAllocs()
 	b.Run("logrus", func(b *testing.B) {
 		b.Run("text", func(b *testing.B) {
@@ -307,7 +338,6 @@ func BenchmarkFormatter(b *testing.B) {
 			logger := logrus.New()
 			logger.SetFormatter(formatter)
 			logger.SetOutput(io.Discard)
-			logger.ReplaceHooks(logrus.LevelHooks{})
 			b.ResetTimer()
 
 			entry := logger.WithField(trace.Component, "test")
@@ -337,15 +367,14 @@ func BenchmarkFormatter(b *testing.B) {
 	b.Run("slog", func(b *testing.B) {
 		b.Run("default_text", func(b *testing.B) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
-				AddSource:   true,
-				Level:       slog.LevelDebug,
-				ReplaceAttr: nil,
+				AddSource: true,
+				Level:     slog.LevelDebug,
 			})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
@@ -355,21 +384,20 @@ func BenchmarkFormatter(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("default_json", func(b *testing.B) {
 			logger := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{
-				AddSource:   true,
-				Level:       slog.LevelDebug,
-				ReplaceAttr: nil,
+				AddSource: true,
+				Level:     slog.LevelDebug,
 			})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
@@ -379,8 +407,47 @@ func BenchmarkFormatter(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
+	})
+}
+
+func TestConcurrentOutput(t *testing.T) {
+	t.Run("logrus", func(t *testing.T) {
+		debugFormatter := NewDefaultTextFormatter(true)
+		require.NoError(t, debugFormatter.CheckAndSetDefaults())
+		logrus.SetFormatter(debugFormatter)
+		logrus.SetOutput(os.Stdout)
+
+		logger := logrus.WithField(trace.Component, "test")
+
+		var wg sync.WaitGroup
+		for i := 0; i < 1000; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				logger.Infof("Detected Teleport component %d is running in a degraded state.", i)
+			}(i)
+		}
+		wg.Wait()
+	})
+
+	t.Run("slog", func(t *testing.T) {
+		logger := slog.New(NewSlogTextHandler(os.Stdout, &SlogTextHandlerConfig{
+			EnableColors: true,
+			WithCaller:   true,
+		})).With(trace.Component, "test")
+
+		var wg sync.WaitGroup
+		ctx := context.Background()
+		for i := 0; i < 1000; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				logger.InfoContext(ctx, "Teleport component entered degraded state", "component", i)
+			}(i)
+		}
+		wg.Wait()
 	})
 }

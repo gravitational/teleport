@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 syntax = "proto3";
 
@@ -638,6 +642,9 @@ enum CTA {
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
   CTA_BILLING_SUMMARY = 7;
+  CTA_ACCESS_LIST = 8;
+  CTA_ACCESS_MONITORING = 9;
+  CTA_EXTERNAL_AUDIT_STORAGE = 10;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -838,6 +845,11 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB = 15;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS = 18;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP = 19;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE = 20;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 21;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1012,6 +1024,48 @@ message DesktopClipboardEvent {
   string user_name = 2;
 }
 
+// TAGExecuteQueryEvent is an event that is emitted
+// when a single query is executed in the Teleport Access Graph.
+// This event is emitted for both successful and failed queries. For
+// successful queries, the total number of nodes and edges is reported.
+message TAGExecuteQueryEvent {
+  // anonymized
+  string user_name = 1;
+
+  // total_nodes is the total amount of nodes returned by the query.
+  int64 total_nodes = 2;
+  // total_edges is the total amount of edges returned by the query.
+  int64 total_edges = 3;
+  // is_success is true if the query was successful and false it if failed.
+  bool is_success = 4;
+}
+
+// ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
+// Storage feature authenticates to the customer AWS account via OIDC connector.
+// The purpose is to have a regularly emitted event indicating that the External
+// Audit Storage feature is still in use.
+message ExternalAuditStorageAuthenticateEvent {}
+
+// SecurityReportGetResultEvent is emitted when the user requests a security report.
+message SecurityReportGetResultEvent {
+  // anonymized
+  string user_name = 1;
+  // name is the name of the security report.
+  string name = 2;
+  // days is the time range of the security reports in days.
+  int32 days = 3;
+}
+
+// AuditQueryRunEvent is emitted when the user runs an audit query.
+message AuditQueryRunEvent {
+  // anonymized
+  string user_name = 1;
+  // days is the time range of the query in days.
+  int32 days = 2;
+  // is_success is true if the query was successful false if execution failed.
+  bool is_success = 3;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1121,6 +1175,13 @@ message SubmitEventRequest {
 
     DesktopDirectoryShareEvent desktop_directory_share = 68;
     DesktopClipboardEvent desktop_clipboard_transfer = 69;
+
+    TAGExecuteQueryEvent tag_execute_query = 70;
+
+    ExternalAuditStorageAuthenticateEvent external_audit_storage_authenticate = 71;
+
+    SecurityReportGetResultEvent security_report_get_result = 72;
+    AuditQueryRunEvent audit_query_run = 73;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

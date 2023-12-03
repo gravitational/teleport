@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -543,6 +545,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ServerID:              child.srv.ID(),
 		Entry:                 child.Entry,
 		Emitter:               child.srv,
+		EmitterContext:        ctx,
 	}
 	for _, opt := range monitorOpts {
 		opt(&monitorConfig)
@@ -1207,9 +1210,6 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 func buildEnvironment(ctx *ServerContext) []string {
 	env := &envutils.SafeEnv{}
 
-	// gather all dynamically defined environment variables
-	ctx.VisitEnv(env.Add)
-
 	// Parse the local and remote addresses to build SSH_CLIENT and
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
@@ -1220,8 +1220,8 @@ func buildEnvironment(ctx *ServerContext) []string {
 		if err != nil {
 			ctx.Logger.Debugf("Failed to split local address: %v.", err)
 		} else {
-			env.Add("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
-			env.Add("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))
+			env.AddTrusted("SSH_CLIENT", fmt.Sprintf("%s %s %s", remoteHost, remotePort, localPort))
+			env.AddTrusted("SSH_CONNECTION", fmt.Sprintf("%s %s %s %s", remoteHost, remotePort, localHost, localPort))
 		}
 	}
 
@@ -1229,19 +1229,22 @@ func buildEnvironment(ctx *ServerContext) []string {
 	session := ctx.getSession()
 	if session != nil {
 		if session.term != nil {
-			env.Add("TERM", session.term.GetTermType())
-			env.Add("SSH_TTY", session.term.TTY().Name())
+			env.AddTrusted("TERM", session.term.GetTermType())
+			env.AddTrusted("SSH_TTY", session.term.TTY().Name())
 		}
 		if session.id != "" {
-			env.Add(teleport.SSHSessionID, string(session.id))
+			env.AddTrusted(teleport.SSHSessionID, string(session.id))
 		}
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
 	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
-	env.Add(teleport.SSHTeleportHostUUID, ctx.srv.ID())
-	env.Add(teleport.SSHTeleportClusterName, ctx.ClusterName)
-	env.Add(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
+	env.AddTrusted(teleport.SSHTeleportHostUUID, ctx.srv.ID())
+	env.AddTrusted(teleport.SSHTeleportClusterName, ctx.ClusterName)
+	env.AddTrusted(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
+
+	// At the end gather all dynamically defined environment variables
+	ctx.VisitEnv(env.AddUnique)
 
 	return *env
 }

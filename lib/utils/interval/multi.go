@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package interval
 
@@ -63,6 +65,12 @@ type SubInterval[T any] struct {
 	// applied, this represents the upper bound of the range).
 	Duration time.Duration
 
+	// VariableDuration, if supplied, replaces the 'Duration' paramater with a
+	// variable duration generator. Variable durations are used to calculate
+	// some heartbeat intervals so that the time between heartbeats scales up
+	// as concurrent load increases.
+	VariableDuration *VariableDuration
+
 	// FirstDuration is an optional special duration to be used for the first
 	// "tick" of the interval.  This duration is not jittered.
 	FirstDuration time.Duration
@@ -102,6 +110,9 @@ func (s *subIntervalEntry[T]) duration(now time.Time) time.Duration {
 
 func (s *subIntervalEntry[T]) reset(now time.Time) {
 	d := s.Duration
+	if s.VariableDuration != nil {
+		d = s.VariableDuration.Duration()
+	}
 	if s.Jitter != nil {
 		d = s.Jitter(d)
 	}
@@ -131,7 +142,7 @@ func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
 	// check and initialize our sub-intervals.
 	now := time.Now()
 	for _, sub := range intervals {
-		if sub.Duration <= 0 {
+		if sub.Duration <= 0 && (sub.VariableDuration == nil || sub.VariableDuration.Duration() <= 0) {
 			panic(errors.New("non-positive sub interval for interval.NewMulti"))
 		}
 		entry := subIntervalEntry[T]{
@@ -155,7 +166,7 @@ func NewMulti[T comparable](intervals ...SubInterval[T]) *MultiInterval[T] {
 // Push adds a new sub-interval, potentially overwriting an existing sub-interval with the same key.
 // This method panics on non-positive durations (equivalent to time.NewTicker).
 func (i *MultiInterval[T]) Push(sub SubInterval[T]) {
-	if sub.Duration <= 0 {
+	if sub.Duration <= 0 && (sub.VariableDuration == nil || sub.VariableDuration.Duration() <= 0) {
 		panic(errors.New("non-positive sub interval for MultiInterval.Push"))
 	}
 	entry := subIntervalEntry[T]{

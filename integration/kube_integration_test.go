@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package integration
 
@@ -667,8 +669,6 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
 		tc, err := main.Process.GetAuthServer().GetRemoteCluster(aux.Secrets.SiteName)
@@ -944,8 +944,6 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	require.Eventually(t, func() bool {
@@ -1328,8 +1326,8 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
@@ -1347,8 +1345,8 @@ func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf.Console = nil
 	tconf.Log = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
+	tconf.Testing.ClientTimeout = time.Second
+	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
 	tconf.Proxy.Enabled = false
 	tconf.SSH.Enabled = false
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()

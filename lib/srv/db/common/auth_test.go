@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -447,17 +449,21 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	tests := map[string]struct {
-		database       types.Database
+		sessionCtx     *Session
 		checkGetAuthFn func(t *testing.T, auth Auth, sessionCtx *Session)
 		checkSTS       func(t *testing.T, stsMock *mocks.STSMock)
 	}{
 		"Redshift": {
-			database: newRedshiftDatabase(t,
-				withCA(fixtures.SAMLOktaCertPEM),
-				withAssumeRole(types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
-					ExternalID: "externalRedshift",
-				})),
+			sessionCtx: &Session{
+				DatabaseUser: "some-user",
+				DatabaseName: "some-database",
+				Database: newRedshiftDatabase(t,
+					withCA(fixtures.SAMLOktaCertPEM),
+					withAssumeRole(types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
+						ExternalID: "externalRedshift",
+					})),
+			},
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
 				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, sessionCtx)
@@ -471,12 +477,40 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
 			},
 		},
+		"Redshift with IAM role": {
+			sessionCtx: &Session{
+				DatabaseUser: "role/some-role",
+				DatabaseName: "some-database",
+				Database: newRedshiftDatabase(t,
+					withCA(fixtures.SAMLOktaCertPEM),
+					withAssumeRole(types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
+						ExternalID: "externalRedshift",
+					})),
+			},
+			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
+				t.Helper()
+				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, sessionCtx)
+				require.NoError(t, err)
+				require.Equal(t, "IAM:some-role", dbUser)
+				require.Equal(t, "some-password-for-some-role", dbPassword)
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
+			},
+		},
 		"Redshift Serverless": {
-			database: newRedshiftServerlessDatabase(t,
-				withAssumeRole(types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
-					ExternalID: "externalRedshiftServerless",
-				})),
+			sessionCtx: &Session{
+				DatabaseUser: "some-user",
+				DatabaseName: "some-database",
+				Database: newRedshiftServerlessDatabase(t,
+					withAssumeRole(types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
+						ExternalID: "externalRedshiftServerless",
+					})),
+			},
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
 				dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx)
@@ -492,11 +526,15 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			},
 		},
 		"RDS Proxy": {
-			database: newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
-				withAssumeRole(types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/RDSProxyRole",
-					ExternalID: "externalRDSProxy",
-				})),
+			sessionCtx: &Session{
+				DatabaseUser: "some-user",
+				DatabaseName: "some-database",
+				Database: newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+					withAssumeRole(types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/RDSProxyRole",
+						ExternalID: "externalRDSProxy",
+					})),
+			},
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
 				token, err := auth.GetRDSAuthToken(ctx, sessionCtx)
@@ -510,11 +548,15 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			},
 		},
 		"ElastiCache Redis": {
-			database: newElastiCacheRedisDatabase(t,
-				withAssumeRole(types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
-					ExternalID: "externalElastiCacheRedis",
-				})),
+			sessionCtx: &Session{
+				DatabaseUser: "some-user",
+				DatabaseName: "some-database",
+				Database: newElastiCacheRedisDatabase(t,
+					withAssumeRole(types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
+						ExternalID: "externalElastiCacheRedis",
+					})),
+			},
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
 				token, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
@@ -547,7 +589,8 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			STS: stsMock,
 			RDS: &mocks.RDSMock{},
 			Redshift: &mocks.RedshiftMock{
-				GetClusterCredentialsOutput: mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
+				GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
+				GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
 			},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
@@ -560,11 +603,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			tt.checkGetAuthFn(t, auth, &Session{
-				DatabaseUser: "some-user",
-				DatabaseName: "some-database",
-				Database:     tt.database,
-			})
+			tt.checkGetAuthFn(t, auth, tt.sessionCtx)
 			tt.checkSTS(t, stsMock)
 		})
 	}
