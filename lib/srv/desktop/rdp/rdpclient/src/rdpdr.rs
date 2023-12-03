@@ -40,6 +40,8 @@ pub struct TeleportRdpdrBackend {
     scard: ScardBackend,
     /// The backend for directory sharing.
     fs: FilesystemBackend,
+    /// Whether directory sharing is enabled.
+    allow_directory_sharing: bool,
 }
 
 impl_as_any!(TeleportRdpdrBackend);
@@ -79,7 +81,20 @@ impl RdpdrBackend for TeleportRdpdrBackend {
     }
 
     fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<()> {
-        self.fs.handle(req)
+        // If directory sharing isn't enabled, we don't advertise drive redirection as a supported
+        // feature, so we should never receive a drive IO request. However this check acts as a
+        // safeguard in case of a server bug or some other anomalous behavior.
+        if self.allow_directory_sharing {
+            self.fs.handle(req)
+        } else {
+            Err(custom_err!(
+                "TeleportRdpdrBackend::handle_drive_io_request",
+                TeleportRdpdrBackendError(
+                    "Received a directory sharing PDU but directory sharing is not enabled"
+                        .to_string()
+                )
+            ))
+        }
     }
 }
 
@@ -90,10 +105,12 @@ impl TeleportRdpdrBackend {
         key_der: Vec<u8>,
         pin: String,
         cgo_handle: CgoHandle,
+        allow_directory_sharing: bool,
     ) -> Self {
         Self {
             scard: ScardBackend::new(client_handle.clone(), cert_der, key_der, pin),
             fs: FilesystemBackend::new(cgo_handle, client_handle),
+            allow_directory_sharing,
         }
     }
 

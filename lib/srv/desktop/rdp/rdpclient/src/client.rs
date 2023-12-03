@@ -118,6 +118,7 @@ impl Client {
                 params.key_der,
                 pin,
                 cgo_handle,
+                params.allow_directory_sharing,
             )),
             "Teleport".to_string(), // directories will show up as "<directory> on Teleport"
         )
