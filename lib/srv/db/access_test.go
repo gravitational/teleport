@@ -2974,6 +2974,10 @@ func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
 }
 
 func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
+	return withSelfHostedMongoWithAdminUser(name, "", opts...)
+}
+
+func withSelfHostedMongoWithAdminUser(name, adminUsername string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
@@ -2983,12 +2987,21 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 		require.NoError(t, err)
 		go mongoServer.Serve()
 		t.Cleanup(func() { mongoServer.Close() })
+
+		var adminUser *types.DatabaseAdminUser
+		if adminUsername != "" {
+			adminUser = &types.DatabaseAdminUser{
+				Name: adminUsername,
+			}
+		}
+
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolMongoDB,
 			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
 			DynamicLabels: dynamicLabels,
+			AdminUser:     adminUser,
 		})
 		require.NoError(t, err)
 		testCtx.mongo[name] = testMongoDB{
