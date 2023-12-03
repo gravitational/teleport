@@ -17,6 +17,9 @@ export class ReportUsageEventRequest extends jspb.Message {
     getPrehogReq(): prehog_v1alpha_connect_pb.SubmitConnectEventRequest | undefined;
     setPrehogReq(value?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest): ReportUsageEventRequest;
 
+    getAnonymizationKey(): string;
+    setAnonymizationKey(value: string): ReportUsageEventRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ReportUsageEventRequest.AsObject;
@@ -32,5 +35,6 @@ export namespace ReportUsageEventRequest {
     export type AsObject = {
         authClusterId: string,
         prehogReq?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
+        anonymizationKey: string,
     }
 }

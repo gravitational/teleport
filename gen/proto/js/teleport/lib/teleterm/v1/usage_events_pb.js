@@ -72,7 +72,8 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.toObject = func
 proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     authClusterId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    prehogReq: (f = msg.getPrehogReq()) && prehog_v1alpha_connect_pb.SubmitConnectEventRequest.toObject(includeInstance, f)
+    prehogReq: (f = msg.getPrehogReq()) && prehog_v1alpha_connect_pb.SubmitConnectEventRequest.toObject(includeInstance, f),
+    anonymizationKey: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -118,6 +119,10 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.deserializeBinaryFromRead
       reader.readMessage(value,prehog_v1alpha_connect_pb.SubmitConnectEventRequest.deserializeBinaryFromReader);
       msg.setPrehogReq(value);
       break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAnonymizationKey(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -160,6 +165,13 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.serializeBinaryToWriter =
       2,
       f,
       prehog_v1alpha_connect_pb.SubmitConnectEventRequest.serializeBinaryToWriter
+    );
+  }
+  f = message.getAnonymizationKey();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
     );
   }
 };
@@ -217,6 +229,24 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.clearPrehogReq 
  */
 proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.hasPrehogReq = function() {
   return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional string anonymization_key = 3;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.getAnonymizationKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ReportUsageEventRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.setAnonymizationKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 

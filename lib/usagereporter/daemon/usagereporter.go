@@ -132,7 +132,8 @@ func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv
 	}
 
 	// anonymized
-	anonymizer, err := newClusterAnonymizer(req.GetAuthClusterId()) // authClusterId is sent with each event that needs to be anonymized
+	// TODO: update connect code to set this correctly (cluster ID normally, anonymization key when it's set in the license)
+	anonymizer, err := newClusterAnonymizer(req.GetAnonymizationKey()) // anonymizationKey is sent with each event that needs to be anonymized
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
