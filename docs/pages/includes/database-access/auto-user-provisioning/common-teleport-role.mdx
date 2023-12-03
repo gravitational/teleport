@@ -17,17 +17,11 @@ spec:
     - "*"
     # db_roles is a list of roles the database user will be assigned
     db_roles:
-    - "readAnyDatabase@admin"
-    - "readWrite@db1"
-    - "myCustomRole@db2"
+    - reader
     - "{{internal.db_roles}}"
     - "{{external.db_roles}}"
 ```
 
-The roles specified in `db_roles` must be in the format of `<role>@<db>`.
-`<role>` can be a built-in role like `readWrite` or a user-defined role. `<db>`
-is the name of the database to which the role belongs.
+(!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)
 
-(!docs/pages/includes/database-access/auto-user-provisioning/teleport-role-common-db-users.mdx!)
-
-(!docs/pages/includes/database-access/auto-user-provisioning/teleport-role-common-mode.mdx!)
+(!docs/pages/includes/database-access/auto-user-provisioning/modes.mdx!)
