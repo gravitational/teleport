@@ -285,8 +285,8 @@ Note that your federated login session is marked with your Teleport username.
     Due to limitations in AWS IAM [role
     chaining](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#iam-term-role-chaining),
     Management Console sessions will be restricted to one hour if Teleport is
-    running with temporary security credentials (e.g. EKS's IAM role as a
-    service account).
+    running with temporary security credentials (e.g., when using IAM roles for
+    service accounts on EKS).
 </Admonition>
 
 ## Step 7/9. Use CloudTrail to see Teleport user activity
@@ -407,7 +407,7 @@ Replace `us-west-1` with the AWS region you are accessing.
 ### Management Console expires in one hour
 
 By default, your AWS Management Console session will expire when your Teleport
-Web session expires, with a maximum session duration of 12 hours. You can
+web session expires, with a maximum session duration of 12 hours. You can
 adjust the duration of your Teleport session by modifying the `max_session_ttl`
 parameter in your Teleport roles.
 
@@ -416,9 +416,9 @@ chaining](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-co
 Management Console sessions will be restricted to one hour if Teleport is
 running with temporary security credentials.
 
-For example, if the Teleport Application Service is deployed in EKS with IAM
-role with service account (IRSA) or if the Teleport Application Services
-assumes a Web or SSO identity, the AWS Management Console session will be
+For example, if the Teleport Application Service is deployed on EKS with an IAM
+role for service accounts (IRSA), or if the Teleport Application Services
+assumes a web or SSO identity, the AWS Management Console session will be
 limited to an hour.
 
 In such cases, it is recommended to deploy the Application Service on an EC2
