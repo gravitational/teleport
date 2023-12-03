@@ -53,6 +53,22 @@ func GetDatabaseRoleMatchers(conf RoleMatchersConfig) (matchers services.RoleMat
 	return
 }
 
+// DatabaseRoleMatchers returns role matchers based on the database.
+//
+// DEPRECATED: Prefer to use GetDatabaseRoleMatchers above which supports
+// automatic user provisioning and has more flexible config.
+func DatabaseRoleMatchers(db types.Database, user, database string) services.RoleMatchers {
+	roleMatchers := services.RoleMatchers{
+		services.NewDatabaseUserMatcher(db, user),
+	}
+
+	if matcher := databaseNameMatcher(db.GetProtocol(), database); matcher != nil {
+		roleMatchers = append(roleMatchers, matcher)
+	}
+
+	return roleMatchers
+}
+
 // RequireDatabaseUserMatcher returns true if databases with provided protocol
 // require database users.
 func RequireDatabaseUserMatcher(protocol string) bool {
