@@ -952,19 +952,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryInfoResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_info_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_info_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
@@ -976,19 +975,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryCreateResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_create_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_create_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
@@ -1000,19 +998,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryDeleteResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_delete_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
-                "FilesystemBackend::client_handle_tdp_sd_delete_response",
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
+                "FilesystemBackend::handle_tdp_sd_delete_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
@@ -1024,19 +1021,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryListResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_list_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_list_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
@@ -1048,19 +1044,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryReadResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_read_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_read_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
@@ -1072,19 +1067,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryWriteResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_write_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_write_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
@@ -1092,19 +1086,18 @@ impl FilesystemBackend {
         &mut self,
         tdp_resp: tdp::SharedDirectoryMoveResponse,
     ) -> PduResult<()> {
-        if let Some(handler) = self
+        match self
             .pending_sd_move_resp_handlers
             .remove(&tdp_resp.completion_id)
         {
-            handler.call(self, tdp_resp)
-        } else {
-            Err(custom_err!(
+            Some(handler) => handler.call(self, tdp_resp),
+            None => Err(custom_err!(
                 "FilesystemBackend::handle_tdp_sd_move_response",
                 FilesystemBackendError(format!(
                     "received invalid completion id: {}",
                     tdp_resp.completion_id
                 ))
-            ))
+            )),
         }
     }
 
