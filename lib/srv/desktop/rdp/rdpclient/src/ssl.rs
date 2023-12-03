@@ -16,10 +16,10 @@
  * /
  */
 
+use crate::client::{ClientError, ClientResult};
+#[cfg(feature = "fips")]
 use static_init::dynamic;
 use tokio::net::TcpStream;
-
-use crate::client::{ClientError, ClientResult};
 
 #[cfg(feature = "fips")]
 pub type TlsStream<S> = tokio_boring::SslStream<S>;

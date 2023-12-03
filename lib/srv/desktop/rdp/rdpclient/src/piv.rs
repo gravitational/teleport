@@ -55,7 +55,7 @@ pub struct Card<const S: usize> {
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> PduResult<Self> {
         let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der)
-            .map_err(|e| other_err!("piv::Card", "failed to parse private key from DER"))?;
+            .map_err(|_e| other_err!("piv::Card", "failed to parse private key from DER"))?;
 
         Ok(Self {
             chuid: Self::build_chuid(uuid),

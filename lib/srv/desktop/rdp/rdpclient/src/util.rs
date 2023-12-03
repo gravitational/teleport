@@ -13,8 +13,7 @@
 // limitations under the License.
 
 use ironrdp_pdu::{other_err, PduResult};
-use std::convert::TryFrom;
-use std::ffi::{CStr, CString, NulError};
+use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 use utf16string::{WString, LE};
@@ -46,47 +45,16 @@ pub fn from_unicode(s: Vec<u8>) -> PduResult<String> {
     Ok(without_null_terminator)
 }
 
-/// Converts a &str into a null-terminated UTF-8 encoded Vec<u8>
-pub fn to_utf8(s: &str) -> Vec<u8> {
-    format!("{s}\x00").into_bytes()
-}
-
 pub fn from_utf8(s: Vec<u8>) -> PduResult<String> {
     let mut with_null_terminator =
-        String::from_utf8(s).or_else(|_| Err(other_err!("from_utf8", "invalid Unicode")))?;
+        String::from_utf8(s).map_err(|_| other_err!("from_utf8", "invalid Unicode"))?;
     with_null_terminator.pop();
     let without_null_terminator = with_null_terminator;
     Ok(without_null_terminator)
 }
 
-/// Takes a Rust string slice and calculates it's unicode size in bytes.
-pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
-    u32::try_from(to_unicode(s, with_null_term).len()).unwrap()
-}
-
 pub fn vec_u8_debug(v: &[u8]) -> String {
     format!("&[u8] of length {}", v.len())
-}
-
-/// to_c_string can be used to return string values over the Go boundary.
-/// To avoid memory leaks, the Go function must call free_go_string once
-/// it's done with the memory.
-///
-/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
-pub fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
-    let c_string = CString::new(s)?;
-    Ok(c_string.into_raw())
-}
-
-/// See the docstring for to_c_string.
-///
-/// # Safety
-///
-/// s must be a pointer originally created by to_c_string
-#[no_mangle]
-pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
-    // retake pointer to free memory
-    let _ = CString::from_raw(s);
 }
 
 /// # Safety
@@ -115,30 +83,6 @@ pub unsafe fn from_go_array<T: Clone>(data: *const T, len: u32) -> Vec<T> {
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
     slice::from_raw_parts(data, len as usize).to_vec()
-}
-
-/// encodes png from the uncompressed bitmap data
-///
-/// # Arguments
-///
-/// * `dest` - buffer that will contain the png data
-/// * `width` - width of the png
-/// * `height` - height of the png
-/// * `data` - buffer that contains uncompressed bitmap data
-pub fn encode_png(
-    dest: &mut Vec<u8>,
-    width: u16,
-    height: u16,
-    data: Vec<u8>,
-) -> Result<(), png::EncodingError> {
-    let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
-    encoder.set_compression(png::Compression::Fast);
-    encoder.set_color(png::ColorType::Rgba);
-
-    let mut writer = encoder.write_header()?;
-    writer.write_image_data(&data)?;
-    writer.finish()?;
-    Ok(())
 }
 
 #[cfg(test)]
