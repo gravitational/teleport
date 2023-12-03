@@ -702,46 +702,46 @@ pub struct CGOSharedDirectoryListRequest {
     pub path: *const c_char,
 }
 
-// These functions are defined on the Go side. Look for functions with '//export funcname'
-// comments.
+// These functions are defined on the Go side.
+// Look for functions with '//export funcname' comments.
 extern "C" {
     fn handle_png(cgo_handle: CgoHandle, b: *mut CGOPNG) -> CGOErrCode;
-    fn handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_rdp_channel_ids(
+    fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_rdp_channel_ids(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
     ) -> CGOErrCode;
-    fn tdp_sd_acknowledge(
+    fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,
         ack: *mut CGOSharedDirectoryAcknowledge,
     ) -> CGOErrCode;
-    fn tdp_sd_info_request(
+    fn cgo_tdp_sd_info_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryInfoRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_create_request(
+    fn cgo_tdp_sd_create_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryCreateRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_delete_request(
+    fn cgo_tdp_sd_delete_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryDeleteRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_list_request(
+    fn cgo_tdp_sd_list_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryListRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_read_request(
+    fn cgo_tdp_sd_read_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryReadRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_write_request(
+    fn cgo_tdp_sd_write_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryWriteRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_move_request(
+    fn cgo_tdp_sd_move_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryMoveRequest,
     ) -> CGOErrCode;

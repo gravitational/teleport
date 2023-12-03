@@ -17,9 +17,9 @@ use super::{
     tdp::{self, TdpErrCode},
 };
 use crate::{
-    client::ClientHandle, tdp_sd_acknowledge, tdp_sd_create_request, tdp_sd_delete_request,
-    tdp_sd_info_request, tdp_sd_list_request, tdp_sd_move_request, tdp_sd_read_request,
-    tdp_sd_write_request, CGOErrCode, CgoHandle,
+    cgo_tdp_sd_acknowledge, cgo_tdp_sd_create_request, cgo_tdp_sd_delete_request,
+    cgo_tdp_sd_info_request, cgo_tdp_sd_list_request, cgo_tdp_sd_move_request,
+    cgo_tdp_sd_read_request, cgo_tdp_sd_write_request, client::ClientHandle, CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
@@ -859,7 +859,7 @@ impl FilesystemBackend {
         mut tdp_req: tdp::SharedDirectoryAcknowledge,
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
-        let err = unsafe { tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
+        let err = unsafe { cgo_tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_acknowledge",
@@ -873,7 +873,7 @@ impl FilesystemBackend {
     fn send_tdp_sd_info_request(&self, tdp_req: tdp::SharedDirectoryInfoRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_info_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_info_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_info_request",
@@ -890,7 +890,7 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_create_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_create_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_create_request",
@@ -907,7 +907,7 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_delete_request",
@@ -921,7 +921,7 @@ impl FilesystemBackend {
     fn send_tdp_sd_list_request(&self, tdp_req: tdp::SharedDirectoryListRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_list_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_list_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_list_request",
@@ -935,7 +935,7 @@ impl FilesystemBackend {
     fn send_tdp_sd_read_request(&self, tdp_req: tdp::SharedDirectoryReadRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_read_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_read_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_read_request",
@@ -952,7 +952,7 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_write_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_write_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_write_request",
@@ -965,7 +965,7 @@ impl FilesystemBackend {
     fn send_tdp_sd_move_request(&self, tdp_req: tdp::SharedDirectoryMoveRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
-        let err = unsafe { tdp_sd_move_request(self.cgo_handle, req.cgo()) };
+        let err = unsafe { cgo_tdp_sd_move_request(self.cgo_handle, req.cgo()) };
         if err != CGOErrCode::ErrCodeSuccess {
             return Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_move_request",
