@@ -50,7 +50,7 @@ type adminClient interface {
 }
 
 func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (adminClient, error) {
-	if adminClientFnCache == nil {
+	if isAdminClientCacheDisabled() || adminClientFnCache == nil {
 		client, err := makeBasicAdminClient(ctx, sessionCtx, e)
 		return client, trace.Wrap(err)
 	}
@@ -258,8 +258,12 @@ const (
 
 var adminClientFnCache *utils.FnCache
 
+func isAdminClientCacheDisabled() bool {
+	return utils.AsBool(os.Getenv("TELEPORT_DISABLE_MONGODB_ADMIN_CLIENT_CACHE"))
+}
+
 func init() {
-	if os.Getenv("TELEPORT_DISABLE_MONGODB_ADMIN_CLIENT_CACHE") != "" {
+	if isAdminClientCacheDisabled() {
 		return
 	}
 
