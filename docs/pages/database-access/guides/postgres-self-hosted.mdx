@@ -62,7 +62,7 @@ to the PostgreSQL configuration file, `postgresql.conf`:
 ssl = on
 ssl_cert_file = '/path/to/server.crt'
 ssl_key_file = '/path/to/server.key'
-ssl_ca_file = '/path/toa/server.cas'
+ssl_ca_file = '/path/to/server.cas'
 ```
 
 See [Secure TCP/IP Connections with SSL](https://www.postgresql.org/docs/current/ssl-tcp.html)
@@ -142,13 +142,6 @@ Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
 
 To retrieve credentials for a database and connect to it:
-
-```code
-$ tsh db connect example-postgres
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
 
 ```code
 $ tsh db connect --db-user=postgres --db-name=postgres example-postgres

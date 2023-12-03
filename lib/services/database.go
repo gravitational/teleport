@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -21,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -176,6 +179,10 @@ func ValidateDatabase(db types.Database) error {
 		if err := validateClickhouseURI(db); err != nil {
 			return trace.Wrap(err)
 		}
+	} else if db.GetProtocol() == defaults.ProtocolSQLServer {
+		if err := ValidateSQLServerURI(db.GetURI()); err != nil {
+			return trace.BadParameter("invalid SQL Server address: %v", err)
+		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
@@ -307,6 +314,51 @@ func validateMongoDB(db types.Database) error {
 			return trace.BadParameter("invalid MongoDB database %q read preference %q", db.GetName(), connString.ReadPreference)
 		}
 	}
+	return nil
+}
+
+// ValidateSQLServerURI validates SQL Server URI and returns host and
+// port.
+//
+// Since Teleport only supports SQL Server authentcation using AD (self-hosted
+// or Azure) the database URI must include: computer name, domain and port.
+//
+// A few examples of valid URIs:
+// - computer.ad.example.com:1433
+// - computer.domain.com:1433
+func ValidateSQLServerURI(uri string) error {
+	// Add a temporary schema to make a valid URL for url.Parse if schema is
+	// not found.
+	if !strings.Contains(uri, "://") {
+		uri = sqlServerSchema + "://" + uri
+	}
+
+	parsedURI, err := url.Parse(uri)
+	if err != nil {
+		return trace.BadParameter("unabled to parse database address: %s", err)
+	}
+
+	if parsedURI.Scheme != sqlServerSchema {
+		return trace.BadParameter("only %q is supported as database address schema", sqlServerSchema)
+	}
+
+	if parsedURI.Port() == "" {
+		return trace.BadParameter("database address must include port")
+	}
+
+	if parsedURI.Path != "" {
+		return trace.BadParameter("database address with database name is not supported")
+	}
+
+	if _, err := netip.ParseAddr(parsedURI.Hostname()); err == nil {
+		return trace.BadParameter("database address as IP is not supported, use URI with domain and computer name instead")
+	}
+
+	parts := strings.Split(parsedURI.Hostname(), ".")
+	if len(parts) < 3 {
+		return trace.BadParameter("database address must include domain and computer name")
+	}
+
 	return nil
 }
 
@@ -2013,4 +2065,6 @@ const (
 const (
 	// azureSQLServerDefaultPort is the default port for Azure SQL Server.
 	azureSQLServerDefaultPort = 1433
+	// sqlServerSchema is the SQL Server schema.
+	sqlServerSchema = "mssql"
 )

@@ -1,0 +1,60 @@
+enabled: true
+
+authServer: ""
+caPins: []
+joinMethod: "kubernetes"
+token: ""
+
+teleportVersionOverride: ""
+
+nameOverride: ""
+fullNameOverride: ""
+
+# Kubernetes Teleport Operator image
+image: public.ecr.aws/gravitational/teleport-operator
+
+annotations:
+  deployment: {}
+  pod: {}
+  serviceAccount: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+imagePullPolicy: IfNotPresent
+
+resources: {}
+
+priorityClassName: ""
+
+tolerations: []
+
+nodeSelector: {}
+
+affinity: {}
+
+imagePullSecrets: []
+
+highAvailability:
+  replicaCount: 1
+
+tls:
+  existingCASecretName: ""
+
+podSecurityContext:
+  seccompProfile: RuntimeDefault
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true

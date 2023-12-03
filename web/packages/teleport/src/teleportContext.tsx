@@ -1,18 +1,20 @@
-/*
-Copyright 2019-2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import cfg from 'teleport/config';
 
@@ -66,14 +68,20 @@ class TeleportContext implements types.Context {
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isUsageBasedBilling`
+  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
   // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isUsageBasedBilling,
-    activeSessions: cfg.isUsageBasedBilling,
-    accessRequests: cfg.isUsageBasedBilling,
-    premiumSupport: cfg.isUsageBasedBilling,
-    trustedDevices: cfg.isUsageBasedBilling,
+    authConnectors: cfg.isTeam,
+    activeSessions: cfg.isTeam,
+    premiumSupport: cfg.isTeam,
+    externalCloudAudit: cfg.isTeam,
+    // Below should be locked for the following cases:
+    //  1) is team
+    //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
+    accessRequests:
+      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+    trustedDevices:
+      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
   // init fetches data required for initial rendering of components.
@@ -186,10 +194,13 @@ class TeleportContext implements types.Context {
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.getPluginsAccess().list,
       integrations: userContext.getIntegrationsAccess().list,
-      enrollIntegrations: userContext.getIntegrationsAccess().create,
+      enrollIntegrations:
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       enrollIntegrationsOrPlugins:
         userContext.getPluginsAccess().create ||
-        userContext.getIntegrationsAccess().create,
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
       newLocks:
@@ -198,6 +209,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
     };
   }
 }
@@ -231,6 +243,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  externalAuditStorage: false,
 };
 
 export default TeleportContext;

@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package slack
 
@@ -112,7 +116,7 @@ func (s *SlackSuite) SetupSuite() {
 	// Set up user who can request the access to role "editor".
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
@@ -125,7 +129,7 @@ func (s *SlackSuite) SetupSuite() {
 	// Set up TWO users who can review access requests to role "editor".
 
 	conditions = types.RoleConditions{}
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
 	}
 	role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{Allow: conditions})
@@ -167,7 +171,7 @@ func (s *SlackSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.clients[s.userNames.requestor] = client
 
-	if teleportFeatures.AccessRequests.Enabled {
+	if teleportFeatures.AdvancedAccessWorkflows {
 		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
 		require.NoError(t, err)
 		s.clients[s.userNames.reviewer1] = client
@@ -424,7 +428,7 @@ func (s *SlackSuite) TestDenial() {
 func (s *SlackSuite) TestReviewReplies() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -477,7 +481,7 @@ func (s *SlackSuite) TestReviewReplies() {
 func (s *SlackSuite) TestApprovalByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -534,7 +538,7 @@ func (s *SlackSuite) TestApprovalByReview() {
 func (s *SlackSuite) TestDenialByReview() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -620,7 +624,7 @@ func (s *SlackSuite) TestExpiration() {
 func (s *SlackSuite) TestAccessListReminder() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -680,7 +684,7 @@ func (s *SlackSuite) requireReminderMsgEqual(id, text string) {
 func (s *SlackSuite) TestRace() {
 	t := s.T()
 
-	if !s.teleportFeatures.AccessRequests.Enabled {
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
