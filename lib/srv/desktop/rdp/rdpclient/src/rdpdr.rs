@@ -19,7 +19,7 @@ pub(crate) mod scard;
 pub(crate) mod tdp;
 
 use self::filesystem::FilesystemBackend;
-use self::scard::ScardBackend;
+use self::scard::{ScardBackend, SCARD_DEVICE_ID};
 use self::tdp::{
     SharedDirectoryCreateResponse, SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse,
     SharedDirectoryListResponse,
@@ -49,17 +49,24 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         &mut self,
         pdu: ServerDeviceAnnounceResponse,
     ) -> PduResult<()> {
-        if pdu.result_code != NtStatus::SUCCESS {
+        // If the device announce for the smart card failed, return an error that will end the session.
+        // Authentication is impossible without a smart card.
+        if pdu.device_id == SCARD_DEVICE_ID && pdu.result_code != NtStatus::SUCCESS {
             return Err(custom_err!(
                 "TeleportRdpdrBackend::handle_server_device_announce_response",
                 TeleportRdpdrBackendError(format!(
-                    "ServerDeviceAnnounceResponse failed with NtStatus: {:?}",
+                    "ServerDeviceAnnounceResponse for smartcard failed with NtStatus: {:?}",
                     pdu.result_code
                 ))
             ));
         }
 
-        // Nothing to send back to the server
+        // If the device announce is not for a smart card, assume it's for a directory
+        if pdu.device_id != SCARD_DEVICE_ID {
+            self.fs.handle_server_device_announce_response(pdu)?;
+        }
+
+        // Nothing to send back to the server in either case
         Ok(())
     }
 

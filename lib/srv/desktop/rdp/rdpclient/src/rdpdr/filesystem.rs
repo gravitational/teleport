@@ -17,9 +17,9 @@ use super::{
     tdp::{self, TdpErrCode},
 };
 use crate::{
-    client::ClientHandle, tdp_sd_create_request, tdp_sd_delete_request, tdp_sd_info_request,
-    tdp_sd_list_request, tdp_sd_move_request, tdp_sd_read_request, tdp_sd_write_request,
-    CGOErrCode, CgoHandle,
+    client::ClientHandle, tdp_sd_acknowledge, tdp_sd_create_request, tdp_sd_delete_request,
+    tdp_sd_info_request, tdp_sd_list_request, tdp_sd_move_request, tdp_sd_read_request,
+    tdp_sd_write_request, CGOErrCode, CgoHandle,
 };
 use ironrdp_pdu::{cast_length, custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::{
@@ -98,6 +98,22 @@ impl FilesystemBackend {
                 self.handle_lock_req(req)
             }
         }
+    }
+
+    /// Handles an RDP [`efs::ServerDeviceAnnounceResponse`] received from the RDP server.
+    pub fn handle_server_device_announce_response(
+        &mut self,
+        res: efs::ServerDeviceAnnounceResponse,
+    ) -> PduResult<()> {
+        let err_code = match res.result_code {
+            NtStatus::SUCCESS => TdpErrCode::Nil,
+            _ => TdpErrCode::Failed,
+        };
+
+        self.send_tdp_sd_acknowledge(tdp::SharedDirectoryAcknowledge {
+            err_code,
+            directory_id: res.device_id,
+        })
     }
 
     /// Handles an RDP [`efs::DeviceCreateRequest`] received from the RDP server.
@@ -836,6 +852,21 @@ impl FilesystemBackend {
 
         // File not found in cache
         self.send_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL)
+    }
+
+    fn send_tdp_sd_acknowledge(
+        &self,
+        mut tdp_req: tdp::SharedDirectoryAcknowledge,
+    ) -> PduResult<()> {
+        debug!("sending tdp: {:?}", tdp_req);
+        let err = unsafe { tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
+        if err != CGOErrCode::ErrCodeSuccess {
+            return Err(custom_err!(
+                "FilesystemBackend::send_tdp_sd_acknowledge",
+                FilesystemBackendError(format!("call to tdp_sd_acknowledge failed: {:?}", err))
+            ));
+        };
+        Ok(())
     }
 
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
