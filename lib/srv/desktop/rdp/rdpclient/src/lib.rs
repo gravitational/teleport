@@ -404,15 +404,6 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     )
 }
 
-/// # Safety
-///
-/// client_ptr must be a valid pointer to a Client.
-#[no_mangle]
-pub unsafe extern "C" fn client_close_rdp(_cgo_reg: usize) -> CGOErrCode {
-    warn!("unimplemented: client_close_rdp");
-    CGOErrCode::ErrCodeSuccess
-}
-
 #[repr(C)]
 pub struct CGOConnectParams {
     go_addr: *const c_char,

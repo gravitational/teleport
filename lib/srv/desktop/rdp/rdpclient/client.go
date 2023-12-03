@@ -31,21 +31,28 @@ package rdpclient
 //    Go                                Rust
 // ==============================================
 //  rdpclient.Run -----------------> client_run
-//                   *connected*
-//                                   run_read_loop
-// handleRDPFastPathPDU <----------- cgo_handle_fastpath_pdu
-// handleRDPFastPathPDU <-----------
-// handleRDPFastPathPDU <-----------
+//                    *connected*
+//                                    run_read_loop
+//  handleRDPFastPathPDU <----------- cgo_handle_fastpath_pdu
+//  handleRDPFastPathPDU <-----------
+//  handleRDPFastPathPDU <-----------
 //  			 *fast path (screen) streaming continues...*
 //
 //              *user input messages*
 //                                   run_write_loop
-//  ReadMessage(MouseMove) ------> client_write_rdp_pointer
-//  ReadMessage(MouseButton) ----> client_write_rdp_pointer
-//  ReadMessage(KeyboardButton) -> client_write_rdp_keyboard
+//  ReadMessage(MouseMove) --------> client_write_rdp_pointer
+//  ReadMessage(MouseButton) ------> client_write_rdp_pointer
+//  ReadMessage(KeyboardButton) ---> client_write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*
+//
+//  The wds <--> RDP connection is guaranteed to close when the rust Client is dropped,
+//  which happens when client_run returns (typically either due to an error or because
+//  client_stop was called).
+//
+//  The browser <--> wds connection is guaranteed to close when WindowsService.handleConnection
+//  returns.
 
 /*
 // Flags to include the static Rust library.
@@ -898,28 +905,6 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 	}
 	return C.ErrCodeSuccess
 
-}
-
-// close closes the RDP client connection and
-// the TDP connection to the browser.
-func (c *Client) close() {
-	c.closeOnce.Do(func() {
-		// Ensure the RDP connection is closed
-		// TODO: do we need to do something to ensure a closed connection on the rust side (the rdp connection)?
-		if errCode := C.client_close_rdp(C.ulong(c.handle)); errCode != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("error closing the RDP connection")
-		} else {
-			c.cfg.Log.Debug("RDP connection closed successfully")
-		}
-
-		// TODO: can we consolidate this with the cleanup/close logic in Client::Run?
-		// Ensure the TDP connection is closed
-		if err := c.cfg.Conn.Close(); err != nil {
-			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
-		} else {
-			c.cfg.Log.Debug("TDP connection closed successfully")
-		}
-	})
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
