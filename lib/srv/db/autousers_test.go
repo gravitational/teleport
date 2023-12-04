@@ -321,7 +321,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 			role.SetOptions(options)
 			role.SetDatabaseRoles(types.Allow, []string{"readWrite@db1", "readAnyDatabase@admin"})
 			role.SetDatabaseNames(types.Allow, []string{"db1", "db2", "admin"})
-			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
 			// DatabaseUser must match identity.
