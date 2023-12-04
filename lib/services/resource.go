@@ -123,6 +123,9 @@ func PreserveResourceID() MarshalOption {
 }
 
 // ParseShortcut parses resource shortcut
+// Generally, this should include the plural of a singular resource name or vice
+// versa.
+// These shortcuts
 func ParseShortcut(in string) (string, error) {
 	if in == "" {
 		return "", trace.BadParameter("missing resource name")
@@ -154,7 +157,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
 		return types.KindTrustedCluster, nil
-	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
+	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cluster_auth_preferences", "cap":
 		return types.KindClusterAuthPreference, nil
 	case types.KindUIConfig, "ui":
 		return types.KindUIConfig, nil
