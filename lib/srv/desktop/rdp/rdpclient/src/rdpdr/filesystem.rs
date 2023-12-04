@@ -860,13 +860,13 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let err = unsafe { cgo_tdp_sd_acknowledge(self.cgo_handle, &mut tdp_req) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_acknowledge",
                 FilesystemBackendError(format!("call to tdp_sd_acknowledge failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
@@ -874,13 +874,13 @@ impl FilesystemBackend {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_info_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_info_request",
                 FilesystemBackendError(format!("call to tdp_sd_info_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryCreateRequest`] to the browser.
@@ -891,13 +891,13 @@ impl FilesystemBackend {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_create_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_create_request",
                 FilesystemBackendError(format!("call to tdp_sd_create_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryDeleteRequest`] to the browser.
@@ -908,13 +908,13 @@ impl FilesystemBackend {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_delete_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_delete_request",
-                FilesystemBackendError(format!("call to tdp_sd_create_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+                FilesystemBackendError(format!("call to tdp_sd_delete_request failed: {:?}", err))
+            )),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryListRequest`] to the browser.
@@ -922,13 +922,13 @@ impl FilesystemBackend {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_list_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_list_request",
                 FilesystemBackendError(format!("call to tdp_sd_list_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryReadRequest`] to the browser.
@@ -936,13 +936,13 @@ impl FilesystemBackend {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_read_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_read_request",
                 FilesystemBackendError(format!("call to tdp_sd_read_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     /// Sends a [`tdp::SharedDirectoryWriteRequest`] to the browser.
@@ -953,26 +953,26 @@ impl FilesystemBackend {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_write_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_write_request",
                 FilesystemBackendError(format!("call to tdp_sd_write_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     fn send_tdp_sd_move_request(&self, tdp_req: tdp::SharedDirectoryMoveRequest) -> PduResult<()> {
         debug!("sending tdp: {:?}", tdp_req);
         let mut req = tdp_req.into_cgo()?;
         let err = unsafe { cgo_tdp_sd_move_request(self.cgo_handle, req.cgo()) };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return Err(custom_err!(
+        match err {
+            CGOErrCode::ErrCodeSuccess => Ok(()),
+            _ => Err(custom_err!(
                 "FilesystemBackend::send_tdp_sd_move_request",
                 FilesystemBackendError(format!("call to tdp_sd_move_request failed: {:?}", err))
-            ));
-        };
-        Ok(())
+            )),
+        }
     }
 
     /// Called from the Go code when a [`tdp::SharedDirectoryInfoResponse`] is received from the browser.
