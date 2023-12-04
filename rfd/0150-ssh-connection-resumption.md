@@ -7,8 +7,8 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: TBD
-* Security: @jentfoo
+* Engineering: (@zmb3 || @rosstimothy) && @smallinsky
+* Security: @jentfoo && Doyensec
 
 ## What
 
