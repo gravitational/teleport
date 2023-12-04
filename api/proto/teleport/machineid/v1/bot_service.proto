@@ -41,7 +41,7 @@ service BotService {
   rpc UpdateBot(UpdateBotRequest) returns (UpdateBotResponse);
   // UpsertBot is used to create or replace an existing Bot.
   //
-  // Prefer using CreateBot and UpsertBot.
+  // Prefer using CreateBot and UpdateBot.
   rpc UpsertBot(UpsertBotRequest) returns (UpsertBotResponse);
   // DeleteBot is used to delete a specific Bot.
   //
