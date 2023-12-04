@@ -63,7 +63,7 @@ type BotServiceClient interface {
 	UpdateBot(ctx context.Context, in *UpdateBotRequest, opts ...grpc.CallOption) (*UpdateBotResponse, error)
 	// UpsertBot is used to create or replace an existing Bot.
 	//
-	// Prefer using CreateBot and UpsertBot.
+	// Prefer using CreateBot and UpdateBot.
 	UpsertBot(ctx context.Context, in *UpsertBotRequest, opts ...grpc.CallOption) (*UpsertBotResponse, error)
 	// DeleteBot is used to delete a specific Bot.
 	//
@@ -154,7 +154,7 @@ type BotServiceServer interface {
 	UpdateBot(context.Context, *UpdateBotRequest) (*UpdateBotResponse, error)
 	// UpsertBot is used to create or replace an existing Bot.
 	//
-	// Prefer using CreateBot and UpsertBot.
+	// Prefer using CreateBot and UpdateBot.
 	UpsertBot(context.Context, *UpsertBotRequest) (*UpsertBotResponse, error)
 	// DeleteBot is used to delete a specific Bot.
 	//
