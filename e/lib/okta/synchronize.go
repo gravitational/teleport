@@ -24,11 +24,19 @@ const (
 	// we'll choose a 10 second jitter for the synchronization loop to avoid potential contention
 	// with other Okta services (should we ever decide to support multiple services)
 	syncJitter = 10 * time.Second
+
+	// we will wait for this amount of time before synchronization starts if
+	// this Okta service is not the leader.
+	syncRetryAfterLeadershipFailure = time.Minute
 )
 
 // synchronizeLoop will synchronize Okta with the backend periodically until the
 // process is terminated.
 func (s *Service) synchronizeLoop(ctx context.Context) {
+	if shouldStop := s.waitIfNotLeader(ctx); shouldStop {
+		return
+	}
+
 	ticker, timeBetweenSyncs := s.setupSynchronizerTicker(ctx)
 	defer ticker.Stop()
 
@@ -60,6 +68,29 @@ Loop:
 	s.log.Infof("Synchronizer stopped.")
 
 	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
+}
+
+// waitIfNotLeader will wait for this service to become the leader. It will return true if the service should stop.
+func (s *Service) waitIfNotLeader(ctx context.Context) bool {
+	// Don't start the loop until we acquire leadership.
+	s.log.Infof("Waiting for leadership to be acquired before starting synchronizer.")
+	waitForLeadershipTicker := s.clock.NewTicker(syncRetryAfterLeadershipFailure)
+	defer waitForLeadershipTicker.Stop()
+	for {
+		if s.leadershipAcquired.Load() {
+			break
+		}
+
+		select {
+		case <-waitForLeadershipTicker.Chan():
+		case <-s.stopCh:
+			return true
+		case <-ctx.Done():
+			return true
+		}
+	}
+
+	return false
 }
 
 // emitSyncError will emit a sync error event to the Teleport audit log.
@@ -116,7 +147,7 @@ func (s *Service) updateSynchronizerTicker(ctx context.Context, ticker clockwork
 			timeBetweenSyncs = pref.GetOktaSyncPeriod()
 		}
 
-		ticker.Reset(timeBetweenSyncs)
+		ticker.Reset(timeBetweenSyncs + utils.RandomDuration(syncJitter))
 		s.log.Infof("Synchronizer refresh period updated to %s.", timeBetweenSyncs)
 	}
 	return timeBetweenSyncs

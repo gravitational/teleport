@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
@@ -30,6 +31,7 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (
 	}
 
 	labels[types.OriginLabel] = types.OriginOkta
+	labels[types.OktaGroupNameLabel] = oktaGroup.Profile.Name
 	labels[eteleport.OktaOrgURLLabel] = s.orgURL
 	labels[eteleport.OktaGroupIDLabel] = oktaGroup.Id
 
@@ -37,6 +39,7 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (
 
 	if oktaGroup.Profile.Description != "" {
 		description += fmt.Sprintf(" (%s)", oktaGroup.Profile.Description)
+		labels[types.OktaGroupDescriptionLabel] = oktaGroup.Profile.Description
 	}
 
 	userGroup, err := types.NewUserGroup(
@@ -100,6 +103,7 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 	}
 
 	labels[types.OriginLabel] = types.OriginOkta
+	labels[types.OktaAppNameLabel] = oktaApplication.Label
 	labels[eteleport.OktaOrgURLLabel] = s.orgURL
 	labels[eteleport.OktaAppIDLabel] = oktaApplication.Id
 
@@ -116,11 +120,14 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []str
 			return nil, trace.Wrap(err)
 		}
 
+		copyLabels := utils.CopyStringsMap(labels)
+		copyLabels[types.OktaAppDescriptionLabel] = appLink.Name
+
 		app, err := types.NewAppV3(
 			types.Metadata{
 				Name:        appID,
 				Description: oktaApplication.Label,
-				Labels:      labels,
+				Labels:      copyLabels,
 			},
 			types.AppSpecV3{
 				URI:        appLink.Href,

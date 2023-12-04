@@ -671,7 +671,37 @@ func (s *Service) acquireSemaphore(ctx context.Context) (*types.SemaphoreLease, 
 			return lease, nil
 		}
 
-		s.log.Debugf("Unable to acquire semaphore, retrying in %s (%s)", semaphoreRenewal.String(), err.Error())
+		s.log.Debugf("Unable to get semaphore (%s), seeing if this host already has a lease", err.Error())
+		semaphores, err := s.accessPoint.GetSemaphores(ctx, types.SemaphoreFilter{
+			SemaphoreKind: semaphoreKind,
+			SemaphoreName: s.orgURLBase64,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Look through the existing leases to see if the holder for the existing lease is the same as
+		// the current host. We're expected to only have 1 lease per semaphore, so if the holder of that
+		// lease is the same as this host, we can be certain that the lease actually belongs to this host.
+		for _, semaphore := range semaphores {
+			leases := semaphore.LeaseRefs()
+			for _, lease := range leases {
+				if lease.Holder != s.hostID {
+					continue
+				}
+
+				s.log.Debug("Lease found for this host")
+				// This lease belongs to this host, so we'll return this lease.
+				return &types.SemaphoreLease{
+					SemaphoreKind: semaphoreKind,
+					SemaphoreName: s.orgURLBase64,
+					LeaseID:       lease.LeaseID,
+					Expires:       lease.Expires,
+				}, nil
+			}
+		}
+
+		s.log.Debugf("Unable to acquire semaphore, retrying in %s", semaphoreRenewal.String())
 
 		select {
 		case <-s.stopCh:

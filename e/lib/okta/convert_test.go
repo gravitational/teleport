@@ -51,9 +51,11 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 		Name:        "okta-group-id",
 		Description: "group name (group description)",
 		Labels: map[string]string{
-			types.OriginLabel:          types.OriginOkta,
-			eteleport.OktaOrgURLLabel:  service.orgURL,
-			eteleport.OktaGroupIDLabel: "okta-group-id",
+			types.OriginLabel:               types.OriginOkta,
+			types.OktaGroupNameLabel:        "group name",
+			types.OktaGroupDescriptionLabel: "group description",
+			eteleport.OktaOrgURLLabel:       service.orgURL,
+			eteleport.OktaGroupIDLabel:      "okta-group-id",
 		},
 	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
@@ -66,9 +68,11 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 		Name:        "okta-group-id",
 		Description: "group name (group description)",
 		Labels: map[string]string{
-			types.OriginLabel:          types.OriginOkta,
-			eteleport.OktaOrgURLLabel:  service.orgURL,
-			eteleport.OktaGroupIDLabel: "okta-group-id",
+			types.OriginLabel:               types.OriginOkta,
+			types.OktaGroupNameLabel:        "group name",
+			types.OktaGroupDescriptionLabel: "group description",
+			eteleport.OktaOrgURLLabel:       service.orgURL,
+			eteleport.OktaGroupIDLabel:      "okta-group-id",
 		},
 	}, types.UserGroupSpecV1{
 		Applications: []string{"app1", "app2"},
@@ -165,9 +169,11 @@ func TestOktaAppToApplications(t *testing.T) {
 						Name:        "3cjffnnvq17sgg",
 						Description: "app label",
 						Labels: map[string]string{
-							types.OriginLabel:         types.OriginOkta,
-							eteleport.OktaOrgURLLabel: testOrgURL,
-							eteleport.OktaAppIDLabel:  "app-id",
+							types.OriginLabel:             types.OriginOkta,
+							types.OktaAppNameLabel:        "app label",
+							types.OktaAppDescriptionLabel: "applink-name1",
+							eteleport.OktaOrgURLLabel:     testOrgURL,
+							eteleport.OktaAppIDLabel:      "app-id",
 						},
 					},
 					types.AppSpecV3{
@@ -181,9 +187,11 @@ func TestOktaAppToApplications(t *testing.T) {
 						Name:        "4nmi1dlgr9wc9z",
 						Description: "app label",
 						Labels: map[string]string{
-							types.OriginLabel:         types.OriginOkta,
-							eteleport.OktaOrgURLLabel: testOrgURL,
-							eteleport.OktaAppIDLabel:  "app-id",
+							types.OriginLabel:             types.OriginOkta,
+							types.OktaAppNameLabel:        "app label",
+							types.OktaAppDescriptionLabel: "applink-name2",
+							eteleport.OktaOrgURLLabel:     testOrgURL,
+							eteleport.OktaAppIDLabel:      "app-id",
 						},
 					},
 					types.AppSpecV3{
@@ -221,9 +229,11 @@ func TestOktaAppToApplications(t *testing.T) {
 						Name:        "3cjffnnvq17sgg",
 						Description: "app label",
 						Labels: map[string]string{
-							types.OriginLabel:         types.OriginOkta,
-							eteleport.OktaOrgURLLabel: testOrgURL,
-							eteleport.OktaAppIDLabel:  "app-id",
+							types.OriginLabel:             types.OriginOkta,
+							types.OktaAppNameLabel:        "app label",
+							types.OktaAppDescriptionLabel: "applink-name1",
+							eteleport.OktaOrgURLLabel:     testOrgURL,
+							eteleport.OktaAppIDLabel:      "app-id",
 						},
 					},
 					types.AppSpecV3{
@@ -236,9 +246,11 @@ func TestOktaAppToApplications(t *testing.T) {
 						Name:        "4nmi1dlgr9wc9z",
 						Description: "app label",
 						Labels: map[string]string{
-							types.OriginLabel:         types.OriginOkta,
-							eteleport.OktaOrgURLLabel: testOrgURL,
-							eteleport.OktaAppIDLabel:  "app-id",
+							types.OriginLabel:             types.OriginOkta,
+							types.OktaAppNameLabel:        "app label",
+							types.OktaAppDescriptionLabel: "applink-name2",
+							eteleport.OktaOrgURLLabel:     testOrgURL,
+							eteleport.OktaAppIDLabel:      "app-id",
 						},
 					},
 					types.AppSpecV3{

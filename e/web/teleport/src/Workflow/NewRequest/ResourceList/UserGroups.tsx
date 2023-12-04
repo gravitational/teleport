@@ -21,6 +21,7 @@ export function UserGroups(props: ListProps & { userGroups: UserGroup[] }) {
           key: 'name',
           headerText: 'Name',
           isSortable: true,
+          render: ({ friendlyName, name }) => <td>{friendlyName || name}</td>,
         },
         {
           key: 'description',
