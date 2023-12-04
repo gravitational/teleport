@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -33,7 +34,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
@@ -312,6 +315,34 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	p.mu.Unlock()
 
 	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
+
+	// TODO refactor
+	if slices.Contains(p.supportedProtocols, common.ProtocolPinnedCert) {
+		cert, err := tls.X509KeyPair([]byte(client.TLSRoutingTestPinnedCertPem), []byte(client.TLSRoutingTestPinnedKeyPem))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		rootCAs := x509.NewCertPool()
+		rootCAs.AppendCertsFromPEM([]byte(client.TLSRoutingTestPinnedCertPem))
+
+		tlsConfig := &tls.Config{
+			ClientAuth:   tls.RequestClientCert,
+			Certificates: []tls.Certificate{cert},
+			ClientCAs:    rootCAs,
+			NextProtos:   []string{string(common.ProtocolPinnedCert)},
+		}
+
+		p.cfg.Router.Add(HandlerDecs{
+			MatchFunc:  MatchByProtocol(common.ProtocolPinnedCert),
+			ForwardTLS: true,
+			Handler: func(ctx context.Context, conn net.Conn) error {
+				tlsConn := tls.Server(conn, tlsConfig)
+				return trace.Wrap(tlsConn.HandshakeContext(ctx))
+			},
+		})
+	}
+
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {

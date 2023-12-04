@@ -115,6 +115,9 @@ const (
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
+
+	// TODO
+	ProtocolPinnedCert Protocol = "teleport-pinned-cert"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -135,6 +138,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
+		ProtocolPinnedCert,
 	}, DatabaseProtocols...),
 )
 

@@ -20,12 +20,14 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -54,6 +56,25 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 		return result
 	}
 
+	var alpnDropped, pinnedCertRewritten bool
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		alpnDropped = testALPNDropped(ctx, addr, insecure, opts...)
+	}()
+
+	go func() {
+		defer wg.Done()
+		pinnedCertRewritten = testPinnedCertRewritten(ctx, addr, insecure, opts...)
+	}()
+
+	wg.Wait()
+	return alpnDropped || pinnedCertRewritten
+}
+
+func testALPNDropped(ctx context.Context, addr string, insecure bool, opts ...DialOption) bool {
 	// Use NewDialer which takes care of ProxyURL, and use a shorter I/O
 	// timeout to avoid blocking caller.
 	baseDialer := NewDialer(
@@ -92,8 +113,44 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 	// Upgrade required when ALPN is not supported on the remote side so
 	// NegotiatedProtocol comes back as empty.
 	result := testConn.ConnectionState().NegotiatedProtocol == ""
-	logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
+	logrus.Debugf("ALPN connection upgrade ALPN negotiated for %q: %v.", addr, result)
 	return result
+}
+
+func testPinnedCertRewritten(ctx context.Context, addr string, insecure bool, opts ...DialOption) bool {
+	// Use NewDialer which takes care of ProxyURL, and use a shorter I/O
+	// timeout to avoid blocking caller.
+	baseDialer := NewDialer(
+		ctx,
+		defaults.DefaultIdleTimeout,
+		5*time.Second,
+		append(opts,
+			WithALPNConnUpgrade(false),
+		)...,
+	)
+
+	cert, err := tls.X509KeyPair([]byte(TLSRoutingTestPinnedCertPem), []byte(TLSRoutingTestPinnedKeyPem))
+	if err != nil {
+		// TODO explain
+		return false
+	}
+
+	rootCAs := x509.NewCertPool()
+	rootCAs.AppendCertsFromPEM([]byte(TLSRoutingTestPinnedCertPem))
+
+	tlsConfig := &tls.Config{
+		NextProtos:   []string{constants.ALPNSNIProtocolPinnedCert},
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      rootCAs,
+		ServerName:   "tls." + constants.APIDomain,
+	}
+	testConn, err := tlsutils.TLSDial(ctx, baseDialer, "tcp", addr, tlsConfig)
+	if err != nil {
+		// Ignore other errors
+		return strings.Contains(err.Error(), "failed to verify certificate: x509: certificate signed by unknown authority")
+	}
+	testConn.Close()
+	return false
 }
 
 func isRemoteNoALPNError(err error) bool {
@@ -258,3 +315,78 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (n
 	}
 	return conn, nil
 }
+
+const (
+	// With req.Conf:
+	// [req]
+	// distinguished_name = req_distinguished_name
+	// x509_extensions = v3_req
+	// prompt = no
+	// [req_distinguished_name]
+	// C = US
+	// O = Teleport
+	// CN = tls.teleport.cluster.local
+	// [v3_req]
+	// keyUsage = keyEncipherment, dataEncipherment
+	// extendedKeyUsage = serverAuth, clientAuth
+	// subjectAltName = @alt_names
+	// [alt_names]
+	// DNS.1 = tls.teleport.cluster.local
+	//
+	// Run:
+	// openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout cert.pem -out cert.pem -config req.conf -extensions 'v3_req'
+
+	TLSRoutingTestPinnedCertPem = `
+-----BEGIN CERTIFICATE-----
+MIIDjDCCAnSgAwIBAgIUFmjJXNJltChAvZBONtjwpx2L7A8wDQYJKoZIhvcNAQEL
+BQAwRTELMAkGA1UEBhMCVVMxETAPBgNVBAoMCFRlbGVwb3J0MSMwIQYDVQQDDBp0
+bHMudGVsZXBvcnQuY2x1c3Rlci5sb2NhbDAeFw0yMzEyMDQxNjE1NThaFw0zMzEy
+MDExNjE1NThaMEUxCzAJBgNVBAYTAlVTMREwDwYDVQQKDAhUZWxlcG9ydDEjMCEG
+A1UEAwwadGxzLnRlbGVwb3J0LmNsdXN0ZXIubG9jYWwwggEiMA0GCSqGSIb3DQEB
+AQUAA4IBDwAwggEKAoIBAQC9L76xXPdtUpEf3uLSa6/0FkhpHfl5byqmCoYsVIug
+0SBQsAqXBdXA4mbrKIH34fvuva3KFMN9sSxfSo04DZ8YmE9zAbxlUQjOzyRWS+iL
+PO8xPHPF1jf6sjWm3okWLk3nahR2YZOtxKxWfRxSXXuz91iTQzW00ikrOBz21kiZ
+Bl/4Be7gYSHmSG8l4tlqDrAxouWka6AhGk5sA+bCt6lXa9vVT9Btdk3kA3qE4BCe
+7nUQMUAPCJQmqUqMFuOFqUcBMwos9QREctF6icDYdcAp27NgC1l69okEF66eh7iA
+NFC1nieS5UQXqWOdA3/+7ZAu5JndrpoWKmiHzvQyjH53AgMBAAGjdDByMAsGA1Ud
+DwQEAwIEMDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwJQYDVR0RBB4w
+HIIadGxzLnRlbGVwb3J0LmNsdXN0ZXIubG9jYWwwHQYDVR0OBBYEFC3YIHTp+BBU
+MJpf/bCARlSMPqXoMA0GCSqGSIb3DQEBCwUAA4IBAQA4RueHe414+sHq0D4a9Ru4
+M1szeEg+ITNVvsO3d0Lh98PTutTQ3/ujd3xjPsL8xPBvWskqjx4a0GobhBs4Wcp8
+yKaHde4h1UTxlH4Yh6fpH5iucclh/GBinQllQ/hnD/gmSW3iZrpkqGzRpZa1gxhr
+R83yHL/MnA6iZjj2cq1c7JQlu5RTaNaYYiMsVrbAbH2/zJV7ddMi5yOKw/noApVP
+oPnrtSo6NW+wmgBtOOEQvEeFuhwkd95fkp4H3Ps79HBh4RJTdnLIeFUqgyRndP9V
+MOFyKNw39KequK4AU7bBq9hF2mJ/XRc5V3kNRKDiSkImWzjBygcqauHQy1Igmoui
+-----END CERTIFICATE-----
+`
+	TLSRoutingTestPinnedKeyPem = `
+-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC9L76xXPdtUpEf
+3uLSa6/0FkhpHfl5byqmCoYsVIug0SBQsAqXBdXA4mbrKIH34fvuva3KFMN9sSxf
+So04DZ8YmE9zAbxlUQjOzyRWS+iLPO8xPHPF1jf6sjWm3okWLk3nahR2YZOtxKxW
+fRxSXXuz91iTQzW00ikrOBz21kiZBl/4Be7gYSHmSG8l4tlqDrAxouWka6AhGk5s
+A+bCt6lXa9vVT9Btdk3kA3qE4BCe7nUQMUAPCJQmqUqMFuOFqUcBMwos9QREctF6
+icDYdcAp27NgC1l69okEF66eh7iANFC1nieS5UQXqWOdA3/+7ZAu5JndrpoWKmiH
+zvQyjH53AgMBAAECggEADlXd10a6IPiOsqGLAnLShGZj2kNBMihwTOCjRhyp7+eo
+0TRluQfiKJl/PvZ00rm3A2IwFw33ukCAoj/d749orM5txsMs6Wh4iGM916Qs3NAj
+N9Hi2+zdlQuH8TsPnDSqBo0NO+Ms84/hlzQnvz4CL6LgfVgsa6U5JWM9Hp8iJSYr
+J1pg+K8l1mZL/T/jb6MJpujGa8vGlogWt1zFPKhkJ4srz16a7yqShNX9LwFtGaAE
+iKA+TE8XczCzdtOqguzTrnbfEDU/37F/eSG3VlHKML/ozyhYEb236W/d8TeGEvqR
+zdwaObXs8mjiFsuAf7SES+UAbfM8Heuaoqy7/fOW0QKBgQDg5yPdVlEzcQ1yXT8K
+pDG4yZJ/iSGDBkytNZmG52L87zVFIu4dT1/YqJzo0IwOdDGbKtCcyYrxb5x8ltwH
+QRda4HoB6jcPEkoUUQzDL7Y3WDxJRX304xaRar9xomBizaP+r+Q2QPMkSCNW63y7
+1b5dkSyttLVK4khwhd0W0SU9fQKBgQDXWFsyEH/5uCLXfArFNX9IwYimNL7N6D+y
+xJ5Odk+UY0yVH1aMkcrmrHnzfv5TdaJy98rjKmgZk3jsgAx/wXWkMyY9nIblyQdG
+JqSpHUwjVu1hspEk+bqPM34BVjA87Wa69Qdd/49sMPaB1ThyIh8CwYfcViZCDJ2V
+iByeCoK+AwKBgQCWHbHyqwrIK02uaE8L60zE6sa+GeokarADbSNsyEVqTsBfxVDq
+f3CaTPFu9MSHYUc7KvjTrjLvtG/fOVLkBK5yGiNV49+cT7jilrbOEaquhla3EYth
+SbJmnbnrP1bWnCw6c20ASZoBPaVY/xXiymimS6Bm0ZewxBlWAgPwlukkgQKBgGy5
+xqmbXRH3H1hO3508anyQgm7wWJnbtjWLQiZ5Y6qXDDaKcQdeIOSglp4TM1NuJEwJ
+wh057v9izv4RlL34Lm5uCNO4sP9ZpVuM7TwZd7SsEgRuxQu3LrNYmzkPjCFm96RT
+TJnwCzjj68IXpn0xrxiUIAVmVcCpX/L8mv5MbkCDAoGBAMz1FrVEcqZhOeTE1R19
+2YrVcsGoTU8c9N7b38GkC+bHEwZwgkgCr3X8pGd49iCWmEGMQ05d2/uutWC49zZk
++0Fus910xvgtZko94Mrz+ZH4ZSk7dlT47uqYEejLEMwlP0DtmtGz6rvO4p2OGI9t
+M092xRnAe9OeWwLHnff76Nh1
+-----END PRIVATE KEY-----
+`
+)
