@@ -689,7 +689,7 @@ ProcessReviews:
 }
 
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
-func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (types.AccessRequest, error) {
+func GetAccessRequest(ctx context.Context, acc DynamicAccessCore, reqID string) (types.AccessRequest, error) {
 	reqs, err := acc.GetAccessRequests(ctx, types.AccessRequestFilter{
 		ID: reqID,
 	})

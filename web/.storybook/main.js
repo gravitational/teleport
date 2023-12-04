@@ -23,8 +23,12 @@ const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
 
 const tsconfigPath = path.join(__dirname, '../../tsconfig.json');
 
+const enterpriseTeleportExists = fs.existsSync(
+  path.join(__dirname, '/../../e/web')
+);
+
 // include enterprise stories if available (**/* pattern ignores dot dir names)
-if (fs.existsSync(path.join(__dirname, '/../../e/'))) {
+if (enterpriseTeleportExists) {
   stories.unshift('../../e/web/**/*.story.@(js|jsx|ts|tsx)');
 }
 
@@ -49,6 +53,21 @@ module.exports = {
       ...storybookConfig.resolve,
       ...configFactory.createDefaultConfig().resolve,
     };
+
+    if (!enterpriseTeleportExists) {
+      delete storybookConfig.resolve.alias['e-teleport'];
+      // Unlike e-teleport, e-teleterm cannot be removed from aliases because code in OSS teleterm
+      // depends directly on e-teleterm, see https://github.com/gravitational/teleport/issues/17706.
+      //
+      // Instead of removing e-teleterm, we have to mock individual files on a case-by-case basis.
+      //
+      // TODO(ravicious): Remove e-teleterm alias once #17706 gets addressed.
+      storybookConfig.resolve.alias['e-teleterm'] = path.join(
+        __dirname,
+        'mocks',
+        'e-teleterm'
+      );
+    }
 
     storybookConfig.optimization = {
       splitChunks: {

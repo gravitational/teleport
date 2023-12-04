@@ -58,6 +58,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -2053,6 +2054,12 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
 		return role, nil
 	}
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared between multiple clients
+	// sessions when notifying about changes in watchers.  If we mutate the
+	// original role, it will be mutated for all clients which can cause panics
+	// since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
 	hasLabelExpression := false
 	for _, kind := range types.LabelMatcherKinds {
 		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
