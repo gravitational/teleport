@@ -139,7 +139,7 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 		assert.NoError(t, err, "%v mismatch", method)
 	}
 	assertDeniedErr := func(t *testing.T, err error) {
-		assert.ErrorContains(t, err, "unauthorized device", "%v mismatch", method)
+		assert.ErrorContains(t, err, "trusted device", "%v mismatch", method)
 		assert.True(t, trace.IsAccessDenied(err), "%v returned an error other than trace.AccessDeniedError: %T", method, err)
 	}
 

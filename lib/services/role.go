@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -85,15 +86,20 @@ var DefaultCertAuthorityRules = []types.Rule{
 
 // ErrTrustedDeviceRequired is returned by AccessChecker when access to a
 // resource requires a trusted device.
-var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a trusted device")
+// It's an alias to [dtauthz.ErrTrustedDeviceRequired].
+var ErrTrustedDeviceRequired = dtauthz.ErrTrustedDeviceRequired
 
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.
-var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
+var ErrSessionMFARequired = &trace.AccessDeniedError{
+	Message: "access to resource requires MFA",
+}
 
 // ErrSessionMFANotRequired indicates that per session mfa will not grant
 // access to a resource.
-var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+var ErrSessionMFANotRequired = &trace.AccessDeniedError{
+	Message: "MFA is not required to access resource",
+}
 
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
@@ -3097,6 +3103,7 @@ type AccessState struct {
 	// EnableDeviceVerification enables device verification in access checks.
 	// It's recommended to set this in tandem with DeviceVerified, so device
 	// checks are easier to reason about and have a proper chance of succeeding.
+	// Used for role-based device mode checks.
 	// Defaults to false for backwards compatibility.
 	EnableDeviceVerification bool
 	// DeviceVerified is true if the user certificate contains all required
