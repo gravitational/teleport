@@ -804,20 +804,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
 
-		// Return a custom message for device trust errors.
 		var text string
 		if errors.Is(err, services.ErrTrustedDeviceRequired) {
-			// Try to guess the app from the host for a better error messages.
-			hostOnly, _, _ := net.SplitHostPort(r.Host)
-			appName := "yourapp"
-			for _, app := range s.getApps() {
-				if app.GetPublicAddr() == hostOnly || app.GetPublicAddr() == r.Host {
-					appName = app.GetName()
-					break
-				}
-			}
+			// Return a nicer error message for device trust errors.
+			text = s.makeDeviceRequiredErrorMessage(r)
+		} else {
+			text = http.StatusText(code)
+		}
 
-			text = fmt.Sprintf(`Access to this app requires a trusted device.
+		w.Header().Set("Connection", "close")
+		http.Error(w, text, code)
+	}
+}
+
+func (s *Server) makeDeviceRequiredErrorMessage(r *http.Request) string {
+	// Try to guess the app from the host for a better error messages.
+	hostOnly, _, _ := net.SplitHostPort(r.Host)
+	appName := "yourapp"
+	for _, app := range s.getApps() {
+		if app.GetPublicAddr() == hostOnly || app.GetPublicAddr() == r.Host {
+			appName = app.GetName()
+			break
+		}
+	}
+
+	return fmt.Sprintf(`Access to this app requires a trusted device.
 
 Try running:
 
@@ -827,13 +838,6 @@ and then accessing the app via http://localhost:8888
 
 See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
 `, appName)
-		} else {
-			text = http.StatusText(code)
-		}
-
-		w.Header().Set("Connection", "close")
-		http.Error(w, text, code)
-	}
 }
 
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
