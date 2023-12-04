@@ -78,16 +78,11 @@ type AuthorizerOpts struct {
 	LockWatcher *services.LockWatcher
 	Logger      logrus.FieldLogger
 
-	// DisableDeviceAuthorization disables device authorization via [Authorizer].
-	// It is meant for services that do explicit device authorization, like the
-	// Auth Server APIs. Most services should not set this field.
-	//
-	// DisableDeviceAuthorization is equivalent to both
-	// DeviceAuthorization.DisableGlobalAuthz=true and
-	// DeviceAuthorization.DisableRoleAuthz=true.
-	DisableDeviceAuthorization bool
-
 	// DeviceAuthorization holds Device Trust authorization options.
+	//
+	// Allows services that either do explicit device authorization or don't (yet)
+	// support device trust to disable it.
+	// Most services should not set this field.
 	DeviceAuthorization DeviceAuthorizationOpts
 }
 
@@ -108,8 +103,8 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		accessPoint:             opts.AccessPoint,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
-		disableGlobalDeviceMode: opts.DisableDeviceAuthorization || opts.DeviceAuthorization.DisableGlobalMode,
-		disableRoleDeviceMode:   opts.DisableDeviceAuthorization || opts.DeviceAuthorization.DisableRoleMode,
+		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
+		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
 }
 

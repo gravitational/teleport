@@ -317,11 +317,10 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	tests := []struct {
 		name                 string
 		deviceMode           string
-		disableDeviceAuthz   bool                    // aka AuthorizerOpts.DisableDeviceAuthorization
 		deviceAuthz          DeviceAuthorizationOpts // aka AuthorizerOpts.DeviceAuthorization
 		user                 IdentityGetter
 		wantErr              string
-		wantCtxAuthnDisabled bool // defaults to disableDeviceAuthz
+		wantCtxAuthnDisabled bool // defaults to deviceAuthz.disableDeviceRoleMode
 	}{
 		{
 			name:       "user without extensions and mode=off",
@@ -333,12 +332,6 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
 			wantErr:    "trusted device",
-		},
-		{
-			name:               "device authorization disabled",
-			deviceMode:         constants.DeviceTrustModeRequired,
-			disableDeviceAuthz: true,
-			user:               userWithoutExtensions,
 		},
 		{
 			name:       "global mode disabled only",
@@ -373,8 +366,11 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			wantCtxAuthnDisabled: true, // BuiltinRole ctx validation disabled by default
 		},
 		{
-			name:               "BuiltinRole: device authorization disabled",
-			disableDeviceAuthz: true,
+			name: "BuiltinRole: device authorization disabled",
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+				DisableRoleMode:   true,
+			},
 			user: BuiltinRole{
 				Role:        types.RoleProxy,
 				Username:    user.GetName(),
@@ -383,8 +379,11 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			},
 		},
 		{
-			name:               "RemoteBuiltinRole: device authorization disabled",
-			disableDeviceAuthz: true,
+			name: "RemoteBuiltinRole: device authorization disabled",
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+				DisableRoleMode:   true,
+			},
 			user: RemoteBuiltinRole{
 				Role:        types.RoleProxy,
 				Username:    user.GetName(),
@@ -408,11 +407,10 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 
 			// Create a new authorizer.
 			authorizer, err := NewAuthorizer(AuthorizerOpts{
-				ClusterName:                clusterName,
-				AccessPoint:                client,
-				LockWatcher:                watcher,
-				DisableDeviceAuthorization: test.disableDeviceAuthz,
-				DeviceAuthorization:        test.deviceAuthz,
+				ClusterName:         clusterName,
+				AccessPoint:         client,
+				LockWatcher:         watcher,
+				DeviceAuthorization: test.deviceAuthz,
 			})
 			require.NoError(t, err, "NewAuthorizer failed")
 
@@ -431,7 +429,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 
 			// Verify that the auth.Context has the correct disableDeviceAuthorization
 			// value, based on either the global toggle or role mode.
-			wantDisabled := test.disableDeviceAuthz || test.deviceAuthz.DisableRoleMode || test.wantCtxAuthnDisabled
+			wantDisabled := test.deviceAuthz.DisableRoleMode || test.wantCtxAuthnDisabled
 			assert.Equal(
 				t, wantDisabled, authCtx.disableDeviceRoleMode,
 				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
