@@ -92,9 +92,12 @@ type Features struct {
 	CustomTheme string
 
 	// IsTrialProduct is true if the cluster is in trial mode.
+	//
+	// TODO: Cannot use this field until cloud/salescenter sets this field
+	// when `func FetchFromCloud` and cloud/tenant.pb.go defines this field.
+	// see `e/lib/secreports/ func cloudLimits`, where it's currently the only
+	// place where we need to determine if product is trial.
 	IsTrialProduct bool
-	// IsTeam is true if the cluster is a Teleport Team cluster.
-	IsTeamProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
@@ -212,6 +215,10 @@ func (f Features) IsLegacy() bool {
 // TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
 	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
+}
+
+func (f Features) IsTeam() bool {
+	return f.ProductType == ProductTypeTeam
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
