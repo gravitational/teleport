@@ -37,13 +37,21 @@ message ResourceHeaderList {
 // ResourceEntry is a wrapper for the supported resource types.
 message ResourceEntry {
   oneof resource {
-    // User is a user resource
+    // user is a user resource
     types.UserV2 user = 1;
-    // Role is a role resource
+    // role is a role resource
     types.RoleV6 role = 2;
-    // Server is a node/server resource
+    // server is a node/server resource
     types.ServerV2 server = 3;
-    // AccessRequest is a resource for access requests
+    // access_request is a resource for access requests
     types.AccessRequestV3 access_request = 4;
+    // kubernetes_server is a kubernetes server resource
+    types.KubernetesServerV3 kubernetes_server = 5;
+    // app_server is an application server resource
+    types.AppServerV3 app_server = 6;
+    // database_server is a database server resource
+    types.DatabaseServerV3 database_server = 7;
+    // windows_desktop is a resource for Windows desktop host.
+    types.WindowsDesktopV3 windows_desktop = 8;
   }
 }
