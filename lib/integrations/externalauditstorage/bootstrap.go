@@ -34,7 +34,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
 
-	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	eastypes "github.com/gravitational/teleport/api/types/externalauditstorage"
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -51,7 +51,7 @@ type BootstrapInfraParams struct {
 	Glue   BootstrapGlueClient
 	S3     BootstrapS3Client
 
-	Spec   *ecatypes.ExternalAuditStorageSpec
+	Spec   *eastypes.ExternalAuditStorageSpec
 	Region string
 }
 
@@ -205,10 +205,8 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 
 func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string, region string, objectLock bool) error {
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: &bucketName,
-		CreateBucketConfiguration: &s3types.CreateBucketConfiguration{
-			LocationConstraint: s3types.BucketLocationConstraint(region),
-		},
+		Bucket:                     &bucketName,
+		CreateBucketConfiguration:  createBucketConfiguration(region),
 		ObjectLockEnabledForBucket: objectLock,
 		ACL:                        s3types.BucketCannedACLPrivate,
 		ObjectOwnership:            s3types.ObjectOwnershipBucketOwnerEnforced,
@@ -224,6 +222,18 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 		},
 	})
 	return trace.Wrap(awsutil.ConvertS3Error(err), "setting versioning configuration on S3 bucket")
+}
+
+func createBucketConfiguration(region string) *s3types.CreateBucketConfiguration {
+	// No location constraint wanted for us-east-1 because it is the default and
+	// AWS has decided, in all their infinite wisdom, that the CreateBucket API
+	// should fail if you explicitly pass the default location constraint.
+	if region == "us-east-1" {
+		return nil
+	}
+	return &s3types.CreateBucketConfiguration{
+		LocationConstraint: s3types.BucketLocationConstraint(region),
+	}
 }
 
 // createAthenaWorkgroup creates an athena workgroup in which to run athena sql queries.
@@ -290,7 +300,7 @@ func createGlueInfra(ctx context.Context, clt BootstrapGlueClient, table, databa
 
 // validateAndParseS3Input parses and checks s3 input uris against our strict rules.
 // We currently enforce two buckets one for long term storage and one for transient short term storage.
-func validateAndParseS3Input(input *ecatypes.ExternalAuditStorageSpec) (auditHost, resultHost string, err error) {
+func validateAndParseS3Input(input *eastypes.ExternalAuditStorageSpec) (auditHost, resultHost string, err error) {
 	auditEventsBucket, err := url.Parse(input.AuditEventsLongTermURI)
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing audit events URI")
