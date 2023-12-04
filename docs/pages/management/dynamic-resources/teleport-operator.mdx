@@ -132,9 +132,9 @@ spec:
 ```
 
 <Admonition type="note">
-   Kubernetes enforces all custom resource names to follow RFC 1123 which includes specifications for hostnames.
-   This requires the metadata.name of Teleport resources controlled by the operator consist of lowercase alphanumeric
-   characters, '-' or '.', and must start and end with an alphanumeric character.
+   Kubernetes validates all custom resource names to follow RFC 1123, which includes specifications for hostnames.
+   This requires the `metadata.name` field of Teleport resources controlled by the operator to consist of lowercase alphanumeric
+   characters, `-` or `.`, and to start and end with an alphanumeric character.
 </Admonition>
 
 Apply the manifests to the Kubernetes cluster:
@@ -269,7 +269,7 @@ Kubernetes cluster or namespace.  Then redeploy the Auth Server pods.  When the 
 
 ### Teleport resource name is invalid with the Operator
 
-Kubernetes enforces all custom resource names to follow RFC 1123 which includes specifications for hostnames.  If attempting to create a resource using the 
+Kubernetes validates all custom resource names to follow RFC 1123, which includes specifications for hostnames. If attempting to create a resource using the 
 operator with an invalid name, you will observe an error message similar to:
 
 ```text
@@ -279,8 +279,8 @@ must consist of lower case alphanumeric characters, '-' or '.', and must start a
 ```
 
 You will have to update the Teleport resource name to match the RFC 1123 requirements to resolve this issue.
-The metadata.name of Teleport resources controlled by the operator must consist of lowercase alphanumeric
-characters, '-' or '.', and must start and end with an alphanumeric character.
+The `metadata.name` of Teleport resources controlled by the operator must consist of lowercase alphanumeric
+characters, `-` or `.`, and must start and end with an alphanumeric character.
 
 ## Next steps
 
