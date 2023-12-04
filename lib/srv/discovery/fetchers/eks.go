@@ -109,7 +109,6 @@ func (a *eksFetcher) getClient(ctx context.Context) (eksiface.EKSAPI, error) {
 			a.AssumeRole.RoleARN,
 			a.AssumeRole.ExternalID,
 		),
-		cloud.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

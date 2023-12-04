@@ -775,32 +775,29 @@ func TestDiscoveryServer_New(t *testing.T) {
 	testCases := []struct {
 		desc                string
 		cloudClients        cloud.Clients
-		matchers            Matchers
+		matchers            []types.AWSMatcher
 		errAssertion        require.ErrorAssertionFunc
 		discServerAssertion require.ValueAssertionFunc
 	}{
 		{
 			desc:         "no matchers error",
 			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
-			matchers:     Matchers{},
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers or discovery group configured for discovery"})
+				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers configured for discovery"})
 			},
 			discServerAssertion: require.Nil,
 		},
 		{
 			desc:         "success with EKS matcher",
 			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}, EKS: &mocks.EKSMock{}},
-			matchers: Matchers{
-				AWS: []types.AWSMatcher{
-					{
-						Types:   []string{"eks"},
-						Regions: []string{"eu-west-1"},
-						Tags:    map[string]utils.Strings{"env": {"prod"}},
-						AssumeRole: &types.AssumeRole{
-							RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
-							ExternalID: "external-id",
-						},
+			matchers: []types.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
 					},
 				},
 			},
@@ -818,25 +815,23 @@ func TestDiscoveryServer_New(t *testing.T) {
 				STS: &mocks.STSMock{},
 				EKS: &mocks.EKSMock{},
 			},
-			matchers: Matchers{
-				AWS: []types.AWSMatcher{
-					{
-						Types:   []string{"eks"},
-						Regions: []string{},
-						Tags:    map[string]utils.Strings{"env": {"prod"}},
-						AssumeRole: &types.AssumeRole{
-							RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
-							ExternalID: "external-id",
-						},
+			matchers: []types.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
 					},
-					{
-						Types:   []string{"eks"},
-						Regions: []string{"eu-west-1"},
-						Tags:    map[string]utils.Strings{"env": {"staging"}},
-						AssumeRole: &types.AssumeRole{
-							RoleARN:    "arn:aws:iam::55555555555:role/teleport-role",
-							ExternalID: "external-id2",
-						},
+				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"staging"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::55555555555:role/teleport-role",
+						ExternalID: "external-id2",
 					},
 				},
 			},
@@ -858,11 +853,10 @@ func TestDiscoveryServer_New(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:    nil,
-					AccessPoint:     newFakeAccessPoint(),
-					Matchers:        tt.matchers,
-					Emitter:         &mockEmitter{},
-					protocolChecker: &noopProtocolChecker{},
+					Clients:     nil,
+					AccessPoint: newFakeAccessPoint(),
+					AWSMatchers: tt.matchers,
+					Emitter:     &mockEmitter{},
 				})
 
 			tt.errAssertion(t, err)
