@@ -92,15 +92,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
 func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
-	clientCfg := options.Client()
-	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
-	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
-		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
-		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
-	} else {
-		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
-	}
-	err := clientCfg.Validate()
+	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -183,8 +175,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 	default:
 		e.Log.Debug("Authenticating to database using certificates.")
 		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
-			// MongoDB uses full certificate Subject field as a username.
-			Username: "CN=" + sessionCtx.DatabaseUser,
+			Username: x509Username(sessionCtx),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -219,6 +210,21 @@ func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Ses
 	return authenticator, nil
 }
 
+func makeClientOptionsFromDatabaseURI(sessionCtx *common.Session) (*options.ClientOptions, error) {
+	clientCfg := options.Client()
+	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
+	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
+		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
+		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
+	} else {
+		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
+	}
+	if err := clientCfg.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clientCfg, nil
+}
+
 // getServerSelector returns selector for picking the server to connect to,
 // which is mostly useful when connecting to a MongoDB replica set.
 //
@@ -249,4 +255,9 @@ func (h *handshaker) GetHandshakeInformation(context.Context, address.Address, d
 // default auth handshaker.
 func (h *handshaker) FinishHandshake(context.Context, driver.Connection) error {
 	return nil
+}
+
+func x509Username(sessionCtx *common.Session) string {
+	// MongoDB uses full certificate Subject field as a username.
+	return "CN=" + sessionCtx.DatabaseUser
 }
