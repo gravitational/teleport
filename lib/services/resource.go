@@ -127,7 +127,6 @@ func PreserveResourceID() MarshalOption {
 // ParseShortcut parses resource shortcut
 // Generally, this should include the plural of a singular resource name or vice
 // versa.
-// These shortcuts
 func ParseShortcut(in string) (string, error) {
 	if in == "" {
 		return "", trace.BadParameter("missing resource name")
