@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -245,6 +246,18 @@ type Presence interface {
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	UpsertUserStatus(context.Context, *types.UserStatus) error
+	GetUserStatus(context.Context, string) (*types.UserStatus, error)
+	GetUserStatuses(context.Context) ([]*types.UserStatus, error)
+
+	UpsertAccessMonitoringRule(ctx context.Context, item *accessmonitoring.Rule) error
+	ListAccessMonitoringRules(ctx context.Context) ([]*accessmonitoring.Rule, error)
+	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoring.Rule, error)
+	DeleteAccessMonitoringRule(ctx context.Context, name string) error
+
+	UpsertAccessMonitoringRangeScan(ctx context.Context, item *types.RangeScan) error
+	GeAccessMonitoringRangeScan(ctx context.Context, name string) (*types.RangeScan, error)
 }
 
 // PresenceInternal extends the Presence interface with auth-specific internal methods.

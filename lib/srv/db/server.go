@@ -981,6 +981,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 	defer func() {
 		// Close session stream in a goroutine since depending on session size
 		// it can take a while, and we don't want to block the client.
+
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.

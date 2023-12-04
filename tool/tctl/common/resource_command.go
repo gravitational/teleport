@@ -44,6 +44,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	acmon "github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -155,6 +157,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindPluginNotification:       rc.createPluginNotification,
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 		types.KindCrownJewel:               rc.createCrownJewel,
+		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
@@ -1687,6 +1690,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
+
+	case types.KindAccessMonitoringRule:
+		if _, err := client.AccessMonitoringClient().DeleteRule(ctx, &accessmonitoring.DeleteRuleRequest{Name: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
+
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2574,6 +2584,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 
 		return &auditQueryCollection{auditQueries: resources}, nil
+
+	case types.KindAccessMonitoringRule:
+		if rc.ref.Name != "" {
+			item, err := client.AccessMonitoringClient().GetRule(ctx, &accessmonitoring.GetRuleRequest{Name: rc.ref.Name})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessMonitoringRuleCollection{rules: []*accessmonitoring.Rule{item}}, nil
+		}
+
+		resources, err := client.AccessMonitoringClient().ListRules(ctx, &accessmonitoring.ListRulesRequest{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &accessMonitoringRuleCollection{rules: resources.GetRules()}, nil
+
 	case types.KindSecurityReport:
 		if rc.ref.Name != "" {
 
@@ -2844,6 +2870,20 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client auth
 	}
 
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	item, err := acmon.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+
+	}
+	if _, err := client.AccessMonitoringClient().UpsertRule(ctx, &accessmonitoring.UpsertRuleRequest{Rule: item}); err != nil {
 		if err != nil {
 			return trace.Wrap(err)
 		}

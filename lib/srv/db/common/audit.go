@@ -117,6 +117,9 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		Status: events.Status{
 			Success: true,
 		},
+		UsedRoles: events.UsedRoles{
+			Roles: session.RoleUsed,
+		},
 	}
 
 	// If the database session wasn't started successfully, emit

@@ -2454,6 +2454,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		additionalDeniedMessage = "Confirm Windows user."
 	}
 
+	denied := false
 	// Check deny rules.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
@@ -2479,11 +2480,15 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			return trace.Wrap(err)
 		}
 		if matchMatchers {
+			denied = true
+			setRoleAsUsed(role)
 			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
 				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
-				r.GetKind(), additionalDeniedMessage)
 		}
+	}
+	if denied {
+		return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			r.GetKind(), additionalDeniedMessage)
 	}
 
 	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
@@ -2496,6 +2501,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	allowed := false
 	// Check allow rules.
 	for _, role := range set {
+
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
 			if isDebugEnabled {
@@ -2524,6 +2530,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		if !matchMatchers {
 			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
@@ -2531,6 +2538,14 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			}
 			continue
 		}
+
+		for _, m := range matchers {
+			if l, ok := m.(*loginMatcher); ok {
+				role.SetLoginStatus(l.login, time.Now())
+			}
+		}
+
+		setRoleAsUsed(role)
 
 		// If we've reached this point, namespace, labels, and matchers all match.
 		//
@@ -2565,6 +2580,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// Current role allows access, but keep looking for a more restrictive
 		// setting.
 		allowed = true
+
 		debugf("Access to %v %q granted, allow rule in role %q matched.",
 			r.GetKind(), r.GetName(), role.GetName())
 	}

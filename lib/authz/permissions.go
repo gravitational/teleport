@@ -813,7 +813,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindReverseTunnel, services.RO()),
 				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 				types.NewRule(types.KindUser, services.RO()),
-				types.NewRule(types.KindRole, services.RO()),
+				types.NewRule(types.KindRole, services.RW()),
 				types.NewRule(types.KindClusterAuthPreference, services.RO()),
 				types.NewRule(types.KindClusterName, services.RO()),
 				types.NewRule(types.KindClusterAuditConfig, services.RO()),

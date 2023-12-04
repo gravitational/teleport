@@ -62,6 +62,9 @@ type Session struct {
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+
+	// RoleUsed is the role used to access the database.
+	RoleUsed []string
 }
 
 // String returns string representation of the session parameters.

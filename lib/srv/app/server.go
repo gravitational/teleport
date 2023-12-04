@@ -752,7 +752,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
-	authCtx, _, err := s.authorizeContext(ctx)
+	authCtx, _, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -853,7 +853,7 @@ See https://goteleport.com/docs/access-controls/device-trust/device-management/#
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	authCtx, app, err := s.authorizeContext(r.Context())
+	authCtx, app, usedRoles, err := s.authorizeContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -869,7 +869,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		// Also check header common.TeleportAWSAssumedRole which is added by
 		// the local proxy for AWS requests signed by assumed roles.
 		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
-			return s.serveSession(w, r, &identity, app, s.withAWSSigner)
+			return s.serveSession(w, r, &identity, app, s.withAWSSigner, withUsedRoles(usedRoles))
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
@@ -877,13 +877,13 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return s.serveAWSWebConsole(w, r, &identity, app)
 
 	case app.IsAzureCloud():
-		return s.serveSession(w, r, &identity, app, s.withAzureHandler)
+		return s.serveSession(w, r, &identity, app, s.withAzureHandler, withUsedRoles(usedRoles))
 
 	case app.IsGCP():
-		return s.serveSession(w, r, &identity, app, s.withGCPHandler)
+		return s.serveSession(w, r, &identity, app, s.withGCPHandler, withUsedRoles(usedRoles))
 
 	default:
-		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
+		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder, withUsedRoles(usedRoles))
 	}
 }
 
@@ -963,75 +963,59 @@ func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Con
 
 // authorizeContext will check if the context carries identity information and
 // runs authorization checks on it.
-func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
+func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Application, []string, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	switch userType.(type) {
 	case authz.LocalUser, authz.RemoteUser:
 	default:
-		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
+		return nil, nil, nil, trace.BadParameter("invalid identity: %T", userType)
 	}
 
 	// Extract authorizing context and identity of the user from the request.
 	authContext, err := s.c.Authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
 
 	// Fetch the application and check if the identity has access.
 	app, err := s.getApp(ctx, identity.RouteToApp.PublicAddr)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// When accessing AWS management console, check permissions to assume
-	// requested IAM role as well.
-	var matchers []services.RoleMatcher
-	if app.IsAWSConsole() {
-		matchers = append(matchers, &services.AWSRoleARNMatcher{
-			RoleARN: identity.RouteToApp.AWSRoleARN,
-		})
-	}
-
-	// When accessing Azure API, check permissions to assume
-	// requested Azure identity as well.
-	if app.IsAzureCloud() {
-		matchers = append(matchers, &services.AzureIdentityMatcher{
-			Identity: identity.RouteToApp.AzureIdentity,
-		})
-	}
-
-	// When accessing GCP API, check permissions to assume
-	// requested GCP service account as well.
-	if app.IsGCP() {
-		matchers = append(matchers, &services.GCPServiceAccountMatcher{
-			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
-		})
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	state := authContext.GetAccessState(authPref)
-	switch err := authContext.Checker.CheckAccess(
-		app,
-		state,
-		matchers...); {
-	case errors.Is(err, services.ErrTrustedDeviceRequired):
-		// Let the trusted device error through for clarity.
-		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
-	case err != nil:
-		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
-		return nil, nil, utils.OpaqueAccessDenied(err)
+
+	checker, err := services.NewAccessMonitor2(authContext.Checker)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return authContext, app, nil
+	matchers := common.GetAppMatchers(app, identity)
+	// TODO(smallinsky) use matcher to check access.
+	err = checker.CheckAccess(
+		app,
+		state,
+		matchers...)
+	switch {
+	case errors.Is(err, services.ErrTrustedDeviceRequired):
+		// Let the trusted device error through for clarity.
+		return nil, nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
+	case err != nil:
+		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
+		return nil, nil, nil, utils.OpaqueAccessDenied(err)
+	}
+
+	return authContext, app, checker.GetUsedRoles(), nil
 }
 
 // getApp returns an application matching the public address. If multiple

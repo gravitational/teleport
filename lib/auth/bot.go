@@ -155,6 +155,8 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 	metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newGeneration)
 	newUser.SetMetadata(metadata)
 
+	newUser.SetLastActive(time.Now())
+
 	if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
 		// If this fails it's likely to be some miscellaneous competing
 		// write. The request should be tried again - if it's malicious,

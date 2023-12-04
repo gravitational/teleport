@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -633,7 +634,7 @@ type SessionAccessEvaluator interface {
 	IsModerated() bool
 	FulfilledFor(participants []auth.SessionAccessContext) (bool, auth.PolicyOptions, error)
 	PrettyRequirementsList() string
-	CanJoin(user auth.SessionAccessContext) []types.SessionParticipantMode
+	CanJoin(user *auth.SessionAccessContext) []types.SessionParticipantMode
 }
 
 // session struct describes an active (in progress) SSH session. These sessions
@@ -960,6 +961,9 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		},
 		SessionRecording: s.sessionRecordingMode(),
 		InitialCommand:   initialCommand,
+		UsedRoles: &apievents.UsedRoles{
+			Roles: strings.Split(ctx.ServerConn.Permissions.Extensions["used-roles"], ","),
+		},
 	}
 
 	if s.term != nil {
@@ -988,7 +992,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 // Must be called under session Lock.
-func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
+func (s *session) emitSessionJoinEvent(ctx *ServerContext, roles []string) {
 	sessionJoinEvent := &apievents.SessionJoin{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionJoinEvent,
@@ -1000,6 +1004,9 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 		UserMetadata:    ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		},
+		UsedRoles: &apievents.UsedRoles{
+			Roles: roles,
 		},
 	}
 	// Local address only makes sense for non-tunnel nodes.
@@ -1897,13 +1904,15 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
+	var accessContext auth.SessionAccessContext
 	if scx.Identity.TeleportUser != s.initiator {
-		accessContext := auth.SessionAccessContext{
+		accessContext = auth.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
 			Roles:    scx.Identity.AccessChecker.Roles(),
 		}
 
-		modes := s.access.CanJoin(accessContext)
+		// TODO(smallinsky) check and add role to session.join audit event.
+		modes := s.access.CanJoin(&accessContext)
 		if !slices.Contains(modes, mode) {
 			return trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}
@@ -1935,7 +1944,7 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 	// Emit session join event to both the Audit Log as well as over the
 	// "x-teleport-event" channel in the SSH connection.
-	s.emitSessionJoinEvent(p.ctx)
+	s.emitSessionJoinEvent(p.ctx, accessContext.UsedRoles)
 
 	return nil
 }

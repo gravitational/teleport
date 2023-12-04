@@ -419,6 +419,7 @@ type authContext struct {
 	kubeServers []types.KubeServer
 	// apiResource holds the information about the requested API resource.
 	apiResource apiResource
+	usedRole    []string
 }
 
 func (c authContext) String() string {
@@ -876,6 +877,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 		SessionMetadata: apievents.SessionMetadata{
 			WithMFA: sess.Identity.GetIdentity().MFAVerified,
 		},
+		UsedRoles: apievents.UsedRoles{Roles: sess.usedRole},
 	}
 
 	r.populateEvent(event)
@@ -992,6 +994,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	defer span.End()
 
 	if actx.teleportCluster.isRemote {
+		// TODO(smallinsky) check access on remote server at least check role mapping.
+
 		// Authorization for a remote kube cluster will happen on the remote
 		// end (by their proxy), after that cluster has remapped used roles.
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote kubernetes cluster name")
@@ -1058,6 +1062,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	actx.kubeUsers = utils.StringsSet(kubeUsers)
 	actx.kubeGroups = utils.StringsSet(kubeGroups)
 
+	actx.usedRole = []string{"foobar"}
+
+	checker := services.NewAccessMonitor(actx.Checker, f.cfg.AuthClient)
 	// Check authz against the first match.
 	//
 	// We assume that users won't register two identically-named clusters with
@@ -1068,7 +1075,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		switch err := actx.Checker.CheckAccess(ks, state, roleMatchers...); {
+		switch err := checker.CheckAccess(ks, state, roleMatchers...); {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
 			return trace.Wrap(err)
 		case err != nil:

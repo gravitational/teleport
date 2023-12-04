@@ -238,11 +238,17 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		DatabaseName:   sessionCtx.DatabaseName,
 		AutoCreateUser: sessionCtx.AutoCreateUserMode.IsEnabled(),
 	})
-	err = sessionCtx.Checker.CheckAccess(
+	checker, err := services.NewAccessMonitor2(sessionCtx.Checker)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = checker.CheckAccess(
 		sessionCtx.Database,
 		sessionCtx.GetAccessState(authPref),
 		matchers...,
 	)
+	sessionCtx.RoleUsed = checker.GetUsedRoles()
+
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)

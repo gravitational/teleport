@@ -34,9 +34,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -267,6 +270,44 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	userMetadata.User = ws.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRole
 
+	// TODO(smallinksy) check access to the application.
+
+	user := authz.LocalUser{
+		Username: identity.Username,
+		Identity: *identity,
+	}
+	userCtx := authz.ContextWithUser(context.Background(), user)
+
+	userL, err := authClient.GetUser(userCtx, user.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessInfo := services.AccessInfo{
+		Roles:    userL.GetRoles(),
+		Traits:   userL.GetTraits(),
+		Username: userL.GetName(),
+	}
+
+	accessChecker, err := services.NewAccessChecker(&accessInfo, identity.RouteToApp.ClusterName, authClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := authClient.GetAuthPreference(userCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	state := accessChecker.GetAccessState(authPref)
+
+	checker, err := services.NewAccessMonitor2(accessChecker)
+	if err != nil {
+		panic(err)
+	}
+	matchers := common.GetAppMatchers(result.App, *identity)
+	if err := checker.CheckAccess(result.App, state, matchers...); err != nil {
+		panic(err)
+	}
+
 	// Now that the certificate has been issued, emit a "new session created"
 	// for all events associated with this certificate.
 	appSessionStartEvent := &apievents.AppSessionStart{
@@ -293,6 +334,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			AppURI:        result.App.GetURI(),
 			AppPublicAddr: result.App.GetPublicAddr(),
 			AppName:       result.App.GetName(),
+		},
+		UsedRoles: apievents.UsedRoles{
+			Roles: checker.GetUsedRoles(),
 		},
 	}
 	if err := h.cfg.Emitter.EmitAuditEvent(h.cfg.Context, appSessionStartEvent); err != nil {

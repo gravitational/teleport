@@ -513,7 +513,14 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 	// KindPluginNotification is a plugin notification resource
-	KindPluginNotification = "plugin_notification"
+	KindPluginNotification  = "plugin_notification"
+	KindMonitoringUserState = "monitoring_user_state"
+	KindMonitoringRoleState = "monitoring_role_state"
+
+	// KindAccessMonitoringRule is an access monitoring rule resource.
+	KindAccessMonitoringRule = "access_monitoring_rule"
+	// KindAccessMonitoringRangeScan is an access monitoring range scan resource.
+	KindAccessMonitoringRangeScan = "access_monitoring_range_scan"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"

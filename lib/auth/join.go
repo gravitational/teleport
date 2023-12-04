@@ -26,6 +26,7 @@ import (
 	"net"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/peer"
@@ -191,6 +192,20 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if provisionToken.GetJoinMethod() == types.JoinMethodToken {
+		fmt.Println("Token join method")
+		provisionToken.SetLastUsage(time.Now())
+		if err := a.UpsertToken(ctx, provisionToken); err != nil {
+			fmt.Println("failed to upsert token")
+		}
+	} else {
+		fmt.Println("Static token join method")
+		provisionToken.SetLastUsage(time.Now())
+		if err := a.UpsertToken(ctx, provisionToken); err != nil {
+			fmt.Println("failed to upsert token")
+		}
 	}
 
 	// With all elements of the token validated, we can now generate & return

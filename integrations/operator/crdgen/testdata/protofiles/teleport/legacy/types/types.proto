@@ -2398,7 +2398,11 @@ message RoleSpecV6 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "deny,omitempty"
   ];
+
 }
+
+
+
 
 // CreateHostUserMode determines whether host user creation should be
 // disabled or if host users should be cleaned up or kept after

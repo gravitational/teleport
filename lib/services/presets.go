@@ -175,6 +175,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAccessGraph, RW()),
 					types.NewRule(types.KindServerInfo, RW()),
 					types.NewRule(types.KindPluginNotification, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, append(RW(), types.VerbUse)),
 				},
 			},
 		},
