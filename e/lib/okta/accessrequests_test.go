@@ -515,7 +515,7 @@ func TestOnLogin(t *testing.T) {
 
 			// Wait for the reconciler to see the access requests.
 			require.EventuallyWithT(t, func(tollect *assert.CollectT) {
-				assert.Len(t, reconciler.accessRequests, count)
+				assert.Len(t, reconciler.getAccessRequests(), count)
 			}, 5*time.Second, 10*time.Millisecond)
 
 			cmpOpts := []cmp.Option{
