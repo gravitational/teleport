@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -274,7 +276,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				return trace.Wrap(err)
 			}
 			sessionID = session.ID(create.SessionID)
-			g.Debugf("Created stream: %v.", err)
+			g.Debugf("Created stream for session %v", sessionID)
 			go forwardEvents(eventStream)
 			defer closeStream(eventStream)
 		} else if resume := request.GetResumeStream(); resume != nil {
@@ -285,7 +287,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			g.Debugf("Resumed stream: %v.", err)
+			g.Debugf("Resumed stream for session %v", resume.SessionID)
 			go forwardEvents(eventStream)
 			defer closeStream(eventStream)
 		} else if complete := request.GetCompleteStream(); complete != nil {
@@ -323,7 +325,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 					return trace.Wrap(err)
 				}
 			}
-			g.Debugf("Completed stream: %v.", err)
+			g.Debugf("Completed stream for session %v", sessionID)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -340,7 +342,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			}
 			event, err := apievents.FromOneOf(*oneof)
 			if err != nil {
-				g.WithError(err).Debugf("Failed to decode event.")
+				g.WithError(err).Debug("Failed to decode event.")
 				return trace.Wrap(err)
 			}
 			// Currently only api/client.auditStreamer calls with an event
@@ -388,7 +390,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			}
 			diff := time.Since(start)
 			if diff > 100*time.Millisecond {
-				log.Warningf("RecordEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
+				g.Warningf("RecordEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
 			}
 		} else {
 			g.Errorf("Rejecting unsupported stream request: %v.", request)
@@ -3073,7 +3075,7 @@ func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.Create
 
 	v3, ok := created.(*types.OIDCConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", created)
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", created)
 	}
 
 	return v3, nil
@@ -3093,19 +3095,34 @@ func (g *GRPCServer) UpdateOIDCConnector(ctx context.Context, req *authpb.Update
 
 	v3, ok := updated.(*types.OIDCConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", updated)
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", updated)
 	}
 
 	return v3, nil
 }
 
-// UpsertOIDCConnector upserts an OIDC connector.
-func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+// UpsertOIDCConnectorV2 creates a new or replaces an existing OIDC connector.
+func (g *GRPCServer) UpsertOIDCConnectorV2(ctx context.Context, req *authpb.UpsertOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
+	upserted, err := auth.ServerWithRoles.UpsertOIDCConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v3, ok := upserted.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", upserted)
+	}
+
+	return v3, nil
+}
+
+// UpsertOIDCConnector creates a new or replaces an existing OIDC connector.
+// Deprecated: Use [GRPCServer.UpsertOIDCConnectorV2] instead.
+func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+	if _, err := g.UpsertOIDCConnectorV2(ctx, &authpb.UpsertOIDCConnectorRequest{Connector: oidcConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
