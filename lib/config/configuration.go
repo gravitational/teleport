@@ -1945,14 +1945,14 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	if len(cfg.WindowsDesktop.Hosts) > 0 {
-		cfg.Log.Warnln("hosts field is deprecated, use static_hosts instead")
+		log.Warnln("hosts field is deprecated, use static_hosts instead")
 	}
 	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(cfg.WindowsDesktop.NonADHosts) > 0 {
-		cfg.Log.Warnln("non_ad_hosts field is deprecated, use static_hosts instead")
+		log.Warnln("non_ad_hosts field is deprecated, use static_hosts instead")
 	}
 	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop.StaticHosts, defaults.RDPListenPort)
 	if err != nil {
