@@ -49,6 +49,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/internal/context121"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -357,6 +358,7 @@ const (
 
 // EmitAuditEvent emits audit event
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	sessionID := getSessionID(in)
 	if err := l.putAuditEvent(ctx, sessionID, in); err != nil {
 		switch {
