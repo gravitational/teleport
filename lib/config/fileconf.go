@@ -2222,14 +2222,17 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	var adHosts = 0
-	for _, host := range wds.StaticHosts {
-		if host.AD {
-			adHosts++
+	hasAD := len(wds.Hosts) > 0
+	if !hasAD {
+		for _, host := range wds.StaticHosts {
+			if host.AD {
+				hasAD = true
+				break
+			}
 		}
 	}
 
-	if len(wds.Hosts)+adHosts > 0 && wds.LDAP.Addr == "" {
+	if hasAD && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
 	}
