@@ -2245,7 +2245,7 @@ func (wds *WindowsDesktopService) Check() error {
 	return nil
 }
 
-// WindowsHostLabelRule describes how a set of labels should be a applied to
+// WindowsHostLabelRule describes how a set of labels should be applied to
 // a Windows host.
 type WindowsHostLabelRule struct {
 	// Match is a regexp that is checked against the Windows host's DNS name.
@@ -2255,11 +2255,16 @@ type WindowsHostLabelRule struct {
 	Labels map[string]string `yaml:"labels"`
 }
 
+// WindowsHost describes single host in configuration
 type WindowsHost struct {
-	Name    string            `yaml:"name"`
-	Address string            `yaml:"addr"`
-	Labels  map[string]string `yaml:"labels"`
-	AD      bool              `yaml:"ad"`
+	// Name of the host
+	Name string `yaml:"name"`
+	// Address of the host
+	Address string `yaml:"addr"`
+	// Labels is the set of labels to apply to this host
+	Labels map[string]string `yaml:"labels"`
+	// AD tells if host is part of Active Directory domain
+	AD bool `yaml:"ad"`
 }
 
 // LDAPConfig is the LDAP connection parameters.
