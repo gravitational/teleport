@@ -46,7 +46,7 @@ export interface ResourcesContext {
 const ResourcesContext = createContext<ResourcesContext>(null);
 
 export const ResourcesContextProvider: FC<
-  PropsWithChildren<unknown>
+  PropsWithChildren
 > = props => {
   const emitterRef = useRef<EventEmitter>();
   if (!emitterRef.current) {

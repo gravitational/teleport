@@ -27,7 +27,7 @@ export const Header: React.FC<PropsWithChildren<unknown>> = ({ children }) => (
   </Text>
 );
 
-export const HeaderSubtitle: React.FC<PropsWithChildren<unknown>> = ({
+export const HeaderSubtitle: React.FC<PropsWithChildren> = ({
   children,
 }) => <Text mb={5}>{children}</Text>;
 

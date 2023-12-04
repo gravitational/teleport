@@ -90,7 +90,7 @@ export function FileListItem(props: FileListItemProps) {
   );
 }
 
-const Error: FC<PropsWithChildren<unknown>> = props => {
+const Error: FC<PropsWithChildren> = props => {
   return (
     <Flex alignItems="center" mt={1}>
       <Warning size="small" mr={1} color="inherit" />

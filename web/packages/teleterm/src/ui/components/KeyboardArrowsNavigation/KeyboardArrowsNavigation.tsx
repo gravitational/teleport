@@ -41,7 +41,7 @@ enum KeyboardArrowNavigationKeys {
 }
 
 export const KeyboardArrowsNavigation: FC<
-  PropsWithChildren<unknown>
+  PropsWithChildren
 > = props => {
   const [items, setItems] = useState<RunActiveItemHandler[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
