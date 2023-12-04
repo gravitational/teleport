@@ -140,6 +140,9 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+
+	// SetLastUsage .. .
+	SetLastUsage(time.Time)
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -178,6 +181,14 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 func (p *ProvisionTokenV2) setStaticFields() {
 	p.Kind = KindToken
 	p.Version = V2
+}
+
+// SetLastUsage ...
+func (p *ProvisionTokenV2) SetLastUsage(t time.Time) {
+	if p.Spec.State == nil {
+		p.Spec.State = &TokenState{}
+	}
+	p.Spec.State.LastUsed = t
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.

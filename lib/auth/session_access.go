@@ -66,14 +66,16 @@ func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind
 	return e
 }
 
-func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPolicy {
+func getAllowPolicies(participant *SessionAccessContext) ([]string, []*types.SessionJoinPolicy) {
 	var policies []*types.SessionJoinPolicy
+	var roles []string
 
 	for _, role := range participant.Roles {
 		policies = append(policies, role.GetSessionJoinPolicies()...)
+		roles = append(roles, role.GetName())
 	}
 
-	return policies
+	return roles, policies
 }
 
 func ContainsSessionKind(s []string, e types.SessionKind) bool {
@@ -88,9 +90,10 @@ func ContainsSessionKind(s []string, e types.SessionKind) bool {
 
 // SessionAccessContext is the context that must be provided per participant in the session.
 type SessionAccessContext struct {
-	Username string
-	Roles    []types.Role
-	Mode     types.SessionParticipantMode
+	Username  string
+	Roles     []types.Role
+	Mode      types.SessionParticipantMode
+	UsedRoles []string
 }
 
 // GetIdentifier is used by the `predicate` library to evaluate variable expressions when
@@ -196,7 +199,7 @@ func RoleSupportsModeratedSessions(roles []types.Role) bool {
 
 // CanJoin returns the modes a user has access to join a session with.
 // If the list is empty, the user doesn't have access to join the session at all.
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
+func (e *SessionAccessEvaluator) CanJoin(user *SessionAccessContext) []types.SessionParticipantMode {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
 	if !RoleSupportsModeratedSessions(user.Roles) {
 		return preAccessControlsModes(e.kind)
@@ -211,17 +214,21 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 
 	// Loop over every allow policy attached the participant and check it's applicability.
 	// This code serves to merge the permissions of all applicable join policies.
-	for _, allowPolicy := range getAllowPolicies(user) {
+	roleOrgin, allowedPolicies := getAllowPolicies(user)
+	var roles []string
+	for i, allowPolicy := range allowedPolicies {
 		// If the policy is applicable and allows joining the session, add the allowed modes to the list of modes.
 		if e.matchesJoin(allowPolicy) {
 			for _, modeString := range allowPolicy.Modes {
 				mode := types.SessionParticipantMode(modeString)
 				if !slices.Contains(modes, mode) {
 					modes = append(modes, mode)
+					roles = append(roles, roleOrgin[i])
 				}
 			}
 		}
 	}
+	user.UsedRoles = roles
 
 	return modes
 }
@@ -306,7 +313,7 @@ policySetLoop:
 				}
 
 				// Check the allow polices attached to the participant against the session.
-				allowPolicies := getAllowPolicies(participant)
+				_, allowPolicies := getAllowPolicies(&participant)
 				for _, allowPolicy := range allowPolicies {
 					// Evaluate the filter in the require policy against the participant and allow policy.
 					matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)

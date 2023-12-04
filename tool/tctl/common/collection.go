@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	acmon "github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
@@ -1102,6 +1104,22 @@ type loginRuleCollection struct {
 	rules []*loginrulepb.LoginRule
 }
 
+type accessMonitoringRuleCollection struct {
+	rules []*accessmonitoring.Rule
+}
+
+func (l *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) error {
+	return nil
+}
+
+func (l *accessMonitoringRuleCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(l.rules))
+	for i, rule := range l.rules {
+		resources[i] = acmon.ProtoToResource(rule)
+	}
+	return resources
+}
+
 func (l *loginRuleCollection) writeText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name", "Priority"})
 	for _, rule := range l.rules {
@@ -1309,16 +1327,16 @@ func (c *userGroupCollection) writeText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type auditQueryCollection struct {
-	auditQueries []*secreports.AuditQuery
-}
-
 func (c *auditQueryCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.auditQueries))
 	for i, resource := range c.auditQueries {
 		r[i] = resource
 	}
 	return r
+}
+
+type auditQueryCollection struct {
+	auditQueries []*secreports.AuditQuery
 }
 
 func (c *auditQueryCollection) writeText(w io.Writer, verbose bool) error {

@@ -447,7 +447,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	}
 
 	evaluator := NewSessionAccessEvaluator(tracker.GetHostPolicySets(), tracker.GetSessionKind(), tracker.GetHostUser())
-	modes := evaluator.CanJoin(SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
+	modes := evaluator.CanJoin(&SessionAccessContext{Username: a.context.User.GetName(), Roles: joinerRoles})
 	return len(modes) != 0
 }
 
@@ -1401,6 +1401,15 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	checker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	for _, r := range a.context.Checker.Roles() {
+		if r.GetStatusUpdated() {
+			fmt.Println("MYDEBUG role was updated  ", r.GetName())
+			if _, err := a.UpdateRole(context.Background(), r); err != nil {
+				// TODO(smallinksy) Backend API return incorrect revision.
+				fmt.Println("Update Role error: ", err)
+			}
+		}
 	}
 
 	if req.PinnedOnly {

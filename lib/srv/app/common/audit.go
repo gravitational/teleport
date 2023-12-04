@@ -41,7 +41,7 @@ type Audit interface {
 	// OnSessionEnd is called when an app session ends.
 	OnSessionEnd(ctx context.Context, serverID string, identity *tlsca.Identity, app types.Application) error
 	// OnSessionChunk is called when a new session chunk is created.
-	OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error
+	OnSessionChunk(ctx context.Context, serverID, chunkID string, roles []string, identity *tlsca.Identity, app types.Application) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
@@ -149,7 +149,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 }
 
 // OnSessionChunk is called when a new session chunk is created.
-func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error {
+func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, roles []string, identity *tlsca.Identity, app types.Application) error {
 	event := &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
@@ -168,6 +168,9 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			AppName:       app.GetName(),
 		},
 		SessionChunkID: chunkID,
+		UsedRoles: apievents.UsedRoles{
+			Roles: roles,
+		},
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }

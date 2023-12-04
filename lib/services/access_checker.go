@@ -376,6 +376,10 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}
 	roleSet := NewRoleSet(remoteRoles...)
 
+	if localAccessInfo.Username == "richard" {
+		localAccessInfo.Username = localAccessInfo.Username
+	}
+
 	return &accessChecker{
 		info: remoteAccessInfo,
 		// localCluster is a bit of a misnomer here, but it means the local
@@ -832,6 +836,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			return trace.Wrap(err)
 		}
 		if matchLabels {
+			setRoleAsUsed(role)
 			// This condition avoids formatting calls on large scale.
 			debugf("Access to cluster %v denied, deny rule in %v matched; match(%s)",
 				rc.GetName(), role.GetName(), labelsMessage)
@@ -855,6 +860,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			return trace.Wrap(err)
 		}
 		if matchLabels {
+			setRoleAsUsed(role)
 			return nil
 		}
 		if isDebugEnabled {

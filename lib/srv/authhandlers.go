@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -95,7 +96,8 @@ type AuthHandlerConfig struct {
 	// Clock specifies the time provider. Will be used to override the time anchor
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
-	Clock clockwork.Clock
+	Clock           clockwork.Clock
+	LocalAuthClient auth.ClientI
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -466,6 +468,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
+	var roles []string
 	// check if the user has permission to log into the node.
 	if h.c.Component == teleport.ComponentForwardingNode {
 		// If we are forwarding the connection, the target node
@@ -473,12 +476,19 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+			roles, err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+		} else {
+			panic("not suer why this should be")
 		}
 	} else {
 		// the SSH server is a Teleport node, preform an RBAC check now
-		err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), teleportUser, conn.User())
+		roles, err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), teleportUser, conn.User())
 	}
+
+	if len(roles) > 0 {
+		permissions.Extensions["used-roles"] = strings.Join(roles, ",")
+	}
+
 	if err != nil {
 		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
@@ -600,38 +610,25 @@ type loginChecker interface {
 	// canLoginWithRBAC checks the given certificate (supplied by a connected
 	// client) to see if this certificate can be allowed to login as user:login
 	// pair to requested server and if RBAC rules allow login.
-	canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) error
+	canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) ([]string, error)
 }
 
 type ahLoginChecker struct {
-	log *log.Entry
-	c   *AuthHandlerConfig
+	log       *log.Entry
+	c         *AuthHandlerConfig
+	UsedRoles []string
 }
 
-// canLoginWithRBAC checks the given certificate (supplied by a connected
-// client) to see if this certificate can be allowed to login as user:login
-// pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) error {
+func (a *ahLoginChecker) canLoginWithRBAC2(checker services.AccessChecker, cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) error {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
 	a.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
-
-	// get roles assigned to this user
-	accessInfo, err := fetchAccessInfo(cert, ca, teleportUser, clusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	state := accessChecker.GetAccessState(authPref)
+	state := checker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
 
 	// Certain hardware-key based private key policies are treated as MFA verification.
@@ -643,7 +640,7 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
 	if osUser == teleport.SSHSessionJoinPrincipal &&
-		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+		auth.RoleSupportsModeratedSessions(checker.Roles()) {
 
 		// allow joining if cluster wide MFA is not required
 		if state.MFARequired != services.MFARequiredAlways {
@@ -661,16 +658,91 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
 	// check if roles allow access to server
-	if err := accessChecker.CheckAccess(
+	err = checker.CheckAccess(
 		target,
 		state,
 		services.NewLoginMatcher(osUser),
-	); err != nil {
+	)
+
+	if err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
 	}
 
 	return nil
+}
+
+// canLoginWithRBAC checks the given certificate (supplied by a connected
+// client) to see if this certificate can be allowed to login as user:login
+// pair to requested server and if RBAC rules allow login.
+func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAuthority, clusterName string, target types.Server, teleportUser, osUser string) ([]string, error) {
+	// Use the server's shutdown context.
+	ctx := a.c.Server.Context()
+
+	a.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
+
+	// get roles assigned to this user
+	accessInfo, err := fetchAccessInfo(cert, ca, teleportUser, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	state := accessChecker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
+		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
+			state.MFAVerified = true
+		}
+	}
+
+	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	if osUser == teleport.SSHSessionJoinPrincipal &&
+		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+
+		// allow joining if cluster wide MFA is not required
+		if state.MFARequired != services.MFARequiredAlways {
+			return []string{}, nil
+		}
+
+		// only allow joining if the MFA ceremony was completed
+		// first if cluster wide MFA is enabled
+		if state.MFAVerified {
+			return []string{}, nil
+		}
+	}
+
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
+
+	checker, err := services.NewAccessMonitor2(accessChecker)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	// check if roles allow access to server
+	err = checker.CheckAccess(
+		target,
+		state,
+		services.NewLoginMatcher(osUser),
+	)
+	a.UsedRoles = checker.GetUsedRoles()
+
+	if err != nil {
+		return checker.GetUsedRoles(), trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			teleportUser, ca.GetClusterName(), osUser, clusterName, err)
+	}
+
+	return checker.GetUsedRoles(), nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)

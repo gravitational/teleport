@@ -367,6 +367,12 @@ message SessionStart {
   reserved "AccessRequests";
   reserved 11;
   // reserved jsontag "access_requests"
+
+  UsedRoles UsedRoles = 12 [(gogoproto.jsontag) = "used_roles"];
+}
+
+message UsedRoles {
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
 }
 
 // SessionJoin emitted when another user joins a session
@@ -413,6 +419,7 @@ message SessionJoin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  UsedRoles UsedRoles = 7 [(gogoproto.jsontag) = "used_roles"];
 }
 
 // SessionPrint event happens every time a write occurs to
@@ -2575,6 +2582,11 @@ message KubeRequest {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  UsedRoles used_roles = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "used_roles"
+  ];
 }
 
 // AppMetadata contains common application information.
@@ -2720,6 +2732,11 @@ message AppSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  UsedRoles UsedRoles = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "used_roles"
+  ];
 }
 
 // AppSessionEnd is emitted when an application session ends.
@@ -2815,6 +2832,11 @@ message AppSessionChunk {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  UsedRoles UsedRoles = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "used_roles"
   ];
 }
 
@@ -3015,6 +3037,11 @@ message DatabaseSessionStart {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  UsedRoles UsedRoles = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "used_roles,omitempty"
   ];
 }
 

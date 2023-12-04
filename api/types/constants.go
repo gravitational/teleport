@@ -503,6 +503,14 @@ const (
 	// KindSecurityReportCostLimiter const limiter
 	KindSecurityReportCostLimiter = "security_report_cost_limiter"
 
+	KindMonitoringUserState = "monitoring_user_state"
+	KindMonitoringRoleState = "monitoring_role_state"
+
+	// KindAccessMonitoringRule is an access monitoring rule resource.
+	KindAccessMonitoringRule = "access_monitoring_rule"
+	// KindAccessMonitoringRangeScan is an access monitoring range scan resource.
+	KindAccessMonitoringRangeScan = "access_monitoring_range_scan"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 

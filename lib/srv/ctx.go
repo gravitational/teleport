@@ -107,6 +107,9 @@ type AccessPoint interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
+	// UpdateRole updates an existing role.
+	//UpdateRole(ctx context.Context, role types.Role) (types.Role, error)
+
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 

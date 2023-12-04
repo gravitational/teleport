@@ -39,7 +39,7 @@ func TestMarshalUnmarshalAuditQuery(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	data, err := MarshalAuditQuery(want)
+	data, err := MarshalMonitoirngUser(want)
 	require.NoError(t, err)
 	got, err := UnmarshalAuditQuery(data)
 	require.NoError(t, err)

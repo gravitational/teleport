@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -291,6 +292,39 @@ func (c *Client) AddUserLoginAttempt(user string, attempt services.LoginAttempt,
 
 // GetUserLoginAttempts returns user login attempts
 func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
+	panic("not implemented")
+}
+
+func (c *Client) UpsertUserStatus(ctx context.Context, item *types.UserStatus) error {
+	panic("not implemented")
+}
+
+func (c *Client) GetUserStatuses(ctx context.Context) ([]*types.UserStatus, error) {
+	panic("not implemented")
+}
+
+func (c *Client) GetUserStatus(ctx context.Context, name string) (*types.UserStatus, error) {
+	panic("not implemented")
+}
+
+func (c *Client) UpsertAccessMonitoringRule(ctx context.Context, item *accessmonitoring.Rule) error {
+	panic("not implemented")
+}
+
+func (c *Client) ListAccessMonitoringRules(ctx context.Context) ([]*accessmonitoring.Rule, error) {
+	panic("not implemented")
+}
+func (c *Client) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoring.Rule, error) {
+	panic("not implemented")
+}
+func (c *Client) UpsertAccessMonitoringRangeScan(ctx context.Context, item *types.RangeScan) error {
+	panic("not implemented")
+}
+func (c *Client) GeAccessMonitoringRangeScan(ctx context.Context, name string) (*types.RangeScan, error) {
+	panic("not implemented")
+}
+
+func (c *Client) DeleteAccessMonitoringRule(ctx context.Context, name string) error {
 	panic("not implemented")
 }
 
@@ -978,6 +1012,8 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
+
+	AccessMonitoringClient() accessmonitoring.MonitoringServiceClient
 
 	// DatabaseObjectImportRuleClient returns a database import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient

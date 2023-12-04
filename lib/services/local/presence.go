@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -1954,3 +1955,126 @@ const (
 	serverInfoPrefix             = "serverInfos"
 	cloudLabelsPrefix            = "cloudLabels"
 )
+
+func (s *PresenceService) UpsertUserStatus(ctx context.Context, item *types.UserStatus) error {
+	//val, err := utils.FastMarshal(item)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//_, err = s.Put(ctx, backend.Item{
+	//	Key:   backend.Key("user_status", item.Metadata.GetName()),
+	//	Value: val,
+	//})
+	//return trace.Wrap(err)
+	return nil
+}
+
+func (s *PresenceService) GetUserStatus(ctx context.Context, name string) (*types.UserStatus, error) {
+	v, err := s.Get(ctx, backend.Key("user_status", name))
+	var out types.UserStatus
+	if err = utils.FastUnmarshal(v.Value, &out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, trace.Wrap(err)
+}
+
+func (s *PresenceService) GetUserStatuses(ctx context.Context) ([]*types.UserStatus, error) {
+	startKey := backend.ExactKey("user_status")
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var out []*types.UserStatus
+	for _, item := range result.Items {
+		var elem types.UserStatus
+		if err = utils.FastUnmarshal(item.Value, &elem); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, &elem)
+	}
+	return out, nil
+}
+
+const (
+	userStatusKey                = "user/status"
+	accessMonitoringRuleKey      = "access_monitoring/rule"
+	accessMonitoringRangeScanKey = "access_monitoring/range_scan"
+)
+
+func (s *PresenceService) DeleteAccessMonitoringRule(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("name missing")
+	}
+	key := backend.Key(accessMonitoringRuleKey, name)
+	return s.Delete(ctx, key)
+}
+
+func (s *PresenceService) UpsertAccessMonitoringRule(ctx context.Context, item *accessmonitoring.Rule) error {
+	item.Header.Kind = types.KindAccessMonitoringRule
+	val, err := utils.FastMarshal(item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:   backend.Key(accessMonitoringRuleKey, item.Header.GetMetadata().GetName()),
+		Value: val,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *PresenceService) UpsertAccessMonitoringRangeScan(ctx context.Context, item *types.RangeScan) error {
+	item.Kind = types.KindAccessMonitoringRangeScan
+	val, err := utils.FastMarshal(item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:   backend.Key(accessMonitoringRangeScanKey, item.GetName()),
+		Value: val,
+	})
+	return trace.Wrap(err)
+}
+func (s *PresenceService) GeAccessMonitoringRangeScan(ctx context.Context, name string) (*types.RangeScan, error) {
+	v, err := s.Get(ctx, backend.Key(accessMonitoringRangeScanKey, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var out types.RangeScan
+	if err = utils.FastUnmarshal(v.Value, &out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, trace.Wrap(err)
+}
+
+func (s *PresenceService) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoring.Rule, error) {
+	v, err := s.Get(ctx, backend.Key(accessMonitoringRuleKey, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var out accessmonitoring.Rule
+	if err = utils.FastUnmarshal(v.Value, &out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, trace.Wrap(err)
+}
+
+func (s *PresenceService) ListAccessMonitoringRules(ctx context.Context) ([]*accessmonitoring.Rule, error) {
+	startKey := backend.ExactKey(accessMonitoringRuleKey)
+	endKey := backend.RangeEnd(startKey)
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*accessmonitoring.Rule, 0, len(result.Items))
+	for _, item := range result.Items {
+		var v accessmonitoring.Rule
+		if err = utils.FastUnmarshal(item.Value, &v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, &v)
+	}
+	return out, nil
+}

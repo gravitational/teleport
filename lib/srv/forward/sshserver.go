@@ -376,13 +376,14 @@ func New(c ServerConfig) (*Server, error) {
 
 	// Common auth handlers.
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:       s,
-		Component:    teleport.ComponentForwardingNode,
-		Emitter:      c.Emitter,
-		AccessPoint:  c.TargetClusterAccessPoint,
-		TargetServer: c.TargetServer,
-		FIPS:         c.FIPS,
-		Clock:        c.Clock,
+		LocalAuthClient: c.LocalAuthClient,
+		Server:          s,
+		Component:       teleport.ComponentForwardingNode,
+		Emitter:         c.Emitter,
+		AccessPoint:     c.TargetClusterAccessPoint,
+		TargetServer:    c.TargetServer,
+		FIPS:            c.FIPS,
+		Clock:           c.Clock,
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)

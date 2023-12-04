@@ -1260,6 +1260,18 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
   // Spacelift allows the configuration of options specific to the "spacelift" join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
+  // State is the state of the token.
+  TokenState State = 15 [(gogoproto.jsontag) = "state,omitempty"];
+}
+
+// TokenState is the state of the token.
+message TokenState {
+  // LastUsed is the last time the token was used.
+  google.protobuf.Timestamp LastUsed = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_used,omitempty"
+  ];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -2591,6 +2603,27 @@ message RoleSpecV6 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "deny,omitempty"
   ];
+
+  // Status is ..
+  RoleStatus status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
+}
+
+// RoleStatus is a role status
+message RoleStatus {
+  // InactiveSince is
+  google.protobuf.Timestamp inactive_since = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "inactive_since,omitempty"
+  ];
+  // LoginsLastActive is
+  map<string, string> logins_last_active = 2 [(gogoproto.jsontag) = "logins_last_active,omitempty"];
+
+  // updated is just bool flag
+  bool updated = 3 [(gogoproto.jsontag) = "-"];
 }
 
 // CreateHostUserMode determines whether host user creation should be
@@ -3271,6 +3304,28 @@ message UserV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  UserMonitoringStatus Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
+}
+
+message UserStatus {
+  //  google.protobuf.Timestamp LastActive = 1 [
+  //    (gogoproto.stdtime) = true,
+  //    (gogoproto.nullable) = false,
+  //    (gogoproto.jsontag) = "last_active"
+  //  ];
+  //  map<string, google.protobuf.Timestamp> RolesLastActive = 2 [
+  //    (gogoproto.nullable) = false,
+  //    (gogoproto.jsontag) = "roles_last_active"
+  //  ];
+  //  google.protobuf.Timestamp LastLogin = 3 [
+  //    (gogoproto.stdtime) = true,
+  //    (gogoproto.nullable) = false,
+  //    (gogoproto.jsontag) = "last_login"
+  //  ];
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -3336,6 +3391,24 @@ message UserSpecV2 {
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
 
+message UserMonitoringStatus {
+  google.protobuf.Timestamp LastActivity = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_activity"
+  ];
+  map<string, google.protobuf.Timestamp> RolesLastActive = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "roles_last_active"
+  ];
+  google.protobuf.Timestamp LastLogin = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_login"
+  ];
+}
+
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
 // to particular user and connector and lets user to log in using external
 // credentials, e.g. google
@@ -3370,6 +3443,15 @@ message LoginStatus {
   ];
   reserved 5; // removed "google.protobuf.Timestamp RecoveryAttemptLockExpires" after lockout was removed
   reserved "RecoveryAttemptLockExpires";
+  // RecoveryAttemptLockExpires contains the time when this lock will expire
+  // from reaching MaxAccountRecoveryAttempts. This field is used to determine
+  // if a user got locked from recovery attempts.
+
+  google.protobuf.Timestamp last_active = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_active,omitempty"
+  ];
 }
 
 // CreatedBy holds information about the person or agent who created the user

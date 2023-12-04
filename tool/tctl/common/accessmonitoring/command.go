@@ -29,6 +29,9 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -268,4 +271,70 @@ func printResource(resource any, format string) error {
 		return trace.BadParameter("unsupported output format %s, supported values are %s and %s", format, teleport.JSON, teleport.YAML)
 	}
 	return nil
+}
+
+type Resource struct {
+	// ResourceHeader is embedded to implement types.Resource
+	types.ResourceHeader
+	// Spec is the login rule specification
+	Spec *accessmonitoring.RuleSpec `json:"spec"`
+}
+
+// CheckAndSetDefaults sanity checks Resource fields to catch simple errors, and
+// sets default values for all fields with defaults.
+func (r *Resource) CheckAndSetDefaults() error {
+	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.Kind == "" {
+		r.Kind = types.KindAccessMonitoringRule
+	} else if r.Kind != types.KindAccessMonitoringRule {
+		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindAccessMonitoringRule)
+	}
+	if r.Version == "" {
+		r.Version = types.V1
+	} else if r.Version != types.V1 {
+		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
+	}
+	return nil
+}
+
+func ProtoToResource(rule *accessmonitoring.Rule) *Resource {
+	r := &Resource{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: rule.GetHeader().GetVersion(),
+			Metadata: types.Metadata{
+				Name:      rule.GetHeader().GetMetadata().GetName(),
+				Namespace: rule.GetHeader().GetMetadata().GetNamespace(),
+				Labels:    rule.GetHeader().GetMetadata().GetLabels(),
+			},
+		},
+		Spec: rule.GetSpec(),
+	}
+	return r
+}
+
+func UnmarshalAccessMonitoringRule(raw []byte) (*accessmonitoring.Rule, error) {
+	var resource Resource
+	if err := utils.FastUnmarshal(raw, &resource); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := resource.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accessmonitoring.Rule{
+		Header: &v1.ResourceHeader{
+			Kind:    resource.Kind,
+			SubKind: resource.SubKind,
+			Version: resource.Version,
+			Metadata: &v1.Metadata{
+				Name:        resource.GetMetadata().Name,
+				Namespace:   resource.GetMetadata().Namespace,
+				Description: resource.GetMetadata().Description,
+				Labels:      resource.GetMetadata().Labels,
+			},
+		},
+		Spec: resource.Spec,
+	}, nil
 }

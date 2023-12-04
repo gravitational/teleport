@@ -255,6 +255,13 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
+	// SetInactiveSince ...
+	SetInactiveSince(t time.Time)
+
+	// SetLoginStatus is foor
+	SetLoginStatus(name string, t time.Time)
+	// GetStatusUpdated
+	GetStatusUpdated() bool
 }
 
 // NewRole constructs new standard V7 role.
@@ -995,6 +1002,23 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+func (r *RoleV6) SetInactiveSince(t time.Time) {
+	r.Spec.Status.Updated = true
+	r.Spec.Status.InactiveSince = t
+}
+
+func (r *RoleV6) GetStatusUpdated() bool {
+	return r.Spec.Status.Updated
+}
+
+func (r *RoleV6) SetLoginStatus(name string, t time.Time) {
+	if r.Spec.Status.LoginsLastActive == nil {
+		r.Spec.Status.LoginsLastActive = make(map[string]string)
+	}
+	r.Spec.Status.Updated = true
+	r.Spec.Status.LoginsLastActive[name] = t.Format(time.RFC3339)
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
@@ -1828,7 +1852,7 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
 	case KindDatabase:
 		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
-	case KindDatabaseService:
+	case KindDatabaseService, KindDatabaseServer:
 		return LabelMatchers{cond.DatabaseServiceLabels, cond.DatabaseServiceLabelsExpression}, nil
 	case KindWindowsDesktop:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil

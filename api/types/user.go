@@ -128,6 +128,8 @@ type User interface {
 	IsBot() bool
 	// BotGenerationLabel returns the bot generation label.
 	BotGenerationLabel() string
+	// SetLastActive sets the last active time for the user.
+	SetLastActive(t time.Time)
 }
 
 // NewUser creates new empty user
@@ -523,6 +525,10 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
 	u.Spec.Status.LockedTime = time.Now().UTC()
+}
+
+func (u *UserV2) SetLastActive(t time.Time) {
+	u.Spec.Status.LastActive = t
 }
 
 // ResetLocks resets lock related fields to empty values.

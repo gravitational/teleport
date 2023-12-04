@@ -856,15 +856,16 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 // join attempts to connect a party to the session.
 func (s *session) join(p *party, emitJoinEvent bool) error {
+	var accessContext auth.SessionAccessContext
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
-		accessContext := auth.SessionAccessContext{
+		accessContext = auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
 			Roles:    roles,
 		}
 
-		modes := s.accessEvaluator.CanJoin(accessContext)
+		modes := s.accessEvaluator.CanJoin(&accessContext)
 		if !slices.Contains(modes, p.Mode) {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
@@ -889,7 +890,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	// tsh kube join and not when the original session owner terminal streams are
 	// connected to the Kubernetes session.
 	if emitJoinEvent {
-		s.emitSessionJoinEvent(p)
+		s.emitSessionJoinEvent(p, accessContext.UsedRoles)
 	}
 
 	recentWrites := s.io.GetRecentHistory()
@@ -983,7 +984,7 @@ func (s *session) BroadcastMessage(format string, args ...any) {
 // the session.
 // This function requires that the session must be active, otherwise audit logger
 // will discard the event.
-func (s *session) emitSessionJoinEvent(p *party) {
+func (s *session) emitSessionJoinEvent(p *party, roles []string) {
 	sessionJoinEvent := &apievents.SessionJoin{
 		Metadata: apievents.Metadata{
 			Type:        events.SessionJoinEvent,
@@ -1002,6 +1003,9 @@ func (s *session) emitSessionJoinEvent(p *party) {
 		UserMetadata:    p.Ctx.eventUserMetaWithLogin("root"),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
+		},
+		UsedRoles: &apievents.UsedRoles{
+			Roles: roles,
 		},
 	}
 

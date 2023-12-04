@@ -72,4 +72,5 @@ var OriginValues = []string{
 	OriginKubernetes,
 	OriginOkta,
 	OriginDiscoveryKubernetes,
+	"access_monitoring_rule",
 }

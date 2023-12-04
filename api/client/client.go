@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoring/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -806,6 +807,10 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // SecReportsClient returns Security client that can be used to fetch security reports.
 func (c *Client) SecReportsClient() *secreport.Client {
 	return secreport.NewClient(secreportsv1.NewSecReportsServiceClient(c.conn))
+}
+
+func (c *Client) AccessMonitoringRules() accessmonitoring.MonitoringServiceClient {
+	return accessmonitoring.NewMonitoringServiceClient(c.conn)
 }
 
 // SAMLIdPClient returns an unadorned SAML IdP client, using the underlying
@@ -4295,6 +4300,10 @@ func (c *Client) AccessListClient() *accesslist.Client {
 // DatabaseObjectImportRuleClient returns a client for managing database object import rules.
 func (c *Client) DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient {
 	return dbobjectimportrulev1.NewDatabaseObjectImportRuleServiceClient(c.conn)
+}
+
+func (c *Client) AccessMonitoringClient() accessmonitoring.MonitoringServiceClient {
+	return accessmonitoring.NewMonitoringServiceClient(c.conn)
 }
 
 // DiscoveryConfigClient returns a DiscoveryConfig client.

@@ -82,11 +82,19 @@ type sessionChunk struct {
 	// for ~7 minutes at most.
 	closeTimeout time.Duration
 
-	log *logrus.Entry
+	log       *logrus.Entry
+	usedRoles []string
 }
 
 // sessionOpt defines an option function for creating sessionChunk.
 type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Application) error
+
+func withUsedRoles(roles []string) sessionOpt {
+	return func(ctx context.Context, chunk *sessionChunk, identity *tlsca.Identity, application types.Application) error {
+		chunk.usedRoles = roles
+		return nil
+	}
+}
 
 // newSessionChunk creates a new chunk session.
 // The session chunk is created with inflight=1,
@@ -134,7 +142,7 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	}
 
 	// only emit a session chunk if we didn't get an error making the new session chunk
-	if err := sess.audit.OnSessionChunk(ctx, s.c.HostID, sess.id, identity, app); err != nil {
+	if err := sess.audit.OnSessionChunk(ctx, s.c.HostID, sess.id, sess.usedRoles, identity, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

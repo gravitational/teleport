@@ -49,8 +49,10 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -444,6 +446,26 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 //
 // Implements common.Service.
 func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
+	authPref, err := s.cfg.AuthClient.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	db := proxyCtx.Servers[0].GetDatabase()
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     db,
+		DatabaseUser: proxyCtx.Identity.RouteToDatabase.Username,
+		DatabaseName: proxyCtx.Identity.RouteToDatabase.Database,
+	})
+
+	if false {
+		// TODO(smallinsky) Check role for leaf resource access.
+		checker := services.NewAccessMonitor(proxyCtx.AuthContext.Checker, s.cfg.AuthClient)
+		if err := checker.CheckAccess(db, proxyCtx.AuthContext.GetAccessState(authPref), dbRoleMatchers...); err != nil {
+			fmt.Println("MYDEBUG access check manual failed: ", err)
+		}
+	}
+
 	var labels prometheus.Labels
 	if len(proxyCtx.Servers) > 0 {
 		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
