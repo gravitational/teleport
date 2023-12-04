@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
+	"github.com/gravitational/teleport/lib/internal/context121"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
@@ -486,6 +487,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
