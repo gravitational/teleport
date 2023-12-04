@@ -25,10 +25,9 @@ resources.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A GitHub repository where you will store your Terraform configuration. 
-- A Spacelift stack you wish to allow access to your Teleport cluster.
-- A paid Spacelift account and a Spacelift stack you wish to allow access to
-  your Teleport cluster.
+- A GitHub repository where you will store your Terraform configuration and a
+  Spacelift stack linked to this repository.
+- A paid Spacelift account. This is required to use the `spacelift` join method.
 - Your Teleport user should have the privileges to create token resources.
 
 ## Step 1/3. Create a join token for Spacelift
@@ -179,18 +178,18 @@ version: "1"
 stack_defaults:
   runner_image: public.ecr.aws/gravitational/teleport-spacelift-runner:(=teleport.version=)
   before_init:
-  - >
-    tbot start --oneshot
-      --data-dir=memory://
-      --auth-server teleport.example.com:443
-      --join-method spacelift --token example-bot
+  - |
+    tbot start --oneshot \
+      --data-dir=memory:// \
+      --auth-server teleport.example.com:443 \
+      --join-method spacelift --token example-bot \
       --destination-dir=/mnt/workspace/tbot-output
 ```
 
 Replace:
 
 - `teleport.example.com:443` with the address of your Teleport cluster.
-- `example-bot` with the name of the token you created in  the first step.
+- `example-bot` with the name of the token you created in the first step.
 
 ### Declare configuration resources
 
@@ -208,8 +207,8 @@ terraform {
 }
 
 provider "teleport" {
-  addr               = "proxy.example.com:443"
-  identity_file_path = "/mnt/workspace/auth.pem"
+  addr               = "teleport.example.com:443"
+  identity_file_path = "/mnt/workspace/tbot-output/identity"
 }
 
 resource "teleport_role" "terraform_test" {
@@ -238,7 +237,7 @@ resource "teleport_user" "terraform-test" {
 }
 ```
 
-In the `provider` block, change `proxy.example.com:443` to the host and HTTPS
+In the `provider` block, change `teleport.example.com:443` to the host and HTTPS
 port of your Teleport Proxy Service.
 
 Commit your changes and push the branch to GitHub, then open a pull request
