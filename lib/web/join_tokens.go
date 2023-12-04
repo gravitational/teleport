@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -79,9 +78,9 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
-	// automaticUpgradesVersionURL is the URL for getting the version when using the cloud/stable channel.
-	// Optional.
-	automaticUpgradesVersionURL string
+	// automaticUpgradesVersion is the channel for getting the version when using automatic upgrades
+	// Required when installUpdater is true.
+	automaticUpgradesVersion string
 }
 
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
@@ -211,11 +210,22 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
+	var autoUpgradesVersion string
+	var err error
+	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	if autoUpgrades {
+		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get auto-upgrade version")
+		}
+	}
+
 	settings := scriptSettings{
-		token:          params.ByName("token"),
-		appInstallMode: false,
-		joinMethod:     r.URL.Query().Get("method"),
-		installUpdater: automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		appInstallMode:           false,
+		joinMethod:               r.URL.Query().Get("method"),
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -252,12 +262,22 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
+	var autoUpgradesVersion string
+	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	if autoUpgrades {
+		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get auto-upgrade version")
+		}
+	}
+
 	settings := scriptSettings{
-		token:          params.ByName("token"),
-		appInstallMode: true,
-		appName:        name,
-		appURI:         uri,
-		installUpdater: automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		appInstallMode:           true,
+		appName:                  name,
+		appURI:                   uri,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -279,10 +299,21 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
+	var autoUpgradesVersion string
+	var err error
+	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	if autoUpgrades {
+		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get auto-upgrade version")
+		}
+	}
+
 	settings := scriptSettings{
-		token:               params.ByName("token"),
-		databaseInstallMode: true,
-		installUpdater:      automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		databaseInstallMode:      true,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -388,17 +419,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// The install script will install the updater (teleport-ent-updater) for Cloud customers enrolled in Automatic Upgrades.
 	// The repo channel used must be `stable/cloud` which has the available packages for the Cloud Customer's agents.
-	// It pins the teleport version to the one specified by https://updates.releases.teleport.dev/v1/stable/cloud/version
+	// It pins the teleport version to the one specified by the default version channel
 	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
 		repoChannel = stableCloudChannelRepo
-		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionURL)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		// cloudStableVersion has vX.Y.Z format, however the script expects the version to not include the `v`
-		version = strings.TrimPrefix(cloudStableVersion, "v")
+		// automaticUpgradesVersion has vX.Y.Z format, however the script expects the version to not include the `v`
+		version = strings.TrimPrefix(settings.automaticUpgradesVersion, "v")
 	}
 
 	// This section relies on Go's default zero values to make sure that the settings
