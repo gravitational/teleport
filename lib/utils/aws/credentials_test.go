@@ -64,6 +64,9 @@ func TestCachedCredentialsGetter(t *testing.T) {
 		Expiry:      fakeClock.Now().Add(time.Hour),
 		SessionName: "test-session",
 		RoleARN:     "test-role",
+		Tags: map[string]string{
+			"test": "true",
+		},
 	})
 	require.NoError(t, err)
 	checkCredentialsAccessKeyID(t, cred1, "test-session-test-role-")
@@ -73,38 +76,63 @@ func TestCachedCredentialsGetter(t *testing.T) {
 		sessionName  string
 		roleARN      string
 		externalID   string
+		tags         map[string]string
 		advanceClock time.Duration
 		compareCred1 require.ComparisonAssertionFunc
 	}{
 		{
-			name:         "cached",
-			sessionName:  "test-session",
-			roleARN:      "test-role",
+			name:        "cached",
+			sessionName: "test-session",
+			roleARN:     "test-role",
+			tags: map[string]string{
+				"test": "true",
+			},
 			compareCred1: require.Same,
 		},
 		{
-			name:         "different session name",
-			sessionName:  "test-session-2",
-			roleARN:      "test-role",
+			name:        "different session name",
+			sessionName: "test-session-2",
+			roleARN:     "test-role",
+			tags: map[string]string{
+				"test": "true",
+			},
 			compareCred1: require.NotSame,
 		},
 		{
-			name:         "different role ARN",
-			sessionName:  "test-session",
-			roleARN:      "test-role-2",
+			name:        "different role ARN",
+			sessionName: "test-session",
+			roleARN:     "test-role-2",
+			tags: map[string]string{
+				"test": "true",
+			},
 			compareCred1: require.NotSame,
 		},
 		{
-			name:         "different external ID",
-			sessionName:  "test-session",
-			roleARN:      "test-role",
-			externalID:   "test-id",
+			name:        "different external ID",
+			sessionName: "test-session",
+			roleARN:     "test-role",
+			externalID:  "test-id",
+			tags: map[string]string{
+				"test": "true",
+			},
 			compareCred1: require.NotSame,
 		},
 		{
-			name:         "cache expired",
-			sessionName:  "test-session",
-			roleARN:      "test-role",
+			name:        "different tags",
+			sessionName: "test-session",
+			roleARN:     "test-role",
+			tags: map[string]string{
+				"test": "false",
+			},
+			compareCred1: require.NotSame,
+		},
+		{
+			name:        "cache expired",
+			sessionName: "test-session",
+			roleARN:     "test-role",
+			tags: map[string]string{
+				"test": "true",
+			},
 			advanceClock: time.Hour,
 			compareCred1: require.NotSame,
 		},
@@ -120,6 +148,7 @@ func TestCachedCredentialsGetter(t *testing.T) {
 				SessionName: test.sessionName,
 				RoleARN:     test.roleARN,
 				ExternalID:  test.externalID,
+				Tags:        test.tags,
 			})
 			require.NoError(t, err)
 			checkCredentialsAccessKeyID(t, cred, fmt.Sprintf("%s-%s-%s", test.sessionName, test.roleARN, test.externalID))

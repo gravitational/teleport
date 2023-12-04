@@ -177,6 +177,7 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			AssumeRoleARN: d.AWS.AssumeRoleARN,
 			ExternalID:    d.AWS.ExternalID,
 			Region:        d.AWS.Region,
+			SessionTags:   d.AWS.SessionTags,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
 			},
@@ -264,6 +265,8 @@ type DatabaseAWS struct {
 	ExternalID string
 	// RedshiftServerless contains AWS Redshift Serverless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless
+	// SessionTags is a list of AWS STS session tags.
+	SessionTags map[string]string
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

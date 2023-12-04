@@ -2894,6 +2894,55 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "AWS DynamoDB with session tags",
+			inFlags: CommandLineFlags{
+				DatabaseName:             "ddb",
+				DatabaseProtocol:         defaults.ProtocolDynamoDB,
+				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
+				DatabaseAWSSessionTags:   "database_name=hello,something=else",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: servicecfg.DatabaseAWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
+					SessionTags: map[string]string{
+						"database_name": "hello",
+						"something":     "else",
+					},
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: servicecfg.DatabaseTLS{
+					Mode: servicecfg.VerifyFull,
+				},
+			},
+		},
+		{
+			desc: "AWS DynamoDB with dynamic session tags",
+			inFlags: CommandLineFlags{
+				DatabaseName:             "ddb",
+				DatabaseProtocol:         defaults.ProtocolDynamoDB,
+				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
+				DatabaseAWSSessionTags:   "database_name=hello,something=[1h:/bin/uname -m]",
+			},
+			outError: "database AWS Session tags cannot include dynamic labels",
+		},
 	}
 
 	for _, tt := range tests {
