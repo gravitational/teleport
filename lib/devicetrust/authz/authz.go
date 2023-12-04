@@ -83,7 +83,7 @@ func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified boo
 		log.
 			WithField("User", username).
 			Debug("Device Trust: denied access for unidentified device")
-		return ErrTrustedDeviceRequired
+		return trace.Wrap(ErrTrustedDeviceRequired)
 	default:
 		return nil
 	}

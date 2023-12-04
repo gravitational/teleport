@@ -1007,7 +1007,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 		matchers...); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
 		// Let the trusted device error through for clarity.
-		return nil, nil, services.ErrTrustedDeviceRequired
+		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
 	case err != nil:
 		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
