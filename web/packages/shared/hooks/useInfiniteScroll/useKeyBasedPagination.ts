@@ -70,74 +70,71 @@ export function useKeyBasedPagination<T>({
     });
   }, [setState]);
 
-  const fetchInternal = async (force: boolean) => {
-    const { finished, attempt, resources, startKey } = stateRef.current;
-    if (
-      finished ||
-      (!force &&
-        (pendingPromise.current ||
-          attempt.status === 'processing' ||
-          attempt.status === 'failed'))
-    ) {
-      return;
-    }
-
-    try {
-      setState({
-        ...stateRef.current,
-        attempt: { status: 'processing' },
-      });
-      abortController.current?.abort();
-      abortController.current = new AbortController();
-      const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
-      const newPromise = fetchFunc(
-        {
-          limit,
-          startKey,
-        },
-        abortController.current.signal
-      );
-      pendingPromise.current = newPromise;
-
-      const res = await newPromise;
-
-      if (pendingPromise.current !== newPromise) {
+  const fetch = useCallback(
+    async (options?: { force?: boolean }) => {
+      const { finished, attempt, resources, startKey } = stateRef.current;
+      if (
+        finished ||
+        (!options?.force &&
+          (pendingPromise.current ||
+            attempt.status === 'processing' ||
+            attempt.status === 'failed'))
+      ) {
         return;
       }
 
-      pendingPromise.current = null;
-      abortController.current = null;
-
-      setState({
-        resources: [...resources, ...res.agents],
-        startKey: res.startKey,
-        finished: !res.startKey,
-        attempt: { status: 'success' },
-      });
-    } catch (err) {
-      // Aborting is not really an error here.
-      if (isAbortError(err)) {
+      try {
         setState({
           ...stateRef.current,
-          attempt: { status: '', statusText: '' },
+          attempt: { status: 'processing' },
         });
-        return;
-      }
-      let statusCode: number | undefined;
-      if (err instanceof ApiError && err.response) {
-        statusCode = err.response.status;
-      }
-      setState({
-        ...stateRef.current,
-        attempt: { status: 'failed', statusText: err.message, statusCode },
-      });
-    }
-  };
+        abortController.current?.abort();
+        abortController.current = new AbortController();
+        const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
+        const newPromise = fetchFunc(
+          {
+            limit,
+            startKey,
+          },
+          abortController.current.signal
+        );
+        pendingPromise.current = newPromise;
 
-  const { finished, attempt, resources, startKey } = stateRef.current;
-  const fetch = useCallback(
-    (options: { force?: boolean }) => fetchInternal(!!options?.force),
-    [fetchFunc, startKey, resources, finished, attempt]
+        const res = await newPromise;
+
+        if (pendingPromise.current !== newPromise) {
+          return;
+        }
+
+        pendingPromise.current = null;
+        abortController.current = null;
+
+        setState({
+          resources: [...resources, ...res.agents],
+          startKey: res.startKey,
+          finished: !res.startKey,
+          attempt: { status: 'success' },
+        });
+      } catch (err) {
+        // Aborting is not really an error here.
+        if (isAbortError(err)) {
+          setState({
+            ...stateRef.current,
+            attempt: { status: '', statusText: '' },
+          });
+          return;
+        }
+        let statusCode: number | undefined;
+        if (err instanceof ApiError && err.response) {
+          statusCode = err.response.status;
+        }
+        setState({
+          ...stateRef.current,
+          attempt: { status: 'failed', statusText: err.message, statusCode },
+        });
+      }
+    },
+    [fetchFunc, stateRef, setState, fetchMoreSize, initialFetchSize]
   );
 
   return {
