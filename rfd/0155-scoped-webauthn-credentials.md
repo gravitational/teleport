@@ -164,12 +164,16 @@ Initially, reuse will only be permitted for the following admin action RPCs:
 - `rpc SetSessionRecordingConfig`
 - `rpc SetAuthPreference`
 - `rpc SetNetworkRestrictions`
+- `rpc CreateOIDCConnector`
+- `rpc UpdateOIDCConnector`
 - `rpc UpsertOIDCConnector`
-- `rpc CreateOIDCAuthRequest`
 - `rpc UpsertSAMLConnector`
-- `rpc CreateSAMLAuthRequest`
+- `rpc CreateSAMLConnector`
+- `rpc UpdateSAMLConnector`
+- `rpc UpsertSAMLConnector`
+- `rpc CreateGithubConnector`
+- `rpc UpdateGithubConnector`
 - `rpc UpsertGithubConnector`
-- `rpc CreateGithubAuthRequest`
 - `rpc CreateSAMLIdPServiceProvider`
 - `rpc UpdateSAMLIdPServiceProvider`
 - `rpc UpsertAccessList`
@@ -184,11 +188,26 @@ These RPCs are currently used for "bulk" requests such as:
 updates and creates at once.
 - `tctl users add` which creates a user and a reset password token for the user.
 
-This list should be kept to a minimum by opting to create new endpoints which
-contain the full string of actions when feasible.
+##### When to extend reuse
 
-Reuse should not be extended to sensitive operations, including all of the non
-admin action scopes laid out above and the following admin action endpoints:
+The list above should be kept to a minimum, but can be extended on a case by
+case basis.
+
+In many cases, it would be best to create new endpoints which contain the full
+string of actions when feasible. For example, we could replace our current add
+user flow, which calls `CreateUser` and `CreatePasswordToken`, to call a single
+`AddUser` endpoint which does both operations.
+
+Other times, it may be overly cumbersome or complicated to move an operation
+into a single endpoint. For example, it does not currently seem worth it to
+create a single `UpsertResources` endpoint to handle all cases of
+`tctl create -f multiple-resources.yaml`. Instead we call individual CRUD
+endpoints for each resource contained in the file, reusing the same Webauthn
+challenge along the way.
+
+Warning: Reuse should not be extended to sensitive operations, including all
+of the non admin action scopes laid out above and the following admin action
+endpoints:
 
 - Account recovery management
   - `rpc ChangeUserAuthentication`
@@ -205,9 +224,11 @@ admin action scopes laid out above and the following admin action endpoints:
 - CA management
   - `http rotateCertAuthority`
   - `http rotateExternalCertAuthority`
-  - `http upsertCertAuthority`
-  - `http deleteCertAuthority`
+  - `rpc upsertCertAuthority`
+  - `rpc deleteCertAuthority`
+  - `rpc DeleteCertAuthority`
 - Certificate generation
+  - `rpc GenerateHostCert`
   - `rpc GenerateHostCerts`
   - `rpc GenerateUserCerts`
   - `http createWebSession`
@@ -275,3 +296,13 @@ message MFAVerificationEvent {
   string scope = 3;
 }
 ```
+
+## Additional
+
+### TOTP
+
+This RFD does not cover adding scope for TOTP. However, if necessary, we could
+extend this RFD to TOTP by creating some TOTP session data in the backend to
+match the webauthn session data flow. This TOTP session would just hold the
+scope and whether reuse is allowed. This TOTP session would replace the
+existing "Used TOTP token" we store in the backend.
