@@ -401,7 +401,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(s.cfg.Heartbeat.ADHosts) == 0 && len(s.cfg.Heartbeat.NonADHosts) == 0 {
+	} else if len(s.cfg.Heartbeat.ADHosts)+len(s.cfg.Heartbeat.NonADHosts)+len(s.cfg.Heartbeat.StaticHosts) == 0 {
 		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
