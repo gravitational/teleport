@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -30,6 +32,7 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -45,6 +49,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2538,32 +2543,42 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 	return roles, nil
 }
 
+// GenerateHostCert
+// TODO(noah): DELETE IN 16.0
+// Deprecated: use [trustv1.Service.GenerateHostCert] instead.
 func (a *ServerWithRoles) GenerateHostCert(
-	ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+	ctx context.Context,
+	key []byte,
+	hostID, nodeName string,
+	principals []string,
+	clusterName string,
+	role types.SystemRole,
+	ttl time.Duration,
 ) ([]byte, error) {
-	serviceContext := services.Context{
-		User: a.context.User,
-		HostCert: &services.HostCertContext{
-			HostID:      hostID,
-			NodeName:    nodeName,
-			Principals:  principals,
-			ClusterName: clusterName,
-			Role:        role,
-			TTL:         ttl,
-		},
-	}
-
-	// Instead of the usual RBAC checks, we'll manually call CheckAccessToRule
-	// here as we'll be evaluating `where` predicates with a custom RuleContext
-	// to expose cert request fields.
-	// We've only got a single verb to check so luckily it's pretty concise.
-	if err := a.withOptions().context.Checker.CheckAccessToRule(
-		&serviceContext, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
-	); err != nil {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:      a.authServer.Cache,
+		Backend:    a.authServer.Services,
+		AuthServer: a.authServer,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+	resp, err := trust.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+		Key:         key,
+		HostId:      hostID,
+		NodeName:    nodeName,
+		Principals:  principals,
+		ClusterName: clusterName,
+		Role:        string(role),
+		Ttl:         durationpb.New(ttl),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.SshCertificate, nil
 }
 
 // desiredAccessInfo inspects the current request to determine which access
@@ -3184,22 +3199,22 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().OIDC {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
-		return trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	err := a.authServer.UpsertOIDCConnector(ctx, connector)
-	return trace.Wrap(err)
+	upserted, err := a.authServer.UpsertOIDCConnector(ctx, connector)
+	return upserted, trace.Wrap(err)
 }
 
 // UpdateOIDCConnector updates an existing OIDC connector.
@@ -3319,20 +3334,20 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	if !modules.GetModules().Features().SAML {
-		return trace.Wrap(ErrSAMLRequiresEnterprise)
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err := a.authServer.UpsertSAMLConnector(ctx, connector)
-	return trace.Wrap(err)
+	upserted, err := a.authServer.UpsertSAMLConnector(ctx, connector)
+	return upserted, trace.Wrap(err)
 }
 
 // CreateSAMLConnector creates a new SAML connector.
@@ -3491,19 +3506,19 @@ func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) 
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
-func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.checkGithubConnector(connector); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err := a.authServer.upsertGithubConnector(ctx, connector)
-	return trace.Wrap(err)
+	upserted, err := a.authServer.upsertGithubConnector(ctx, connector)
+	return upserted, trace.Wrap(err)
 }
 
 // CreateGithubConnector creates a new Github connector.

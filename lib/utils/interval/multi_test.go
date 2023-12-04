@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package interval
 
@@ -173,9 +177,15 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 		}
 	}
 	require.Equal(t, 60, fooct+barct, "fooct=%d, barct=%d", fooct, barct)
-	// intervals should be firing at the same rate but permit ~10% error to
-	// help reduce flakiness in resource-constrained testing environments.
-	require.InDelta(t, fooct, barct, 6)
+	// intervals should be firing at the same rate, but since this test involves concurrent
+	// timing it is *very* inconsistent when running on our test infra. Instead, assert that
+	// nether value is more than 2x the other. In combination with the other conditions checked
+	// further down, this will let us verify with reasonable certainty that increasing the variable
+	// duration does increase firing frequency as expected. The exact nature of the change is
+	// covered by other unit tests that don't rely on timing. This is just a sanity check to
+	// verify that the deterministic tests aren't passing in error (e.g. checking a duration
+	// value that isn't actually being used to calculate the final tick rate).
+	require.InDelta(t, fooct, barct, 20)
 
 	foo.counter.Store(2)
 	bar.counter.Store(200_000)

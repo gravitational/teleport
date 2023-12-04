@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package externalauditstorage_test
 
@@ -28,18 +30,29 @@ import (
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	eastypes "github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 )
 
 func TestBootstrapInfra(t *testing.T) {
+	t.Parallel()
+	goodSpec := &eastypes.ExternalAuditStorageSpec{
+		SessionRecordingsURI:   "s3://long-term-storage-bucket/session",
+		AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
+		AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
+		AthenaWorkgroup:        "teleport-workgroup",
+		GlueDatabase:           "teleport-database",
+		GlueTable:              "audit-events",
+	}
 	tt := []struct {
-		desc      string
-		region    string
-		eca       *ecatypes.ExternalAuditStorageSpec
-		errWanted string
+		desc                     string
+		region                   string
+		spec                     *eastypes.ExternalAuditStorageSpec
+		errWanted                string
+		locationConstraintWanted s3types.BucketLocationConstraint
 	}{
 		{
 			desc:      "nil input",
@@ -49,32 +62,52 @@ func TestBootstrapInfra(t *testing.T) {
 		{
 			desc:      "empty region input",
 			errWanted: "param Region required",
-			eca: &ecatypes.ExternalAuditStorageSpec{
-				SessionRecordingsURI:   "s3://long-term-storage-bucket/session",
-				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
-				AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
-				AthenaWorkgroup:        "teleport-workgroup",
-				GlueDatabase:           "teleport-database",
-				GlueTable:              "audit-events",
-			},
+			spec:      goodSpec,
 		},
 		{
-			desc:   "standard input",
-			region: "us-west-2",
-			eca: &ecatypes.ExternalAuditStorageSpec{
-				SessionRecordingsURI:   "s3://long-term-storage-bucket/session",
-				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
-				AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
-				AthenaWorkgroup:        "teleport-workgroup",
-				GlueDatabase:           "teleport-database",
-				GlueTable:              "audit-events",
-			},
+			desc:                     "us-west-2",
+			region:                   "us-west-2",
+			spec:                     goodSpec,
+			locationConstraintWanted: s3types.BucketLocationConstraintUsWest2,
+		},
+		{
+			desc:   "us-east-1",
+			region: "us-east-1",
+			spec:   goodSpec,
+			// No location constraint wanted for us-east-1 because it is the
+			// default and AWS has decided, in all their infinite wisdom, that
+			// the CreateBucket API should fail if you explicitly pass the
+			// default location constraint.
+		},
+		{
+			desc:                     "eu-central-1",
+			region:                   "eu-central-1",
+			spec:                     goodSpec,
+			locationConstraintWanted: s3types.BucketLocationConstraintEuCentral1,
+		},
+		{
+			desc:                     "ap-south-1",
+			region:                   "ap-south-1",
+			spec:                     goodSpec,
+			locationConstraintWanted: s3types.BucketLocationConstraintApSouth1,
+		},
+		{
+			desc:                     "ap-southeast-1",
+			region:                   "ap-southeast-1",
+			spec:                     goodSpec,
+			locationConstraintWanted: s3types.BucketLocationConstraintApSoutheast1,
+		},
+		{
+			desc:                     "sa-east-1",
+			region:                   "sa-east-1",
+			spec:                     goodSpec,
+			locationConstraintWanted: s3types.BucketLocationConstraintSaEast1,
 		},
 		{
 			desc:      "invalid input transient and long-term share same bucket name",
 			errWanted: "athena results bucket URI must not match audit events or session bucket URI",
 			region:    "us-west-2",
-			eca: &ecatypes.ExternalAuditStorageSpec{
+			spec: &eastypes.ExternalAuditStorageSpec{
 				SessionRecordingsURI:   "s3://long-term-storage-bucket/session",
 				AuditEventsLongTermURI: "s3://long-term-storage-bucket/events",
 				AthenaResultsURI:       "s3://long-term-storage-bucket/query_results",
@@ -87,7 +120,7 @@ func TestBootstrapInfra(t *testing.T) {
 			desc:      "invalid input audit events and session recordings have different URIs",
 			errWanted: "audit events bucket URI must match session bucket URI",
 			region:    "us-west-2",
-			eca: &ecatypes.ExternalAuditStorageSpec{
+			spec: &eastypes.ExternalAuditStorageSpec{
 				SessionRecordingsURI:   "s3://long-term-storage-bucket-sessions/session",
 				AuditEventsLongTermURI: "s3://long-term-storage-bucket-events/events",
 				AthenaResultsURI:       "s3://transient-storage-bucket/query_results",
@@ -101,14 +134,14 @@ func TestBootstrapInfra(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.desc, func(t *testing.T) {
 			testCtx := context.Background()
-			s3Clt := &mockBootstrapS3Client{buckets: map[string]struct{}{}}
+			s3Clt := &mockBootstrapS3Client{buckets: make(map[string]bucket)}
 			athenaClt := &mockBootstrapAthenaClient{}
 			glueClt := &mockBootstrapGlueClient{}
 			err := externalauditstorage.BootstrapInfra(testCtx, externalauditstorage.BootstrapInfraParams{
 				Athena: athenaClt,
 				Glue:   glueClt,
 				S3:     s3Clt,
-				Spec:   tc.eca,
+				Spec:   tc.spec,
 				Region: tc.region,
 			})
 			if tc.errWanted != "" {
@@ -118,30 +151,34 @@ func TestBootstrapInfra(t *testing.T) {
 				require.NoError(t, err, "an unexpected error occurred in BootstrapInfra")
 			}
 
-			ltsBucket, err := url.Parse(tc.eca.AuditEventsLongTermURI)
+			ltsBucket, err := url.Parse(tc.spec.AuditEventsLongTermURI)
 			require.NoError(t, err)
 
-			transientBucket, err := url.Parse(tc.eca.AthenaResultsURI)
+			transientBucket, err := url.Parse(tc.spec.AthenaResultsURI)
 			require.NoError(t, err)
 
-			if _, ok := s3Clt.buckets[ltsBucket.Host]; !ok {
+			if b, ok := s3Clt.buckets[ltsBucket.Host]; ok {
+				assert.Equal(t, tc.locationConstraintWanted, b.locationConstraint)
+			} else {
 				t.Fatalf("Long-term bucket: %s not created by bootstrap infra", ltsBucket.Host)
 			}
 
-			if _, ok := s3Clt.buckets[transientBucket.Host]; !ok {
+			if b, ok := s3Clt.buckets[transientBucket.Host]; ok {
+				assert.Equal(t, tc.locationConstraintWanted, b.locationConstraint)
+			} else {
 				t.Fatalf("Transient bucket: %s not created by bootstrap infra", transientBucket.Host)
 			}
 
-			require.Equal(t, glueClt.database, tc.eca.GlueDatabase)
-			require.Equal(t, glueClt.table, tc.eca.GlueTable)
-			require.Equal(t, athenaClt.workgroup, tc.eca.AthenaWorkgroup)
+			assert.Equal(t, tc.spec.GlueDatabase, glueClt.database)
+			assert.Equal(t, tc.spec.GlueTable, glueClt.table)
+			assert.Equal(t, tc.spec.AthenaWorkgroup, athenaClt.workgroup)
 
 			// Re-run bootstrap
-			require.NoError(t, externalauditstorage.BootstrapInfra(testCtx, externalauditstorage.BootstrapInfraParams{
+			assert.NoError(t, externalauditstorage.BootstrapInfra(testCtx, externalauditstorage.BootstrapInfraParams{
 				Athena: athenaClt,
 				Glue:   glueClt,
 				S3:     s3Clt,
-				Spec:   tc.eca,
+				Spec:   tc.spec,
 				Region: tc.region,
 			}))
 		})
@@ -149,7 +186,11 @@ func TestBootstrapInfra(t *testing.T) {
 }
 
 type mockBootstrapS3Client struct {
-	buckets map[string]struct{}
+	buckets map[string]bucket
+}
+
+type bucket struct {
+	locationConstraint s3types.BucketLocationConstraint
 }
 
 type mockBootstrapAthenaClient struct {
@@ -167,7 +208,13 @@ func (c *mockBootstrapS3Client) CreateBucket(ctx context.Context, params *s3.Cre
 		return nil, &s3types.BucketAlreadyExists{Message: aws.String("The bucket already exists")}
 	}
 
-	c.buckets[*params.Bucket] = struct{}{}
+	var locationConstraint s3types.BucketLocationConstraint
+	if params.CreateBucketConfiguration != nil {
+		locationConstraint = params.CreateBucketConfiguration.LocationConstraint
+	}
+	c.buckets[*params.Bucket] = bucket{
+		locationConstraint: locationConstraint,
+	}
 
 	return &s3.CreateBucketOutput{}, nil
 }

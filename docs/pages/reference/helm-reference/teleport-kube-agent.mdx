@@ -1993,6 +1993,19 @@ securityContext:
 
 To unset the security context, set it to `null` or `~`.
 
+## `podSecurityContext`
+
+[Pod security context](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
+to set for the main Teleport container.
+Defaults to:
+
+```yaml
+podSecurityContext:
+  fsGroup: 9807
+```
+
+To unset the security context, set it to `null` or `~`.
+
 ## `tolerations`
 
 | Type   | Default value |

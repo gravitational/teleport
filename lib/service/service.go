@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package service implements teleport running service, takes care
 // of initialization, cleanup and shutdown procedures
@@ -1960,7 +1962,10 @@ func (process *TeleportProcess) initAuthService() error {
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
-		DisableDeviceAuthorization: true,
+		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			DisableGlobalMode: true,
+			DisableRoleMode:   true,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5288,8 +5293,11 @@ func (process *TeleportProcess) initApps() {
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
 			Logger:      log,
-			// Device authorization breaks browser-based access.
-			DisableDeviceAuthorization: true,
+			DeviceAuthorization: authz.DeviceAuthorizationOpts{
+				// Ignore the global device_trust.mode toggle, but allow role-based
+				// settings to be applied.
+				DisableGlobalMode: true,
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
