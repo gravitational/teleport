@@ -677,7 +677,9 @@ func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 		return nil, trace.Wrap(err)
 	}
 
-	proxyPong, err := webclient.Ping(&webclient.Config{
+	// We use find instead of Ping as it's less resource intense and we can
+	// ping the AuthServer directly for its configuration if necessary.
+	proxyPong, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: authPong.ProxyPublicAddr,
 		Insecure:  drc.cfg.Insecure,
