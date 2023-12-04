@@ -72,7 +72,14 @@ message SessionData {
 +  bool AllowReuse = 7 [(gogoproto.jsontag) = "allow_reuse,omitempty"];
 }
 
+
+
 +// Scope is a scope authorized by a webauthn challenge resolution.
++//
++// Note: New scopes can be added to cover new use cases, or to split existing
++// scopes into more granular scopes. For example, passwordless and headless login
++// could be included under the "login" scope, but splitting them into their own
++// scopes improves the security of each.
 +enum ChallengeScope {
 +  SCOPE_UNSPECIFIED = 0;
 +  // Standard webauthn login.
