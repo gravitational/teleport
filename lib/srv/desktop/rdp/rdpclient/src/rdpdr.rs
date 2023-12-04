@@ -85,7 +85,7 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         // feature, so we should never receive a drive IO request. However this check acts as a
         // safeguard in case of a server bug or some other anomalous behavior.
         if self.allow_directory_sharing {
-            self.fs.handle(req)
+            self.fs.handle_rdp_drive_io_request(req)
         } else {
             Err(custom_err!(
                 "TeleportRdpdrBackend::handle_drive_io_request",
