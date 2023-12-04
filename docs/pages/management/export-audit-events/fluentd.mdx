@@ -14,23 +14,9 @@ This guide also serves as an explanation for the Teleport Event Handler plugin,
 using Fluentd as the target service. We'll create a local Docker container as a
 destination for the Event Handler:
 
-```mermaid
- graph LR
-subgraph workstation [fa:fa-laptop Workstation]
-    style workstation fill:#C0C0C0,stroke: #000000
-    direction LR
-    c(teleport-event-handler)
-    style c fill: #a379ff,color: #ffffff
-    subgraph Docker
-        style Docker fill:#0db7ed,stroke: #000000
-        d(fluentd)
-    end
-    c-->d
-end
-e(Teleport)
-style e fill: #844cff,color: #ffffff
-e-->c
-```
+<Figure width="600">
+![The Teleport Fluentd plugin](../../../img/enterprise/plugins/fluentd-diagram.png)
+</Figure>
 
 You can follow the instructions below for a local proof-of-concept demo, or use any
 of the additional installation instructions to configure the Teleport Event Handler
