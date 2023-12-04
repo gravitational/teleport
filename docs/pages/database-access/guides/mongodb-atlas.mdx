@@ -266,14 +266,7 @@ $ tsh db ls
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect mongodb-atlas
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db connect --db-user=alice mongodb-atlas
+$ tsh db connect --db-user=alice --db-name dev mongodb-atlas
 ```
 
 <Admonition type="note" title="Preparing your client environment">
