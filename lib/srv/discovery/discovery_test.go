@@ -754,8 +754,8 @@ func TestDiscoveryKube(t *testing.T) {
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
 
-			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
-			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
@@ -766,6 +766,101 @@ func TestDiscoveryKube(t *testing.T) {
 					return reporter.EventsCount() != 0
 				}, time.Second, 100*time.Millisecond)
 			}
+		})
+	}
+}
+
+func TestDiscoveryServer_New(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc                string
+		cloudClients        cloud.Clients
+		matchers            []types.AWSMatcher
+		errAssertion        require.ErrorAssertionFunc
+		discServerAssertion require.ValueAssertionFunc
+	}{
+		{
+			desc:         "no matchers error",
+			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers configured for discovery"})
+			},
+			discServerAssertion: require.Nil,
+		},
+		{
+			desc:         "success with EKS matcher",
+			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}, EKS: &mocks.EKSMock{}},
+			matchers: []types.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
+					},
+				},
+			},
+			errAssertion: require.NoError,
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				val, ok := i.(*Server)
+				require.True(t, ok)
+				require.Len(t, val.kubeFetchers, 1, "unexpected amount of kube fetchers")
+			},
+		},
+		{
+			desc: "EKS fetcher is skipped on initialization error (missing region)",
+			cloudClients: &cloud.TestCloudClients{
+				STS: &mocks.STSMock{},
+				EKS: &mocks.EKSMock{},
+			},
+			matchers: []types.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
+					},
+				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"staging"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::55555555555:role/teleport-role",
+						ExternalID: "external-id2",
+					},
+				},
+			},
+			errAssertion: require.NoError,
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				val, ok := i.(*Server)
+				require.True(t, ok)
+				require.Len(t, val.kubeFetchers, 1, "unexpected amount of kube fetchers")
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			discServer, err := New(
+				ctx,
+				&Config{
+					Clients:     nil,
+					AccessPoint: newFakeAccessPoint(),
+					AWSMatchers: tt.matchers,
+					Emitter:     &mockEmitter{},
+				})
+
+			tt.errAssertion(t, err)
+			tt.discServerAssertion(t, discServer)
 		})
 	}
 }
@@ -1921,5 +2016,33 @@ func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster t
 
 func (f *fakeAccessPoint) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
 	f.upsertedServerInfos <- si
+	return nil
+}
+
+func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return newFakeWatcher(), nil
+}
+
+type fakeWatcher struct {
+}
+
+func newFakeWatcher() fakeWatcher {
+
+	return fakeWatcher{}
+}
+
+func (m fakeWatcher) Events() <-chan types.Event {
+	return make(chan types.Event)
+}
+
+func (m fakeWatcher) Done() <-chan struct{} {
+	return make(chan struct{})
+}
+
+func (m fakeWatcher) Close() error {
+	return nil
+}
+
+func (m fakeWatcher) Error() error {
 	return nil
 }

@@ -29,6 +29,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -39,12 +40,24 @@ const (
 
 type eksFetcher struct {
 	EKSFetcherConfig
+
+	mu     sync.Mutex
+	client eksiface.EKSAPI
+}
+
+// EKSClientGetter is an interface for getting an EKS client.
+type EKSClientGetter interface {
+	// GetAWSEKSClient returns AWS EKS client for the specified region.
+	GetAWSEKSClient(ctx context.Context, region string, opts ...cloud.AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error)
 }
 
 // EKSFetcherConfig configures the EKS fetcher.
 type EKSFetcherConfig struct {
-	// Client is the AWS eKS client.
-	Client eksiface.EKSAPI
+	// EKSClientGetter retrieves an EKS client.
+	EKSClientGetter EKSClientGetter
+	// AssumeRole provides a role ARN and ExternalID to assume an AWS role
+	// when fetching clusters.
+	AssumeRole types.AssumeRole
 	// Region is the region where the clusters should be located.
 	Region string
 	// FilterLabels are the filter criteria.
@@ -55,8 +68,8 @@ type EKSFetcherConfig struct {
 
 // CheckAndSetDefaults validates and sets the defaults values.
 func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
-	if c.Client == nil {
-		return trace.BadParameter("missing Client field")
+	if c.EKSClientGetter == nil {
+		return trace.BadParameter("missing EKSClientGetter field")
 	}
 	if len(c.Region) == 0 {
 		return trace.BadParameter("missing Region field")
@@ -78,7 +91,31 @@ func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &eksFetcher{cfg}, nil
+	return &eksFetcher{EKSFetcherConfig: cfg}, nil
+}
+
+func (a *eksFetcher) getClient(ctx context.Context) (eksiface.EKSAPI, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.client != nil {
+		return a.client, nil
+	}
+
+	client, err := a.EKSClientGetter.GetAWSEKSClient(
+		ctx,
+		a.Region,
+		cloud.WithAssumeRole(
+			a.AssumeRole.RoleARN,
+			a.AssumeRole.ExternalID,
+		),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.client = client
+
+	return a.client, nil
 }
 
 func (a *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
@@ -104,7 +141,12 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 	)
 	group.SetLimit(concurrencyLimit)
 
-	err := a.Client.ListClustersPagesWithContext(ctx,
+	client, err := a.getClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed getting AWS EKS client")
+	}
+
+	err = client.ListClustersPagesWithContext(ctx,
 		&eks.ListClustersInput{
 			Include: nil, // For now we should only list EKS clusters
 		},
@@ -159,7 +201,12 @@ func (a *eksFetcher) String() string {
 // If any cluster does not match the filtering criteria, this function returns a “trace.CompareFailed“ error
 // to distinguish filtering and operational errors.
 func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName string) (types.KubeCluster, error) {
-	rsp, err := a.Client.DescribeClusterWithContext(
+	client, err := a.getClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed getting AWS EKS client")
+	}
+
+	rsp, err := client.DescribeClusterWithContext(
 		ctx,
 		&eks.DescribeClusterInput{
 			Name: aws.String(clusterName),
