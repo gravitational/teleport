@@ -41,7 +41,6 @@ import (
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
 	start := time.Now()
-	defer func() { h.Infof("Upload created in %v.", time.Since(start)) }()
 
 	input := &s3.CreateMultipartUploadInput{
 		Bucket: aws.String(h.Bucket),
@@ -60,18 +59,16 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return nil, trace.Wrap(awsutils.ConvertS3Error(err), "CreateMultiPartUpload session(%v)", sessionID)
 	}
 
+	h.Infof("Upload for session %v created in %v.", sessionID, time.Since(start))
 	return &events.StreamUpload{SessionID: sessionID, ID: *resp.UploadId}, nil
 }
 
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	start := time.Now()
-	defer func() {
-		h.Infof("UploadPart(upload %v) part(%v) session(%v) uploaded in %v.", upload.ID, partNumber, upload.SessionID, time.Since(start))
-	}()
 
 	// This upload exceeded maximum number of supported parts, error now.
 	if partNumber > s3manager.MaxUploadParts {
@@ -89,9 +86,11 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return nil, trace.Wrap(awsutils.ConvertS3Error(err),
+			"UploadPart(upload %v) part(%v) session(%v)", upload.ID, partNumber, upload.SessionID)
 	}
 
+	h.Infof("UploadPart(upload %v) part(%v) session(%v) uploaded in %v.", upload.ID, partNumber, upload.SessionID, time.Since(start))
 	return &events.StreamPart{ETag: *resp.ETag, Number: partNumber}, nil
 }
 
@@ -123,7 +122,6 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	start := time.Now()
-	defer func() { h.Infof("UploadPart(%v) completed in %v.", upload.ID, time.Since(start)) }()
 
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
@@ -146,8 +144,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	_, err := h.client.CompleteMultipartUploadWithContext(ctx, params)
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return trace.Wrap(awsutils.ConvertS3Error(err),
+			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
 	}
+
+	h.Infof("Upload %v completed in %v", upload.ID, time.Since(start))
 	return nil
 }
 
