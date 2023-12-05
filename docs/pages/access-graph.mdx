@@ -82,6 +82,27 @@ Teleport Access Graph divides your infrastructure into five main components:
     Resources are the things that users can or cannot access. They can be
     servers, databases, or Kubernetes clusters.
 
+## Graph paths
+
+Teleport Access Graph shows the relationships between users, roles, and
+resources. It does this by showing paths between nodes. Paths are the
+relationships between nodes. Paths can be divided into two categories:
+
+1. Allow paths
+
+    ![Allow Path](../img/access-graph/allow-path.png)
+
+    Allow paths connect users to resources. They show what a user can access
+    and what actions they can perform.
+
+2. Deny paths
+
+      ![Deny Path](../img/access-graph/deny-path.png)
+
+      Deny paths connect users to resources. They show what a user cannot access
+      and what actions they cannot perform. Deny paths take precedence over allow
+      paths.
+
 ## How to use it
 
 Teleport Access Graph can help you to answer questions like:
