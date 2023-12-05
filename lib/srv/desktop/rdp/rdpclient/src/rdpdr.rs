@@ -117,6 +117,13 @@ impl TeleportRdpdrBackend {
     ) -> PduResult<()> {
         self.fs.handle_tdp_sd_list_response(tdp_resp)
     }
+
+    pub fn handle_tdp_sd_read_response(
+        &mut self,
+        tdp_resp: tdp::SharedDirectoryReadResponse,
+    ) -> PduResult<()> {
+        self.fs.handle_tdp_sd_read_response(tdp_resp)
+    }
 }
 
 /// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
