@@ -216,6 +216,29 @@ func TestRootHostUsers(t *testing.T) {
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
 		requireUserInGroups(t, u, testGroups)
+		require.NotEmpty(t, u.HomeDir)
+		require.DirExists(t, u.HomeDir)
+
+		require.NoError(t, closer.Close())
+		_, err = user.Lookup(testuser)
+		require.Equal(t, err, user.UnknownUserError(testuser))
+		require.NoDirExists(t, u.HomeDir)
+	})
+
+	t.Run("test create temporary user without home dir", func(t *testing.T) {
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+
+		testGroups := []string{"group1", "group2"}
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
+		require.NoError(t, err)
+
+		testGroups = append(testGroups, types.TeleportServiceGroup)
+		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, testGroups))
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+		requireUserInGroups(t, u, testGroups)
+		require.NoDirExists(t, u.HomeDir)
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)

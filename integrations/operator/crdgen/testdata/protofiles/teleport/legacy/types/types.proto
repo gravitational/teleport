@@ -2455,6 +2455,9 @@ enum CreateHostUserMode {
   HOST_USER_MODE_DROP = 2;
   // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
   HOST_USER_MODE_KEEP = 3;
+  // HOST_USER_MODE_INSECURE enables host user creation without a home directory and deletes
+  // users at session end.
+  HOST_USER_MODE_INSECURE_DROP = 4;
 }
 
 // RoleOptions is a set of role options
