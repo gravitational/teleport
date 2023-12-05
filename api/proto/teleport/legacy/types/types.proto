@@ -687,6 +687,9 @@ message InstanceSpecV1 {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
+
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of

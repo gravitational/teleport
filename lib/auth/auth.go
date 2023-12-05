@@ -582,7 +582,10 @@ var (
 			Name:      teleport.MetricUpgraderCounts,
 			Help:      "Tracks the number of instances advertising each upgrader",
 		},
-		[]string{teleport.TagUpgrader},
+		[]string{
+			teleport.TagUpgrader,
+			teleport.TagVersion,
+		},
 	)
 
 	accessRequestsCreatedMetric = prometheus.NewCounterVec(
@@ -1117,8 +1120,14 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// set instance metric values
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-	for _, upgrader := range []string{types.UpgraderKindKubeController, types.UpgraderKindSystemdUnit} {
-		upgraderCountsMetric.WithLabelValues(upgrader).Set(float64(imp.InstancesWithUpgrader(upgrader)))
+
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
+		}
 	}
 
 	// create/delete upgrade enroll prompt as appropriate
