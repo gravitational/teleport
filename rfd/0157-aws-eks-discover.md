@@ -133,8 +133,8 @@ identityProviders:
     type: oidc
     issuerUrl: https://teleport.example.com
     clientId: kubernetes
-    usernameClaim: email
-    groupsClaim: sub
+    usernameClaim: teleport-eks-oidc-user
+    groupsClaim: teleport-eks-oidc-groups
 ```
 
 To access the target EKS cluster in API mode, we will generate an access token using the associated OIDC provider.
@@ -168,13 +168,23 @@ message UIDiscoverEKSClusterEnrollEvent {
 
 ## Security
 
-New permissions will be required for the AWS OIDC integration to perform the necessary tasks. It will need
-to be able to list EKS clusters as well as associate an OIDC provider with them. An associated OIDC provider can
-generate authentication tokens that give full control over the cluster. We will only use those tokens to
-perform the initial installation of the `teleport-kube-agent` Helm chart. The agent itself will be configured with
-the standard service account permissions it requires. After the Helm chart installation succeeds, Teleport doesn't need
-to have an OIDC provider associated with the enrolled EKS cluster, and clients can remove the association or even put
-a block on OIDC provider association for the cluster if they want.
+New permissions will be required for the AWS OIDC integration to perform the necessary tasks. It will need 
+to be able to list EKS clusters as well as associate an OIDC provider with them. An associated OIDC provider 
+can generate authentication tokens that give full control over the cluster, so a careful approach to their 
+security should be taken.
+
+Tokens will be signed by a dedicated OIDC Certificate Authority (which already exists and is used for 
+AWS integration communications), ensuring that tokens don't overlap with regular CAs access by the users, 
+like the User CA or JWTSigner CA. The audience field value `kubernetes` will also be unique to this type of token. 
+And also user/group claim field names, such as `teleport-eks-oidc-groups`, will specify them as used for this purpose only.
+
+End users will never have access to the process of generating these tokens; we will use them only to perform the 
+initial installation of the `teleport-kube-agent` Helm chart. The agent itself will be configured with the standard 
+service account permissions it requires.
+
+After the Helm chart installation succeeds, Teleport will no longer need to have an OIDC provider associated with 
+the enrolled EKS cluster. Clients can then remove the association or even impose a block on OIDC provider 
+associations for the cluster if they wish.
 
 ## Future considerations
 
