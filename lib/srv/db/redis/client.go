@@ -1,21 +1,20 @@
 /*
-
- Copyright 2022 Gravitational, Inc.
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package redis
 
@@ -30,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -143,6 +143,10 @@ type onClientConnectFunc func(context.Context, *redis.Conn) error
 // fetchCredentialsFunc fetches credentials for a new connection.
 type fetchCredentialsFunc func(ctx context.Context) (username, password string, err error)
 
+func noopOnConnect(context.Context, *redis.Conn) error {
+	return nil
+}
+
 // authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
 // with provided username and password.
 func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
@@ -161,11 +165,11 @@ func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Sess
 	return func(ctx context.Context, conn *redis.Conn) error {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 			services.AccessState{MFAVerified: true},
-			role.DatabaseRoleMatchers(
-				sessionCtx.Database,
-				sessionCtx.DatabaseUser,
-				sessionCtx.DatabaseName,
-			)...)
+			role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:     sessionCtx.Database,
+				DatabaseUser: sessionCtx.DatabaseUser,
+				DatabaseName: sessionCtx.DatabaseName,
+			})...)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -223,6 +227,31 @@ func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) 
 				sessionCtx.DatabaseUser, err)
 		}
 		return sessionCtx.DatabaseUser, password, nil
+	}
+}
+
+// memorydbIAMTokenFetchFunc fetches an AWS MemoryDB IAM auth token.
+func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
+	return func(ctx context.Context) (string, string, error) {
+		password, err := auth.GetMemoryDBToken(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.AccessDenied(
+				"failed to get AWS MemoryDB IAM auth token for %v: %v",
+				sessionCtx.DatabaseUser, err)
+		}
+		return sessionCtx.DatabaseUser, password, nil
+	}
+}
+
+func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCredentialsFunc, error) {
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		return elasticacheIAMTokenFetchFunc(sessionCtx, auth), nil
+	case types.DatabaseTypeMemoryDB:
+		return memorydbIAMTokenFetchFunc(sessionCtx, auth), nil
+	default:
+		// If this happens it means something wrong with our implementation.
+		return nil, trace.BadParameter("database type %q not supported for AWS IAM Auth", sessionCtx.Database.GetType())
 	}
 }
 

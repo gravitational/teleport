@@ -1,18 +1,20 @@
-/*
-Copyright 2019-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { lazy } from 'react';
 
@@ -41,7 +43,7 @@ import {
 
 import cfg from 'teleport/config';
 
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import {
   ManagementSection,
@@ -123,7 +125,7 @@ export class FeatureNodes implements TeleportFeature {
     },
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   category = NavigationCategory.Resources;
 
@@ -149,12 +151,12 @@ export class FeatureUnifiedResources implements TeleportFeature {
     },
   };
 
-  hideFromNavigation = !localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = !storageService.areUnifiedResourcesEnabled();
 
   category = NavigationCategory.Resources;
 
   hasAccess() {
-    return true;
+    return !cfg.isDashboard;
   }
 }
 
@@ -168,7 +170,7 @@ export class FeatureApps implements TeleportFeature {
     component: Applications,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.applications;
@@ -194,7 +196,7 @@ export class FeatureKubes implements TeleportFeature {
     component: Kubes,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.kubernetes;
@@ -220,7 +222,7 @@ export class FeatureDatabases implements TeleportFeature {
     component: Databases,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.databases;
@@ -246,7 +248,7 @@ export class FeatureDesktops implements TeleportFeature {
     component: Desktops,
   };
 
-  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.desktops;
@@ -323,7 +325,7 @@ export class FeatureUsers implements TeleportFeature {
 
 export class FeatureRoles implements TeleportFeature {
   category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+  section = ManagementSection.Permissions;
 
   route = {
     title: 'Manage User Roles',
@@ -689,11 +691,13 @@ export function getOSSFeatures(): TeleportFeature[] {
 
     // - Access
     new FeatureUsers(),
-    new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
+
+    // - Permissions
+    new FeatureRoles(),
 
     // - Identity
     new FeatureLocks(),

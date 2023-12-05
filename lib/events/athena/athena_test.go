@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package athena
 
@@ -148,15 +152,17 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		backend.Backend
 	}
 
+	dummyAWSCfg := &aws.Config{}
 	validConfig := Config{
-		Database:      "db",
-		TableName:     "tbl",
-		TopicARN:      "arn:topic",
-		LargeEventsS3: "s3://large-payloads-bucket",
-		LocationS3:    "s3://events-bucket",
-		QueueURL:      "https://queue-url",
-		AWSConfig:     &aws.Config{},
-		Backend:       mockBackend{},
+		Database:                   "db",
+		TableName:                  "tbl",
+		TopicARN:                   "arn:topic",
+		LargeEventsS3:              "s3://large-payloads-bucket",
+		LocationS3:                 "s3://events-bucket",
+		QueueURL:                   "https://queue-url",
+		PublisherConsumerAWSConfig: dummyAWSCfg,
+		Backend:                    mockBackend{},
+		metrics:                    &athenaMetrics{},
 	}
 	tests := []struct {
 		name    string
@@ -170,19 +176,20 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				return validConfig
 			},
 			want: Config{
-				Database:                "db",
-				TableName:               "tbl",
-				TopicARN:                "arn:topic",
-				LargeEventsS3:           "s3://large-payloads-bucket",
-				largeEventsBucket:       "large-payloads-bucket",
-				LocationS3:              "s3://events-bucket",
-				locationS3Bucket:        "events-bucket",
-				QueueURL:                "https://queue-url",
-				GetQueryResultsInterval: 100 * time.Millisecond,
-				BatchMaxItems:           20000,
-				BatchMaxInterval:        1 * time.Minute,
-				AWSConfig:               &aws.Config{},
-				Backend:                 mockBackend{},
+				Database:                   "db",
+				TableName:                  "tbl",
+				TopicARN:                   "arn:topic",
+				LargeEventsS3:              "s3://large-payloads-bucket",
+				largeEventsBucket:          "large-payloads-bucket",
+				LocationS3:                 "s3://events-bucket",
+				locationS3Bucket:           "events-bucket",
+				QueueURL:                   "https://queue-url",
+				GetQueryResultsInterval:    100 * time.Millisecond,
+				BatchMaxItems:              20000,
+				BatchMaxInterval:           1 * time.Minute,
+				PublisherConsumerAWSConfig: dummyAWSCfg,
+				StorerQuerierAWSConfig:     dummyAWSCfg,
+				Backend:                    mockBackend{},
 			},
 		},
 		{
@@ -194,22 +201,23 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				return cfg
 			},
 			want: Config{
-				Database:                "db",
-				TableName:               "tbl",
-				TopicARN:                "arn:topic",
-				LargeEventsS3:           "s3://large-payloads-bucket",
-				largeEventsBucket:       "large-payloads-bucket",
-				LocationS3:              "s3://events-bucket",
-				locationS3Bucket:        "events-bucket",
-				QueueURL:                "https://queue-url",
-				GetQueryResultsInterval: 100 * time.Millisecond,
-				BatchMaxItems:           20000,
-				BatchMaxInterval:        1 * time.Minute,
-				AWSConfig:               &aws.Config{},
-				Backend:                 mockBackend{},
-				LimiterRefillTime:       1 * time.Second,
-				LimiterBurst:            10,
-				LimiterRefillAmount:     5,
+				Database:                   "db",
+				TableName:                  "tbl",
+				TopicARN:                   "arn:topic",
+				LargeEventsS3:              "s3://large-payloads-bucket",
+				largeEventsBucket:          "large-payloads-bucket",
+				LocationS3:                 "s3://events-bucket",
+				locationS3Bucket:           "events-bucket",
+				QueueURL:                   "https://queue-url",
+				GetQueryResultsInterval:    100 * time.Millisecond,
+				BatchMaxItems:              20000,
+				BatchMaxInterval:           1 * time.Minute,
+				PublisherConsumerAWSConfig: dummyAWSCfg,
+				StorerQuerierAWSConfig:     dummyAWSCfg,
+				Backend:                    mockBackend{},
+				LimiterRefillTime:          1 * time.Second,
+				LimiterBurst:               10,
+				LimiterRefillAmount:        5,
 			},
 		},
 		{
@@ -302,7 +310,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}

@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -32,6 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -296,7 +299,7 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			dev, _, err := a.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			dev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
 			return dev, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
@@ -390,7 +393,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := a.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	dev, user, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
@@ -418,12 +421,12 @@ func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}()
 
 	// this authentication requires two client callbacks to create a headless authentication
-	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
-	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
+	// stub and approve/deny the headless authentication.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HeadlessLoginTimeout)
 	defer cancel()
 
 	// Headless Authentication should expire when the callback expires.
-	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.HeadlessLoginTimeout)
 
 	// Create the headless authentication and validate request details.
 	ha, err := types.NewHeadlessAuthentication(req.Username, req.HeadlessAuthenticationID, expires)
@@ -439,6 +442,13 @@ func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}
 
 	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, a.emitter, ha, nil)
+
+	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
+	if conn, err := authz.ConnFromContext(ctx); err == nil {
+		if err := conn.SetWriteDeadline(a.GetClock().Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// Headless authentication requests are made without any prior authentication. To avoid DDos
 	// attacks on the Auth server's backend, we don't create the headless authentication in the

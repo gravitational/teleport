@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package s3sessions
 
@@ -39,7 +41,6 @@ import (
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
 	start := time.Now()
-	defer func() { h.Infof("Upload created in %v.", time.Since(start)) }()
 
 	input := &s3.CreateMultipartUploadInput{
 		Bucket: aws.String(h.Bucket),
@@ -58,18 +59,16 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return nil, trace.Wrap(awsutils.ConvertS3Error(err), "CreateMultiPartUpload session(%v)", sessionID)
 	}
 
+	h.Infof("Upload for session %v created in %v.", sessionID, time.Since(start))
 	return &events.StreamUpload{SessionID: sessionID, ID: *resp.UploadId}, nil
 }
 
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	start := time.Now()
-	defer func() {
-		h.Infof("UploadPart(upload %v) part(%v) session(%v) uploaded in %v.", upload.ID, partNumber, upload.SessionID, time.Since(start))
-	}()
 
 	// This upload exceeded maximum number of supported parts, error now.
 	if partNumber > s3manager.MaxUploadParts {
@@ -87,9 +86,11 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return nil, trace.Wrap(awsutils.ConvertS3Error(err),
+			"UploadPart(upload %v) part(%v) session(%v)", upload.ID, partNumber, upload.SessionID)
 	}
 
+	h.Infof("UploadPart(upload %v) part(%v) session(%v) uploaded in %v.", upload.ID, partNumber, upload.SessionID, time.Since(start))
 	return &events.StreamPart{ETag: *resp.ETag, Number: partNumber}, nil
 }
 
@@ -121,7 +122,6 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	start := time.Now()
-	defer func() { h.Infof("UploadPart(%v) completed in %v.", upload.ID, time.Since(start)) }()
 
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
@@ -144,8 +144,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	_, err := h.client.CompleteMultipartUploadWithContext(ctx, params)
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return trace.Wrap(awsutils.ConvertS3Error(err),
+			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
 	}
+
+	h.Infof("Upload %v completed in %v", upload.ID, time.Since(start))
 	return nil
 }
 

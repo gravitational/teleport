@@ -1,18 +1,20 @@
 /*
-Copyright 2016 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package httplib
 
@@ -425,4 +427,72 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 
+}
+
+func TestOriginLocalRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "empty",
+			input:    "",
+			expected: "/",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "simple path",
+			input:    "/foo",
+			expected: "/foo",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "host only",
+			input:    "https://localhost",
+			expected: "/",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "host and simple path",
+			input:    "https://localhost/bar",
+			expected: "/bar",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "double slash redirect with host",
+			input:    "https://localhost//goteleport.com/",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "basic auth redirect with host",
+			input:    "https://localhost/@goteleport.com/",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "ftp scheme",
+			input:    "ftp://localhost",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "invalid url",
+			input:    "https://foo com",
+			expected: "",
+			errCheck: require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := OriginLocalRedirectURI(tc.input)
+			require.Equal(t, tc.expected, result)
+			tc.errCheck(t, err)
+		})
+	}
 }

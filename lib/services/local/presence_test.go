@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -236,7 +238,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// No app servers should be registered initially
 	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create app servers.
 	lease, err := presence.UpsertApplicationServer(ctx, serverA)
@@ -327,7 +329,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Initially expect not to be returned any servers.
 	out, err := presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Upsert server.
 	lease, err := presence.UpsertDatabaseServer(ctx, server)
@@ -357,7 +359,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Now expect no servers to be returned.
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Upsert server with TTL.
 	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -384,7 +386,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Now expect no servers to be returned.
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 }
 
 func TestNodeCRUD(t *testing.T) {
@@ -405,7 +407,7 @@ func TestNodeCRUD(t *testing.T) {
 		// Initially expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
-		require.Equal(t, 0, len(nodes))
+		require.Empty(t, nodes)
 
 		// Create nodes
 		_, err = presence.UpsertNode(ctx, node1)
@@ -465,7 +467,7 @@ func TestNodeCRUD(t *testing.T) {
 		// Now expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
-		require.Equal(t, 0, len(nodes))
+		require.Empty(t, nodes)
 	})
 }
 
@@ -1094,7 +1096,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, tc.limit)
 				require.Equal(t, resources[0:tc.limit], resp.Resources)
-				require.Equal(t, len(nodes), resp.TotalCount)
+				require.Len(t, nodes, resp.TotalCount)
 
 				// Next fetch should return same amount of totals.
 				if tc.limit != len(nodes) {
@@ -1105,11 +1107,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 					require.NoError(t, err)
 					require.Len(t, resp.Resources, tc.limit)
 					require.Equal(t, resources[tc.limit:tc.limit*2], resp.Resources)
-					require.Equal(t, len(nodes), resp.TotalCount)
+					require.Len(t, nodes, resp.TotalCount)
 				} else {
 					require.Empty(t, resp.NextKey)
 					require.Equal(t, resources, resp.Resources)
-					require.Equal(t, len(nodes), resp.TotalCount)
+					require.Len(t, nodes, resp.TotalCount)
 				}
 			})
 		}

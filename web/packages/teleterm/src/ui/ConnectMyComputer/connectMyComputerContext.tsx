@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, {
@@ -38,11 +40,11 @@ import {
   isAccessDeniedError,
   isNotFoundError,
 } from 'teleterm/services/tshd/errors';
+import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
-import { hasConnectMyComputerPermissions } from './permissions';
-
+import { ConnectMyComputerAccess, getConnectMyComputerAccess } from './access';
 import {
   checkAgentCompatibility,
   AgentCompatibility,
@@ -77,7 +79,24 @@ export type CurrentAction =
     };
 
 export interface ConnectMyComputerContext {
+  /**
+   * canUse describes whether the user should be allowed to use Connect My Computer.
+   * This is true either when the user has access to Connect My Computer or they have already set up
+   * the agent.
+   *
+   * The second case is there to protect from a scenario where a malicious admin lets the user set
+   * up the agent but then revokes their access for creating tokens. Without checking if the agent
+   * was already set up, the user would have lost control over the agent.
+   * https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
+   */
   canUse: boolean;
+  /**
+   * access describes whether the user has the necessary requirements to use Connect My Computer. It
+   * does not account for the agent being already set up. Thus it's mostly useful in scenarios where
+   * this has been already accounted for, for example when showing an alert about insufficient
+   * permissions in the setup step.
+   */
+  access: ConnectMyComputerAccess;
   currentAction: CurrentAction;
   agentProcessState: AgentProcessState;
   agentNode: Server | undefined;
@@ -107,6 +126,7 @@ export const ConnectMyComputerContextProvider: FC<{
     workspacesService,
     usageService,
   } = ctx;
+  const { requestResourcesRefresh } = useResourcesContext();
   clustersService.useState();
 
   const [
@@ -126,16 +146,15 @@ export const ConnectMyComputerContextProvider: FC<{
   const rootCluster = clustersService.findCluster(rootClusterUri);
   const { loggedInUser } = rootCluster;
 
-  const canUse = useMemo(() => {
-    const hasPermissions = hasConnectMyComputerPermissions(
-      loggedInUser,
-      mainProcessClient.getRuntimeSettings()
-    );
-
-    // We check `isAgentConfigured`, because the user should always have access to the agent after configuring it.
-    // https://github.com/gravitational/teleport/blob/master/rfd/0133-connect-my-computer.md#access-to-ui-and-autostart
-    return hasPermissions || isAgentConfigured;
-  }, [isAgentConfigured, mainProcessClient, loggedInUser]);
+  const access = useMemo(
+    () =>
+      getConnectMyComputerAccess(
+        loggedInUser,
+        mainProcessClient.getRuntimeSettings()
+      ),
+    [loggedInUser, mainProcessClient]
+  );
+  const canUse = access.status === 'ok' || isAgentConfigured;
 
   const agentCompatibility = useMemo(
     () =>
@@ -286,6 +305,7 @@ export const ConnectMyComputerContextProvider: FC<{
             rootClusterUri
           )
         );
+        requestResourcesRefresh();
       } catch (e) {
         if (isAccessDeniedError(e)) {
           hasAccessDeniedError = true;
@@ -328,6 +348,7 @@ export const ConnectMyComputerContextProvider: FC<{
       markAgentAsNotConfigured,
       removeConnections,
       rootClusterUri,
+      requestResourcesRefresh,
     ])
   );
 
@@ -425,6 +446,7 @@ export const ConnectMyComputerContextProvider: FC<{
     <ConnectMyComputerContext.Provider
       value={{
         canUse,
+        access,
         currentAction,
         agentProcessState,
         agentNode: startAgentAttempt.data,

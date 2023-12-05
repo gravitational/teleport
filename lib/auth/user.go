@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
@@ -32,11 +34,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // CreateUser inserts a new user entry in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.CreateUser] instead.
 func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
@@ -79,6 +82,8 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpdateUser updates an existing user in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
@@ -88,7 +93,21 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 		omitEditorEvent = true
 	}
 
-	updated, err := a.Services.UpdateUser(ctx, user)
+	// The use of legacyUserUpdater allows the legacy update method to be used without
+	// exposing it in auth.ClientI. It really only needs to exist in the services.User interface
+	// but if it's added there then it needs to be added everywhere. To reduce confusion and
+	// prevent adding a throw away method to the interface the type assertion is leveraged here instead.
+	type legacyUserUpdater interface {
+		LegacyUpdateUser(ctx context.Context, user types.User) (types.User, error)
+	}
+
+	updater, ok := a.Services.Identity.(legacyUserUpdater)
+	if !ok {
+		log.Warn("Failed to update user via legacy update method. This is a bug!")
+		return nil, trace.NotImplemented("legacy user updating is not implemented")
+	}
+
+	updated, err := updater.LegacyUpdateUser(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,6 +143,8 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 }
 
 // UpsertUser updates a user.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpsertUser] instead.
 func (a *Server) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
 	prevUser, err := a.GetUser(ctx, user.GetName(), false)
 	var omitEditorEvent bool
@@ -215,6 +236,8 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 }
 
 // DeleteUser deletes an existing user in a backend by username.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.DeleteUser] instead.
 func (a *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := a.GetUser(ctx, user, false)
 	var omitEditorEvent bool
@@ -223,19 +246,6 @@ func (a *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed getting user during delete operation")
 		prevUser = nil
 		omitEditorEvent = true
-	}
-
-	role, err := a.Services.GetRole(ctx, services.RoleNameForUser(user))
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		if err := a.DeleteRole(ctx, role.GetName()); err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
 	}
 
 	err = a.Services.DeleteUser(ctx, user)

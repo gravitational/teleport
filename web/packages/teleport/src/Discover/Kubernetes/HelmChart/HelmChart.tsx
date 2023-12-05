@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { Suspense, useState } from 'react';
@@ -326,9 +328,11 @@ const generateCmd = (data: {
   isEnterprise: boolean;
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
-  roles: JoinRole[];
+  automaticUpgradesTargetVersion: string;
 }) => {
   let extraYAMLConfig = '';
+  let deployVersion = data.clusterVersion;
+  let roles: JoinRole[] = ['Kube', 'App', 'Discovery'];
 
   if (data.isEnterprise) {
     extraYAMLConfig += 'enterprise: true\n';
@@ -343,9 +347,22 @@ const generateCmd = (data: {
     extraYAMLConfig += '    podDisruptionBudget:\n';
     extraYAMLConfig += '        enabled: true\n';
     extraYAMLConfig += '        minAvailable: 1\n';
+
+    // Replace the helm version to deploy with the one coming from the AutomaticUpgrades Version URL.
+    // AutomaticUpgradesTargetVersion contains a v, eg, v13.4.2.
+    // However, helm chart expects no 'v', eg, 13.4.2.
+    deployVersion = data.automaticUpgradesTargetVersion.replace(/^v/, '');
+
+    // TODO(marco): remove when stable/cloud moves to v14
+    // For v13 releases of the helm chart, we must remove the App role.
+    // We get the following error otherwise:
+    // Error: INSTALLATION FAILED: execution error at (teleport-kube-agent/templates/statefulset.yaml:26:28): at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README
+    if (deployVersion.startsWith('13.')) {
+      roles = ['Kube'];
+    }
   }
 
-  const yamlRoles = data.roles.join(',').toLowerCase();
+  const yamlRoles = roles.join(',').toLowerCase();
 
   return `cat << EOF > prod-cluster-values.yaml
 roles: ${yamlRoles}
@@ -356,7 +373,7 @@ labels:
     teleport.internal/resource-id: ${data.resourceId}
 ${extraYAMLConfig}EOF
  
-helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${data.clusterVersion} --create-namespace --namespace ${data.namespace}`;
+helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} --create-namespace --namespace ${data.namespace}`;
 };
 
 const InstallHelmChart = ({
@@ -451,7 +468,7 @@ const InstallHelmChart = ({
     isEnterprise: ctx.isEnterprise,
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
-    roles: ['Kube', 'App', 'Discovery'],
+    automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
   });
 
   return (

@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
@@ -39,9 +41,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: 'foo',
         filters: [],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: [retryableError, nonRetryableError],
           results: [],
@@ -71,9 +72,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: 'foo',
         filters: [],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [offlineCluster],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: [retryableError],
           results: [],
@@ -111,9 +111,8 @@ describe('getActionPickerStatus', () => {
       const status = getActionPickerStatus({
         inputValue: 'foo',
         filters: [],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filterActions: [],
         allClusters: [],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: retryableErrors,
           results: [],
@@ -140,9 +139,8 @@ describe('getActionPickerStatus', () => {
         const status = getActionPickerStatus({
           inputValue: 'foo',
           filters: [{ filter: 'cluster', clusterUri: filteredCluster.uri }],
-          filterActionsAttempt: makeSuccessAttempt([]),
+          filterActions: [],
           allClusters: [filteredCluster, otherOfflineCluster],
-          actionAttempts: [makeSuccessAttempt([])],
           resourceSearchAttempt: makeSuccessAttempt({
             errors: [],
             results: [],
@@ -168,9 +166,8 @@ describe('getActionPickerStatus', () => {
         const status = getActionPickerStatus({
           inputValue: 'foo',
           filters: [{ filter: 'cluster', clusterUri: filteredCluster.uri }],
-          filterActionsAttempt: makeSuccessAttempt([]),
+          filterActions: [],
           allClusters: [filteredCluster, otherOfflineCluster],
-          actionAttempts: [makeSuccessAttempt([])],
           resourceSearchAttempt: makeSuccessAttempt({
             errors: [],
             results: [],
@@ -203,10 +200,9 @@ describe('getActionPickerStatus', () => {
       ];
       const status = getActionPickerStatus({
         inputValue: '',
-        filters: [{ filter: 'resource-type', resourceType: 'servers' }],
-        filterActionsAttempt: makeSuccessAttempt([]),
+        filters: [{ filter: 'resource-type', resourceType: 'node' }],
+        filterActions: [],
         allClusters: [],
-        actionAttempts: [makeSuccessAttempt([])],
         resourceSearchAttempt: makeSuccessAttempt({
           errors: resourceSearchErrors,
           results: [],

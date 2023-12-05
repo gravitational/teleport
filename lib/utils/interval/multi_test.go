@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package interval
 
@@ -108,7 +112,7 @@ func TestMultiIntervalBasics(t *testing.T) {
 	var prevT time.Time
 	for i := 0; i < 60; i++ {
 		tick := <-interval.Next()
-		require.True(t, !tick.Time.IsZero())
+		require.False(t, tick.Time.IsZero())
 		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
 		prevT = tick.Time
 		switch tick.Key {
@@ -123,6 +127,88 @@ func TestMultiIntervalBasics(t *testing.T) {
 	require.Equal(t, 1, once)
 	require.Greater(t, slow, once)
 	require.Greater(t, fast, slow)
+}
+
+// TestMultiIntervalVariableDuration verifies that variable durations within a multiinterval function
+// as expected.
+func TestMultiIntervalVariableDuration(t *testing.T) {
+	t.Parallel()
+
+	foo := NewVariableDuration(VariableDurationConfig{
+		MinDuration: time.Millisecond * 8,
+		MaxDuration: time.Hour,
+		Step:        1,
+	})
+
+	foo.counter.Store(1)
+
+	bar := NewVariableDuration(VariableDurationConfig{
+		MinDuration: time.Millisecond * 8,
+		MaxDuration: time.Hour,
+		Step:        1,
+	})
+
+	bar.counter.Store(1)
+
+	interval := NewMulti[string](
+		SubInterval[string]{
+			Key:              "foo",
+			VariableDuration: foo,
+		},
+		SubInterval[string]{
+			Key:              "bar",
+			VariableDuration: bar,
+		},
+	)
+	defer interval.Stop()
+
+	var fooct, barct int
+	var prevT time.Time
+	for i := 0; i < 60; i++ {
+		tick := <-interval.Next()
+		require.False(t, tick.Time.IsZero())
+		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
+		prevT = tick.Time
+		switch tick.Key {
+		case "foo":
+			fooct++
+		case "bar":
+			barct++
+		}
+	}
+	require.Equal(t, 60, fooct+barct, "fooct=%d, barct=%d", fooct, barct)
+	// intervals should be firing at the same rate, but since this test involves concurrent
+	// timing it is *very* inconsistent when running on our test infra. Instead, assert that
+	// nether value is more than 2x the other. In combination with the other conditions checked
+	// further down, this will let us verify with reasonable certainty that increasing the variable
+	// duration does increase firing frequency as expected. The exact nature of the change is
+	// covered by other unit tests that don't rely on timing. This is just a sanity check to
+	// verify that the deterministic tests aren't passing in error (e.g. checking a duration
+	// value that isn't actually being used to calculate the final tick rate).
+	require.InDelta(t, fooct, barct, 20)
+
+	foo.counter.Store(2)
+	bar.counter.Store(200_000)
+
+	fooct = 0
+	barct = 0
+	for i := 0; i < 60; i++ {
+		tick := <-interval.Next()
+		switch tick.Key {
+		case "foo":
+			fooct++
+		case "bar":
+			barct++
+		}
+	}
+
+	require.Equal(t, 60, fooct+barct, "fooct=%d, barct=%d", fooct, barct)
+
+	// foo should have fired *way* more than twice as often, but time-based tests are flaky
+	// so we're checking for a very conservative difference in frequency here. the point is just
+	// to prove that when the variable duration increases the firing duration increases as well.
+	// covering specifics are left to the variable duration output tests, which are not time-based.
+	require.Greater(t, fooct, barct*2, "fooct=%d, barct=%d", fooct, barct)
 }
 
 // TestMultiIntervalPush verifies the expected behavior of MultiInterval.Push, both in terms of

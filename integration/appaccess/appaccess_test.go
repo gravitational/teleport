@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package appaccess
 
@@ -396,19 +400,19 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	// Dumper app just dumps HTTP request so we should be able to read it back.
 	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
 	require.NoError(t, err)
-	require.Equal(t, req.Host, "example.com")
-	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
-	require.Equal(t, req.Header.Get("X-External-Env"), "production")
-	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+	require.Equal(t, "example.com", req.Host)
+	require.Equal(t, "root", req.Header.Get("X-Teleport-Cluster"))
+	require.Equal(t, "production", req.Header.Get("X-External-Env"))
+	require.Equal(t, "rewritten-existing-header", req.Header.Get("X-Existing"))
 
 	// verify these headers were not rewritten.
-	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
-	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedProto), "rewritten-x-forwarded-proto-header")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedServer), "rewritten-x-forwarded-server-header")
-	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
+	require.NotEqual(t, "rewritten-app-jwt-header", req.Header.Get(teleport.AppJWTHeader))
+	require.NotEqual(t, "rewritten-x-teleport-api-error", req.Header.Get(common.TeleportAPIErrorHeader))
+	require.NotEqual(t, "rewritten-x-forwarded-for-header", req.Header.Get(reverseproxy.XForwardedFor))
+	require.NotEqual(t, "rewritten-x-forwarded-host-header", req.Header.Get(reverseproxy.XForwardedHost))
+	require.NotEqual(t, "rewritten-x-forwarded-proto-header", req.Header.Get(reverseproxy.XForwardedProto))
+	require.NotEqual(t, "rewritten-x-forwarded-server-header", req.Header.Get(reverseproxy.XForwardedServer))
+	require.NotEqual(t, "rewritten-x-forwarded-ssl", req.Header.Get(common.XForwardedSSL))
 
 	// Verify JWT tokens.
 	for _, header := range []string{teleport.AppJWTHeader, "X-JWT"} {
@@ -432,20 +436,20 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 	// Dumper app just dumps HTTP request so we should be able to read it back.
 	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
 	require.NoError(t, err)
-	require.Equal(t, req.Host, "example.com")
-	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "leaf")
+	require.Equal(t, "example.com", req.Host)
+	require.Equal(t, "leaf", req.Header.Get("X-Teleport-Cluster"))
 	require.ElementsMatch(t, []string{"root", "ubuntu", "-teleport-internal-join"}, req.Header.Values("X-Teleport-Login"))
-	require.Equal(t, req.Header.Get("X-External-Env"), "production")
-	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+	require.Equal(t, "production", req.Header.Get("X-External-Env"))
+	require.Equal(t, "rewritten-existing-header", req.Header.Get("X-Existing"))
 
 	// verify these headers were not rewritten.
-	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
-	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
-	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedProto), "rewritten-x-forwarded-proto-header")
-	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, "rewritten-app-jwt-header", req.Header.Get(teleport.AppJWTHeader))
+	require.NotEqual(t, "rewritten-x-teleport-api-error", req.Header.Get(common.TeleportAPIErrorHeader))
+	require.NotEqual(t, "rewritten-x-forwarded-ssl", req.Header.Get(common.XForwardedSSL))
+	require.NotEqual(t, "rewritten-x-forwarded-for-header", req.Header.Get(reverseproxy.XForwardedFor))
+	require.NotEqual(t, "rewritten-x-forwarded-host-header", req.Header.Get(reverseproxy.XForwardedHost))
+	require.NotEqual(t, "rewritten-x-forwarded-proto-header", req.Header.Get(reverseproxy.XForwardedProto))
+	require.NotEqual(t, "rewritten-x-forwarded-server-header", req.Header.Get(reverseproxy.XForwardedServer))
 }
 
 // testLogout verifies the session is removed from the backend when the user logs out.
@@ -504,7 +508,7 @@ func testNoHeaderOverrides(p *Pack, t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	origHeaders := strings.Split(origHeaderResp, "\n")
-	require.Equal(t, len(origHeaders), len(forwardedHeaderNames)+1)
+	require.Len(t, origHeaders, len(forwardedHeaderNames)+1)
 
 	// Construct HTTP request with custom headers.
 	req, err := http.NewRequest(http.MethodGet, p.assembleRootProxyURL("/"), nil)
@@ -521,7 +525,7 @@ func testNoHeaderOverrides(p *Pack, t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	newHeaders := strings.Split(newHeaderResp, "\n")
-	require.Equal(t, len(newHeaders), len(forwardedHeaderNames)+1)
+	require.Len(t, newHeaders, len(forwardedHeaderNames)+1)
 
 	// Headers sent to the application should not be affected.
 	for i := range forwardedHeaderNames {

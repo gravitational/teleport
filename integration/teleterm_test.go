@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package integration
 
@@ -174,7 +178,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	response, err := handler.ListRootClusters(context.Background(), &api.ListClustersRequest{})
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(response.Clusters))
+	require.Len(t, response.Clusters, 1)
 	require.Equal(t, pack.Root.User.GetName(), response.Clusters[0].LoggedInUser.Name)
 }
 
@@ -335,15 +339,18 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	tests := []struct {
-		name               string
-		userAlreadyHasRole bool
-		existingRole       func(userName string) types.RoleV6
+		name                     string
+		assertCertsReloaded      require.BoolAssertionFunc
+		existingRole             func(userName string) types.RoleV6
+		assignExistingRoleToUser bool
 	}{
 		{
-			name: "role does not exist",
+			name:                "role does not exist",
+			assertCertsReloaded: require.True,
 		},
 		{
-			name: "role exists and includes current system username",
+			name:                "role exists and includes current system username",
+			assertCertsReloaded: require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -358,7 +365,8 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
-			name: "role exists and does not include current system username",
+			name:                "role exists and does not include current system username",
+			assertCertsReloaded: require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -373,7 +381,8 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
-			name: "role exists and has no logins",
+			name:                "role exists and has no logins",
+			assertCertsReloaded: require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -388,7 +397,8 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
-			name: "role exists and owner node label was changed",
+			name:                "role exists and owner node label was changed",
+			assertCertsReloaded: require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -403,8 +413,9 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
-			name:               "user already has existing role that includes current system username",
-			userAlreadyHasRole: true,
+			name:                     "user already has existing role that includes current system username",
+			assignExistingRoleToUser: true,
+			assertCertsReloaded:      require.False,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -419,8 +430,9 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
-			name:               "user already has existing role that does not include current system username",
-			userAlreadyHasRole: true,
+			name:                     "user already has existing role that does not include current system username",
+			assignExistingRoleToUser: true,
+			assertCertsReloaded:      require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -435,8 +447,26 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
-			name:               "user already has existing role with modified owner node label",
-			userAlreadyHasRole: true,
+			name:                     "user already has existing role with modified owner node label",
+			assignExistingRoleToUser: true,
+			assertCertsReloaded:      require.False,
+			existingRole: func(userName string) types.RoleV6 {
+				return types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							NodeLabels: types.Labels{
+								types.ConnectMyComputerNodeOwnerLabel: []string{"bogus-username"},
+							},
+							Logins: []string{systemUser.Username},
+						},
+					},
+				}
+			},
+		},
+		{
+			name:                     "user already has existing role that does not include current system username and has modified owner node label",
+			assignExistingRoleToUser: true,
+			assertCertsReloaded:      require.True,
 			existingRole: func(userName string) types.RoleV6 {
 				return types.RoleV6{
 					Spec: types.RoleSpecV6{
@@ -492,9 +522,9 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 
 			// Create a new user to avoid colliding with other tests.
 			// Assign to the user the role with allow rules and the existing role if present.
-			if test.userAlreadyHasRole {
+			if test.assignExistingRoleToUser {
 				if existingRole == nil {
-					t.Log("userAlreadyHasRole must be used together with existingRole")
+					t.Log("assignExistingRoleToUser must be used together with existingRole")
 					t.Fail()
 					return
 				}
@@ -554,13 +584,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			})
 			require.NoError(t, err)
 
-			if test.userAlreadyHasRole {
-				require.False(t, response.CertsReloaded,
-					"expected the handler to signal that the certs were not reloaded since the user was already assigned the role")
-			} else {
-				require.True(t, response.CertsReloaded,
-					"expected the handler to signal that the certs were reloaded since the user was just assigned a new role")
-			}
+			test.assertCertsReloaded(t, response.CertsReloaded, "CertsReloaded is the opposite of the expected value")
 
 			// Verify that the role exists.
 			role, err := authServer.GetRole(ctx, roleName)
@@ -654,10 +678,6 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		RootClusterUri: rootClusterURI,
 	})
 	require.NoError(t, err)
-	require.Equal(t, &api.Label{
-		Name:  types.ConnectMyComputerNodeOwnerLabel,
-		Value: userName,
-	}, createdTokenResponse.GetLabels()[0])
 
 	// Verify that token exists
 	tokenFromAuthServer, err := authServer.GetToken(ctx, createdTokenResponse.GetToken())
@@ -684,7 +704,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		if event.Type != types.OpInit {
 			t.Fatalf("Unexpected event type.")
 		}
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 	case <-watcher.Done():
 		t.Fatal(watcher.Error())
 	}

@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package keystore
 
@@ -228,65 +232,99 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	return true, nil
 }
 
-// DeleteUnusedKeys deletes all keys from KMS if they are:
-// 1. Labeled by this server (matching HostUUID) when they were created
-// 2. Not included in the argument activeKeys
+// DeleteUnusedKeys deletes all keys from the configured KMS keyring if they:
+//  1. Are not included in the argument activeKeys
+//  2. Are labeled with hostLabel (teleport_auth_host)
+//  3. The hostLabel value matches the local host UUID
+//
+// The activeKeys argument is meant to contain to complete set of raw key IDs as
+// stored in the current CA specs in the backend.
+//
+// The reason this does not delete any keys created by a different auth server
+// is to avoid a case where:
+// 1. A different auth server (auth2) creates a new key in GCP KMS
+// 2. This function (running on auth1) deletes that new key
+// 3. auth2 saves the id of this deleted key to the backend CA
+//
+// or a simpler case where: the other auth server is running in a completely
+// different Teleport cluster and the keys it's actively using will never appear
+// in the activeKeys argument.
 func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	// Make a map of currently active key versions, this is used for lookups to
-	// check which keys in KMS are unused, and holds a count of how many times
-	// they are found in KMS. If any active keys are not found in KMS, we are in
-	// a bad state, so key deletion will be aborted.
+	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
 	for _, activeKey := range activeKeys {
+		keyIsRelevant, err := g.canSignWithKey(ctx, activeKey, keyType(activeKey))
+		if err != nil {
+			// Don't expect this error to ever hit, safer to return if it does.
+			return trace.Wrap(err)
+		}
+		if !keyIsRelevant {
+			// Ignore active keys that are not GCP KMS keys or are in a
+			// different keyring than the one this Auth is configured to use.
+			continue
+		}
 		keyID, err := parseGCPKMSKeyID(activeKey)
 		if err != nil {
-			// could be a different type of key
-			continue
+			// Realistically we should not hit this since canSignWithKey already
+			// calls parseGCPKMSKeyID.
+			return trace.Wrap(err)
 		}
 		activeKmsKeyVersions[keyID.keyVersionName] = 0
 	}
 
-	var unusedKeyIDs []gcpKMSKeyID
+	var keysToDelete []gcpKMSKeyID
 
 	listKeyRequest := &kmspb.ListCryptoKeysRequest{
 		Parent: g.keyRing,
-		Filter: fmt.Sprintf("labels.%s=%s", hostLabel, g.hostUUID),
+		// Only bother listing keys created by Teleport which should have the
+		// hostLabel set. A filter of "labels.label:*" tests if the label is
+		// defined.
+		// https://cloud.google.com/sdk/gcloud/reference/topic/filters
+		// > Use key:* to test if key is defined
+		Filter: fmt.Sprintf("labels.%s:*", hostLabel),
 	}
 	iter := g.kmsClient.ListCryptoKeys(ctx, listKeyRequest)
 	key, err := iter.Next()
 	for err == nil {
 		keyVersionName := key.Name + keyVersionSuffix
 		if _, active := activeKmsKeyVersions[keyVersionName]; active {
-			activeKmsKeyVersions[keyVersionName]++
-		} else {
-			unusedKeyIDs = append(unusedKeyIDs, gcpKMSKeyID{
+			// Record that this current active key was actually found.
+			activeKmsKeyVersions[keyVersionName] += 1
+		} else if key.Labels[hostLabel] == g.hostUUID {
+			// This key is not active (it is not currently stored in any
+			// Teleport CA) and it was created by this Auth server, so it should
+			// be safe to delete.
+			keysToDelete = append(keysToDelete, gcpKMSKeyID{
 				keyVersionName: keyVersionName,
 			})
 		}
 		key, err = iter.Next()
 	}
 	if err != nil && !errors.Is(err, iterator.Done) {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "unexpected error while iterating GCP KMS keys")
 	}
 
+	// If any member of activeKeys which is part of the same GCP KMS keyring
+	// queried here was not found in the ListCryptoKeys response, something has
+	// gone wrong and there's a chance we have a bug or GCP has made a breaking
+	// API change. In this case we should abort to avoid the chance of deleting
+	// any currently active keys.
 	for keyVersion, found := range activeKmsKeyVersions {
 		if found == 0 {
-			// Failed to find a currently active key owned by this host.
-			// The cluster is in a bad state, refuse to delete any keys.
 			return trace.NotFound(
-				"cannot find currently active CA key in %q GCP KMS, aborting attempt to delete unused keys",
+				"cannot find currently active CA key %q in GCP KMS, aborting attempt to delete unused keys",
 				keyVersion)
 		}
 	}
 
-	for _, unusedKey := range unusedKeyIDs {
-		g.log.WithFields(logrus.Fields{"key_version": unusedKey.keyVersionName}).Info("deleting unused GCP KMS key created by this server")
+	for _, unusedKey := range keysToDelete {
+		g.log.WithFields(logrus.Fields{"key_version": unusedKey.keyVersionName}).Info("Deleting unused GCP KMS key.")
 		err := g.deleteKey(ctx, unusedKey.marshal())
 		// Ignore errors where we can't destroy because the state is already
 		// DESTROYED or DESTROY_SCHEDULED
 		if err != nil && !strings.Contains(err.Error(), "has value DESTROY") {
-			g.log.WithFields(logrus.Fields{"key_version": unusedKey.keyVersionName}).WithError(err).Warn("error deleting unused GCP KMS key")
-			return trace.Wrap(err)
+			return trace.Wrap(err, "error deleting unused GCP KMS key %q", unusedKey.keyVersionName)
 		}
 	}
 	return nil

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -552,11 +554,11 @@ func TestParties(t *testing.T) {
 
 	// Create a session with 3 parties
 	sess, _ := testOpenSession(t, reg, nil)
-	require.Equal(t, 1, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 1)
 	testJoinSession(t, reg, sess)
-	require.Equal(t, 2, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 2)
 	testJoinSession(t, reg, sess)
-	require.Equal(t, 3, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 3)
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
@@ -590,7 +592,7 @@ func TestParties(t *testing.T) {
 
 	// If a party connects to the lingering session, it will continue.
 	testJoinSession(t, reg, sess)
-	require.Equal(t, 1, len(sess.getParties()))
+	require.Len(t, sess.getParties(), 1)
 
 	// advance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)

@@ -1,27 +1,33 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package usersv1
+package usersv1_test
 
 import (
 	"context"
 	"encoding/base32"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +35,9 @@ import (
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -131,18 +139,24 @@ func (f *fakeChecker) HasRole(target string) bool {
 	return false
 }
 
-type serviceOpt = func(*Service)
+type serviceOpt = func(config *usersv1.ServiceConfig)
 
 func withAuthorizer(authz authz.Authorizer) serviceOpt {
-	return func(service *Service) {
-		service.authorizer = authz
+	return func(config *usersv1.ServiceConfig) {
+		config.Authorizer = authz
+	}
+}
+
+func withEmitter(emitter apievents.Emitter) serviceOpt {
+	return func(config *usersv1.ServiceConfig) {
+		config.Emitter = emitter
 	}
 }
 
 type env struct {
-	*Service
+	*usersv1.Service
 	emitter *eventstest.ChannelEmitter
-	backend Backend
+	backend usersv1.Backend
 }
 
 func newTestEnv(opts ...serviceOpt) (*env, error) {
@@ -161,19 +175,21 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 
 	emitter := eventstest.NewChannelEmitter(10)
 
-	svc, err := NewService(ServiceConfig{
+	cfg := usersv1.ServiceConfig{
 		Authorizer: fakeAuthorizer{authorize: true},
 		Cache:      service,
 		Backend:    service,
 		Emitter:    emitter,
 		Reporter:   usagereporter.DiscardUsageReporter{},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating users service")
 	}
 
 	for _, opt := range opts {
-		opt(svc)
+		opt(&cfg)
+	}
+
+	svc, err := usersv1.NewService(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating users service")
 	}
 
 	return &env{
@@ -198,9 +214,9 @@ func TestCreateUser(t *testing.T) {
 	require.NoError(t, err, "creating user llama")
 
 	// Validate that the user now exists.
-	resp, err := env.GetUser(ctx, &userspb.GetUserRequest{Name: created.GetName()})
+	resp, err := env.GetUser(ctx, &userspb.GetUserRequest{Name: created.User.GetName()})
 	require.NoError(t, err, "failed getting created user")
-	require.Empty(t, cmp.Diff(created, resp, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(created.User, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Attempt to create a duplicate user
 	created2, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
@@ -211,6 +227,13 @@ func TestCreateUser(t *testing.T) {
 	event := <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+
+	user, err := types.NewUser("alpaca")
+	require.NoError(t, err, "creating user alpaca")
+	user.SetRoles([]string{uuid.NewString()})
+	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be created with a role that does not exist")
 }
 
 func TestDeleteUser(t *testing.T) {
@@ -232,7 +255,7 @@ func TestDeleteUser(t *testing.T) {
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
 
 	// Delete the user.
-	_, err = env.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: created.GetName()})
+	_, err = env.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: created.User.GetName()})
 	require.NoError(t, err)
 
 	event = <-env.emitter.C()
@@ -241,7 +264,7 @@ func TestDeleteUser(t *testing.T) {
 
 	// Attempt to delete the user again, this time deletion should fail because
 	// the user no longer exists.
-	_, err = env.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: created.GetName()})
+	_, err = env.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: created.User.GetName()})
 	assert.Error(t, err, "deleting nonexistent user succeeded")
 	require.True(t, trace.IsNotFound(err), "expected a not found error deleting nonexistent user got %T", err)
 }
@@ -277,10 +300,10 @@ func TestGetUser(t *testing.T) {
 
 	// Validate that the user now exists and that querying by name takes precedence over
 	// retrieving the current user.
-	resp, err = env.GetUser(ctx, &userspb.GetUserRequest{Name: created.GetName(), CurrentUser: true})
+	resp, err = env.GetUser(ctx, &userspb.GetUserRequest{Name: created.User.GetName(), CurrentUser: true})
 	assert.NoError(t, err, "failed getting created user")
-	assert.Empty(t, cmp.Diff(created, resp, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"), cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")))
-	assert.Nil(t, resp.GetLocalAuth(), "user secrets were provided when not requested")
+	assert.Empty(t, cmp.Diff(created.User, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"), cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")))
+	assert.Nil(t, resp.User.GetLocalAuth(), "user secrets were provided when not requested")
 
 	// Validate that getting the current user returns "alice" and not "llama".
 	resp, err = env.GetUser(authz.ContextWithUser(ctx, &authz.LocalUser{
@@ -290,16 +313,16 @@ func TestGetUser(t *testing.T) {
 		},
 	}), &userspb.GetUserRequest{CurrentUser: true})
 	assert.NoError(t, err, "failed getting created user")
-	assert.NotEmpty(t, cmp.Diff(created, resp, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	assert.Equal(t, "alice", resp.GetName(), "expected current user to return alice")
-	assert.Nil(t, resp.GetLocalAuth(), "secrets returned with current user")
+	assert.NotEmpty(t, cmp.Diff(created.User, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	assert.Equal(t, "alice", resp.User.GetName(), "expected current user to return alice")
+	assert.Nil(t, resp.User.GetLocalAuth(), "secrets returned with current user")
 
 	// Validate that requesting a users secrets returns them.
-	resp, err = env.GetUser(ctx, &userspb.GetUserRequest{Name: created.GetName(), WithSecrets: true})
+	resp, err = env.GetUser(ctx, &userspb.GetUserRequest{Name: created.User.GetName(), WithSecrets: true})
 	assert.NoError(t, err, "failed getting created user")
-	assert.Empty(t, cmp.Diff(created, resp, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	assert.NotNil(t, resp.GetLocalAuth(), "user secrets were not provided requested")
-	assert.Empty(t, cmp.Diff(llama.GetLocalAuth(), resp.GetLocalAuth()), "user secrets do not match")
+	assert.Empty(t, cmp.Diff(created.User, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	assert.NotNil(t, resp.User.GetLocalAuth(), "user secrets were not provided requested")
+	assert.Empty(t, cmp.Diff(llama.GetLocalAuth(), resp.User.GetLocalAuth()), "user secrets do not match")
 
 	// Validate that getting the current user never returns secrets
 	resp, err = env.GetUser(authz.ContextWithUser(ctx, &authz.LocalUser{
@@ -309,9 +332,9 @@ func TestGetUser(t *testing.T) {
 		},
 	}), &userspb.GetUserRequest{CurrentUser: true, WithSecrets: true})
 	assert.NoError(t, err, "failed getting created user")
-	assert.NotEmpty(t, cmp.Diff(created, resp, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	assert.Equal(t, "alice", resp.GetName(), "expected current user to return alice")
-	assert.Nil(t, resp.GetLocalAuth(), "secrets returned with current user")
+	assert.NotEmpty(t, cmp.Diff(created.User, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	assert.Equal(t, "alice", resp.User.GetName(), "expected current user to return alice")
+	assert.Nil(t, resp.User.GetLocalAuth(), "secrets returned with current user")
 }
 
 func TestUpdateUser(t *testing.T) {
@@ -328,7 +351,7 @@ func TestUpdateUser(t *testing.T) {
 	updated, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: llama.(*types.UserV2)})
 	assert.Error(t, err, "duplicate user was created successfully")
 	assert.Nil(t, updated, "received unexpected user")
-	require.True(t, trace.IsNotFound(err), "updated nonexistent user")
+	require.True(t, trace.IsCompareFailed(err), "updated nonexistent user")
 
 	// Create a new user.
 	created, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
@@ -339,11 +362,11 @@ func TestUpdateUser(t *testing.T) {
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
 
 	// Attempt to update the user again.
-	created.SetLogins([]string{"alpaca"})
-	updated, err = env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: created})
+	created.User.SetLogins([]string{"alpaca"})
+	updated, err = env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: created.User})
 	require.NoError(t, err, "failed updating user")
-	require.Empty(t, cmp.Diff(created, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	require.Equal(t, []string{"alpaca"}, updated.GetLogins(), "logins were not updated")
+	require.Empty(t, cmp.Diff(created.User, updated.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Equal(t, []string{"alpaca"}, updated.User.GetLogins(), "logins were not updated")
 
 	event = <-env.emitter.C()
 	assert.Equal(t, events.UserUpdatedEvent, event.GetType(), "unexpected event type")
@@ -375,15 +398,113 @@ func TestUpsertUser(t *testing.T) {
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
 
 	// Attempt to update the user again.
-	upserted.SetLogins([]string{"alpaca"})
-	updated, err := env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: upserted})
+	upserted.User.SetLogins([]string{"alpaca"})
+	updated, err := env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: upserted.User})
 	require.NoError(t, err, "failed upserting user")
-	require.Empty(t, cmp.Diff(upserted, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-	require.Equal(t, []string{"alpaca"}, updated.GetLogins(), "logins were not updated")
+	require.Empty(t, cmp.Diff(upserted.User, updated.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Equal(t, []string{"alpaca"}, updated.User.GetLogins(), "logins were not updated")
 
 	event = <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+}
+
+func TestListUsers(t *testing.T) {
+	t.Parallel()
+
+	// create an admin authz context to test listing users with secrets
+	authzContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+		Role:     types.RoleAdmin,
+		Username: string(types.RoleAdmin),
+	}, &types.SessionRecordingConfigV2{})
+	require.NoError(t, err, "creating authorization context")
+
+	env, err := newTestEnv(
+		withAuthorizer(fakeAuthorizer{authzContext: authzContext}),
+		withEmitter(&events.DiscardEmitter{}),
+	)
+	require.NoError(t, err, "creating test service")
+
+	ctx := context.Background()
+
+	llama, err := types.NewUser("llama")
+	require.NoError(t, err, "creating new user llama")
+	require.NoError(t, generateUserSecrets(llama), "generating user secrets")
+
+	// Validate that the user does not exist.
+	resp, err := env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 10})
+	assert.NoError(t, err, "expected list to return empty response when no users exist")
+	assert.Empty(t, resp.Users, "expected no users to be returned got %d", len(resp.Users))
+	assert.Empty(t, resp.NextPageToken, "expected next page token to be empty")
+
+	// Create a new user.
+	created, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
+	require.NoError(t, err, "creating user llama")
+
+	// Validate that the user now exists.
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 10})
+	assert.NoError(t, err, "failed listing created user")
+	assert.Len(t, resp.Users, 1, "expected one user to be returned got %d", len(resp.Users))
+	assert.Empty(t, resp.NextPageToken, "expected next page token to be empty")
+	assert.Empty(t, cmp.Diff(created.User, resp.Users[0], cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"), cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")))
+	assert.Nil(t, resp.Users[0].GetLocalAuth(), "user secrets were provided when not requested")
+
+	// Validate that requesting a users secrets returns them.
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 10, WithSecrets: true})
+	assert.NoError(t, err, "failed listing created user")
+	assert.Len(t, resp.Users, 1, "expected one user to be returned got %d", len(resp.Users))
+	assert.Empty(t, resp.NextPageToken, "expected next page token to be empty")
+	assert.Empty(t, cmp.Diff(created.User, resp.Users[0], cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	assert.Empty(t, cmp.Diff(llama.GetLocalAuth(), resp.Users[0].GetLocalAuth()), "user secrets do not match")
+
+	// Create addition users to test pagination
+	createdUsers := []*types.UserV2{llama.(*types.UserV2)}
+	for i := 0; i < 22; i++ {
+		user, err := types.NewUser(fmt.Sprintf("user_%d", i))
+		require.NoError(t, err, "creating new user %d", i)
+		require.NoError(t, generateUserSecrets(user), "generating user secrets")
+
+		// Create a new user.
+		created, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+		require.NoError(t, err, "creating user %d", i)
+
+		createdUsers = append(createdUsers, created.User)
+	}
+
+	// List all users across multiple pages without secrets.
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 3})
+	require.NoError(t, err, "unexpected error listing users")
+
+	listedUsers := resp.Users
+	for next := resp.NextPageToken; next != ""; {
+		resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 3, PageToken: next})
+		require.NoError(t, err, "unexpected error listing users")
+		listedUsers = append(listedUsers, resp.Users...)
+		next = resp.NextPageToken
+	}
+
+	assert.Equal(t, len(createdUsers), len(listedUsers), "expected to eventually retrieve all users from listing")
+	assert.Empty(t, cmp.Diff(createdUsers, listedUsers,
+		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth"),
+	))
+
+	// List all users across multiple pages with secrets.
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 3, WithSecrets: true})
+	require.NoError(t, err, "unexpected error listing users")
+
+	listedUsersWithSecrets := resp.Users
+	for next := resp.NextPageToken; next != ""; {
+		resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 3, PageToken: next, WithSecrets: true})
+		require.NoError(t, err, "unexpected error listing users")
+		listedUsersWithSecrets = append(listedUsersWithSecrets, resp.Users...)
+		next = resp.NextPageToken
+	}
+
+	assert.Equal(t, len(createdUsers), len(listedUsersWithSecrets), "expected to eventually retrieve all users from listing")
+	assert.Empty(t, cmp.Diff(createdUsers, listedUsersWithSecrets,
+		cmpopts.SortSlices(func(a, b *types.UserV2) bool { return a.GetName() < b.GetName() }),
+	))
 }
 
 func generateUserSecrets(u types.User) error {
@@ -414,13 +535,13 @@ func TestRBAC(t *testing.T) {
 
 	tests := []struct {
 		desc         string
-		f            func(t *testing.T, service *Service)
+		f            func(t *testing.T, service *usersv1.Service)
 		checker      *fakeChecker
 		expectChecks []check
 	}{
 		{
 			desc: "get no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.GetUser(ctx, &userspb.GetUserRequest{Name: "alice"})
 				assert.Error(t, err, "expected RBAC to prevent getting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -439,10 +560,10 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "get current users when no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				user, err := service.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
 				assert.NoError(t, err, "expected RBAC to allow getting the current user")
-				assert.Empty(t, cmp.Diff(llama, user, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				assert.Empty(t, cmp.Diff(llama, user.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			},
 			checker: &fakeChecker{
 				rules: []types.Rule{
@@ -454,7 +575,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "get with secrets no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.GetUser(ctx, &userspb.GetUserRequest{Name: "alice", WithSecrets: true})
 				assert.Error(t, err, "expected RBAC to prevent getting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -470,8 +591,28 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{},
 		},
 		{
+			desc: "get",
+			f: func(t *testing.T, service *usersv1.Service) {
+				resp, err := service.GetUser(ctx, &userspb.GetUserRequest{Name: "llama"})
+				assert.NoError(t, err, "expected RBAC to allow getting user")
+				assert.Empty(t, cmp.Diff(llama, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+			},
+			checker: &fakeChecker{
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbRead},
+					},
+				},
+			},
+			expectChecks: []check{
+				{kind: types.KindUser, verb: types.VerbCreate},
+				{kind: types.KindUser, verb: types.VerbRead},
+			},
+		},
+		{
 			desc: "create no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent creating user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -489,12 +630,12 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "create",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				u := utils.CloneProtoMsg(llama.(*types.UserV2))
 				u.SetName("alpaca")
 				created, err := service.CreateUser(ctx, &userspb.CreateUserRequest{User: u})
 				assert.NoError(t, err, "expected RBAC to allow creating user")
-				assert.Empty(t, cmp.Diff(u, created, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				assert.Empty(t, cmp.Diff(u, created.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			},
 			checker: &fakeChecker{
 				rules: []types.Rule{
@@ -510,7 +651,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "update no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.UpdateUser(ctx, &userspb.UpdateUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent updating user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -528,12 +669,12 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "update",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				u := utils.CloneProtoMsg(llama.(*types.UserV2))
 				u.SetLogins([]string{"alpaca"})
 				updated, err := service.UpdateUser(ctx, &userspb.UpdateUserRequest{User: u})
 				assert.NoError(t, err, "expected RBAC to allow updating user")
-				assert.Empty(t, cmp.Diff(u, updated, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				assert.Empty(t, cmp.Diff(u, updated.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			},
 			checker: &fakeChecker{
 				rules: []types.Rule{
@@ -549,7 +690,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent upserting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -568,7 +709,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert without create",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent upserting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -588,7 +729,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert without update",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent upserting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -608,10 +749,10 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				upserted, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.NoError(t, err, "expected RBAC to allow updating user")
-				assert.Empty(t, cmp.Diff(llama, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+				assert.Empty(t, cmp.Diff(llama, upserted.User, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			},
 			checker: &fakeChecker{
 				rules: []types.Rule{
@@ -628,7 +769,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "delete no access",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: llama.GetName()})
 				assert.Error(t, err, "expected RBAC to prevent deleting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
@@ -646,7 +787,7 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "delete",
-			f: func(t *testing.T, service *Service) {
+			f: func(t *testing.T, service *usersv1.Service) {
 				_, err := service.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: llama.GetName()})
 				assert.NoError(t, err, "expected RBAC to allow deleting user")
 			},
@@ -660,6 +801,46 @@ func TestRBAC(t *testing.T) {
 			},
 			expectChecks: []check{
 				{kind: types.KindUser, verb: types.VerbDelete},
+			},
+		},
+		{
+			desc: "list no access",
+			f: func(t *testing.T, service *usersv1.Service) {
+				_, err := service.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 1})
+				assert.Error(t, err, "expected RBAC to prevent listing users")
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
+			},
+			checker: &fakeChecker{
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindUser},
+					},
+				},
+			},
+			expectChecks: []check{
+				{kind: types.KindUser, verb: types.VerbList},
+				{kind: types.KindUser, verb: types.VerbRead},
+			},
+		},
+		{
+			desc: "list",
+			f: func(t *testing.T, service *usersv1.Service) {
+				resp, err := service.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 1})
+				assert.NoError(t, err, "expected RBAC to prevent deleting user")
+				require.Len(t, resp.Users, 1, "expected list to return a single user got %d", len(resp.Users))
+				assert.Empty(t, cmp.Diff(llama, resp.Users[0], cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+			},
+			checker: &fakeChecker{
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbRead, types.VerbList},
+					},
+				},
+			},
+			expectChecks: []check{
+				{kind: types.KindUser, verb: types.VerbList},
+				{kind: types.KindUser, verb: types.VerbRead},
 			},
 		},
 	}

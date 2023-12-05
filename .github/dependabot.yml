@@ -7,6 +7,9 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
+      # TODO(codingllama): Remove ignore once AWS SDK can be upgraded.
+      # https://github.com/snowflakedb/gosnowflake/issues/970#issuecomment-1829186629
+      - dependency-name: github.com/aws/aws-sdk-go-v2*
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -32,6 +35,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/api"
@@ -50,6 +57,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/assets/aws"
@@ -72,6 +83,10 @@ updates:
       - rosstimothy
       - tcsc
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/assets/backport"
@@ -90,6 +105,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/build.assets/tooling"
@@ -112,6 +131,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
     directory: "/integrations/kube-agent-updater"
@@ -131,6 +154,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: cargo
     directory: "/"
@@ -150,6 +177,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "rust"
+      - "no-changelog"
 
   - package-ecosystem: cargo
     directory: "/lib/srv/desktop/rdp/rdpclient"
@@ -169,6 +200,10 @@ updates:
       - jentfoo
       - rosstimothy
       - zmb3
+    labels:
+      - "dependencies"
+      - "rust"
+      - "no-changelog"
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -182,3 +217,7 @@ updates:
       - jentfoo
       - fheinecke
       - camscale
+    labels:
+      - "dependencies"
+      - "github_actions"
+      - "no-changelog"

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -62,7 +64,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -89,6 +90,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1228,7 +1230,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 0)
+	require.Empty(t, res.Items)
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1551,7 +1553,7 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	for _, testCase := range invalidCases {
 		_, err := NewTerminal(ctx, testCase.cfg)
-		require.Equal(t, err.Error(), testCase.expectedErr)
+		require.Equal(t, testCase.expectedErr, err.Error())
 	}
 
 	validNode := types.ServerV2{}
@@ -2094,23 +2096,23 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 			// Wait for websocket authn challenge event.
 			ty, raw, err := ws.ReadMessage()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, websocket.BinaryMessage, ty)
 			var env Envelope
-			require.Nil(t, proto.Unmarshal(raw, &env))
+			require.NoError(t, proto.Unmarshal(raw, &env))
 
 			chal := &client.MFAAuthenticateChallenge{}
-			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chal))
+			require.NoError(t, json.Unmarshal([]byte(env.Payload), &chal))
 
 			// Send response over ws.
 			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
 			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(t, chal, dev))
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Test we can write.
 			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
-			require.Nil(t, err)
-			require.Nil(t, waitForOutput(stream, "teleport"))
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
 		})
 	}
 }
@@ -2548,7 +2550,7 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 	event := events[0].(*apievents.UserLogin)
-	require.Equal(t, true, event.Success)
+	require.True(t, event.Success)
 	require.Equal(t, ua, event.UserAgent)
 	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
@@ -2925,12 +2927,14 @@ func TestMultipleConnectors(t *testing.T) {
 	}
 	o, err := types.NewOIDCConnector("foo", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o)
+	upserted, err := s.server.Auth().UpsertOIDCConnector(s.ctx, o)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	o2, err := types.NewOIDCConnector("bar", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
+	upserted, err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 
 	// set the auth preferences to oidc with no connector name
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -3217,10 +3221,6 @@ func TestGetClusterDetails(t *testing.T) {
 	require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.Status)
 	require.NotNil(t, cluster.LastConnected)
 	require.Equal(t, teleport.Version, cluster.AuthVersion)
-
-	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, nodes, cluster.NodeCount)
 }
 
 func TestTokenGeneration(t *testing.T) {
@@ -3625,7 +3625,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	require.NoError(t, env.server.Auth().DeleteNode(ctx, env.node.GetNamespace(), env.node.ID()))
 	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
 	require.NoError(t, err)
-	require.Len(t, n, 0)
+	require.Empty(t, n)
 
 	// Double check we start of with no resources.
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
@@ -3656,7 +3656,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteWindowsDesktop(ctx, "hostid", "test-desktop"))
 				wds, err := env.server.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 				require.NoError(t, err)
-				require.Len(t, wds, 0)
+				require.Empty(t, wds)
 			},
 		},
 		{
@@ -3671,7 +3671,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteNode(ctx, apidefaults.Namespace, "test-node"))
 				nodes, err := env.server.Auth().GetNodes(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, nodes, 0)
+				require.Empty(t, nodes)
 			},
 		},
 		{
@@ -3700,7 +3700,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteApplicationServer(ctx, apidefaults.Namespace, "hostid", "test-app"))
 				apps, err := env.server.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, apps, 0)
+				require.Empty(t, apps)
 			},
 		},
 		{
@@ -3721,7 +3721,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteDatabaseServer(ctx, apidefaults.Namespace, "test-hostID", "test-db"))
 				dbs, err := env.server.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, dbs, 0)
+				require.Empty(t, dbs)
 			},
 		},
 		{
@@ -3738,7 +3738,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteKubernetesServer(ctx, "test-kube", "test-kube-name"))
 				kubes, err := env.server.Auth().GetKubernetesServers(ctx)
 				require.NoError(t, err)
-				require.Len(t, kubes, 0)
+				require.Empty(t, kubes)
 			},
 		},
 	}
@@ -4454,7 +4454,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
-	require.Len(t, collectAppSessions(context.Background()), 0)
+	require.Empty(t, collectAppSessions(context.Background()))
 }
 
 func TestGetWebConfig(t *testing.T) {
@@ -4487,7 +4487,7 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertGithubConnector(ctx, github)
+	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{
@@ -4544,10 +4544,21 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
+	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("v99.0.1"))
+	}))
+	defer httpTestServer.Close()
+	versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
+	require.NoError(t, err)
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesVersionURL = versionURL
+
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AssistEnabled = true
+	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
+	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4581,6 +4592,56 @@ func TestGetWebConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, expectedCfg, cfg)
+}
+
+func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ProductType:                modules.ProductTypeTeam,
+			IdentityGovernanceSecurity: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 5,
+			},
+			AccessMonitoring: modules.AccessMonitoringFeature{
+				MaxReportRangeLimit: 10,
+			},
+		},
+	})
+
+	expectedCfg := webclient.WebConfig{
+		Auth: webclient.WebConfigAuthSettings{
+			SecondFactor:     constants.SecondFactorOff,
+			LocalAuthEnabled: true,
+			AuthType:         constants.Local,
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		},
+		CanJoinSessions:  true,
+		ProxyClusterName: env.server.ClusterName(),
+		FeatureLimits: webclient.FeatureLimits{
+			AccessListCreateLimit:               5,
+			AccessMonitoringMaxReportRangeLimit: 10,
+		},
+		IsTeam:       true,
+		IsIGSEnabled: true,
+	}
+
+	// Make a request.
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
 	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
 	require.NoError(t, err)
 	require.Equal(t, expectedCfg, cfg)
@@ -4825,7 +4886,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
-	require.Len(t, devices, 0)
+	require.Empty(t, devices)
 }
 
 func TestCreateAuthenticateChallenge(t *testing.T) {
@@ -5640,7 +5701,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, re.Code(), http.StatusOK)
+		require.Equal(t, http.StatusOK, re.Code())
 
 		// check if auth preference connectorName is set
 		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
@@ -5852,7 +5913,7 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
 	require.NoError(t, err)
-	require.Equal(t, resp.Code(), http.StatusOK)
+	require.Equal(t, http.StatusOK, resp.Code())
 
 	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
 	require.True(t, trace.IsNotFound(err))
@@ -5899,8 +5960,8 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
+	require.Equal(t, diagName, receivedConnectionDiagnostic.ID)
+	require.Equal(t, "success for cd0", receivedConnectionDiagnostic.Message)
 
 	diag, err := env.server.Auth().GetConnectionDiagnostic(ctx, diagName)
 	require.NoError(t, err)
@@ -5921,11 +5982,11 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "after update")
+	require.Equal(t, diagName, receivedConnectionDiagnostic.ID)
+	require.Equal(t, "after update", receivedConnectionDiagnostic.Message)
 	require.Len(t, receivedConnectionDiagnostic.Traces, 1)
 	require.NotNil(t, receivedConnectionDiagnostic.Traces[0])
-	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
+	require.Equal(t, "some details", receivedConnectionDiagnostic.Traces[0].Details)
 }
 
 func TestDiagnoseSSHConnection(t *testing.T) {
@@ -6855,7 +6916,7 @@ func TestCreateDatabase(t *testing.T) {
 		resp, err := pack.clt.PostJSON(ctx, createDatabaseEndpoint, tt.req)
 		tt.errAssert(t, err)
 
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+		require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 
 		if err != nil {
 			continue
@@ -6865,9 +6926,9 @@ func TestCreateDatabase(t *testing.T) {
 		database, err := env.proxies[0].client.GetDatabase(ctx, tt.req.Name)
 		require.NoError(t, err)
 
-		require.Equal(t, database.GetName(), tt.req.Name)
-		require.Equal(t, database.GetProtocol(), tt.req.Protocol)
-		require.Equal(t, database.GetURI(), tt.req.URI)
+		require.Equal(t, tt.req.Name, database.GetName())
+		require.Equal(t, tt.req.Protocol, database.GetProtocol())
+		require.Equal(t, tt.req.URI, database.GetURI())
 
 		// At least the provided labels exist in the database resource
 		databaseLabels := database.GetAllLabels()
@@ -6880,7 +6941,7 @@ func TestCreateDatabase(t *testing.T) {
 		if tt.expectedStatus == http.StatusOK {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
-			require.Equal(t, result, ui.Database{
+			expected := ui.Database{
 				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
@@ -6890,7 +6951,8 @@ func TestCreateDatabase(t *testing.T) {
 				DatabaseUsers: []string{"user1"},
 				DatabaseNames: []string{"name1"},
 				URI:           "someuri:3306",
-			})
+			}
+			require.Equal(t, expected, result)
 		}
 	}
 }
@@ -6993,7 +7055,7 @@ func TestUpdateDatabase_Errors(t *testing.T) {
 			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
 			tt.errAssert(t, err)
 
-			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+			require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 		})
 	}
 }
@@ -7796,25 +7858,20 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	sshGRPCServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			interceptors.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 		grpc.Creds(creds),
 	)
 	t.Cleanup(sshGRPCServer.Stop)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: client,
-		LockWatcher: proxyLockWatcher,
-		Clock:       clock,
-		ServerID:    proxyID,
-		Emitter:     client,
-		Logger:      log,
+		AccessPoint:    client,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          clock,
+		ServerID:       proxyID,
+		Emitter:        client,
+		EmitterContext: ctx,
+		Logger:         log,
 	})
 	require.NoError(t, err)
 
@@ -9347,8 +9404,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, promptMFA, client.WithPresenceClock(presenceClock)))
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaPrompt, client.WithPresenceClock(presenceClock)))
 		},
 	})
 

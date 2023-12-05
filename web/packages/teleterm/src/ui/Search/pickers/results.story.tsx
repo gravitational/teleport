@@ -1,20 +1,22 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { Flex } from 'design';
@@ -37,6 +39,7 @@ import {
   NoResultsItem,
   ResourceSearchErrorsItem,
   TypeToSearchItem,
+  AdvancedSearchEnabledItem,
 } from './ActionPicker';
 import { SuggestionsError } from './ParameterPicker';
 import { ResultList } from './ResultList';
@@ -290,7 +293,7 @@ const SearchResultItems = () => {
     }),
     {
       kind: 'resource-type-filter',
-      resource: 'kubes',
+      resource: 'kube_cluster',
       nameMatch: '',
       score: 0,
     },
@@ -314,6 +317,27 @@ const SearchResultItems = () => {
       nameMatch: '',
       score: 0,
     },
+    {
+      kind: 'display-results',
+      clusterUri,
+      value: 'abc',
+      resourceKinds: ['db'],
+      documentUri: '/docs/abc',
+    },
+    {
+      kind: 'display-results',
+      clusterUri,
+      value: 'abc',
+      resourceKinds: ['node'],
+      documentUri: undefined,
+    },
+    {
+      kind: 'display-results',
+      clusterUri,
+      value: 'abc',
+      resourceKinds: [],
+      documentUri: undefined,
+    },
   ];
   const attempt = makeSuccessAttempt(searchResults);
 
@@ -322,15 +346,14 @@ const SearchResultItems = () => {
       attempts={[attempt]}
       onPick={() => {}}
       onBack={() => {}}
-      addWindowEventListener={() => ({ cleanup: () => {} })}
+      addWindowEventListener={() => ({
+        cleanup: () => {},
+      })}
       render={searchResult => {
         const Component = ComponentMap[searchResult.kind];
 
         return {
-          key:
-            searchResult.kind !== 'resource-type-filter'
-              ? searchResult.resource.uri
-              : searchResult.resource,
+          key: getKey(searchResult),
           Component: (
             <Component
               searchResult={searchResult}
@@ -343,68 +366,101 @@ const SearchResultItems = () => {
   );
 };
 
-const AuxiliaryItems = () => (
-  <ResultList<string>
-    onPick={() => {}}
-    onBack={() => {}}
-    render={() => null}
-    attempts={[]}
-    addWindowEventListener={() => ({ cleanup: () => {} })}
-    ExtraTopComponent={
-      <>
-        <NoResultsItem
-          clustersWithExpiredCerts={new Set()}
-          getClusterName={routing.parseClusterName}
-        />
-        <NoResultsItem
-          clustersWithExpiredCerts={new Set([clusterUri])}
-          getClusterName={routing.parseClusterName}
-        />
-        <NoResultsItem
-          clustersWithExpiredCerts={new Set([clusterUri, '/clusters/foobar'])}
-          getClusterName={routing.parseClusterName}
-        />
-        <ResourceSearchErrorsItem
-          getClusterName={routing.parseClusterName}
-          showErrorsInModal={() => window.alert('Error details')}
-          errors={[
-            new ResourceSearchError(
-              '/clusters/foo',
-              'server',
-              new Error(
-                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
-              )
-            ),
-          ]}
-        />
-        <ResourceSearchErrorsItem
-          getClusterName={routing.parseClusterName}
-          showErrorsInModal={() => window.alert('Error details')}
-          errors={[
-            new ResourceSearchError(
-              '/clusters/bar',
-              'database',
-              new Error(
-                '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
-              )
-            ),
-            new ResourceSearchError(
-              '/clusters/foo',
-              'server',
-              new Error(
-                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
-              )
-            ),
-          ]}
-        />
-        <SuggestionsError
-          statusText={
-            '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
-          }
-        />
-        <TypeToSearchItem hasNoRemainingFilterActions={false} />
-        <TypeToSearchItem hasNoRemainingFilterActions={true} />
-      </>
-    }
-  />
-);
+function getKey(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'resource-type-filter':
+      return searchResult.resource;
+    case 'display-results':
+      return searchResult.value;
+    default:
+      return searchResult.resource.uri;
+  }
+}
+
+const AuxiliaryItems = () => {
+  const [advancedSearchEnabled, setAdvancedSearchEnabled] = useState(false);
+  const advancedSearch = {
+    isToggled: advancedSearchEnabled,
+    onToggle: () => setAdvancedSearchEnabled(prevState => !prevState),
+  };
+
+  return (
+    <ResultList<string>
+      onPick={() => {}}
+      onBack={() => {}}
+      render={() => null}
+      attempts={[]}
+      addWindowEventListener={() => ({
+        cleanup: () => {},
+      })}
+      ExtraTopComponent={
+        <>
+          <NoResultsItem
+            clustersWithExpiredCerts={new Set()}
+            getClusterName={routing.parseClusterName}
+            advancedSearch={advancedSearch}
+          />
+          <NoResultsItem
+            clustersWithExpiredCerts={new Set([clusterUri])}
+            getClusterName={routing.parseClusterName}
+            advancedSearch={advancedSearch}
+          />
+          <NoResultsItem
+            clustersWithExpiredCerts={new Set([clusterUri, '/clusters/foobar'])}
+            getClusterName={routing.parseClusterName}
+            advancedSearch={advancedSearch}
+          />
+          <ResourceSearchErrorsItem
+            getClusterName={routing.parseClusterName}
+            showErrorsInModal={() => window.alert('Error details')}
+            errors={[
+              new ResourceSearchError(
+                '/clusters/foo',
+                'server',
+                new Error(
+                  '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+                )
+              ),
+            ]}
+            advancedSearch={advancedSearch}
+          />
+          <ResourceSearchErrorsItem
+            getClusterName={routing.parseClusterName}
+            showErrorsInModal={() => window.alert('Error details')}
+            errors={[
+              new ResourceSearchError(
+                '/clusters/bar',
+                'database',
+                new Error(
+                  '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
+                )
+              ),
+              new ResourceSearchError(
+                '/clusters/foo',
+                'server',
+                new Error(
+                  '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+                )
+              ),
+            ]}
+            advancedSearch={advancedSearch}
+          />
+          <SuggestionsError
+            statusText={
+              '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
+            }
+          />
+          <TypeToSearchItem
+            hasNoRemainingFilterActions={false}
+            advancedSearch={advancedSearch}
+          />
+          <TypeToSearchItem
+            hasNoRemainingFilterActions={true}
+            advancedSearch={advancedSearch}
+          />
+          <AdvancedSearchEnabledItem advancedSearch={advancedSearch} />
+        </>
+      }
+    />
+  );
+};

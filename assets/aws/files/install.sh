@@ -71,6 +71,10 @@ if [ -f /tmp/teleport-fips ]; then
     rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
     # add --fips to 'teleport start' commands in FIPS mode
     sed -i -E "s_ExecStart=/usr/local/bin/teleport start(.*)_ExecStart=/usr/local/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
+    # https://aws.amazon.com/blogs/publicsector/enabling-fips-mode-amazon-linux-2/
+    yum install -y dracut-fips
+    dracut -f
+    /sbin/grubby --update-kernel=ALL --args="fips=1"
 else
     if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
         TARBALL_FILENAME="/tmp/files/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"

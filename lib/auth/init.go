@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -247,6 +249,9 @@ type InitConfig struct {
 
 	// SecReports is a service that manages security reports.
 	SecReports services.SecReports
+
+	// PluginData is a service that manages plugin data.
+	PluginData services.PluginData
 
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
@@ -571,7 +576,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		// Key deletion is best-effort, log a warning if it fails and carry on.
 		// We don't want to prevent a CA rotation, which may be necessary in
 		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
 	}
 
 	if lib.IsInsecureDevMode() {
@@ -1358,16 +1363,43 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
+// ResourceApplyPriority specifies in which order the resources must be applied
+// to avoid consistency issues. A lower priority means the resource is applied
+// before.
+var ResourceApplyPriority = map[string]int{
+	types.KindRole:                    1,
+	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindToken:                   3,
+	types.KindClusterNetworkingConfig: 3,
+	types.KindClusterAuthPreference:   3,
+}
+
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
-// This means consistency is checked. This function does not currently support applying resources
-// with dependencies (like a user referring to a role) as it won't necessarily apply them in the
-// right order.
+// This means consistency is checked. This function support applying resources
+// with dependencies (like a user referring to a role).
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
+	slices.SortFunc(resources, func(a, b types.Resource) int {
+		priorityA := ResourceApplyPriority[a.GetKind()]
+		priorityB := ResourceApplyPriority[b.GetKind()]
+		return priorityA - priorityB
+	})
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
+		case types.User:
+			err = services.ValidateUserRoles(ctx, r, service.Access)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			_, err = service.Identity.UpsertUser(ctx, r)
+		case types.Role:
+			_, err = service.Access.UpsertRole(ctx, r)
+		case types.ClusterNetworkingConfig:
+			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+		case types.AuthPreference:
+			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

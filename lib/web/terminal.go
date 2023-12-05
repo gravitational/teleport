@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -42,6 +44,7 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -536,12 +539,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: t.authProvider,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		PromptMFA: func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 			span.AddEvent("prompting user with mfa challenge")
-			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, chal)
+			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{}).Run(ctx, chal)
 			span.AddEvent("user completed mfa challenge")
 			return assertion, trace.Wrap(err)
-		},
+		}),
 		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq: mfaRequiredReq,
 		CertsReq:       certsReq,
@@ -560,8 +563,8 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(stream *WSStream, codec mfaCodec) client.PromptMFAFunc {
-	return func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+func promptMFAChallenge(stream *WSStream, codec mfaCodec) mfa.Prompt {
+	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
@@ -580,7 +583,7 @@ func promptMFAChallenge(stream *WSStream, codec mfaCodec) client.PromptMFAFunc {
 
 		resp, err := stream.readChallengeResponse(codec)
 		return resp, trace.Wrap(err)
-	}
+	})
 }
 
 type connectWithMFAFn = func(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)

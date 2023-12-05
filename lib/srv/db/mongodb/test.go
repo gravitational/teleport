@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mongodb
 
@@ -20,6 +22,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -73,11 +76,14 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 
 // TestServer is a test MongoDB server used in functional database access tests.
 type TestServer struct {
+	usersTracker
+
 	cfg      common.TestServerConfig
 	listener net.Listener
 	port     string
 	log      logrus.FieldLogger
 
+	serverVersion    string
 	wireVersion      int
 	activeConnection int32
 	maxMessageSize   uint32
@@ -131,9 +137,14 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
-		listener: tls.NewListener(config.Listener, tlsConfig),
-		port:     port,
-		log:      log,
+		listener:      tls.NewListener(config.Listener, tlsConfig),
+		port:          port,
+		log:           log,
+		serverVersion: "7.0.0",
+		usersTracker: usersTracker{
+			userEventsCh: make(chan UserEvent, 100),
+			users:        make(map[string]userWithTracking),
+		},
 	}
 	for _, o := range opts {
 		o(server)
@@ -173,6 +184,12 @@ func (s *TestServer) Serve() error {
 // handleConnection receives Mongo wire messages from the client connection
 // and sends back the response messages.
 func (s *TestServer) handleConnection(conn net.Conn) error {
+	release, err := s.trackUserConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer release()
+
 	// Read client messages and reply to them - test server supports a very
 	// basic set of commands: "isMaster", "authenticate", "ping" and "find".
 	for {
@@ -210,6 +227,22 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 		return s.handleSaslStart(message)
 	case commandSaslContinue:
 		return s.handleSaslContinue(message)
+	case commandEndSessions:
+		return sendOKReply()
+	case commandBuildInfo:
+		return s.handleBuildInfo(message)
+
+	// Auto-user provisioning related commands.
+	case commandCurrentOp:
+		return s.handleCurrentOp(message)
+	case commandCreateUser:
+		return s.handleCreateUser(message)
+	case commandUsersInfo:
+		return s.handleUsersInfo(message)
+	case commandUpdateUser:
+		return s.handleUpdateUser(message)
+	case commandDropUser:
+		return s.handleDropUser(message)
 	}
 	return nil, trace.NotImplemented("unsupported message: %v", message)
 }
@@ -280,12 +313,12 @@ func (s *TestServer) handleFind(message protocol.Message) (protocol.Message, err
 
 // handleSaslStart makes response to the client's "saslStart" command.
 func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message, error) {
-	opmsg, ok := message.(*protocol.MessageOpQuery)
+	opmsg, ok := message.(*protocol.MessageOpMsg)
 	if !ok {
-		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpMsg but got %T", message)
 	}
 
-	mechanism := opmsg.Query.Lookup("mechanism").StringValue()
+	mechanism := opmsg.BodySection.Document.Lookup("mechanism").StringValue()
 	conversationID := atomic.AddInt32(&s.conversationIdx, 1)
 	s.saslConversationTracker.Store(conversationID, mechanism)
 
@@ -301,12 +334,12 @@ func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message
 // It expects a conversion to be present at `saslConversationTracker`,
 // otherwise it won't be able to define which authentication mechanism to use.
 func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Message, error) {
-	opmsg, ok := message.(*protocol.MessageOpQuery)
+	opmsg, ok := message.(*protocol.MessageOpMsg)
 	if !ok {
-		return nil, trace.BadParameter("expected message type *protocol.MessageOpQuery but got %T", message)
+		return nil, trace.BadParameter("expected message type *protocol.MessageOpMsg but got %T", message)
 	}
 
-	conversationID := opmsg.Query.Lookup("conversationId").Int32()
+	conversationID := opmsg.BodySection.Document.Lookup("conversationId").Int32()
 	mechanism, ok := s.saslConversationTracker.Load(conversationID)
 	if !ok {
 		return nil, trace.NotFound("conversationID not found")
@@ -322,8 +355,8 @@ func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Mess
 
 // handleAWSIAMSaslStart handles the "saslStart" command for "MONGODB-AWS"
 // authentication.
-func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
-	_, userPass := opmsg.Query.Lookup("payload").Binary()
+func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol.MessageOpMsg) (protocol.Message, error) {
+	_, userPass := opmsg.BodySection.Document.Lookup("payload").Binary()
 	doc, _, ok := bsoncore.ReadDocument(userPass)
 	if !ok {
 		return nil, trace.BadParameter("invalid payload")
@@ -358,8 +391,8 @@ func (s *TestServer) handleAWSIAMSaslStart(conversationID int32, opmsg *protocol
 
 // handleAWSIAMSaslContinue handles the "saslStart" command for "MONGODB-AWS"
 // authentication.
-func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpQuery) (protocol.Message, error) {
-	_, awsSaslPayload := opmsg.Query.Lookup("payload").Binary()
+func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *protocol.MessageOpMsg) (protocol.Message, error) {
+	_, awsSaslPayload := opmsg.BodySection.Document.Lookup("payload").Binary()
 	doc, _, ok := bsoncore.ReadDocument(awsSaslPayload)
 	if !ok {
 		return nil, trace.BadParameter("invalid payload")
@@ -379,6 +412,81 @@ func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *proto
 	}
 
 	return protocol.MakeOpMsg(authReply), nil
+}
+
+func (s *TestServer) handleBuildInfo(msg protocol.Message) (protocol.Message, error) {
+	return sendOKReply(withReplyKeyValue("version", s.serverVersion))
+}
+
+func (s *TestServer) handleCurrentOp(msg protocol.Message) (protocol.Message, error) {
+	opmsg, ok := msg.(*protocol.MessageOpMsg)
+	if !ok {
+		return nil, trace.BadParameter("invalid msg")
+	}
+
+	req := struct {
+		EffectiveUsers struct {
+			Match struct {
+				User string `bson:"user"`
+			} `bson:"$elemMatch"`
+		} `bson:"effectiveUsers"`
+	}{}
+	if err := bson.Unmarshal([]byte(opmsg.BodySection.Document), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We are cheating here as the Engine only counts the number of inprog.
+	conns := s.usersTracker.getUserRemoteConnections(req.EffectiveUsers.Match.User)
+	return sendOKReply(withReplyKeyValue("inprog", conns))
+}
+
+func (s *TestServer) handleCreateUser(msg protocol.Message) (protocol.Message, error) {
+	username, user, err := getUsernameAndUserFromMessage(msg, commandCreateUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.usersTracker.createUser(username, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sendOKReply()
+}
+
+func (s *TestServer) handleUsersInfo(msg protocol.Message) (protocol.Message, error) {
+	username, err := getUsernameFromMessage(msg, commandUsersInfo)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	users := []user{}
+	if user, found := s.usersTracker.getUser(username); found {
+		users = append(users, user)
+	}
+	return sendOKReply(withReplyKeyValue("users", users))
+}
+
+func (s *TestServer) handleUpdateUser(msg protocol.Message) (protocol.Message, error) {
+	username, user, err := getUsernameAndUserFromMessage(msg, commandUpdateUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.usersTracker.updateUser(username, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sendOKReply()
+}
+
+func (s *TestServer) handleDropUser(msg protocol.Message) (protocol.Message, error) {
+	username, err := getUsernameFromMessage(msg, commandDropUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.usersTracker.deleteUser(username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sendOKReply()
 }
 
 // getWireVersion returns the server's wire protocol version.
@@ -412,6 +520,199 @@ func (s *TestServer) Close() error {
 	return s.listener.Close()
 }
 
+func withReplyKeyValue(key string, value any) func(bson.M) {
+	return func(reply bson.M) {
+		reply[key] = value
+	}
+}
+
+func sendOKReply(opts ...func(bson.M)) (protocol.Message, error) {
+	reply := bson.M{
+		"ok": 1,
+	}
+	for _, applyOpt := range opts {
+		applyOpt(reply)
+	}
+	replyBytes, err := bson.Marshal(reply)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return protocol.MakeOpMsg(replyBytes), nil
+}
+
+func getUsernameFromMessage(msg protocol.Message, usernameKey string) (string, error) {
+	opmsg, ok := msg.(*protocol.MessageOpMsg)
+	if !ok {
+		return "", trace.BadParameter("invalid msg")
+	}
+	username := opmsg.BodySection.Document.Lookup(usernameKey)
+	if !strings.HasPrefix(username.StringValue(), "CN=") {
+		return "", trace.BadParameter("invalid username %v", username)
+	}
+	return username.StringValue(), nil
+}
+
+func getUsernameAndUserFromMessage(msg protocol.Message, usernameKey string) (string, user, error) {
+	var user user
+	username, err := getUsernameFromMessage(msg, usernameKey)
+	if err != nil {
+		return "", user, trace.Wrap(err)
+	}
+
+	err = bson.Unmarshal([]byte(msg.(*protocol.MessageOpMsg).BodySection.Document), &user)
+	return username, user, trace.Wrap(err)
+}
+
+// UserEventType defines the type of the UserEventType.
+type UserEventType int
+
+const (
+	UserEventActivate UserEventType = iota
+	UserEventDeactivate
+	UserEventDelete
+)
+
+// UserEvent represents a user activation/deactivation event.
+type UserEvent struct {
+	// DatabaseUser is the in-database username.
+	DatabaseUser string
+	// Roles are the user Roles.
+	Roles []string
+	// Type defines the type of the UserEventType.
+	Type UserEventType
+}
+
+type userWithTracking struct {
+	user              user
+	activeConnections map[net.Conn]struct{}
+}
+
+type usersTracker struct {
+	userEventsCh chan UserEvent
+	users        map[string]userWithTracking
+	usersMu      sync.Mutex
+}
+
+// UserEventsCh returns channel that receives user activate/deactivate events.
+func (t *usersTracker) UserEventsCh() <-chan UserEvent {
+	return t.userEventsCh
+}
+
+func (t *usersTracker) trackUserConnection(conn net.Conn) (func(), error) {
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return func() {}, nil
+	}
+
+	if err := tlsConn.Handshake(); err != nil {
+		return nil, trace.Wrap(err)
+	} else if len(tlsConn.ConnectionState().PeerCertificates) == 0 {
+		return func() {}, nil
+	}
+
+	username := "CN=" + tlsConn.ConnectionState().PeerCertificates[0].Subject.CommonName
+
+	t.usersMu.Lock()
+	defer t.usersMu.Unlock()
+	if user, found := t.users[username]; found {
+		user.activeConnections[conn] = struct{}{}
+	}
+
+	return func() {
+		// Untrack per-user active connections.
+		t.usersMu.Lock()
+		defer t.usersMu.Unlock()
+		if user, found := t.users[username]; found {
+			delete(user.activeConnections, conn)
+		}
+	}, nil
+}
+
+func (t *usersTracker) sendUserEvent(username string, user user, eventType UserEventType) {
+	event := UserEvent{
+		DatabaseUser: username,
+		Type:         eventType,
+	}
+	for _, role := range user.Roles {
+		event.Roles = append(event.Roles, fmt.Sprintf("%s@%s", role.Rolename, role.Database))
+	}
+	t.userEventsCh <- event
+}
+
+func (t *usersTracker) getUser(username string) (user, bool) {
+	t.usersMu.Lock()
+	defer t.usersMu.Unlock()
+
+	user, ok := t.users[username]
+	return user.user, ok
+}
+
+func (t *usersTracker) getUserRemoteConnections(username string) (conns []string) {
+	t.usersMu.Lock()
+	defer t.usersMu.Unlock()
+
+	user, ok := t.users[username]
+	if !ok {
+		return conns
+	}
+
+	for conn := range user.activeConnections {
+		conns = append(conns, conn.RemoteAddr().String())
+	}
+	return conns
+}
+
+func (t *usersTracker) createUser(username string, user user) error {
+	t.usersMu.Lock()
+	defer t.usersMu.Unlock()
+
+	_, found := t.users[username]
+	if found {
+		return trace.AlreadyExists("user %q already exists", username)
+	}
+
+	t.users[username] = userWithTracking{
+		user:              user,
+		activeConnections: make(map[net.Conn]struct{}),
+	}
+	go t.sendUserEvent(username, user, UserEventActivate)
+	return nil
+}
+
+func (t *usersTracker) updateUser(username string, user user) error {
+	t.usersMu.Lock()
+	defer t.usersMu.Unlock()
+
+	existingUser, found := t.users[username]
+	if !found {
+		return trace.NotFound("user %q not found", username)
+	}
+
+	existingUser.user = user
+	if user.isLocked() {
+		go t.sendUserEvent(username, user, UserEventDeactivate)
+	} else {
+		go t.sendUserEvent(username, user, UserEventActivate)
+	}
+	return nil
+}
+
+func (t *usersTracker) deleteUser(username string) error {
+	t.usersMu.Lock()
+	defer t.usersMu.Unlock()
+
+	existingUser, found := t.users[username]
+	if !found {
+		return trace.NotFound("user %q not found", username)
+	} else if len(existingUser.activeConnections) > 0 {
+		return trace.CompareFailed("user %q has active connections", username)
+	}
+
+	delete(t.users, username)
+	go t.sendUserEvent(username, existingUser.user, UserEventDelete)
+	return nil
+}
+
 const (
 	authMechanismAWS = "MONGODB-AWS"
 
@@ -421,6 +722,14 @@ const (
 	commandFind         = "find"
 	commandSaslStart    = "saslStart"
 	commandSaslContinue = "saslContinue"
+	commandEndSessions  = "endSessions"
+	commandBuildInfo    = "buildInfo"
+
+	commandCurrentOp  = "currentOp"
+	commandCreateUser = "createUser"
+	commandUsersInfo  = "usersInfo"
+	commandUpdateUser = "updateUser"
+	commandDropUser   = "dropUser"
 )
 
 // makeOKReply builds a generic document used to indicate success e.g.

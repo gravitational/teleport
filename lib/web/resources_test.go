@@ -1,17 +1,19 @@
-/**
- * Copyright 2021 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package web
@@ -51,7 +53,7 @@ spec:
     - testing
 version: v3`
 	extractedResource, err := ExtractResourceAndValidate(goodContent)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, extractedResource)
 
 	// Test missing name.
@@ -283,10 +285,10 @@ spec:
 version: v2
 `
 	cluster, err := types.NewTrustedCluster("tcName", types.TrustedClusterSpecV2{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(cluster)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, item, &ui.ResourceItem{
 		ID:      "trusted_cluster:tcName",
 		Kind:    types.KindTrustedCluster,
@@ -304,14 +306,14 @@ func TestGetRoles(t *testing.T) {
 				Logins: []string{"test"},
 			},
 		})
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		return []types.Role{role}, nil
 	}
 
 	// Test response is converted to ui objects.
 	roles, err := getRoles(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	require.Contains(t, roles[0].Content, "name: test")
 }
@@ -433,7 +435,7 @@ func TestGetGithubConnectors(t *testing.T) {
 
 	// Test response is converted to ui objects.
 	connectors, err := getGithubConnectors(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, connectors, 1)
 	require.Contains(t, connectors[0].Content, "name: test")
 }
@@ -444,14 +446,14 @@ func TestGetTrustedClusters(t *testing.T) {
 
 	m.mockGetTrustedClusters = func(ctx context.Context) ([]types.TrustedCluster, error) {
 		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{})
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		return []types.TrustedCluster{cluster}, nil
 	}
 
 	// Test response is converted to ui objects.
 	tcs, err := getTrustedClusters(ctx, m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, tcs, 1)
 	require.Contains(t, tcs[0].Content, "name: test")
 }
@@ -608,7 +610,6 @@ type mockedResourceAPIGetter struct {
 	mockGetRole               func(ctx context.Context, name string) (types.Role, error)
 	mockGetRoles              func(ctx context.Context) ([]types.Role, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
-	mockUpsertGithubConnector func(ctx context.Context, connector types.GithubConnector) error
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	mockDeleteGithubConnector func(ctx context.Context, id string) error
@@ -639,14 +640,6 @@ func (m *mockedResourceAPIGetter) UpsertRole(ctx context.Context, role types.Rol
 	}
 
 	return nil, trace.NotImplemented("mockUpsertRole not implemented")
-}
-
-func (m *mockedResourceAPIGetter) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if m.mockUpsertGithubConnector != nil {
-		return m.mockUpsertGithubConnector(ctx, connector)
-	}
-
-	return trace.NotImplemented("mockUpsertGithubConnector not implemented")
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {

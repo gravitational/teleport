@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { renderHook, act } from '@testing-library/react-hooks';
@@ -324,6 +326,7 @@ test('forceFetch spawns another request, even if there is one pending', async ()
       agents: [
         {
           kind: 'node',
+          subKind: 'teleport',
           id: 'sus',
           clusterId: 'test-cluster',
           hostname: `impostor`,
@@ -380,5 +383,28 @@ test("doesn't get confused if aborting a request still results in a successful p
   });
 
   await act(async () => Promise.all([f1, f2]));
+  expect(resourceNames(result)).toEqual(['rabbit0']);
+});
+
+test('fetch() calculates new state from the fresh state', async () => {
+  let props = hookProps({
+    fetchFunc: newFetchFunc({
+      search: 'rabbit',
+      numResources: 1,
+      newAbortError: () => null,
+    }),
+  });
+  const { result } = renderHook(useKeyBasedPagination, {
+    initialProps: props,
+  });
+  await act(result.current.fetch);
+  expect(resourceNames(result)).toEqual(['rabbit0']);
+  await act(async () => {
+    // Because `fetch` calculates the new state based on a fresh state,
+    // we can safely call these two functions one after another,
+    // without the risk of `fetch` operating on the stale state.
+    result.current.clear();
+    await result.current.fetch({ force: true });
+  });
   expect(resourceNames(result)).toEqual(['rabbit0']);
 });

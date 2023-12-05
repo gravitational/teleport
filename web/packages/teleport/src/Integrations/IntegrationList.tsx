@@ -1,21 +1,24 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
@@ -35,7 +38,11 @@ import {
   IntegrationStatusCode,
   IntegrationKind,
   Plugin,
+  ExternalAuditStorageIntegration,
 } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
+
+import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -44,9 +51,10 @@ type Props<IntegrationLike> = {
     onDeleteIntegration(i: Integration): void;
     onEditIntegration(i: Integration): void;
   };
+  onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
 
-type IntegrationLike = Integration | Plugin;
+type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props<IntegrationLike>) {
   return (
@@ -90,17 +98,64 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               );
             }
 
+            if (item.resourceType === 'integration') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem
+                      onClick={() =>
+                        props.integrationOps.onEditIntegration(item)
+                      }
+                    >
+                      Edit...
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() =>
+                        props.integrationOps.onDeleteIntegration(item)
+                      }
+                    >
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            // draft external audit storage
+            if (item.statusCode === IntegrationStatusCode.Draft) {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem
+                      as={Link}
+                      to={{
+                        pathname: cfg.getIntegrationEnrollRoute(
+                          IntegrationKind.ExternalAuditStorage
+                        ),
+                        state: { continueDraft: true },
+                      }}
+                    >
+                      Continue Setup...
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() =>
+                        props.onDeleteExternalAuditStorage('draft')
+                      }
+                    >
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            // active external audit storage
             return (
               <Cell align="right">
                 <MenuButton>
                   <MenuItem
-                    onClick={() => props.integrationOps.onEditIntegration(item)}
-                  >
-                    Edit...
-                  </MenuItem>
-                  <MenuItem
                     onClick={() =>
-                      props.integrationOps.onDeleteIntegration(item)
+                      props.onDeleteExternalAuditStorage('cluster')
                     }
                   >
                     Delete...
@@ -142,8 +197,17 @@ enum Status {
 }
 
 function getStatus(item: IntegrationLike): Status | null {
-  if (item.resourceType !== 'plugin') {
+  if (item.resourceType === 'integration') {
     return Status.Success;
+  }
+
+  if (item.resourceType === 'external-audit-storage') {
+    switch (item.statusCode) {
+      case IntegrationStatusCode.Draft:
+        return Status.Warning;
+      default:
+        return Status.Success;
+    }
   }
 
   switch (item.statusCode) {
@@ -152,6 +216,8 @@ function getStatus(item: IntegrationLike): Status | null {
     case IntegrationStatusCode.Running:
       return Status.Success;
     case IntegrationStatusCode.SlackNotInChannel:
+      return Status.Warning;
+    case IntegrationStatusCode.Draft:
       return Status.Warning;
     default:
       return Status.Error;
@@ -207,6 +273,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
+      case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
         icon = (
           <SvgIconContainer>

@@ -1,18 +1,20 @@
 /*
-Copyright 2021-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -20,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -89,8 +92,8 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
 	startCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(config.LogFormatText).
-		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
+		Default(utils.LogFormatText).
+		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -100,8 +103,8 @@ func Run(args []string, stdout io.Writer) error {
 	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
 	initCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(config.LogFormatText).
-		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
+		Default(utils.LogFormatText).
+		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
@@ -115,8 +118,8 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
 	configureCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(config.LogFormatText).
-		EnumVar(&cf.LogFormat, config.LogFormatJSON, config.LogFormatText)
+		Default(utils.LogFormatText).
+		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	migrateCmd := app.Command("migrate", "Migrates a config file from an older version to the newest version. Outputs to stdout by default.")
 	migrateCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
@@ -376,21 +379,19 @@ func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc, reloadCh c
 }
 
 func setupLogger(debug bool, format string) error {
-	level := logrus.InfoLevel
+	level := slog.LevelInfo
 	if debug {
-		level = logrus.DebugLevel
+		level = slog.LevelDebug
 	}
-	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	switch format {
-	case config.LogFormatJSON:
-		formatter := &utils.JSONFormatter{}
-		logrus.SetFormatter(formatter)
-	case config.LogFormatText, "":
-	// Nothing to do, this is the default set up by utils.InitLogger
+	case utils.LogFormatJSON:
+	case utils.LogFormatText, "":
 	default:
 		return trace.BadParameter("unsupported log format %q", format)
 	}
+
+	utils.InitLogger(utils.LoggingForDaemon, level, utils.WithLogFormat(format))
 
 	return nil
 }

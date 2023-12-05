@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
@@ -43,6 +45,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -51,6 +54,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -63,6 +67,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -98,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -256,6 +262,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.PluginData == nil {
+		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -339,6 +348,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
 		UserPreferences:         cfg.UserPreferences,
+		PluginData:              cfg.PluginData,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -392,6 +402,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
+	if as.spaceliftIDTokenValidator == nil {
+		as.spaceliftIDTokenValidator = spacelift.NewIDTokenValidator(
+			spacelift.IDTokenValidatorConfig{
 				Clock: as.clock,
 			},
 		)
@@ -472,6 +489,7 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.Integrations
+	services.IntegrationsTokenGenerator
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
@@ -479,6 +497,7 @@ type Services struct {
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
+	services.PluginData
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -500,6 +519,11 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 // Implements ReadAccessPoint
 func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, req)
 }
 
 // OktaClient returns the okta client.
@@ -614,7 +638,10 @@ var (
 			Name:      teleport.MetricUpgraderCounts,
 			Help:      "Tracks the number of instances advertising each upgrader",
 		},
-		[]string{teleport.TagUpgrader},
+		[]string{
+			teleport.TagUpgrader,
+			teleport.TagVersion,
+		},
 	)
 
 	accessRequestsCreatedMetric = prometheus.NewCounterVec(
@@ -748,6 +775,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+
+	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
+	// by the auth server. It can be overridden for the purpose of tests.
+	spaceliftIDTokenValidator spaceliftIDTokenValidator
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -1181,8 +1212,14 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// set instance metric values
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-	for _, upgrader := range []string{types.UpgraderKindKubeController, types.UpgraderKindSystemdUnit} {
-		upgraderCountsMetric.WithLabelValues(upgrader).Set(float64(imp.InstancesWithUpgrader(upgrader)))
+
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
+		}
 	}
 
 	// create/delete upgrade enroll prompt as appropriate
@@ -1217,11 +1254,11 @@ func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shou
 		types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
 	)
 	if err != nil {
-		log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", upgradeEnrollAlertID, err)
 		return
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-		log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
+		log.Warnf("Failed to set %s alert: %v", upgradeEnrollAlertID, err)
 		return
 	}
 }
@@ -1524,7 +1561,7 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 // emitter rather than falling back to the implementation from [Services] (using
 // the audit log directly, which is almost never what you want).
 func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+	return trace.Wrap(a.emitter.EmitAuditEvent(context.WithoutCancel(ctx), e))
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
@@ -3118,7 +3155,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 			return trace.Wrap(err)
 		}
 
-		if _, _, err := a.validateMFAAuthResponse(
+		if _, _, err := a.ValidateMFAAuthResponse(
 			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
 		); err != nil {
 			return trace.Wrap(err)
@@ -4324,6 +4361,9 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	if req.GetDryRun() {
+		_, promotions := a.generateAccessRequestPromotions(ctx, req)
+		// update the request with additional reviewers if possible.
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -4357,14 +4397,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+
 	// calculate the promotions
-	reqCopy := req.Copy()
-	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
-	if err != nil {
-		// Do not fail the request if the promotions failed to generate.
-		// The request promotion will be blocked, but the request can still be approved.
-		log.WithError(err).Warn("Failed to generate access list promotions.")
-	} else if promotions != nil {
+	reqCopy, promotions := a.generateAccessRequestPromotions(ctx, req)
+	if promotions != nil {
 		// Create the promotion entry even if the allowed promotion is empty. Otherwise, we won't
 		// be able to distinguish between an allowed empty set and generation failure.
 		if err := a.Services.CreateAccessRequestAllowedPromotions(ctx, reqCopy, promotions); err != nil {
@@ -4376,6 +4412,48 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+// generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
+// the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
+func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
+	reqCopy := req.Copy()
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, a.Services, reqCopy)
+	if err != nil {
+		// Do not fail the request if the promotions failed to generate.
+		// The request promotion will be blocked, but the request can still be approved.
+		log.WithError(err).Warn("Failed to generate access list promotions.")
+	}
+	return reqCopy, promotions
+}
+
+// updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers given the promotions
+// created for the access request.
+func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
+	if promotions == nil {
+		return
+	}
+
+	// For promotions, add in access list owners as additional suggested reviewers
+	additionalReviewers := map[string]struct{}{}
+
+	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
+	for _, promotion := range promotions.Promotions {
+		accessList, err := accessLists.GetAccessList(ctx, promotion.AccessListName)
+		if err != nil {
+			log.WithError(err).Warn("Failed to get access list, skipping additional reviewers")
+			break
+		}
+
+		for _, owner := range accessList.GetOwners() {
+			additionalReviewers[owner.Name] = struct{}{}
+		}
+	}
+
+	// Only modify the original request if additional reviewers were found.
+	if len(additionalReviewers) > 0 {
+		req.SetSuggestedReviewers(append(req.GetSuggestedReviewers(), maps.Keys(additionalReviewers)...))
+	}
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -5210,9 +5288,9 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	if a.accessMonitoringEnabled {
-		features.IdentityGovernance = a.accessMonitoringEnabled
-	}
+	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
+	// (no other changes necessary)
+	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -5222,6 +5300,24 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
+}
+
+// DELETE IN 16.0
+func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+
+	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
+	// if access monitoring is enabled.
+	if versionExists {
+		clientVersion := semver.New(clientVersionString)
+		supportedVersion := semver.New("14.2.1")
+		if clientVersion.LessThan(*supportedVersion) {
+			features.IdentityGovernance = accessMonitoringEnabled
+		}
+	}
+
+	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
+	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
@@ -5652,7 +5748,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	}
 
 	if err := a.WithUserLock(ctx, username, func() error {
-		_, _, err := a.validateMFAAuthResponse(
+		_, _, err := a.ValidateMFAAuthResponse(
 			ctx, resp, username, false /* passwordless */)
 		return err
 	}); err != nil {
@@ -5662,13 +5758,10 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// validateMFAAuthResponse validates an MFA or passwordless challenge.
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
 // Returns the device used to solve the challenge (if applicable) and the
 // username.
-func (a *Server) validateMFAAuthResponse(
-	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, user string, passwordless bool,
-) (*types.MFADevice, string, error) {
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")
@@ -5906,7 +5999,7 @@ func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, usern
 // that will expire after the standard callback timeout.
 func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username string) error {
 	// Create the stub. If it already exists, update its expiration.
-	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.HeadlessLoginTimeout)
 	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5965,7 +6058,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
+	if f.IsLegacy() || f.IGSEnabled() {
 		return nil // unlimited
 	}
 	monthlyLimit := f.AccessRequests.MonthlyRequestLimit

@@ -1,30 +1,34 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package resources
 
 import (
 	"context"
 	"reflect"
+	"slices"
 
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -33,6 +37,8 @@ type TeleportResource interface {
 	GetName() string
 	SetOrigin(string)
 	GetMetadata() types.Metadata
+	GetRevision() string
+	SetRevision(string)
 }
 
 // TeleportKubernetesResource is a Kubernetes resource representing a Teleport resource
@@ -61,17 +67,22 @@ type TeleportResourceClient[T TeleportResource] interface {
 }
 
 // TeleportResourceMutator can be implemented by TeleportResourceClients
-// to edit a resource before its creation/update. In case of update mutations
-// the existing resource is passed as well.
+// to edit a resource before its creation/update.
 type TeleportResourceMutator[T TeleportResource] interface {
-	Mutate(new, existing T)
+	Mutate(new T)
+}
+
+// TeleportExistingResourceMutator can be implemented by TeleportResourceClients
+// to edit a resource before its update based on the existing one.
+type TeleportExistingResourceMutator[T TeleportResource] interface {
+	MutateExisting(new, existing T)
 }
 
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
 func NewTeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]](
 	client kclient.Client,
-	resourceClient TeleportResourceClient[T]) *TeleportResourceReconciler[T, K] {
-
+	resourceClient TeleportResourceClient[T],
+) *TeleportResourceReconciler[T, K] {
 	reconciler := &TeleportResourceReconciler[T, K]{
 		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
 		resourceClient:         resourceClient,
@@ -92,46 +103,70 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 	teleportResource := k8sResource.ToTeleport()
 
 	existingResource, err := r.resourceClient.Get(ctx, teleportResource.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+	updateErr := updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, true /* ignoreNotFound */),
+	})
+
+	if err != nil && !trace.IsNotFound(err) || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
 	}
 	// If err is nil, we found the resource. If err != nil (and we did return), then the error was `NotFound`
 	exists := err == nil
 
 	if exists {
 		newOwnershipCondition, isOwned := checkOwnership(existingResource)
-		meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newOwnershipCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 		if !isOwned {
-			return trace.NewAggregate(
-				trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName()),
-				r.Status().Update(ctx, k8sResource),
-			)
+			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
 		}
 	} else {
-		meta.SetStatusCondition(k8sResource.StatusConditions(), newResourceCondition)
+		if updateErr = updateStatus(updateStatusConfig{
+			ctx:         ctx,
+			client:      r.Client,
+			k8sResource: k8sResource,
+			condition:   newResourceCondition,
+		}); updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
 	}
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
 
-	// We apply resource-specific mutations.
-	if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
-		mutator.Mutate(teleportResource, existingResource)
-	}
-
 	if !exists {
+		// This is a new resource
+		if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
+			mutator.Mutate(teleportResource)
+		}
+
 		err = r.resourceClient.Create(ctx, teleportResource)
 	} else {
+		// This is a resource update, we must propagate the revision
+		teleportResource.SetRevision(existingResource.GetRevision())
+		if mutator, ok := r.resourceClient.(TeleportExistingResourceMutator[T]); ok {
+			mutator.MutateExisting(teleportResource, existingResource)
+		}
+
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.
-	newReconciliationCondition := getReconciliationConditionFromError(err)
-	meta.SetStatusCondition(k8sResource.StatusConditions(), newReconciliationCondition)
-	if err != nil {
-		return trace.NewAggregate(err, r.Status().Update(ctx, k8sResource))
-	}
+	updateErr = updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getReconciliationConditionFromError(err, false /* ignoreNotFound */),
+	})
 
-	// We update the status conditions on exit
-	return trace.Wrap(r.Status().Update(ctx, k8sResource))
+	return trace.NewAggregate(err, updateErr)
 }
 
 // Delete is the TeleportResourceReconciler of the ResourceBaseReconciler DeleteExertal
@@ -148,7 +183,13 @@ func (r TeleportResourceReconciler[T, K]) Reconcile(ctx context.Context, req ctr
 // SetupWithManager have a controllerruntime.Manager run the TeleportResourceReconciler
 func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
 	kubeResource := newKubeResource[T, K]()
-	return ctrl.NewControllerManagedBy(mgr).For(kubeResource).Complete(r)
+	return ctrl.
+		NewControllerManagedBy(mgr).
+		For(kubeResource).
+		WithEventFilter(
+			buildPredicate(),
+		).
+		Complete(r)
 }
 
 // newKubeResource creates a new TeleportKubernetesResource
@@ -167,4 +208,30 @@ func newKubeResource[T TeleportResource, K TeleportKubernetesResource[T]]() K {
 		resource = initializedResource.Interface().(K)
 	}
 	return resource
+}
+
+// buildPredicate returns a predicate that triggers the reconciliation when:
+// - the resource generation changes
+// - the resource finalizers change
+// - the resource annotations change
+// - the resource labels change
+// - the resource is created
+// - the resource is deleted
+// It does not trigger the reconciliation when:
+// - the resource status changes
+func buildPredicate() predicate.Predicate {
+	return predicate.Or(
+		predicate.GenerationChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+		predicate.LabelChangedPredicate{},
+		predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				if e.ObjectOld == nil || e.ObjectNew == nil {
+					return false
+				}
+
+				return !slices.Equal(e.ObjectNew.GetFinalizers(), e.ObjectOld.GetFinalizers())
+			},
+		},
+	)
 }

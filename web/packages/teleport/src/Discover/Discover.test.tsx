@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
@@ -47,12 +49,18 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 import { ResourceKind } from './Shared';
 
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
+
 type createProps = {
   initialEntry?: string;
   preferredResource?: ClusterResource;
 };
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
+  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+
   const defaultPref = makeDefaultUserPreferences();
   defaultPref.onboard.preferredResources = preferredResource
     ? [preferredResource]
@@ -83,9 +91,11 @@ const create = ({ initialEntry = '', preferredResource }: createProps) => {
 test('displays all resources by default', () => {
   create({});
 
-  expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-    SERVERS.length
-  );
+  expect(
+    screen
+      .getAllByTestId(ResourceKind.Server)
+      .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+  ).toHaveLength(SERVERS.length);
   expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
     WINDOWS_DESKTOPS.length
   );
@@ -122,9 +132,11 @@ describe('location state', () => {
   test('displays servers when the location state is server', () => {
     create({ initialEntry: 'server' });
 
-    expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-      SERVERS.length
-    );
+    expect(
+      screen
+        .getAllByTestId(ResourceKind.Server)
+        .concat(screen.getAllByTestId(ResourceKind.ConnectMyComputer))
+    ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
     expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);

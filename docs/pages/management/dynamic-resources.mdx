@@ -24,31 +24,7 @@ There are two ways to configure a Teleport cluster:
 This approach makes it possible to incrementally adjust your Teleport
 configuration without restarting Teleport instances.
 
-```mermaid
-flowchart LR
-subgraph backend["Cluster state backend"]
-  direction LR
-  resources["Dynamic resources"]
-end
-
-subgraph cluster[Teleport cluster]
-  subgraph auth[Auth Service]
-    conf1["Static config"]
-  end
-  subgraph proxy[Proxy Service]
-    conf2["Static config"]
-  end
-end
-
-auth-->backend
-subgraph clients["API clients"]
-  terraform["Terraform Provider"]
-  operator["Kubernetes Operator"]
-  tctl
-end
-terraform & operator & tctl-->proxy
-proxy-.->auth
-```
+![Architecture of dynamic resources](../../img/dynamic-resources.png)
 
 A cluster is composed of different objects (i.e., resources) and there are three
 common operations that can be performed on them: `get` , `create` , and `remove`
@@ -134,7 +110,10 @@ resource "teleport_role" "developer" {
 }
 ```
 
-[Get started with the Terraform provider](./dynamic-resources/terraform-provider.mdx).
+- [Get started with the Terraform
+  provider](./dynamic-resources/terraform-provider.mdx).
+- [Use Teleport's Terraform provider with
+  Spacelift](./dynamic-resources/spacelift.mdx).
 
 ### Teleport Kubernetes Operator
 

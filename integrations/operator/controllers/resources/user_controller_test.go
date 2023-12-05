@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package resources_test
 
@@ -21,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
@@ -57,20 +61,16 @@ func TestUserCreation(t *testing.T) {
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
 
+	var tUser types.User
+	var err error
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, tUser.GetName(), userName)
-
-		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
-
-		return true
+		tUser, err = setup.TeleportClient.GetUser(ctx, userName, false)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, userName, tUser.GetName())
+	require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
 
 	// The user is deleted in K8S
 	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
@@ -175,37 +175,29 @@ traits:
 					}, obj)
 					errorConditions := getUserStatusConditionError(obj.Object)
 					// If there's no error condition, reconciliation has not happened yet
-					if len(errorConditions) == 0 {
-						return false
-					}
-
-					_, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
-					require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
-					return true
+					return len(errorConditions) != 0
 				})
+				_, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
+				require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
 			} else {
 				// We wait for Teleport resource creation
+				var tUser types.User
 				fastEventually(t, func() bool {
-					tUser, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
+					tUser, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
 					// If the resource creation should succeed we check the resource was found and validate ownership labels
-					if trace.IsNotFound(err) {
-						return false
-					}
-					require.NoError(t, err)
-
-					require.Equal(t, tUser.GetName(), userName)
-					require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-					require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
-					require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
-					expectedUser := &types.UserV2{
-						Metadata: types.Metadata{},
-						Spec:     *tc.expectedSpec,
-					}
-					_ = expectedUser.CheckAndSetDefaults()
-					compareUserSpecs(t, expectedUser, tUser)
-
-					return true
+					return !trace.IsNotFound(err)
 				})
+				require.NoError(t, err)
+				require.Equal(t, userName, tUser.GetName())
+				require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+				require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
+				require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
+				expectedUser := &types.UserV2{
+					Metadata: types.Metadata{},
+					Spec:     *tc.expectedSpec,
+				}
+				_ = expectedUser.CheckAndSetDefaults()
+				compareUserSpecs(t, expectedUser, tUser)
 			}
 			// Teardown
 
@@ -249,32 +241,29 @@ func TestUserDeletionDrift(t *testing.T) {
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
 
+	var tUser types.User
+	var err error
 	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
-
-		require.Equal(t, tUser.GetName(), userName)
-
-		require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tUser.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
-
-		return true
+		tUser, err = setup.TeleportClient.GetUser(ctx, userName, false)
+		return !trace.IsNotFound(err)
 	})
+	require.NoError(t, err)
+	require.Equal(t, userName, tUser.GetName())
+	require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+	require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
+
 	// We cause a drift by altering the Teleport resource.
 	// To make sure the operator does not reconcile while we're finished we suspend the operator
 	setup.StopKubernetesOperator()
 
-	err := setup.TeleportClient.DeleteUser(ctx, userName)
+	err = setup.TeleportClient.DeleteUser(ctx, userName)
 	require.NoError(t, err)
 	fastEventually(t, func() bool {
 		_, err := setup.TeleportClient.GetUser(ctx, userName, false)
 		return trace.IsNotFound(err)
 	})
 
-	// We flag the role for deletion in Kubernetes (it won't be fully remopved until the operator has processed it and removed the finalizer)
+	// We flag the role for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
 	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
 
 	// Test section: We resume the operator, it should reconcile and recover from the drift
@@ -344,10 +333,10 @@ func TestUserUpdate(t *testing.T) {
 	// The user is updated in Teleport
 	fastEventually(t, func() bool {
 		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// TeleportUser was updated with new roles
-		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z"})
+		return compareRoles([]string{"x", "z"}, tUser.GetRoles())
 	})
 
 	// Updating the user in K8S
@@ -368,12 +357,12 @@ func TestUserUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the user in Teleport
-	fastEventually(t, func() bool {
+	fastEventuallyWithT(t, func(c *assert.CollectT) {
 		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// TeleportUser updated with new roles
-		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "y"})
+		assert.ElementsMatch(c, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }
@@ -418,4 +407,12 @@ func getUserStatusConditionError(object map[string]interface{}) []metav1.Conditi
 		}
 	}
 	return conditionsWithError
+}
+
+func compareRoles(expected, actual []string) bool {
+	return cmp.Diff(
+		expected,
+		actual,
+		cmpopts.SortSlices(func(a, b string) bool { return a < b }),
+	) == ""
 }

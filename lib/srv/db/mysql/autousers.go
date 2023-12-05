@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mysql
 
@@ -193,11 +195,6 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 		return trace.Wrap(err)
 	}
 	defer conn.Close()
-
-	// TODO support DeleteUser for MariaDB.
-	if conn.isMariaDB() {
-		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
-	}
 
 	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
 
@@ -473,7 +470,8 @@ func isProcedureUpdateRequired(conn *clientConn, wantSchema, wantVersion string)
 		return true, nil
 	}
 
-	// Paranoia, make sure the names match.
+	// Double check if all procedures are in place, this ensures that newly
+	// added procedures will be created even when there is no version bump.
 	foundProcedures := make([]string, 0, result.RowNumber())
 	for row := range result.Values {
 		procedure, err := result.GetString(row, 0)
@@ -527,7 +525,7 @@ func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, 
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
-	procedureVersion = "teleport-auto-user-v1"
+	procedureVersion = "teleport-auto-user-v3"
 
 	// mysqlMaxUsernameLength is the maximum username/role length for MySQL.
 	//
@@ -572,6 +570,8 @@ var (
 	mariadbDeactivateUserProcedure string
 	//go:embed sql/mariadb_revoke_roles.sql
 	mariadbRevokeRolesProcedure string
+	//go:embed sql/mariadb_delete_user.sql
+	mariadbDeleteProcedure string
 
 	// allProcedureNames contains a list of all procedures required to setup
 	// auto-user provisioning. Note that order matters here as later procedures
@@ -580,6 +580,7 @@ var (
 		revokeRolesProcedureName,
 		activateUserProcedureName,
 		deactivateUserProcedureName,
+		deleteUserProcedureName,
 	}
 
 	// mysqlProcedures maps procedure names to the procedures used for MySQL.
@@ -615,5 +616,6 @@ var (
 		activateUserProcedureName:   mariadbActivateUserProcedure,
 		deactivateUserProcedureName: mariadbDeactivateUserProcedure,
 		revokeRolesProcedureName:    mariadbRevokeRolesProcedure,
+		deleteUserProcedureName:     mariadbDeleteProcedure,
 	}
 )

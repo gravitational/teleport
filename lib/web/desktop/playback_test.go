@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package desktop_test
 
@@ -23,11 +25,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
@@ -72,9 +78,19 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 	t.Helper()
 
 	fs := eventstest.NewFakeStreamer(events, streamInterval)
+	log := utils.NewLoggerForTests()
+
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		websocket.Handler(func(ws *websocket.Conn) {
-			desktop.NewPlayer("session-id", ws, fs, utils.NewLoggerForTests()).Play(r.Context())
+			player, err := player.New(&player.Config{
+				Clock:     clockwork.NewRealClock(),
+				Log:       log,
+				SessionID: session.ID("session-id"),
+				Streamer:  fs,
+			})
+			assert.NoError(t, err)
+			player.Play()
+			desktop.PlayRecording(r.Context(), log, ws, player)
 		}).ServeHTTP(w, r)
 	}))
 	t.Cleanup(s.Close)

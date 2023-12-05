@@ -50,88 +50,82 @@ or deletes an administrative teleport resource. For example:
 
 - `tctl rm/create/edit`
 - `tctl users add/rm/reset`
-- Enrolling a new resource from the WebUI (Teleport Discover)
-- Modifying a role from the WebUI
-- Modifying a cloud upgrade window (at https://<tenant>.teleport.sh/web/support)
+- Modifying a user, role, or auth connector from the WebUI
 
-To ensure this feature does not have unexpected effects, we will explicitly
-define which API requests are admin actions:
+There are hundreds of actions which could qualify as administrative actions,
+but to restrict the scope of this feature, we will start with a "short" list of
+actions which modify the following administrative resources.
 
-gRPC:
+- User management
+  - Users
+    - `CreateUser`, `UpdateUser`, `UpsertUser`, `DeleteUser`
+  - Roles
+    - `CreateRole`, `UpdateRole`, `UpsertRoleV2`, `UpsertRole`, `DeleteRole`
+  - Trusted devices
+    - `CreateDevice`, `UpdateDevice`, `UpsertDevice`, `DeleteDevice`, `BulkCreateDevices`, `CreateDeviceEnrollToken`, `SyncInventory`
+  - User groups
+    - `CreateUserGroup`, `UpdateUserGroup`, `DeleteUserGroup`, `DeleteAllUserGroups`
+  - Account recovery
+    - `ChangeUserAuthentication`, `StartAccountRecovery`, `VerifyAccountRecovery`, `CompleteAccountRecovery`, `CreateAccountRecoveryCodes`
+- Cluster configuration
+  - Networking
+    - `SetClusterNetworkingConfig`, `ResetClusterNetworkingConfig`
+  - Session recording
+    - `SetSessionRecordingConfig`, `ResetSessionRecordingConfig`
+  - Auth preference
+    - `SetAuthPreference`, `ResetAuthPreference`
+  - Network restrictions
+    - `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
+- Access management
+  - Auth connectors
+    - `UpsertOIDCConnector`, `DeleteOIDCConnector`, `CreateOIDCAuthRequest`
+    - `UpsertSAMLConnector`, `DeleteSAMLConnector`, `CreateSAMLAuthRequest`
+    - `UpsertGithubConnector`, `DeleteGithubConnector`, `CreateGithubAuthRequest`
+    - `CreateSAMLIdPServiceProvider`, `UpdateSAMLIdPServiceProvider`, `DeleteSAMLIdPServiceProvider`, `DeleteAllSAMLIdPServiceProviders`
+  - Access requests
+    - `CreateAccessRequest`, `DeleteAccessRequest`, `SetAccessRequestState`, `SubmitAccessReview`
+  - Access lists
+    - `UpsertAccessList`, `UpsertAccessListWithMembers`, `DeleteAccessList`, `AccessRequestPromote`
+    - `UpsertAccessListMember`, `DeleteAccessListMember`, `DeleteAllAccessListMembersForAccessList`
+    - `CreateAccessListReview`, `DeleteAccessListReview`
+    - `GetSuggestedAccessLists`
+  - Join Tokens
+    - `UpsertTokenV2`, `CreateTokenV2`, `GenerateToken`, `DeleteToken`
+    - http: `deleteStaticTokens`, `setStaticTokens`
+  - Login Rules
+    - `UpsertLoginRule`, `CreateLoginRule`, `DeleteLoginRule`
+- Certificates
+  - CA management
+    - http: `rotateCertAuthority`, `rotateExternalCertAuthority`, `upsertCertAuthority`, `deleteCertAuthority`
+  - Host certs
+    - `GenerateHostCerts`
+    - http: `generateHostCert`
+  - User certs
+    - `GenerateUserCerts`
+  - Web sessions
+    - http: `createWebSession`, `deleteWebSession`
+  - Bots
+    - `CreateBot`, `DeleteBot`
 
-- `GenerateUserCerts`, `GenerateHostCerts`
-- `UpsertClusterAlert`, `CreateAlertAck`, `ClearAlertAcks`
-- `CreateAccessRequest`, `DeleteAccessRequest`, `SetAccessRequestState`, `SubmitAccessReview`
-- `CreateBot`, `DeleteBot`
-- `CreateUser`, `UpdateUser`, `DeleteUser`
-- `CancelSemaphoreLease`, `DeleteSemaphore`, `UpsertDatabaseServer`
-- `DeleteDatabaseServer`, `DeleteAllDatabaseServers`, `UpsertDatabaseService`, `DeleteDatabaseService`, `DeleteAllDatabaseServices`
-- `GenerateDatabaseCert`, `GenerateSnowflakeJWT`
-- `UpsertApplicationServer`, `DeleteApplicationServer`, `DeleteAllApplicationServers`
-- `DeleteSnowflakeSession`, `DeleteAllSnowflakeSessions`, `CreateSnowflakeSession`
-- `CreateAppSession`, `DeleteAppSession`, `DeleteAllAppSessions`, `DeleteUserAppSessions`
-- `CreateSAMLIdPSession`, `DeleteSAMLIdPSession`, `DeleteAllSAMLIdPSessions`, `DeleteUserSAMLIdPSessions`
-- `GenerateAppToken`
-- `DeleteWebSession`, `DeleteAllWebSessions`
-- `DeleteWebToken`, `DeleteAllWebTokens`
-- `UpdateRemoteCluster`
-- `UpsertKubernetesServer`, `DeleteKubernetesServer`, `DeleteAllKubernetesServers`
-- `UpsertRole`, `DeleteRole`
-- `GenerateUserSingleUseCerts`
-- `UpsertOIDCConnector`, `DeleteOIDCConnector`, `CreateOIDCAuthRequest`
-- `UpsertSAMLConnector`, `DeleteSAMLConnector`, `CreateSAMLAuthRequest`
-- `UpsertGithubConnector`, `DeleteGithubConnector`, `CreateGithubAuthRequest`
-- `UpsertServerInfo`, `DeleteServerInfo`, `DeleteAllServerInfos`
-- `UpsertTrustedCluster`, `DeleteTrustedCluster`
-- `UpsertTokenV2`, `CreateTokenV2`, `GenerateToken`, `DeleteToken`
-- `UpsertNode`, `DeleteNode`, `DeleteAllNodes`
-- `SetClusterNetworkingConfig`, `ResetClusterNetworkingConfig`
-- `SetSessionRecordingConfig`, `ResetSessionRecordingConfig`
-- `SetAuthPreference`, `ResetAuthPreference`
-- `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
-- `UpsertLock`, `DeleteLock`, `ReplaceRemoteLocks`
-- `CreateApp`, `UpdateApp`, `DeleteApp`, `DeleteAllApps`
-- `CreateDatabase`, `UpdateDatabase`, `DeleteDatabase`, `DeleteAllDatabases`
-- `UpsertWindowsDesktopService`, `DeleteWindowsDesktopService`, `DeleteAllWindowsDesktopServices`
-- `CreateWindowsDesktop`, `UpdateWindowsDesktop`, `UpsertWindowsDesktop`, `DeleteWindowsDesktop`, `DeleteAllWindowsDesktops`
-- `ChangeUserAuthentication`, `StartAccountRecovery`, `VerifyAccountRecovery`, `CompleteAccountRecovery`, `CreateAccountRecoveryCodes`
-- `CreatePrivilegeToken`, `CreateRegisterChallenge`
-- `GenerateCertAuthorityCRL`
-- `CreateConnectionDiagnostic`, `UpdateConnectionDiagnostic`, `AppendDiagnosticTrace`
-- `SetInstaller`, `DeleteInstaller`, `DeleteAllInstallers`
-- `SetUIConfig`, `DeleteUIConfig`
-- `CreateKubernetesCluster`, `UpdateKubernetesCluster`, `DeleteKubernetesCluster`, `DeleteAllKubernetesClusters`
-- `CreateSAMLIdPServiceProvider`, `UpdateSAMLIdPServiceProvider`, `DeleteSAMLIdPServiceProvider`, `DeleteAllSAMLIdPServiceProviders`
-- `CreateUserGroup`, `UpdateUserGroup`, `DeleteUserGroup`, `DeleteAllUserGroups`
-- `UpdateHeadlessAuthenticationState`
-- `ExportUpgradeWindows`
-- `UpdateClusterMaintenanceConfig`
-- `UpdatePluginData`
-- `CreateDevice`, `UpdateDevice`, `UpsertDevice`, `DeleteDevice`, `BulkCreateDevices`, `CreateDeviceEnrollToken`
+Note: http endpoints in the list above are noted separately due to the [additional
+work](#http-endpoints) associated with these endpoints.
 
-HTTP:
+Here are some notable exclusions from the list which may be future admin action
+candidates:
 
-- `rotateCertAuthority`, `rotateExternalCertAuthority`
-- `generateHostCert`
-- `createWebSession`, `deleteWebSession`
-- `upsertAuthServer`, `upsertProxy`
-- `deleteAllProxies`, `deleteProxy`
-- `upsertTunnelConnection`, `deleteTunnelConnection`, `deleteTunnelConnections`, `deleteAllTunnelConnections`
-- `createRemoteCluster`, `deleteRemoteCluster`, `deleteAllRemoteClusters`
-- `upsertReverseTunnel`, `deleteReverseTunnel`
-- `validateTrustedCluster`, `registerUsingToken`
-- `deleteNamespace`
-- `setClusterName`
-- `deleteStaticTokens`, `setStaticTokens`
-- `validateGithubAuthCallback`
-- `upsertCertAuthority`, `deleteCertAuthority`
-- `deleteUser`
+- Service management and registration
+- Session management
+- Trusted cluster management
+- Lock management
+- Cluster alerts
+- Cloud billing and other cloud specific endpoints
 
-Notable exceptions:
+Here is a list of actions which are exempt from being admin actions now or in
+the future:
 
 - User actions that are authorized based on the user owning the resource.
 These requests will only require MFA when the authorization comes from the
-user's role rather than the user itself. For example:
+user's role permissions rather than the user's ownership. For example:
   - `CreateAccessRequest`, `DeleteAccessRequest`
   - `CreateAuthenticateChallenge`
   - `ChangePassword`, `CreateResetPasswordToken`
@@ -416,20 +410,39 @@ Here are a few key points to review:
   use their privileges to generate impersonated certificates that do not
   require MFA for admin actions.
 
-#### Backward Compatibility
+### Backward Compatibility
 
-In order to maintain backwards compatibility with old clients, MFA will not be
-strictly required for admin actions until Teleport 15.
+In order to maintain backwards compatibility with old clients (`tsh`, `tctl`,
+`Teleport Connect`), MFA will not be strictly required for admin actions until
+Teleport 15.
 
 |        | Teleport 13 | Teleport 14 | Teleport 15 |
 |--------|-------------|-------------|-------------|
-| Server | Does not require MFA | Verifies MFA if provided | Requires MFA |
+| Server | Does not require MFA | Does not require MFA | Requires MFA |
 | Client | Does not provide MFA | Provides MFA | Provides MFA |
 
 Additionally, Teleport 14+ clients will be able to provide MFA for admin actions
 whether or not the client has prior knowledge of the request requiring MFA. This
 means that additional endpoints can be changed into admin actions without any
 consequences.
+
+#### WebUI
+
+The WebUI will not support providing MFA for admin actions until Teleport 15.
+This means that administrators will need to upgrade their Proxy services to
+Teleport 15 alongside their Auth services to avoid getting admin actions
+denied. This must not cause any upgrading issues.
+
+#### HTTP endpoints
+
+Clients will not attempt to provide MFA for [HTTP endpoints](#http-endpoints).
+This means that http endpoints converted to gRPC admin action endpoints should
+not be made to require MFA until a full major version cycle has passed.
+
+#### TOTP support
+
+The WebUI and Teleport Connect will not support TOTP MFA for admin actions due
+to the lack of a universal TOTP MFA prompt for these applications.
 
 ### Audit Events
 

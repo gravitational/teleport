@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package multiplexer
 
@@ -113,7 +115,7 @@ func TestMux(t *testing.T) {
 		defer re.Body.Close()
 		bytes, err := io.ReadAll(re.Body)
 		require.NoError(t, err)
-		require.Equal(t, string(bytes), "backend 1")
+		require.Equal(t, "backend 1", string(bytes))
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -125,7 +127,7 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		require.NotNil(t, err)
+		require.Error(t, err)
 	})
 	// ProxyLine tests proxy line protocol
 	t.Run("ProxyLines", func(t *testing.T) {
@@ -252,7 +254,7 @@ func TestMux(t *testing.T) {
 
 		// make sure the TLS call failed
 		_, err = utils.RoundtripWithConn(tlsConn)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	// makes sure the connection gets dropped
@@ -295,7 +297,7 @@ func TestMux(t *testing.T) {
 
 		// make sure the TLS call failed
 		_, err = utils.RoundtripWithConn(tlsConn)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	// makes sure the connection get port set to 0
@@ -341,7 +343,7 @@ func TestMux(t *testing.T) {
 		defer tlsConn.Close()
 
 		res, err := utils.RoundtripWithConn(tlsConn)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		// Make sure that server saw our connection with source port set to 0
 		require.Equal(t, "127.0.0.1:0", res)
@@ -388,7 +390,7 @@ func TestMux(t *testing.T) {
 
 		// roundtrip should fail on the timeout
 		_, err = utils.RoundtripWithConn(tlsConn)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	// UnknownProtocol make sure that multiplexer closes connection
@@ -447,7 +449,7 @@ func TestMux(t *testing.T) {
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
-		require.NotNil(t, err)
+		require.Error(t, err)
 
 		// TLS requests will succeed
 		client := testClient(backend1)
@@ -456,7 +458,7 @@ func TestMux(t *testing.T) {
 		defer re.Body.Close()
 		bytes, err := io.ReadAll(re.Body)
 		require.NoError(t, err)
-		require.Equal(t, string(bytes), "backend 1")
+		require.Equal(t, "backend 1", string(bytes))
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -468,7 +470,7 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		require.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	// TestDisableTLS tests scenario with disabled TLS
@@ -515,7 +517,7 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		require.NotNil(t, err)
+		require.Error(t, err)
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -579,7 +581,7 @@ func TestMux(t *testing.T) {
 		defer re.Body.Close()
 		bytes, err := io.ReadAll(re.Body)
 		require.NoError(t, err)
-		require.Equal(t, string(bytes), "http backend")
+		require.Equal(t, "http backend", string(bytes))
 
 		creds := credentials.NewClientTLSFromCert(cfg.CertPool, "")
 
@@ -592,7 +594,7 @@ func TestMux(t *testing.T) {
 
 		out, err := gclient.Ping(context.TODO(), &test.Request{})
 		require.NoError(t, err)
-		require.Equal(t, out.GetPayload(), "grpc backend")
+		require.Equal(t, "grpc backend", out.GetPayload())
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -604,7 +606,7 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		require.NotNil(t, err)
+		require.Error(t, err)
 
 		httpServer.Close()
 		s.Stop()

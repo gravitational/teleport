@@ -1,24 +1,27 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
 import (
 	"archive/tar"
 	"io"
-	"io/fs"
-	"os"
+	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -27,55 +30,58 @@ import (
 )
 
 // tarWriter implements a ConfigWriter that generates a tarfile from the
-// files written to the config writer. Does not implement
+// files written to it.
 type tarWriter struct {
-	tarball *tar.Writer
-	clock   clockwork.Clock
+	*identityfile.InMemoryConfigWriter
 }
 
-// newTarWriter creates a new tarWriter that writes the generated tar
-// file to the supplied `io.Writer`. Be sure to terminate the tar archive
-// by calling `Close()` on the resuting `tarWriter`.
-func newTarWriter(out io.Writer, clock clockwork.Clock) *tarWriter {
-	return &tarWriter{
-		tarball: tar.NewWriter(out),
-		clock:   clock,
-	}
+// newTarWriter creates a new tarWriter that caches the files written to it and
+// dumps them to a tarball on demand.
+func newTarWriter(clock clockwork.Clock) *tarWriter {
+	cache := identityfile.NewInMemoryConfigWriter(identityfile.WithClock(clock))
+	return &tarWriter{InMemoryConfigWriter: cache}
 }
 
-// Remove is not implemented, and only exists to fill out the
-// `ConfigWriter` interface.
-func (t *tarWriter) Remove(_ string) error {
-	return trace.NotImplemented("tarWriter.Remove()")
-}
+// Archive dumps the contents of the ConfigWriter to the supplied sink as
+// a tarball. May be called multiple times on the same instance.
+func (t *tarWriter) Archive(out io.Writer) error {
+	tarball := tar.NewWriter(out)
 
-// Stat always returns `ErrNotExist` in ordre to sidestep the
-// overwite check when writing certificates via a ConfigWriter.
-func (t *tarWriter) Stat(_ string) (fs.FileInfo, error) {
-	return nil, os.ErrNotExist
-}
+	err := t.WithReadonlyFiles(func(files identityfile.InMemoryFS) error {
+		// Sort the filenames so that files will be written to the output tarball
+		// in a repeatable order
+		filenames := make([]string, 0, len(files))
+		for filename := range files {
+			filenames = append(filenames, filename)
+		}
+		sort.Strings(filenames)
 
-// WriteFile adds the supplied content to the tar archive.
-func (t *tarWriter) WriteFile(name string, content []byte, mode fs.FileMode) error {
-	header := &tar.Header{
-		Name:    name,
-		Mode:    int64(mode),
-		ModTime: t.clock.Now(),
-		Size:    int64(len(content)),
-	}
-	if err := t.tarball.WriteHeader(header); err != nil {
+		// Stream the tarball to the supplied output writer
+		for _, filename := range filenames {
+			file := files[filename]
+			header := &tar.Header{
+				Name:    filename,
+				Mode:    int64(file.Mode()),
+				ModTime: file.ModTime(),
+				Size:    file.Size(),
+			}
+			if err := tarball.WriteHeader(header); err != nil {
+				return trace.Wrap(err)
+			}
+			if _, err := tarball.Write(file.Content()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := t.tarball.Write(content); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+
+	return trace.Wrap(tarball.Close())
 }
 
-// Close finalizes the tar archive, adding any necessary padding and footers.
-func (t *tarWriter) Close() error {
-	return trace.Wrap(t.tarball.Close())
-}
-
-// identityfile.ConfigWriter implementation check
+// compile-time assertion that the tarWriter implements the ConfigWriter
+// interface
 var _ identityfile.ConfigWriter = (*tarWriter)(nil)

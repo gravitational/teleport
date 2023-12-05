@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package cache
 
@@ -2340,7 +2342,7 @@ func TestRelativeExpiry(t *testing.T) {
 
 	// make sure the event buffer is much larger than node count
 	// so that we can batch create nodes without waiting on each event
-	require.True(t, int(nodeCount*3) < eventBufferSize)
+	require.Less(t, int(nodeCount*3), eventBufferSize)
 
 	ctx := context.Background()
 
@@ -2404,7 +2406,7 @@ func TestRelativeExpiry(t *testing.T) {
 	// verify that sliding window has preserved most recent nodes
 	nodes, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.True(t, len(nodes) > 0, "node_count=%d", len(nodes))
+	require.NotEmpty(t, nodes, "node_count=%d", len(nodes))
 }
 
 func TestRelativeExpiryLimit(t *testing.T) {
@@ -2416,7 +2418,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 
 	// make sure the event buffer is much larger than node count
 	// so that we can batch create nodes without waiting on each event
-	require.True(t, int(nodeCount*3) < eventBufferSize)
+	require.Less(t, int(nodeCount*3), eventBufferSize)
 
 	ctx := context.Background()
 
@@ -3004,7 +3006,8 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 			Name: name,
 		},
 		userloginstate.Spec{
-			Roles: []string{"role1", "role2"},
+			Roles:          []string{"role1", "role2"},
+			OriginalTraits: trait.Traits{},
 			Traits: trait.Traits{
 				"key1": []string{"value1"},
 				"key2": []string{"value2"},

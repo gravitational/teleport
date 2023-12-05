@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import {
   MainProcessClient,
@@ -24,6 +26,7 @@ import {
   SendNotificationRequest,
   SendPendingHeadlessAuthenticationRequest,
 } from 'teleterm/services/tshdEvents';
+import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
@@ -41,11 +44,13 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
-import { assertUnreachable } from 'teleterm/ui/utils';
+import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
+import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
 
 export default class AppContext implements IAppContext {
+  private logger: Logger;
   clustersService: ClustersService;
   modalsService: ModalsService;
   notificationsService: NotificationsService;
@@ -78,9 +83,11 @@ export default class AppContext implements IAppContext {
   usageService: UsageService;
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
+  deepLinksService: DeepLinksService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
+    this.logger = new Logger('AppContext');
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
@@ -147,42 +154,18 @@ export default class AppContext implements IAppContext {
       tshClient,
       this.configService
     );
+    this.deepLinksService = new DeepLinksService(
+      this.mainProcessClient.getRuntimeSettings(),
+      this.clustersService,
+      this.workspacesService,
+      this.modalsService,
+      this.notificationsService
+    );
   }
 
   async pullInitialState(): Promise<void> {
     this.setUpTshdEventSubscriptions();
-    this.mainProcessClient.subscribeToDeepLinkLaunch(result => {
-      if (result.status === 'error') {
-        let reason: string;
-        switch (result.reason) {
-          case 'unknown-protocol': {
-            reason = `The URL of the link is of an unknown protocol.`;
-            break;
-          }
-          case 'unsupported-uri': {
-            reason =
-              'The received link does not point at a resource or an action that can be launched from a link. ' +
-              'Either this version of Teleport Connect does not support it or the link is incorrect.';
-            break;
-          }
-          case 'malformed-url': {
-            reason = `The URL of the link appears to be malformed.`;
-            break;
-          }
-          default: {
-            assertUnreachable(result);
-          }
-        }
-
-        this.notificationsService.notifyWarning({
-          title: 'Cannot open the link',
-          description: reason,
-        });
-        return;
-      }
-
-      this.notificationsService.notifyInfo(JSON.stringify(result.url));
-    });
+    this.subscribeToDeepLinkLaunch();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
   }
@@ -211,5 +194,22 @@ export default class AppContext implements IAppContext {
         );
       }
     );
+  }
+
+  private subscribeToDeepLinkLaunch() {
+    this.mainProcessClient.subscribeToDeepLinkLaunch(result => {
+      this.deepLinksService.launchDeepLink(result).catch(error => {
+        this.logger.error('Error when launching a deep link', error);
+      });
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      window['deepLinkLaunch'] = (url: string) => {
+        const result = parseDeepLink(url);
+        this.deepLinksService.launchDeepLink(result).catch(error => {
+          this.logger.error('Error when launching a deep link', error);
+        });
+      };
+    }
   }
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -304,8 +306,9 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// UpdateUser updates an existing user.
-func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+// LegacyUpdateUser blindly updates an existing user. [IdentityService.UpdateUser] should be
+// used instead so that optimistic locking prevents concurrent resource updates.
+func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,6 +331,38 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
+	return user, nil
+}
+
+// UpdateUser updates an existing user if the revisions match.
+func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := user.GetRevision()
+	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
+	}
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1109,11 +1144,11 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
-func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
@@ -1124,10 +1159,10 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // CreateOIDCConnector creates a new OIDC connector.
@@ -1263,14 +1298,14 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 }
 
 // UpsertSAMLConnector upserts SAML Connector
-func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
@@ -1280,10 +1315,10 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateSAMLConnector updates an existing SAML connector
@@ -1487,14 +1522,14 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
@@ -1505,10 +1540,10 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateGithubConnector updates an existing Github connector.

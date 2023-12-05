@@ -1,23 +1,25 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { pipeline } from 'node:stream/promises';
 import { createReadStream } from 'node:fs';
-import { rm, mkdtemp } from 'node:fs/promises';
-import { join } from 'node:path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { createUnzip } from 'node:zlib';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -35,6 +37,7 @@ import type { IFileDownloader } from './fileDownloader';
 const TELEPORT_CDN_ADDRESS = 'https://cdn.teleport.dev';
 const TELEPORT_RELEASES_ADDRESS = 'https://rlz.teleport.sh/teleport?page=0';
 const logger = new Logger('agentDownloader');
+const asyncExecFile = promisify(execFile);
 
 interface AgentBinary {
   version: string;
@@ -73,13 +76,13 @@ export async function downloadAgent(
   });
   const url = `${TELEPORT_CDN_ADDRESS}/${tarballName}`;
 
-  const agentTempDirectory = await mkdtemp(
-    join(settings.tempDataDir, 'connect-my-computer-')
+  const agentTempDirectory = await fs.mkdtemp(
+    path.join(settings.tempDataDir, 'connect-my-computer-')
   );
   await fileDownloader.run(url, agentTempDirectory);
-  const tarballPath = join(agentTempDirectory, tarballName);
+  const tarballPath = path.join(agentTempDirectory, tarballName);
   await unpack(tarballPath, settings.sessionDataDir);
-  await rm(agentTempDirectory, { recursive: true });
+  await fs.rm(agentTempDirectory, { recursive: true });
 
   logger.info(`Downloaded agent v${version}.`);
 }
@@ -138,7 +141,6 @@ async function isCorrectAgentVersionAlreadyDownloaded(
   agentBinaryPath: string,
   neededVersion: string
 ): Promise<boolean> {
-  const asyncExecFile = promisify(execFile);
   try {
     const agentVersion = await asyncExecFile(
       agentBinaryPath,

@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package testlib
 
@@ -140,6 +144,10 @@ func FastEventually(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
+func FastEventuallyWithT(t *testing.T, condition func(collectT *assert.CollectT)) {
+	require.EventuallyWithT(t, condition, time.Second, 100*time.Millisecond)
+}
+
 func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) *client.Client {
 	identityFilePath := helpers.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 	creds := client.LoadIdentityFile(identityFilePath)
@@ -172,11 +180,6 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 		s.StopKubernetesOperator()
 	}
 
-	// We have to create a new Manager on each start because the Manager does not support to be restarted
-	clientAccessor := func(ctx context.Context) (*client.Client, error) {
-		return s.TeleportClient, nil
-	}
-
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: "0",
@@ -184,31 +187,31 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = (&resources.RoleReconciler{
-		Client:                 s.K8sClient,
-		Scheme:                 k8sManager.GetScheme(),
-		TeleportClientAccessor: clientAccessor,
+		Client:         s.K8sClient,
+		Scheme:         k8sManager.GetScheme(),
+		TeleportClient: s.TeleportClient,
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewUserReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewUserReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewGithubConnectorReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewGithubConnectorReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewOIDCConnectorReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewOIDCConnectorReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewSAMLConnectorReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewSAMLConnectorReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewLoginRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewLoginRuleReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewProvisionTokenReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewProvisionTokenReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = resources.NewOktaImportRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	err = resources.NewOktaImportRuleReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())

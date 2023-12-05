@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -53,12 +55,15 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
@@ -67,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
+	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -120,6 +126,11 @@ type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
+
+	// usersService is used to forward deprecated users requests to
+	// the new service so that logic only needs to exist in one place.
+	// TODO(tross) DELETE IN 16.0.0
+	usersService *usersv1.Service
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -265,7 +276,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				return trace.Wrap(err)
 			}
 			sessionID = session.ID(create.SessionID)
-			g.Debugf("Created stream: %v.", err)
+			g.Debugf("Created stream for session %v", sessionID)
 			go forwardEvents(eventStream)
 			defer closeStream(eventStream)
 		} else if resume := request.GetResumeStream(); resume != nil {
@@ -276,7 +287,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			g.Debugf("Resumed stream: %v.", err)
+			g.Debugf("Resumed stream for session %v", resume.SessionID)
 			go forwardEvents(eventStream)
 			defer closeStream(eventStream)
 		} else if complete := request.GetCompleteStream(); complete != nil {
@@ -314,7 +325,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 					return trace.Wrap(err)
 				}
 			}
-			g.Debugf("Completed stream: %v.", err)
+			g.Debugf("Completed stream for session %v", sessionID)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -331,7 +342,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			}
 			event, err := apievents.FromOneOf(*oneof)
 			if err != nil {
-				g.WithError(err).Debugf("Failed to decode event.")
+				g.WithError(err).Debug("Failed to decode event.")
 				return trace.Wrap(err)
 			}
 			// Currently only api/client.auditStreamer calls with an event
@@ -341,7 +352,22 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			setter := &events.NoOpPreparer{}
 			start := time.Now()
 			preparedEvent, _ := setter.PrepareSessionEvent(event)
-			err = eventStream.RecordEvent(stream.Context(), preparedEvent)
+			var errors []error
+			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
+
+			// v13 clients expect this request to also emit the event, so emit here
+			// just for them.
+			switch event.GetType() {
+			// Don't emit really verbose events.
+			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
+			default:
+				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
+				if versionExists && semver.New(clientVersion).Major <= 13 {
+					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
+				}
+			}
+
+			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
 				case events.IsPermanentEmitError(err):
@@ -352,7 +378,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 					return trace.Wrap(err)
 				}
 			}
-			event.Size()
+
 			processed += int64(event.Size())
 			seconds := time.Since(streamStart) / time.Second
 			counter++
@@ -364,7 +390,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			}
 			diff := time.Since(start)
 			if diff > 100*time.Millisecond {
-				log.Warningf("RecordEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
+				g.Warningf("RecordEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
 			}
 		} else {
 			g.Errorf("Rejecting unsupported stream request: %v.", request)
@@ -382,8 +408,24 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+}
+
+// WatchEvent is a stream interface for sending events.
+type WatchEvent interface {
+	Context() context.Context
+	Send(*authpb.Event) error
+}
+
+type Watcher interface {
+	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
+}
+
+// WatchEvents watches for events and streams them to the provided stream.
+func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
 	servicesWatch := types.Watch{
-		Name:                auth.User.GetName(),
+		Name:                componentName,
 		Kinds:               watch.Kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
@@ -423,7 +465,7 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		}
 	}
 
-	// defferred cleanup func will inject stream error if needed
+	// deferred cleanup func will inject stream error if needed
 	return nil
 }
 
@@ -768,38 +810,28 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 	return &emptypb.Empty{}, nil
 }
 
+// GetUser returns a user matching the provided name if one exists.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*types.UserV2, error) {
-	auth, err := g.authenticate(ctx)
+	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetUser(ctx, req.Name, req.WithSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	v2, ok := user.(*types.UserV2)
-	if !ok {
-		log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
-		return nil, trace.Errorf("encountered unexpected user type")
-	}
-	return v2, nil
+
+	return resp.User, nil
 }
 
+// GetCurrentUser returns the currently authenticated user.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
-	auth, err := g.authenticate(ctx)
+	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user, err := auth.ServerWithRoles.GetCurrentUser(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	v2, ok := user.(*types.UserV2)
-	if !ok {
-		log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
-		return nil, trace.Errorf("encountered unexpected user type")
-	}
-	return v2, nil
+
+	return resp.User, nil
 }
 
 func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthService_GetCurrentUserRolesServer) error {
@@ -824,6 +856,9 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 	return nil
 }
 
+// GetUsers returns all users.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.ListUsers] instead.
 func (g *GRPCServer) GetUsers(req *authpb.GetUsersRequest, stream authpb.AuthService_GetUsersServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
@@ -1162,30 +1197,25 @@ func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb
 }
 
 // CreateUser inserts a new user entry in a backend.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.CreateUser] instead.
 func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	resp, err := g.usersService.CreateUser(ctx, &userspb.CreateUserRequest{User: req})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUser(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := services.ValidateUserRoles(ctx, req, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := auth.ServerWithRoles.CreateUser(ctx, req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Infof("%q user created", req.GetName())
+	log.Infof("%q user created", resp.User.GetName())
 
 	return &emptypb.Empty{}, nil
 }
 
-// UpdateUser updates an existing user in a backend.
+// UpdateUser updates an existing user in a backend. This does not use the
+// users service like other user CRUD methods to preserve update semantics.
+// This results in all updates blindly overwriting the existing user. Updating
+// users with [usersv1.Service.UpdateUser] is protected by optimistic locking.
+// TODO(tross): DELETE IN 16.0.0
+// Deprecated: use [usersv1.Service.UpdateUser] instead.
 func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1211,18 +1241,14 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptyp
 
 // DeleteUser deletes an existng user in a backend by username.
 func (g *GRPCServer) DeleteUser(ctx context.Context, req *authpb.DeleteUserRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	resp, err := g.usersService.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: req.Name})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.ServerWithRoles.DeleteUser(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	log.Infof("%q user deleted", req.Name)
 
-	return &emptypb.Empty{}, nil
+	return resp, nil
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.
@@ -2067,6 +2093,12 @@ func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6,
 	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
 		return role, nil
 	}
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared
+	// between multiple clients sessions when notifying about changes in watchers.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
 	hasLabelExpression := false
 	for _, kind := range types.LabelMatcherKinds {
 		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
@@ -2140,11 +2172,13 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 	case types.V3, types.V4, types.V5, types.V6:
 		return r, false, nil
 	case types.V7:
-		var (
-			downgraded types.RoleV6
-			restricted bool
-		)
-		downgraded = *r
+		var restricted bool
+		// Make a shallow copy of the role so that we don't mutate the original.
+		// This is necessary because the role is shared
+		// between multiple clients sessions when notifying about changes in watchers.
+		// If we mutate the original role, it will be mutated for all clients
+		// which can cause panics since it causes a race condition.
+		downgraded := apiutils.CloneProtoMsg(r)
 		downgraded.Version = types.V6
 
 		if len(downgraded.GetKubeResources(types.Deny)) > 0 {
@@ -2202,7 +2236,7 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 			restricted = true
 		}
 
-		return &downgraded, restricted, nil
+		return downgraded, restricted, nil
 	default:
 		return nil, false, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
@@ -2394,7 +2428,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
 	}
 
-	if _, _, err := actx.authServer.validateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
+	if _, _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2550,7 +2584,7 @@ func addMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_AddM
 	}
 	// Only validate if there was a challenge.
 	if authChallenge.TOTP != nil || authChallenge.WebauthnChallenge != nil {
-		if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
+		if _, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2692,7 +2726,7 @@ func deleteMFADeviceAuthChallenge(gctx *grpcContext, stream authpb.AuthService_D
 	if authResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", req)
 	}
-	if _, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
+	if _, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -2928,7 +2962,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 	if authResp == nil {
 		return nil, trace.BadParameter("expected MFAAuthenticateResponse, got %T", req.Request)
 	}
-	mfaDev, _, err := auth.validateMFAAuthResponse(ctx, authResp, user, passwordless)
+	mfaDev, _, err := auth.ValidateMFAAuthResponse(ctx, authResp, user, passwordless)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3041,7 +3075,7 @@ func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.Create
 
 	v3, ok := created.(*types.OIDCConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", created)
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", created)
 	}
 
 	return v3, nil
@@ -3061,19 +3095,34 @@ func (g *GRPCServer) UpdateOIDCConnector(ctx context.Context, req *authpb.Update
 
 	v3, ok := updated.(*types.OIDCConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected OIDC connector type: %T", updated)
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", updated)
 	}
 
 	return v3, nil
 }
 
-// UpsertOIDCConnector upserts an OIDC connector.
-func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+// UpsertOIDCConnectorV2 creates a new or replaces an existing OIDC connector.
+func (g *GRPCServer) UpsertOIDCConnectorV2(ctx context.Context, req *authpb.UpsertOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertOIDCConnector(ctx, oidcConnector); err != nil {
+	upserted, err := auth.ServerWithRoles.UpsertOIDCConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v3, ok := upserted.(*types.OIDCConnectorV3)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected OIDC connector type: %T", upserted)
+	}
+
+	return v3, nil
+}
+
+// UpsertOIDCConnector creates a new or replaces an existing OIDC connector.
+// Deprecated: Use [GRPCServer.UpsertOIDCConnectorV2] instead.
+func (g *GRPCServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+	if _, err := g.UpsertOIDCConnectorV2(ctx, &authpb.UpsertOIDCConnectorRequest{Connector: oidcConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -3170,7 +3219,7 @@ func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.Create
 
 	v2, ok := created.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", created)
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", created)
 	}
 
 	return v2, nil
@@ -3190,21 +3239,38 @@ func (g *GRPCServer) UpdateSAMLConnector(ctx context.Context, req *authpb.Update
 
 	v2, ok := updated.(*types.SAMLConnectorV2)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected SAML connector type: %T", updated)
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", updated)
+	}
+
+	return v2, nil
+}
+
+// UpsertSAMLConnectorV2 creates a new or replaces an existing SAML connector.
+func (g *GRPCServer) UpsertSAMLConnectorV2(ctx context.Context, req *authpb.UpsertSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := auth.ServerWithRoles.UpsertSAMLConnector(ctx, req.Connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v2, ok := upserted.(*types.SAMLConnectorV2)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected SAML connector type: %T", upserted)
 	}
 
 	return v2, nil
 }
 
 // UpsertSAMLConnector upserts a SAML connector.
+// Deprecated: Use [GRPCServer.UpsertSAMLConnectorV2] instead.
 func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *types.SAMLConnectorV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
+	if _, err := g.UpsertSAMLConnectorV2(ctx, &authpb.UpsertSAMLConnectorRequest{Connector: samlConnector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -3285,17 +3351,30 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	}, nil
 }
 
-// UpsertGithubConnector upserts a Github connector.
-func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types.GithubConnectorV3) (*emptypb.Empty, error) {
+// UpsertGithubConnectorV2 creates a new or replaces an existing Github connector.
+func (g *GRPCServer) UpsertGithubConnectorV2(ctx context.Context, req *authpb.UpsertGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	githubConnector, err := services.InitGithubConnector(connector)
+	githubConnector, err := services.InitGithubConnector(req.Connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector); err != nil {
+
+	upserted, err := auth.ServerWithRoles.UpsertGithubConnector(ctx, githubConnector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	githubConnectorV3, err := services.ConvertGithubConnector(upserted)
+	return githubConnectorV3, trace.Wrap(err)
+}
+
+// UpsertGithubConnector creates a new or replaces an existing Github connector.
+// Deprecated: Use [GRPCServer.UpsertGithubConnectorV2] instead.
+func (g *GRPCServer) UpsertGithubConnector(ctx context.Context, connector *types.GithubConnectorV3) (*emptypb.Empty, error) {
+	if _, err := g.UpsertGithubConnectorV2(ctx, &authpb.UpsertGithubConnectorRequest{Connector: connector}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -3317,11 +3396,8 @@ func (g *GRPCServer) UpdateGithubConnector(ctx context.Context, req *authpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	githubConnectorV3, ok := updated.(*types.GithubConnectorV3)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", updated)
-	}
-	return githubConnectorV3, nil
+	githubConnectorV3, err := services.ConvertGithubConnector(updated)
+	return githubConnectorV3, trace.Wrap(err)
 }
 
 // CreateGithubConnector creates a new  Github connector.
@@ -3340,11 +3416,8 @@ func (g *GRPCServer) CreateGithubConnector(ctx context.Context, req *authpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	githubConnectorV3, ok := created.(*types.GithubConnectorV3)
-	if !ok {
-		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", created)
-	}
-	return githubConnectorV3, nil
+	githubConnectorV3, err := services.ConvertGithubConnector(created)
+	return githubConnectorV3, trace.Wrap(err)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
@@ -4336,7 +4409,7 @@ func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *t
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		g.Logger.WithError(err).Warn("error getting client address from context")
 		return nil, status.Errorf(codes.FailedPrecondition, "client address not found in request context")
@@ -4651,7 +4724,6 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
-
 }
 
 // ListResources retrieves a paginated list of resources.
@@ -5590,12 +5662,26 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		Emitter:    cfg.Emitter,
+		Reporter:   cfg.AuthServer.Services.UsageReporter,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server: server,
+		server:       server,
+		usersService: usersService,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
@@ -5606,6 +5692,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services,
+		AuthServer: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5689,6 +5776,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+
+	userspb.RegisterUsersServiceServer(server, usersService)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

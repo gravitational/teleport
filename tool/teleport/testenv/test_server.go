@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package testenv provides functions for creating test servers for testing.
 package testenv
@@ -175,7 +177,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 // address as a string (for use in configuration). Takes a pointer to the slice
 // so that it's convenient to call in the middle of a FileConfig or Config
 // struct literal.
-func NewTCPListener(t *testing.T, lt service.ListenerType, fds *[]servicecfg.FileDescriptor) string {
+func NewTCPListener(t *testing.T, lt service.ListenerType, fds *[]*servicecfg.FileDescriptor) string {
 	t.Helper()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -187,19 +189,19 @@ func NewTCPListener(t *testing.T, lt service.ListenerType, fds *[]servicecfg.Fil
 	// the original net.Listener still needs to be closed.
 	lf, err := l.(*net.TCPListener).File()
 	require.NoError(t, err)
+	fd := &servicecfg.FileDescriptor{
+		Type:    string(lt),
+		Address: addr,
+		File:    lf,
+	}
 	// If the file descriptor slice ends up being passed to a TeleportProcess
 	// that successfully starts, listeners will either get "imported" and used
 	// or discarded and closed, this is just an extra safety measure that closes
 	// the listener at the end of the test anyway (the finalizer would do that
 	// anyway, in principle).
-	t.Cleanup(func() { lf.Close() })
+	t.Cleanup(func() { require.NoError(t, fd.Close()) })
 
-	*fds = append(*fds, servicecfg.FileDescriptor{
-		Type:    string(lt),
-		Address: addr,
-		File:    lf,
-	})
-
+	*fds = append(*fds, fd)
 	return addr
 }
 
@@ -362,6 +364,10 @@ func (p *cliModules) EnableRecoveryCodes() {
 
 func (p *cliModules) EnablePlugins() {
 }
+
+func (p *cliModules) EnableAccessGraph() {}
+
+func (p *cliModules) EnableAccessMonitoring() {}
 
 func (p *cliModules) SetFeatures(f modules.Features) {
 }

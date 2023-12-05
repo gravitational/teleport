@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package s3sessions
 
@@ -76,7 +78,7 @@ type Config struct {
 	ACL string
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
-	// Credentials if supplied are used in tests
+	// Credentials if supplied are used in tests or with External Audit Storage.
 	Credentials *credentials.Credentials
 	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
 	SSEKMSKey string
@@ -154,31 +156,31 @@ func (s *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Bucket")
 	}
 	if s.Session == nil {
-		// create an AWS session using default SDK behavior, i.e. it will interpret
-		// the environment and ~/.aws directory just like an AWS CLI tool would:
+		awsConfig := aws.Config{
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+		}
+		if s.Region != "" {
+			awsConfig.Region = aws.String(s.Region)
+		}
+		if s.Endpoint != "" {
+			awsConfig.Endpoint = aws.String(s.Endpoint)
+			awsConfig.S3ForcePathStyle = aws.Bool(true)
+		}
+		if s.Insecure {
+			awsConfig.DisableSSL = aws.Bool(s.Insecure)
+		}
+		if s.Credentials != nil {
+			awsConfig.Credentials = s.Credentials
+		}
+
 		sess, err := awssession.NewSessionWithOptions(awssession.Options{
 			SharedConfigState: awssession.SharedConfigEnable,
+			Config:            awsConfig,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// override the default environment (region + Host + credentials) with the values
-		// from the YAML file:
-		if s.Region != "" {
-			sess.Config.Region = aws.String(s.Region)
-		}
-		if s.Endpoint != "" {
-			sess.Config.Endpoint = aws.String(s.Endpoint)
-			sess.Config.S3ForcePathStyle = aws.Bool(true)
-		}
-		if s.Insecure {
-			sess.Config.DisableSSL = aws.Bool(s.Insecure)
-		}
-		if s.Credentials != nil {
-			sess.Config.Credentials = s.Credentials
-		}
-
-		sess.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint)
 
 		s.Session = sess
 	}

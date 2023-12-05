@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -255,8 +259,8 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.streamTarfile {
-		tarWriter := newTarWriter(os.Stdout, clockwork.NewRealClock())
-		defer tarWriter.Close()
+		tarWriter := newTarWriter(clockwork.NewRealClock())
+		defer tarWriter.Archive(os.Stdout)
 		a.identityWriter = tarWriter
 	}
 
@@ -952,7 +956,7 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.Clie
 	if a.outputFormat != identityfile.FormatKubernetes && a.kubeCluster != "" {
 		// User set --kube-cluster-name but it's not actually used for the chosen --format.
 		// Print a warning but continue.
-		fmt.Printf("Note: --kube-cluster-name is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
+		fmt.Fprintf(a.helperMsgDst(), "Note: --kube-cluster-name is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
 	}
 	if a.outputFormat != identityfile.FormatKubernetes {
 		return nil
@@ -979,7 +983,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.Client
 	if a.outputFormat != identityfile.FormatKubernetes && a.proxyAddr != "" {
 		// User set --proxy but it's not actually used for the chosen --format.
 		// Print a warning but continue.
-		fmt.Printf("Note: --proxy is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
+		fmt.Fprintf(a.helperMsgDst(), "Note: --proxy is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
 		return nil
 	}
 	if a.outputFormat != identityfile.FormatKubernetes {

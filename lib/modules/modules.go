@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // package modules allows external packages override certain behavioral
 // aspects of teleport
@@ -52,7 +54,17 @@ type Features struct {
 	SAML bool
 	// AccessControls enables FIPS access controls
 	AccessControls bool
-	// AdvancedAccessWorkflows enables advanced access workflows
+	// Currently this flag is to gate actions from OSS clusters.
+	//
+	// Determining support for access request is currently determined by:
+	//   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
+	//   introduced with Enterprise Usage Based (EUB) product.
+	//   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
+	//   where before EUB, it was unlimited.
+	//
+	// AdvancedAccessWorkflows is currently set to true for all
+	// enterprise editions (team, cloud, on-prem). Historically, access request
+	// was only available for enterprise cloud and enterprise on-prem.
 	AdvancedAccessWorkflows bool
 	// Cloud enables some cloud-related features
 	Cloud bool
@@ -83,33 +95,65 @@ type Features struct {
 	IsTrialProduct bool
 	// IsTeam is true if the cluster is a Teleport Team cluster.
 	IsTeamProduct bool
+	// AccessGraph enables the usage of access graph.
+	AccessGraph bool
+	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
+	// access list, access request, access monitoring, device trust.
+	IdentityGovernanceSecurity bool
+	// AccessList holds its namesake feature settings.
+	AccessList AccessListFeature
+	// AccessMonitoring holds its namesake feature settings.
+	AccessMonitoring AccessMonitoringFeature
+	// ProductType describes the product being used.
+	ProductType ProductType
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
-// Requires Teleport Enterprise.
+// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
 type DeviceTrustFeature struct {
-	// Enabled is true if the Device Trust feature is enabled.
+	// Currently this flag is to gate actions from OSS clusters.
+	//
+	// Determining support for device trust is currently determined by:
+	//   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
+	//   introduced with Enterprise Usage Based (EUB) product.
+	//   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
+	//   where before EUB, it was unlimited.
 	Enabled bool
 	// DevicesUsageLimit is the usage-based limit for the number of
 	// registered/enrolled devices, at the implementation's discretion.
-	// Meant for usage-based accounts, like Teleport Team. Has no effect if
-	// [Features.IsUsageBasedBilling] is `false`.
 	DevicesUsageLimit int
 }
 
 // AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
+// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
 type AccessRequestsFeature struct {
 	// MonthlyRequestLimit is the usage-based limit for the number of
 	// access requests created in a calendar month.
-	// Meant for usage-based accounts, like Teleport Team. Has no effect if
-	// [Features.IsUsageBasedBilling] is `false`.
 	MonthlyRequestLimit int
+}
+
+// AccessListFeature holds the Access List feature settings.
+// Limits have no affect if feature is enabled.
+type AccessListFeature struct {
+	// Limit for the number of access list creatable when feature is
+	// not enabled.
+	CreateLimit int
+}
+
+// AccessMonitoring holds the Access Monitoring feature settings.
+// Limits have no affect if [Feature.IdentityGovernanceSecurity] is enabled.
+type AccessMonitoringFeature struct {
+	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
+	Enabled bool
+	// Defines the max number of days to include in an access report.
+	MaxReportRangeLimit int
 }
 
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
+		ProductType:             proto.ProductType(f.ProductType),
 		Kubernetes:              f.Kubernetes,
 		App:                     f.App,
 		DB:                      f.DB,
@@ -127,6 +171,7 @@ func (f Features) ToProto() *proto.Features {
 		Assist:                  f.Assist,
 		FeatureHiding:           f.FeatureHiding,
 		CustomTheme:             f.CustomTheme,
+		AccessGraph:             f.AccessGraph,
 		DeviceTrust: &proto.DeviceTrustFeature{
 			Enabled:           f.DeviceTrust.Enabled,
 			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
@@ -134,7 +179,38 @@ func (f Features) ToProto() *proto.Features {
 		AccessRequests: &proto.AccessRequestsFeature{
 			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
 		},
+		IdentityGovernance: f.IdentityGovernanceSecurity,
+		AccessMonitoring: &proto.AccessMonitoringFeature{
+			Enabled:             f.AccessMonitoring.Enabled,
+			MaxReportRangeLimit: int32(f.AccessMonitoring.MaxReportRangeLimit),
+		},
+		AccessList: &proto.AccessListFeature{
+			CreateLimit: int32(f.AccessList.CreateLimit),
+		},
 	}
+}
+
+// ProductType is the type of product.
+type ProductType int32
+
+const (
+	ProductTypeUnknown ProductType = 0
+	// ProductTypeTeam is Teleport ProductTypeTeam product.
+	ProductTypeTeam ProductType = 1
+	// ProductTypeEUB is Teleport Enterprise Usage Based product.
+	ProductTypeEUB ProductType = 2
+)
+
+// IsLegacy describes the legacy enterprise product that existed before the
+// usage-based product was introduced. Some features (Device Trust, for example)
+// require the IGS add-on in usage-based products but are included for legacy
+// licenses.
+func (f Features) IsLegacy() bool {
+	return !f.IsUsageBasedBilling
+}
+
+func (f Features) IGSEnabled() bool {
+	return f.IdentityGovernanceSecurity
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
@@ -148,6 +224,9 @@ type AccessResourcesGetter interface {
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	GetLock(ctx context.Context, name string) (types.Lock, error)
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
 // Modules defines interface that external libraries can implement customizing
@@ -171,6 +250,10 @@ type Modules interface {
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
 	EnablePlugins()
+	// EnableAccessGraph enables the usage of access graph.
+	EnableAccessGraph()
+	// EnableAccessMonitoring enables the usage of access monitoring.
+	EnableAccessMonitoring()
 }
 
 const (
@@ -280,6 +363,14 @@ func (p *defaultModules) EnableRecoveryCodes() {
 // This is a noop since OSS teleport does not support hosted plugins
 func (p *defaultModules) EnablePlugins() {
 }
+
+// EnableAccessGraph enables the usage of access graph.
+// This is a noop since OSS teleport does not support access graph.
+func (p *defaultModules) EnableAccessGraph() {}
+
+// EnableAccessMonitoring enables the usage of access monitoring.
+// This is a noop since OSS teleport does not support access monitoring.
+func (p *defaultModules) EnableAccessMonitoring() {}
 
 var (
 	mutex   sync.Mutex

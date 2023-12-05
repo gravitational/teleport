@@ -1,24 +1,27 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -41,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -82,15 +86,20 @@ var DefaultCertAuthorityRules = []types.Rule{
 
 // ErrTrustedDeviceRequired is returned by AccessChecker when access to a
 // resource requires a trusted device.
-var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a trusted device")
+// It's an alias to [dtauthz.ErrTrustedDeviceRequired].
+var ErrTrustedDeviceRequired = dtauthz.ErrTrustedDeviceRequired
 
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.
-var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
+var ErrSessionMFARequired = &trace.AccessDeniedError{
+	Message: "access to resource requires MFA",
+}
 
 // ErrSessionMFANotRequired indicates that per session mfa will not grant
 // access to a resource.
-var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+var ErrSessionMFANotRequired = &trace.AccessDeniedError{
+	Message: "MFA is not required to access resource",
+}
 
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
@@ -2848,7 +2857,43 @@ type checkAccessParams struct {
 	silent                bool
 }
 
-func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
+type accessExplicitlyDenied struct {
+	inner error
+}
+
+// AccessExplicitlyDenied is an error type that indicates an AccessDenied error
+// where a deny rule matched and access is explicitly denied, in contrast to
+// cases where there is no matching deny or allow rule and access is only
+// implicitly denied.
+func AccessExplicitlyDenied(inner error) error {
+	return &accessExplicitlyDenied{inner}
+}
+
+// IsAccessExplicitlyDenied returns true if any of the errors in err's chain is
+// an AccessExplicitlyDenied error.
+func IsAccessExplicitlyDenied(err error) bool {
+	var target *accessExplicitlyDenied
+	return errors.As(err, &target)
+}
+
+func (a *accessExplicitlyDenied) Error() string {
+	return a.inner.Error()
+}
+
+func (a *accessExplicitlyDenied) Unwrap() error {
+	return a.inner
+}
+
+func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
+	// Every unknown error, which could be due to a bad role or an expression
+	// that can't parse, should be considered an explicit denial.
+	explicitDeny := true
+	defer func() {
+		if explicitDeny && err != nil {
+			err = AccessExplicitlyDenied(err)
+		}
+	}()
+
 	actionsParser, err := NewActionsParser(p.ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2894,6 +2939,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) error {
 		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
 			p.verb, p.resource, p.namespace, set)
 	}
+
+	// At this point no deny rule has matched and there are no more unknown
+	// errors, so this is only an implicit denial.
+	explicitDeny = false
 	return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 }
 
@@ -3054,6 +3103,7 @@ type AccessState struct {
 	// EnableDeviceVerification enables device verification in access checks.
 	// It's recommended to set this in tandem with DeviceVerified, so device
 	// checks are easier to reason about and have a proper chance of succeeding.
+	// Used for role-based device mode checks.
 	// Defaults to false for backwards compatibility.
 	EnableDeviceVerification bool
 	// DeviceVerified is true if the user certificate contains all required

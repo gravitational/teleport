@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -53,6 +57,10 @@ func TestEditResources(t *testing.T) {
 			kind: types.KindRole,
 			edit: testEditRole,
 		},
+		{
+			kind: types.KindUser,
+			edit: testEditUser,
+		},
 	}
 
 	for _, test := range tests {
@@ -60,7 +68,6 @@ func TestEditResources(t *testing.T) {
 			test.edit(t, fc, rootClient)
 		})
 	}
-
 }
 
 func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
@@ -110,6 +117,82 @@ func testEditGithubConnector(t *testing.T, fc *config.FileConfig, clt auth.Clien
 	// since the created revision is stale.
 	_, err = runEditCommand(t, fc, []string{"edit", "connector/github"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditRole(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+	ctx := context.Background()
+
+	expected, err := types.NewRole("test-role", types.RoleSpecV6{})
+	require.NoError(t, err, "creating initial role resource")
+	created, err := clt.CreateRole(ctx, expected.(*types.RoleV6))
+	require.NoError(t, err, "persisting initial role resource")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(created.GetRevision())
+		expected.SetLogins(types.Allow, []string{"abcdef"})
+
+		collection := &roleCollection{roles: []types.Role{expected}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+
+	}
+
+	// Edit the role and validate that the expected field is updated.
+	_, err = runEditCommand(t, fc, []string{"edit", "role/test-role"}, withEditor(editor))
+	require.NoError(t, err, "expected editing role to succeed")
+
+	actual, err := clt.GetRole(ctx, expected.GetName())
+	require.NoError(t, err, "retrieving role after edit")
+	assert.NotEqual(t, created.GetLogins(types.Allow), actual.GetLogins(types.Allow), "logins should have been modified by edit")
+	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Try editing the role a second time. This time the revisions will not match
+	// since the created revision is stale.
+	_, err = runEditCommand(t, fc, []string{"edit", "role/test-role"}, withEditor(editor))
+	assert.Error(t, err, "stale role was allowed to be updated")
+	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditUser(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
+	ctx := context.Background()
+
+	expected, err := types.NewUser("llama")
+	require.NoError(t, err, "creating initial user resource")
+	created, err := clt.CreateUser(ctx, expected.(*types.UserV2))
+	require.NoError(t, err, "persisting initial user resource")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(created.GetRevision())
+		expected.SetLogins([]string{"abcdef"})
+
+		collection := &userCollection{users: []types.User{expected}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+
+	}
+
+	// Edit the user and validate that the expected field is updated.
+	_, err = runEditCommand(t, fc, []string{"edit", "user/llama"}, withEditor(editor))
+	require.NoError(t, err, "expected editing role to succeed")
+
+	actual, err := clt.GetUser(ctx, expected.GetName(), true)
+	require.NoError(t, err, "retrieving user after edit")
+	assert.NotEqual(t, created.GetLogins(), actual.GetLogins(), "logins should have been modified by edit")
+	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Try editing the user a second time. This time the revisions will not match
+	// since the created revision is stale.
+	_, err = runEditCommand(t, fc, []string{"edit", "user/llama"}, withEditor(editor))
+	assert.Error(t, err, "stale user was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }
 
@@ -270,43 +353,5 @@ func testEditSAMLConnector(t *testing.T, fc *config.FileConfig, clt auth.ClientI
 	// since the created revision is stale.
 	_, err = runEditCommand(t, fc, []string{"edit", "connector/saml"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
-	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
-}
-
-func testEditRole(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
-	ctx := context.Background()
-
-	expected, err := types.NewRole("test-role", types.RoleSpecV6{})
-	require.NoError(t, err, "creating initial role resource")
-	created, err := clt.CreateRole(ctx, expected.(*types.RoleV6))
-	require.NoError(t, err, "persisting initial role resource")
-
-	editor := func(name string) error {
-		f, err := os.Create(name)
-		if err != nil {
-			return trace.Wrap(err, "opening file to edit")
-		}
-
-		expected.SetRevision(created.GetRevision())
-		expected.SetLogins(types.Allow, []string{"abcdef"})
-
-		collection := &roleCollection{roles: []types.Role{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
-	}
-
-	// Edit the connector and validate that the expected field is updated.
-	_, err = runEditCommand(t, fc, []string{"edit", "role/test-role"}, withEditor(editor))
-	require.NoError(t, err, "expected editing role to succeed")
-
-	actual, err := clt.GetRole(ctx, expected.GetName())
-	require.NoError(t, err, "retrieving role after edit")
-	assert.NotEqual(t, created.GetLogins(types.Allow), actual.GetLogins(types.Allow), "logins should have been modified by edit")
-	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-
-	// Try editing the connector a second time. This time the revisions will not match
-	// since the created revision is stale.
-	_, err = runEditCommand(t, fc, []string{"edit", "role/test-role"}, withEditor(editor))
-	assert.Error(t, err, "stale role was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
 }

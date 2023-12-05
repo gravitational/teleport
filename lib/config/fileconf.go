@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -96,6 +98,9 @@ type FileConfig struct {
 
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
+
+	// AccessGraph is the section of the config describing AccessGraph service
+	AccessGraph AccessGraph `yaml:"access_graph,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -813,6 +818,18 @@ type PluginService struct {
 	Enabled bool `yaml:"enabled"`
 	// Plugins is a map of matchers for enabled plugin resources.
 	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// AccessGraph represents the configuration for the AccessGraph service.
+type AccessGraph struct {
+	// Enabled enables the AccessGraph service.
+	Enabled bool `yaml:"enabled"`
+	// Endpoint is the endpoint of the AccessGraph service.
+	Endpoint string `yaml:"endpoint"`
+	// CA is the path to the CA certificate for the AccessGraph service.
+	CA string `yaml:"ca"`
+	// Insecure is true if the AccessGraph service should not verify the CA.
+	Insecure bool `yaml:"insecure"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.

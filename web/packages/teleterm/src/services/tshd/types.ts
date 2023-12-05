@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
@@ -21,6 +23,7 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import { NodeSubKind } from 'shared/services';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
 import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
@@ -49,6 +52,7 @@ export interface Kube extends apiKube.Kube.AsObject {
 
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
+  subKind: NodeSubKind;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
@@ -133,11 +137,27 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * `leafClusterId` is equal to the `name` property of the cluster.
    */
   uri: uri.ClusterUri;
+  /**
+   * loggedInUser is present if the user has logged in to the cluster at least once. This
+   * includes a situation in which the cert has expired. If the cluster was added to the app but the
+   * user is yet to log in, loggedInUser is not present.
+   */
   loggedInUser?: LoggedInUser;
 }
 
+/**
+ * LoggedInUser describes loggedInUser field available on root clusters.
+ *
+ * loggedInUser is present if the user has logged in to the cluster at least once. This
+ * includes a situation in which the cert has expired. If the cluster was added to the app but the
+ * user is yet to log in, loggedInUser is not present.
+ */
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
   assumedRequests?: Record<string, AssumedRequest>;
+  /**
+   * acl is available only after the cluster details are fetched, as acl is not stored on disk.
+   */
+  acl?: apiCluster.ACL.AsObject;
 };
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
@@ -365,16 +385,16 @@ export type WaitForConnectMyComputerNodeJoinResponse =
 export type ListUnifiedResourcesRequest =
   apiService.ListUnifiedResourcesRequest.AsObject;
 export type ListUnifiedResourcesResponse = {
-  resources: (
-    | { kind: 'server'; resource: Server }
-    | {
-        kind: 'database';
-        resource: Database;
-      }
-    | { kind: 'kube'; resource: Kube }
-  )[];
+  resources: UnifiedResourceResponse[];
   nextKey: string;
 };
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: Server }
+  | {
+      kind: 'database';
+      resource: Database;
+    }
+  | { kind: 'kube'; resource: Kube };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

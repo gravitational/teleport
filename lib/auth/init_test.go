@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -75,10 +77,10 @@ func TestReadIdentity(t *testing.T) {
 
 	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
-	require.Equal(t, id.ClusterName, "example.com")
-	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode})
-	require.Equal(t, id.CertBytes, cert)
-	require.Equal(t, id.KeyBytes, priv)
+	require.Equal(t, "example.com", id.ClusterName)
+	require.Equal(t, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
+	require.Equal(t, cert, id.CertBytes)
+	require.Equal(t, priv, id.KeyBytes)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := 10 * time.Second
@@ -409,7 +411,7 @@ func TestClusterID(t *testing.T) {
 	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
-	require.NotEqual(t, clusterID, "")
+	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
 	authServer, err = Init(context.Background(), conf)
@@ -418,7 +420,7 @@ func TestClusterID(t *testing.T) {
 
 	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
-	require.Equal(t, cc.GetClusterID(), clusterID)
+	require.Equal(t, clusterID, cc.GetClusterID())
 }
 
 // TestClusterName ensures that a cluster can not be renamed.
@@ -1283,7 +1285,7 @@ const (
 	userYAML = `kind: user
 version: v2
 metadata:
-  name: joe
+  name: myuser
 spec:
   roles: ["admin"]`
 	tokenYAML = `kind: token
@@ -1298,6 +1300,51 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	roleYAML = `kind: role
+version: v7
+metadata:
+  name: admin
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  allow:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']`
+	lockYAML = `
+kind: lock
+version: v2
+metadata:
+  name: b1c785d8-8165-41fc-8dd6-252d534334d3
+spec:
+  created_at: "2023-11-07T18:44:35.361806Z"
+  created_by: Admin
+  target:
+    user: myuser
+`
+	clusterNetworkingConfYAML = `
+kind: cluster_networking_config
+metadata:
+  name: cluster-networking-config
+spec:
+  proxy_listener_mode: 1
+`
+	authPrefYAML = `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1305,6 +1352,10 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	role := resourceFromYAML(t, roleYAML).(types.Role)
+	lock := resourceFromYAML(t, lockYAML).(types.Lock)
+	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
+	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
 
 	tests := []struct {
 		name         string
@@ -1314,7 +1365,10 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		{
 			name: "Apply unsupported resource",
 			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, lock)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
 			},
 			assertError: require.Error,
 		},
@@ -1322,6 +1376,51 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			name: "Apply ProvisionToken",
 			modifyConfig: func(cfg *InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply User (invalid, missing role)",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+			},
+			assertError: require.Error,
+		},
+		// We test both user+role and role+user to validate that ordering doesn't matter
+		{
+			name: "Apply User+Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Role+User",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply ClusterNetworkingConfig",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, clusterNetworkingConfig)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply AuthPreference",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, authPref)
 			},
 			assertError: require.NoError,
 		},

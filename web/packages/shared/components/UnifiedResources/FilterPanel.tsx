@@ -1,29 +1,40 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
-import { Text, Flex } from 'design';
+import { Text, Flex, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
-import { ArrowUp, ArrowDown, ChevronDown } from 'design/Icon';
+import {
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  SquaresFour,
+  Rows,
+} from 'design/Icon';
 
-import { HoverTooltip } from './UnifiedResources';
+import { ViewMode } from 'shared/services/unifiedResourcePreferences';
+import { HoverTooltip } from 'shared/components/ToolTip';
+
+import { FilterKind } from './UnifiedResources';
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
@@ -41,12 +52,14 @@ const sortFieldOptions = [
 ];
 
 interface FilterPanelProps {
-  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  availableKinds: FilterKind[];
   params: UnifiedResourcesQueryParams;
   setParams: (params: UnifiedResourcesQueryParams) => void;
   selectVisible: () => void;
   selected: boolean;
-  shouldUnpin: boolean;
+  BulkActions?: React.ReactElement;
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
 }
 
 export function FilterPanel({
@@ -55,7 +68,9 @@ export function FilterPanel({
   setParams,
   selectVisible,
   selected,
-  shouldUnpin,
+  BulkActions,
+  currentViewMode,
+  onSelectViewMode,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -76,25 +91,41 @@ export function FilterPanel({
   };
 
   return (
-    <Flex mb={2} justifyContent="space-between">
+    // minHeight is set to 32px so there isn't layout shift when a bulk action button shows up
+    <Flex
+      mb={2}
+      justifyContent="space-between"
+      minHeight="32px"
+      alignItems="center"
+    >
       <Flex gap={2}>
-        <HoverTooltip
-          tipContent={<>{shouldUnpin ? 'Deselect all' : 'Select all'}</>}
-        >
-          <StyledCheckbox checked={selected} onChange={selectVisible} />
+        <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
+          <StyledCheckbox
+            checked={selected}
+            onChange={selectVisible}
+            data-testid="select_all"
+          />
         </HoverTooltip>
+
         <FilterTypesMenu
           onChange={onKindsChanged}
           availableKinds={availableKinds}
           kindsFromParams={kinds || []}
         />
       </Flex>
-      <SortMenu
-        onDirChange={onSortOrderButtonClicked}
-        onChange={onSortFieldChange}
-        sortType={activeSortFieldOption.label}
-        sortDir={sort.dir}
-      />
+      <Flex gap={2} alignItems="center">
+        <Box mr={4}>{BulkActions}</Box>
+        <ViewModeSwitch
+          currentViewMode={currentViewMode}
+          onSelectViewMode={onSelectViewMode}
+        />
+        <SortMenu
+          onDirChange={onSortOrderButtonClicked}
+          onChange={onSortFieldChange}
+          sortType={activeSortFieldOption.label}
+          sortDir={sort.dir}
+        />
+      </Flex>
     </Flex>
   );
 }
@@ -114,7 +145,7 @@ function oppositeSort(
 }
 
 type FilterTypesMenuProps = {
-  availableKinds: SharedUnifiedResource['resource']['kind'][];
+  availableKinds: FilterKind[];
   kindsFromParams: string[];
   onChange: (kinds: string[]) => void;
 };
@@ -124,15 +155,17 @@ const FilterTypesMenu = ({
   availableKinds,
   kindsFromParams,
 }: FilterTypesMenuProps) => {
-  const kindOptions = availableKinds.map(kind => ({
+  const kindOptions = availableKinds.map(({ kind, disabled }) => ({
     value: kind,
     label: kindToLabel[kind],
+    disabled: disabled,
   }));
 
   const [anchorEl, setAnchorEl] = useState(null);
   // we have a separate state in the filter so we can select a few different things and then click "apply"
   const [kinds, setKinds] = useState<string[]>(kindsFromParams || []);
   const handleOpen = event => {
+    setKinds(kindsFromParams);
     setAnchorEl(event.currentTarget);
   };
 
@@ -157,7 +190,7 @@ const FilterTypesMenu = ({
   };
 
   const handleSelectAll = () => {
-    setKinds(kindOptions.map(k => k.value));
+    setKinds(kindOptions.filter(k => !k.disabled).map(k => k.value));
   };
 
   const handleClearAll = () => {
@@ -171,7 +204,7 @@ const FilterTypesMenu = ({
 
   return (
     <Flex textAlign="center" alignItems="center">
-      <HoverTooltip tipContent={<>Filter types</>}>
+      <HoverTooltip tipContent={'Filter types'}>
         <ButtonSecondary
           px={2}
           css={`
@@ -225,27 +258,43 @@ const FilterTypesMenu = ({
             Clear All
           </ButtonSecondary>
         </Flex>
-        {kindOptions.map(kind => (
-          <MenuItem
-            px={2}
-            key={kind.value}
-            onClick={() => handleSelect(kind.value)}
-          >
-            <StyledCheckbox
-              type="checkbox"
-              name={kind.label}
-              onChange={() => {
-                handleSelect(kind.value);
-              }}
-              id={kind.value}
-              checked={kinds.includes(kind.value)}
-            />
-            <Text ml={2} fontWeight={300} fontSize={2}>
-              {kind.label}
-            </Text>
-          </MenuItem>
-        ))}
-
+        {kindOptions.map(kind => {
+          const $checkbox = (
+            <>
+              <StyledCheckbox
+                type="checkbox"
+                name={kind.label}
+                disabled={kind.disabled}
+                onChange={() => {
+                  handleSelect(kind.value);
+                }}
+                id={kind.value}
+                checked={kinds.includes(kind.value)}
+              />
+              <Text ml={2} fontWeight={300} fontSize={2}>
+                {kind.label}
+              </Text>
+            </>
+          );
+          return (
+            <MenuItem
+              disabled={kind.disabled}
+              px={2}
+              key={kind.value}
+              onClick={() => (!kind.disabled ? handleSelect(kind.value) : null)}
+            >
+              {kind.disabled ? (
+                <HoverTooltip
+                  tipContent={`You do not have access to ${kind.label} resources.`}
+                >
+                  {$checkbox}
+                </HoverTooltip>
+              ) : (
+                $checkbox
+              )}
+            </MenuItem>
+          );
+        })}
         <Flex justifyContent="space-between" p={2} gap={2}>
           <ButtonPrimary
             disabled={kindArraysEqual(kinds, kindsFromParams)}
@@ -297,13 +346,13 @@ const SortMenu: React.FC<SortMenuProps> = props => {
 
   return (
     <Flex textAlign="center">
-      <HoverTooltip tipContent={<>Sort by</>}>
+      <HoverTooltip tipContent={'Sort by'}>
         <ButtonBorder
           css={`
             border-right: none;
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[0]};
+            border-color: ${props => props.theme.colors.spotBackground[2]};
           `}
           textTransform="none"
           size="small"
@@ -330,7 +379,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
         <MenuItem onClick={() => handleSelect('name')}>Name</MenuItem>
         <MenuItem onClick={() => handleSelect('kind')}>Type</MenuItem>
       </Menu>
-      <HoverTooltip tipContent={<>Sort direction</>}>
+      <HoverTooltip tipContent={'Sort direction'}>
         <ButtonBorder
           onClick={onDirChange}
           textTransform="none"
@@ -338,7 +387,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
             width: 0px; // remove extra width around the button icon
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
-            border-color: ${props => props.theme.colors.spotBackground[0]};
+            border-color: ${props => props.theme.colors.spotBackground[2]};
           `}
           size="small"
         >
@@ -365,6 +414,78 @@ function kindArraysEqual(arr1: string[], arr2: string[]) {
 
   return true;
 }
+
+function ViewModeSwitch({
+  currentViewMode,
+  onSelectViewMode,
+}: {
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
+}) {
+  return (
+    <ViewModeSwitchContainer>
+      <ViewModeSwitchButton
+        className={
+          currentViewMode === ViewMode.VIEW_MODE_CARD ? 'selected' : ''
+        }
+        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_CARD)}
+        css={`
+          border-right: 1px solid
+            ${props => props.theme.colors.spotBackground[2]};
+          border-top-left-radius: 4px;
+          border-bottom-left-radius: 4px;
+        `}
+      >
+        <SquaresFour size="small" color="text.main" />
+      </ViewModeSwitchButton>
+      <ViewModeSwitchButton
+        className={
+          currentViewMode === ViewMode.VIEW_MODE_LIST ? 'selected' : ''
+        }
+        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_LIST)}
+        css={`
+          border-top-right-radius: 4px;
+          border-bottom-right-radius: 4px;
+        `}
+      >
+        <Rows size="small" color="text.main" />
+      </ViewModeSwitchButton>
+    </ViewModeSwitchContainer>
+  );
+}
+
+const ViewModeSwitchContainer = styled.div`
+  height: 22px;
+  width: 48px;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+  border-radius: 4px;
+  display: flex;
+
+  .selected {
+    background-color: ${props => props.theme.colors.spotBackground[1]};
+
+    :hover {
+      background-color: ${props => props.theme.colors.spotBackground[1]};
+    }
+  }
+`;
+
+const ViewModeSwitchButton = styled.button`
+  height: 100%;
+  width: 50%;
+  overflow: hidden;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  background-color: transparent;
+
+  :hover {
+    background-color: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
 
 const FiltersExistIndicator = styled.div`
   position: absolute;

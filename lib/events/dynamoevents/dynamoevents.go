@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package dynamoevents
 
@@ -23,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"sort"
@@ -260,31 +263,39 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		Entry:  l,
 		Config: cfg,
 	}
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
-	b.session, err = awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	awsConfig := aws.Config{
+		EC2MetadataEnableFallback: aws.Bool(false),
 	}
-	// override the default environment (region + credentials) with the values
-	// from the YAML file:
+
+	// Override the default environment's region if value set in YAML file:
 	if cfg.Region != "" {
-		b.session.Config.Region = aws.String(cfg.Region)
+		awsConfig.Region = aws.String(cfg.Region)
 	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		b.session.Config.Endpoint = aws.String(cfg.Endpoint)
+		awsConfig.Endpoint = aws.String(cfg.Endpoint)
 	}
 
-	// Explicitly enable or disable FIPS endpoints for DynamoDB
-	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
+	b.session, err = awssession.NewSessionWithOptions(awssession.Options{
+		SharedConfigState: awssession.SharedConfigEnable,
+		Config:            awsConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// create DynamoDB service:
-	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session, &aws.Config{
+		// Setting this on the individual service instead of the session, as DynamoDB Streams
+		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
+		// is available (or whenever AWS adds the missing FIPS endpoints).
+		UseFIPSEndpoint: events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint),
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -357,6 +368,7 @@ const (
 
 // EmitAuditEvent emits audit event
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	sessionID := getSessionID(in)
 	if err := l.putAuditEvent(ctx, sessionID, in); err != nil {
 		switch {
@@ -1111,9 +1123,7 @@ dateLoop:
 		for i, eventType := range l.filter.eventTypes {
 			attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 		}
-		for k, v := range l.filter.condParams.attrValues {
-			attributes[k] = v
-		}
+		maps.Copy(attributes, l.filter.condParams.attrValues)
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1174,9 +1184,8 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	for i, eventType := range l.filter.eventTypes {
 		attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 	}
-	for k, v := range l.filter.condParams.attrValues {
-		attributes[k] = v
-	}
+	maps.Copy(attributes, l.filter.condParams.attrValues)
+
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -93,9 +95,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if closer, ok := client.(io.Closer); ok {
-			closer.Close()
-		}
+		client.Close()
 	})
 
 	return client
@@ -200,6 +200,7 @@ func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
 	require.NoError(t, err)
 	return out
 }
+
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
@@ -210,7 +211,7 @@ func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
 	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
 	fileConfYAML, err := yaml.Marshal(fc)
 	require.NoError(t, err)
-	err = os.WriteFile(fileConfPath, fileConfYAML, 0600)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
 	require.NoError(t, err)
 	return fileConfPath
 }
@@ -229,7 +230,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
-	fileDescriptors []servicecfg.FileDescriptor
+	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       clockwork.FakeClock
 }
 
@@ -241,7 +242,7 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
-func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
+func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
 	}

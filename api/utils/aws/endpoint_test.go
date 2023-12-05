@@ -449,7 +449,7 @@ func TestCassandraEndpointRegion(t *testing.T) {
 				require.False(t, IsKeyspacesEndpoint(test.inputURI))
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, got, test.wantRegion)
+				require.Equal(t, test.wantRegion, got)
 				require.True(t, IsKeyspacesEndpoint(test.inputURI))
 			}
 		})

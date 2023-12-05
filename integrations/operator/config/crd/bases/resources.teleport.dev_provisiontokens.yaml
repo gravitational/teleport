@@ -192,19 +192,37 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
+                        ci_config_ref_uri:
+                          type: string
+                        ci_config_sha:
+                          type: string
+                        deployment_tier:
+                          type: string
                         environment:
                           type: string
+                        environment_protected:
+                          type: boolean
                         namespace_path:
                           type: string
                         pipeline_source:
                           type: string
                         project_path:
                           type: string
+                        project_visibility:
+                          type: string
                         ref:
                           type: string
+                        ref_protected:
+                          type: boolean
                         ref_type:
                           type: string
                         sub:
+                          type: string
+                        user_email:
+                          type: string
+                        user_id:
+                          type: string
+                        user_login:
                           type: string
                       type: object
                     nullable: true
@@ -257,6 +275,32 @@ spec:
                   type: string
                 nullable: true
                 type: array
+              spacelift:
+                description: Spacelift allows the configuration of options specific
+                  to the "spacelift" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        caller_id:
+                          type: string
+                        caller_type:
+                          type: string
+                        scope:
+                          type: string
+                        space_id:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  hostname:
+                    description: Hostname is the hostname of the Spacelift tenant
+                      that tokens will originate from. E.g `example.app.spacelift.io`
+                    type: string
+                type: object
               suggested_agent_matcher_labels:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true

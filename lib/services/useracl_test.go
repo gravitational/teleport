@@ -1,17 +1,19 @@
 /*
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package services
@@ -92,10 +94,11 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, denied))
 	require.Empty(t, cmp.Diff(userContext.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.Desktops, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, denied))
 
 	require.Empty(t, cmp.Diff(userContext.Billing, denied))
-	require.Equal(t, userContext.Clipboard, true)
-	require.Equal(t, userContext.DesktopSessionRecording, true)
+	require.True(t, userContext.Clipboard)
+	require.True(t, userContext.DesktopSessionRecording)
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
 
@@ -107,7 +110,7 @@ func TestNewUserACL(t *testing.T) {
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)
-	require.Equal(t, userContext.DesktopSessionRecording, false)
+	require.False(t, userContext.DesktopSessionRecording)
 }
 
 func TestNewUserACLCloud(t *testing.T) {
@@ -148,9 +151,10 @@ func TestNewUserACLCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Nodes, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessRequests, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.DiscoveryConfig, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ExternalAuditStorage, allowedRW))
 
-	require.Equal(t, userContext.Clipboard, true)
-	require.Equal(t, userContext.DesktopSessionRecording, true)
+	require.True(t, userContext.Clipboard)
+	require.True(t, userContext.DesktopSessionRecording)
 
 	// cloud-specific asserts
 	require.Empty(t, cmp.Diff(userContext.Billing, allowedRW))
@@ -184,5 +188,42 @@ func TestNewAccessMonitoring(t *testing.T) {
 		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
 		require.Empty(t, cmp.Diff(userContext.AuditQuery, allowed))
 		require.Empty(t, cmp.Diff(userContext.SecurityReport, allowed))
+	})
+}
+
+func TestNewAccessGraph(t *testing.T) {
+	t.Parallel()
+	user := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	role := &types.RoleV6{}
+	role.SetNamespaces(types.Allow, []string{"*"})
+	role.SetRules(types.Allow, []types.Rule{
+		{
+			Resources: []string{"*"},
+			Verbs:     append(RW(), types.VerbUse),
+		},
+	})
+
+	roleSet := []types.Role{role}
+
+	t.Run("access graph enabled", func(t *testing.T) {
+		allowed := ResourceAccess{true, true, true, true, true, true}
+		userContext := NewUserACL(user, roleSet, proto.Features{AccessGraph: true}, false, true)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+	})
+	t.Run("access graph disabled", func(t *testing.T) {
+		allowed := ResourceAccess{false, false, false, false, false, false}
+		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
+	})
+
+	user1 := &types.UserV2{
+		Metadata: types.Metadata{},
+	}
+	t.Run("access graph ACL is false when user doesn't have access even when enabled", func(t *testing.T) {
+		allowed := ResourceAccess{true, true, true, true, true, true}
+		userContext := NewUserACL(user1, roleSet, proto.Features{AccessGraph: true}, false, true)
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, allowed))
 	})
 }

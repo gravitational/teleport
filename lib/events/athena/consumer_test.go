@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package athena
 
@@ -37,7 +41,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
 
@@ -237,6 +240,11 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 }
 
 func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
 	return sqsCollectConfig{
 		sqsReceiver:       &mockReceiver{},
 		queueURL:          "test-queue",
@@ -251,7 +259,7 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 				t.Fail()
 			}
 		},
-		metricConsumerBatchProcessingDuration: prometheus.NewHistogram(prometheus.HistogramOpts{Name: "for_tests"}),
+		metrics: metrics,
 	}
 }
 
@@ -561,6 +569,17 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
+
+	cfg := &Config{
+		LogEntry: log.WithField(trace.Component, "test"),
+		metrics:  metrics,
+	}
+
 	t.Run("a lot of errors, make sure only up to maxErrorCountForLogsOnSQSReceive are printed and total count", func(t *testing.T) {
 		buf.Reset()
 		noOfErrors := maxErrorCountForLogsOnSQSReceive + 1
@@ -571,7 +590,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			}
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), fmt.Sprintf("Got %d errors from SQS collector, printed only first", noOfErrors))
 	})
@@ -586,7 +605,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			}
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, noOfErrors, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.NotContains(t, buf.String(), "printed only first")
 	})
@@ -597,7 +616,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			// close without any errors sent means receiving loop finished without any err
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Empty(t, buf.String())
 	})
 	t.Run("no errors at all - stopped via ctx cancel", func(t *testing.T) {
@@ -608,7 +627,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 		ctx, inCancel := context.WithCancel(ctx)
 		inCancel()
 
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Empty(t, buf.String())
 	})
 
@@ -630,7 +649,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			inCancel()
 		}()
 
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), "printed only first")
 	})
@@ -681,7 +700,9 @@ func TestConsumerWriteToS3(t *testing.T) {
 		close(eventsC)
 	}()
 
-	c := &consumer{}
+	c := &consumer{
+		collectConfig: validCollectCfgForTests(t),
+	}
 	gotHandlesToDelete, err := c.writeToS3(ctx, eventsC, localWriter)
 	require.NoError(t, err)
 	// Make sure that all events are marked to delete.
@@ -748,6 +769,8 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 	}
 	noOfHandles := 18
 	handles := handlesGen(noOfHandles)
+
+	collectConfig := validCollectCfgForTests(t)
 
 	tests := []struct {
 		name       string
@@ -824,8 +847,9 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 				respFn: tt.mockRespFn,
 			}
 			c := consumer{
-				sqsDeleter: mock,
-				queueURL:   "queue-url",
+				sqsDeleter:    mock,
+				queueURL:      "queue-url",
+				collectConfig: collectConfig,
 			}
 			err := c.deleteMessagesFromQueue(ctx, handles)
 			tt.wantCheck(t, err, mock)

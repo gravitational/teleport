@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package desktop
 
@@ -758,8 +760,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	if len(desktops) == 0 {
-		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
-			desktopName)
+		log.Errorf("desktop %v/%v not found", s.cfg.Heartbeat.HostUUID, desktopName)
 		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
@@ -789,6 +790,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	addr, err := utils.ParseHostPortAddr(desktop.GetAddr(), defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -870,7 +876,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
 		CertTTL:               windows.CertTTL,
-		Addr:                  desktop.GetAddr(),
+		Addr:                  addr.String(),
 		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
@@ -903,6 +909,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, &identity),
 		Entry:                 log,
 		Emitter:               s.cfg.Emitter,
+		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
 		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
 		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),

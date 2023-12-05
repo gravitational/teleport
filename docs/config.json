@@ -20,6 +20,11 @@
           "title": "FAQ",
           "slug": "/faq/"
         },
+	{
+	  "title": "Usage Reporting and Billing",
+	  "slug": "/usage-billing/",
+	  "forScopes": ["cloud", "team", "enterprise"]
+	},
         {
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
@@ -173,7 +178,7 @@
             {
               "title": "AWS Multi-Region Proxy Deployment",
               "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["enterprise"]
             },
             {
               "title": "GCP",
@@ -536,7 +541,11 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-resources/terraform-provider/"
-            }
+            },
+	    {
+              "title": "Spacelift",
+              "slug": "/management/dynamic-resources/spacelift/"
+	    }
 	  ]
 	},
         {
@@ -617,7 +626,7 @@
             {
               "title": "Enroll Agents in Automatic Updates",
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": ["enterprise", "cloud", "team"]
             }
           ]
         },
@@ -1249,6 +1258,10 @@
               "slug": "/database-access/auto-user-provisioning/mariadb/"
             },
             {
+              "title": "MongoDB",
+              "slug": "/database-access/auto-user-provisioning/mongodb/"
+            },
+            {
               "title": "MySQL",
               "slug": "/database-access/auto-user-provisioning/mysql/"
             },
@@ -1461,6 +1474,10 @@
             {
               "title": "GitHub Actions",
               "slug": "/machine-id/reference/github-actions/"
+            },
+            {
+              "title": "GitLab",
+              "slug": "/machine-id/reference/gitlab/"
             },
             {
               "title": "Telemetry",
@@ -1719,8 +1736,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.4.3",
-      "major_version": "13",
+      "version": "14.2.1",
+      "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -2956,7 +2973,7 @@
       "destination": "/database-access/auto-user-provisioning/",
       "permanent": true
     },
-    {	
+    {
       "source": "/database-access/guides/rds-proxy/",
       "destination": "/database-access/guides/",
       "permanent": true

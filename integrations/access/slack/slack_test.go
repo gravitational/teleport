@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package slack
 
@@ -28,12 +32,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -109,7 +117,7 @@ func (s *SlackSuite) SetupSuite() {
 
 	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
 	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.Request.Thresholds = []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}}
+		conditions.Request.Thresholds = []types.AccessReviewThreshold{{Approve: 2, Deny: 2}}
 	}
 	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
 	require.NoError(t, err)
@@ -140,8 +148,9 @@ func (s *SlackSuite) SetupSuite() {
 	role, err = bootstrap.AddRole("access-slack", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
-				types.NewRule("access_request", []string{"list", "read"}),
-				types.NewRule("access_plugin_data", []string{"update"}),
+				types.NewRule(types.KindAccessList, []string{"list", "read"}),
+				types.NewRule(types.KindAccessRequest, []string{"list", "read"}),
+				types.NewRule(types.KindAccessPluginData, []string{"update"}),
 			},
 		},
 	})
@@ -254,14 +263,14 @@ func (s *SlackSuite) createAccessRequest(reviewers []User) types.AccessRequest {
 	return out
 }
 
-func (s *SlackSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
+func (s *SlackSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 
 	for {
 		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "slack", reqID)
 		require.NoError(t, err)
-		data, err := common.DecodePluginData(rawData)
+		data, err := accessrequest.DecodePluginData(rawData)
 		require.NoError(t, err)
 		if cond(data) {
 			return data
@@ -278,7 +287,7 @@ func (s *SlackSuite) TestMessagePosting() {
 	s.startApp()
 	request := s.createAccessRequest([]User{reviewer2, reviewer1})
 
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -288,7 +297,7 @@ func (s *SlackSuite) TestMessagePosting() {
 	for i := 0; i < 2; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(s.Context())
 		require.NoError(t, err)
-		messageSet.Add(common.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
 		messages = append(messages, msg)
 	}
 
@@ -309,8 +318,8 @@ func (s *SlackSuite) TestMessagePosting() {
 	require.True(t, ok)
 	t.Logf("%q", block.Text.GetText())
 	matches := requestReasonRegexp.FindAllStringSubmatch(block.Text.GetText(), -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
@@ -333,7 +342,7 @@ func (s *SlackSuite) TestRecipientsConfig() {
 	s.startApp()
 
 	request := s.createAccessRequest(nil)
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -347,12 +356,12 @@ func (s *SlackSuite) TestRecipientsConfig() {
 
 	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
 	require.NoError(t, err)
-	messageSet.Add(common.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
 	messages = append(messages, msg)
 
 	msg, err = s.fakeSlack.CheckNewMessage(s.Context())
 	require.NoError(t, err)
-	messageSet.Add(common.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
 	messages = append(messages, msg)
 
 	assert.Len(t, messageSet, 2)
@@ -428,7 +437,7 @@ func (s *SlackSuite) TestReviewReplies() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	s.checkPluginData(req.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -595,7 +604,7 @@ func (s *SlackSuite) TestExpiration() {
 	require.NoError(t, err)
 	assert.Equal(t, reviewer.ID, msg.Channel)
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -610,6 +619,66 @@ func (s *SlackSuite) TestExpiration() {
 	statusLine, err := getStatusLine(msgUpdate)
 	require.NoError(t, err)
 	assert.Equal(t, "*Status*: ⌛ EXPIRED", statusLine)
+}
+
+func (s *SlackSuite) TestAccessListReminder() {
+	t := s.T()
+
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
+		t.Skip("Doesn't work in OSS version")
+	}
+
+	reviewer := s.fakeSlack.StoreUser(User{Profile: UserProfile{Email: s.userNames.reviewer1}})
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+	s.appConfig.clock = clock
+	s.startApp()
+
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "access-list",
+	}, accesslist.Spec{
+		Title: "simple title",
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+		Owners: []accesslist.Owner{
+			{Name: s.userNames.reviewer1},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC),
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = s.ruler().AccessListClient().UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// 2 weeks before date, should trigger reminder.
+	clock.Advance(45 * 24 * time.Hour)
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
+
+	// 1 weeks before date, should trigger reminder.
+	clock.Advance(7 * 24 * time.Hour)
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
+
+	// On the date, should trigger reminder.
+	clock.Advance(7 * 24 * time.Hour)
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is due for a review by 2023-03-01. Please review it soon!")
+
+	// Past the date, should trigger reminder.
+	clock.Advance(7 * 24 * time.Hour)
+	s.requireReminderMsgEqual(reviewer.ID, "Access List *simple title* is 7 day(s) past due for a review! Please review it.")
+}
+
+func (s *SlackSuite) requireReminderMsgEqual(id, text string) {
+	t := s.T()
+
+	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
+	require.NoError(t, err)
+	require.Equal(t, id, msg.Channel)
+	require.IsType(t, SectionBlock{}, msg.BlockItems[0].Block)
+	require.Equal(t, text, (msg.BlockItems[0].Block).(SectionBlock).Text.GetText())
 }
 
 func (s *SlackSuite) TestRace() {
@@ -674,7 +743,7 @@ func (s *SlackSuite) TestRace() {
 			if msg.ThreadTs == "" {
 				// Handle "root" notifications.
 
-				threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp}
+				threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp}
 				if _, loaded := threadMsgIDs.LoadOrStore(threadMsgKey, struct{}{}); loaded {
 					return setRaceErr(trace.Errorf("thread %v already stored", threadMsgKey))
 				}
@@ -701,7 +770,7 @@ func (s *SlackSuite) TestRace() {
 			} else {
 				// Handle review comments.
 
-				threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.ThreadTs}
+				threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.ThreadTs}
 				var newCounter int32
 				val, _ := reviewReplyCounters.LoadOrStore(threadMsgKey, &newCounter)
 				counterPtr := val.(*int32)
@@ -720,7 +789,7 @@ func (s *SlackSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp}
+			threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp}
 			var newCounter int32
 			val, _ := msgUpdateCounters.LoadOrStore(threadMsgKey, &newCounter)
 			counterPtr := val.(*int32)

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package cloud
 
@@ -129,6 +131,22 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	memorydb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-memorydb",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			MemoryDB: types.MemoryDB{
+				ClusterName:  "my-memorydb",
+				TLSEnabled:   true,
+				EndpointType: "cluster",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	// Make configurator.
 	taskChan := make(chan struct{})
 	waitForTaskProcessed := func(t *testing.T) {
@@ -205,6 +223,13 @@ func TestAWSIAM(t *testing.T) {
 			wantPolicyContains: elasticache.GetAWS().ElastiCache.ReplicationGroupID,
 			getIAMAuthEnabled: func() bool {
 				return true // it always is for ElastiCache.
+			},
+		},
+		"MemoryDB": {
+			database:           memorydb,
+			wantPolicyContains: memorydb.GetAWS().MemoryDB.ClusterName,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for MemoryDB.
 			},
 		},
 	}

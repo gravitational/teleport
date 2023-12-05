@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -39,6 +41,28 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func setEntityDescriptorFromURL(sc types.SAMLConnector) error {
+	if sc.GetEntityDescriptorURL() == "" {
+		return nil
+	}
+
+	resp, err := http.Get(sc.GetEntityDescriptorURL())
+	if err != nil {
+		return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+	}
+	if resp.StatusCode != http.StatusOK {
+		return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
+	}
+	defer resp.Body.Close()
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sc.SetEntityDescriptor(string(body))
+	log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+	return nil
+}
+
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
 func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
@@ -46,21 +70,8 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		return trace.Wrap(err)
 	}
 
-	if sc.GetEntityDescriptorURL() != "" {
-		resp, err := http.Get(sc.GetEntityDescriptorURL())
-		if err != nil {
-			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
-		}
-		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
-		}
-		defer resp.Body.Close()
-		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+	if err := setEntityDescriptorFromURL(sc); err != nil {
+		log.Errorf("error loading entity descriptor from URL: %s", err)
 	}
 
 	if sc.GetEntityDescriptor() != "" {

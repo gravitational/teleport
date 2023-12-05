@@ -1,12 +1,7 @@
 ---
-title: Manage Trusted Devices 
+title: Manage Trusted Devices
 description: Learn how to manage Trusted Devices
 ---
-
-<Admonition type="warning" title="Supported Device Type">
-Device trust works on macOS and Windows devices. Support for other operating
-systems and access features is planned for upcoming Teleport versions.
-</Admonition>
 
 ### Prerequisites
 
@@ -48,8 +43,10 @@ $ tsh device asset-tag
     The serial number is visible under Apple menu -> "About This Mac" -> "Serial number".
   </TabItem>
 
-  <TabItem label="Windows">
-    Windows devices can have multiple serial numbers depending on the configuration made by the manufacturer.
+  <TabItem label="Windows and Linux">
+    Windows and Linux devices can have multiple serial numbers depending on the
+    configuration made by the manufacturer.
+
     Teleport will pick the first available value from the following:
     - System asset tag
     - System serial number
@@ -58,56 +55,31 @@ $ tsh device asset-tag
     To find the value chosen by Teleport, run the following command:
 
     ```code
-    $ tsh device collect
-    DeviceCollectedData {
-      ...
-      "serial_number": "(=devicetrust.asset_tag=)",
-      ...
-    }
+    $ tsh device asset-tag
+    (=devicetrust.asset_tag=)
     ```
   </TabItem>
 </Tabs>
 </Details>
-Use the serial number to register device:
-<Tabs>
-  <TabItem label="macOS">
-    Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
-    with the serial number obtained from the device you wish to enroll and run `tctl devices add` command:
 
-    ```code
-    $ tctl devices add --os=macos --asset-tag="<Var name="(=devicetrust.asset_tag=)"/>"
-    Device <Var name="(=devicetrust.asset_tag=)"/>/macos added to the inventory
-    ```
 
-    Use `tctl` to check that the device has been registered:
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
+be registered"/> with the serial number of the device you wish to enroll and run
+the `tctl devices add` command:
 
-    ```code
-    $ tctl devices ls
-    Asset Tag    OS    Enroll Status Device ID
-    ------------ ----- ------------- ------------------------------------
-    (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
-    ```
-  </TabItem>
+```code
+$ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'
+Device <Var name="(=devicetrust.asset_tag=)"/>/macos added to the inventory
+```
 
-  <TabItem label="Windows">
-    Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
-    with the serial number obtained from the device you wish to enroll and run `tctl devices add` command:
+Use `tctl` to check that the device has been registered:
 
-    ```code
-    $ tctl devices add --os=windows --asset-tag="<Var name="(=devicetrust.asset_tag=)"/>"
-    Device <Var name="(=devicetrust.asset_tag=)"/>/windows added to the inventory
-    ```
-
-    Use `tctl` to check that the device has been registered:
-
-    ```code
-    $ tctl devices ls
-    Asset Tag    OS    Enroll Status Device ID
-    ------------ ----- ------------- ------------------------------------
-    (=devicetrust.asset_tag=) windows not enrolled  (=devicetrust.device_id=)
-    ```
-  </TabItem>
-</Tabs>
+```code
+$ tctl devices ls
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
+```
 
 <Admonition type="warning" title="Device Role">
   For clusters created after v13.3.6, Teleport supports preset `device-admin` role to manage devices.
@@ -301,8 +273,8 @@ command; `enroll` is necessary to execute `tsh device enroll`.
 
 ## Configuring a TPM EKCert CA allow-list
 
-This advice only applies to Device Trust on platforms that use TPMs. For now,
-this is just Windows.
+This advice only applies to Device Trust on platforms that use TPMs, such as
+Windows and Linux.
 
 Some TPMs include a certificate—known as an EKCert—signed by the
 manufacturer's certificate authority (CA). This certificate allows a third party
@@ -377,7 +349,7 @@ auth_service:
 
 ## Troubleshooting
 
-(!docs/pages/includes/device-trust/enroll-troubleshooting.mdx!)
+(!docs/pages/includes/device-trust/troubleshooting.mdx!)
 
 ## Next steps
 

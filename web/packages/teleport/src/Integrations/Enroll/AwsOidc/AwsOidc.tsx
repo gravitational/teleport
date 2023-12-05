@@ -1,24 +1,34 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link as InternalRouteLink } from 'react-router-dom';
 import { useLocation } from 'react-router';
 import styled from 'styled-components';
-
-import { SwitchTransition, Transition } from 'react-transition-group';
+import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
+import * as Icons from 'design/Icon';
+import FieldInput from 'shared/components/FieldInput';
+import {
+  requiredField,
+  requiredIamRoleName,
+} from 'shared/components/Validation/rules';
+import Validation, { Validator } from 'shared/components/Validation';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
   IntegrationEnrollEvent,
@@ -26,133 +36,33 @@ import {
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
+import { Header } from 'teleport/Discover/Shared';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
-import { Browser } from 'teleport/Integrations/Enroll/AwsOidc/browser/Browser';
-import { IAMHomeScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMHomeScreen';
-import { Cursor } from 'teleport/Integrations/Enroll/AwsOidc/browser/Cursor';
-import { IAMIdentityProvidersScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMIdentityProvidersScreen';
-import { IAMNewProviderScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMNewProviderScreen';
-import { FirstStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FirstStageInstructions';
-import { SecondStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SecondStageInstructions';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
-import { ThirdStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/ThirdStageInstructions';
-import { IAMProvider } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMProvider';
+import {
+  Integration,
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
+import cfg from 'teleport/config';
 
-import { IAMCreateNewRole } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMCreateNewRole';
-import { FourthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FourthStageInstructions';
-import { IAMCreateNewRolePermissions } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMCreateNewRolePermissions';
-import { FifthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FifthStageInstructions';
-import { IAMCreateNewPolicy } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMCreateNewPolicy';
-import { SixthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SixthStageInstructions';
-
-import { SeventhStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SeventhStageInstructions';
-import { IAMRoles } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMRoles';
-import useTeleport from 'teleport/useTeleport';
-
-import { Stage, STAGES } from './stages';
-
-const Container = styled.div`
-  padding-right: 40px;
-  padding-top: 16px;
-`;
-
-const InstructionsContainer = styled.div`
-  display: flex;
-  margin-top: 50px;
-`;
-
-const BrowserContainer = styled.div`
-  position: relative;
-`;
-
-const RestartAnimation = styled.div`
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  opacity: ${p => (p.visible ? 1 : 0)};
-  transition: 0.2s ease-in-out opacity;
-  justify-content: center;
-  position: absolute;
-  bottom: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 5px;
-  padding: 5px 10px;
-  cursor: pointer;
-  left: 50%;
-  transform: translate(-50%, 0);
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
-  color: ${props => props.theme.colors.light};
-
-  &:hover {
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-  }
-`;
-
-const defaultStyle = {
-  transition: 'opacity 250ms, transform 250ms',
-  opacity: 0,
-  width: '100%',
-};
-
-const horizontalNextTransitionStyles = {
-  entering: { opacity: 0, transform: 'translateX(50px)' },
-  entered: { opacity: 1, transform: 'translateX(0%)' },
-  exited: { opacity: 0, transform: 'translateX(-50px)' },
-};
-
-const horizontalPrevTransitionStyles = {
-  entering: { opacity: 0, transform: 'translateX(-50px)' },
-  entered: { opacity: 1, transform: 'translateX(0%)' },
-  exited: { opacity: 0, transform: 'translateX(50px)' },
-};
-
-enum InstructionStep {
-  First,
-  Second,
-  Third,
-  Fourth,
-  Fifth,
-  Sixth,
-  Seventh,
-}
-
-export type AwsOidc = {
-  thumbprint: string;
-  roleArn: string;
-  integrationName: string;
-};
+import { FinishDialog } from './FinishDialog';
 
 export function AwsOidc() {
-  const ctx = useTeleport();
-  let clusterPublicUri = getClusterPublicUri(
-    ctx.storeUser.state.cluster.publicURL
-  );
-
-  const transitionRef = useRef<'prev' | 'next'>('next');
+  const [integrationName, setIntegrationName] = useState('');
+  const [roleArn, setRoleArn] = useState('');
+  const [roleName, setRoleName] = useState('');
+  const [scriptUrl, setScriptUrl] = useState('');
+  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
+  const { attempt, run } = useAttempt('');
 
   const location = useLocation<DiscoverUrlLocationState>();
 
-  const [stage, setStage] = useState(Stage.Initial);
   const [eventData] = useState<IntegrationEnrollEventData>({
     id: crypto.randomUUID(),
     kind: IntegrationEnrollKind.AwsOidc,
   });
-  const [showRestartAnimation, setShowRestartAnimation] = useState(false);
-  const [awsOidc, setAwsOidc] = useState<AwsOidc>({
-    thumbprint: '',
-    roleArn: '',
-    integrationName: '',
-  });
-
-  const currentStageIndex = STAGES.findIndex(s => s.kind === stage);
-  const currentStage = STAGES[currentStageIndex];
-  const currentStageConfig = getStageConfig(stage);
-
-  const restartAnimation = useCallback(() => {
-    setStage(currentStageConfig.restartStage);
-    setShowRestartAnimation(false);
-  }, [currentStageConfig]);
 
   useEffect(() => {
     // If a user came from the discover wizard,
@@ -166,26 +76,30 @@ export function AwsOidc() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (currentStage.end) {
-      setShowRestartAnimation(true);
-
+  function handleOnCreate(validator: Validator) {
+    if (!validator.validate()) {
       return;
     }
 
-    if (showRestartAnimation) {
-      setShowRestartAnimation(false);
-    }
+    run(() =>
+      integrationService
+        .createIntegration({
+          name: integrationName,
+          subKind: IntegrationKind.AwsOidc,
+          awsoidc: {
+            roleArn,
+          },
+        })
+        .then(res => {
+          setCreatedIntegration(res);
 
-    if (currentStage.duration && STAGES[currentStageIndex + 1]) {
-      const id = window.setTimeout(
-        () => setStage(STAGES[currentStageIndex + 1].kind),
-        currentStage.duration
-      );
-
-      return () => window.clearTimeout(id);
-    }
-  }, [currentStage, currentStageIndex, showRestartAnimation]);
+          if (location.state?.discover) {
+            return;
+          }
+          emitEvent(IntegrationEnrollEvent.Complete);
+        })
+    );
+  }
 
   function emitEvent(event: IntegrationEnrollEvent) {
     userEventService.captureIntegrationEnrollEvent({
@@ -194,263 +108,199 @@ export function AwsOidc() {
     });
   }
 
-  function updateState(nextStage: Stage, awsOidc?: AwsOidc) {
-    if (nextStage > stage) {
-      transitionRef.current = 'next';
-    } else {
-      transitionRef.current = 'prev';
+  function generateAwsOidcConfigIdpScript(validator: Validator) {
+    if (!validator.validate()) {
+      return;
     }
-    if (awsOidc) {
-      setAwsOidc(awsOidc);
-    }
-    setStage(nextStage);
+
+    validator.reset();
+
+    const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
+      integrationName,
+      roleName,
+    });
+
+    setScriptUrl(newScriptUrl);
   }
 
-  const transitionStyle =
-    transitionRef.current === 'next'
-      ? horizontalNextTransitionStyles
-      : horizontalPrevTransitionStyles;
-
   return (
-    <Container>
+    <Box pt={3}>
       <Header>Set up your AWS account</Header>
 
-      <HeaderSubtitle>
+      <Box width="800px" mb={4}>
         Instead of storing long-lived static credentials, Teleport will become a
         trusted OIDC provider with AWS to be able to request short lived
-        credentials when performing operations automatically.
-      </HeaderSubtitle>
+        credentials when performing operations automatically such as when
+        connecting{' '}
+        <RouteLink
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'ec2' },
+          }}
+        >
+          AWS EC2
+        </RouteLink>{' '}
+        or{' '}
+        <RouteLink
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'rds' },
+          }}
+        >
+          AWS RDS
+        </RouteLink>{' '}
+        instances during resource enrollment.
+      </Box>
 
-      <InstructionsContainer>
-        <SwitchTransition mode="out-in">
-          <Transition<undefined>
-            key={currentStageConfig.instructionStep}
-            timeout={250}
-            mountOnEnter
-            unmountOnExit
-            onExiting={(n: HTMLElement) => {
-              n.style.transform = `translateX(${
-                transitionRef.current === 'prev' ? '50px' : '-50px'
-              })`;
-            }}
-          >
-            {state => (
-              <div
-                style={{
-                  ...defaultStyle,
-                  ...transitionStyle[state],
-                }}
-              >
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.First && (
-                  <FirstStageInstructions
-                    onNext={() => updateState(Stage.NewProviderFullScreen)}
-                    onPrev={null}
-                    clusterPublicUri={clusterPublicUri}
+      <Validation>
+        {({ validator }) => (
+          <>
+            <Container mb={5}>
+              <Text bold>Step 1</Text>
+
+              <FieldInput
+                rule={requiredField('Integration name required')}
+                autoFocus={true}
+                value={integrationName}
+                label="Give this AWS integration a name"
+                placeholder="Integration Name"
+                width="430px"
+                onChange={e => setIntegrationName(e.target.value)}
+                disabled={!!scriptUrl}
+              />
+              <FieldInput
+                rule={requiredIamRoleName}
+                value={roleName}
+                placeholder="IAM Role Name"
+                label="IAM Role Name"
+                width="430px"
+                onChange={e => setRoleName(e.target.value)}
+                disabled={!!scriptUrl}
+              />
+              {scriptUrl ? (
+                <ButtonSecondary mb={3} onClick={() => setScriptUrl('')}>
+                  Edit
+                </ButtonSecondary>
+              ) : (
+                <ButtonSecondary
+                  mb={3}
+                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
+                >
+                  Generate Command
+                </ButtonSecondary>
+              )}
+            </Container>
+            {scriptUrl && (
+              <>
+                <Container mb={5}>
+                  <Text bold>Step 2</Text>
+                  Configure the required permission in your AWS account.
+                  <Text mb={2}>
+                    Open{' '}
+                    <Link
+                      href="https://console.aws.amazon.com/cloudshell/home"
+                      target="_blank"
+                    >
+                      AWS CloudShell
+                    </Link>{' '}
+                    and copy and paste the command that configures the
+                    permissions for you:
+                  </Text>
+                  <Box mb={2}>
+                    <TextSelectCopyMulti
+                      lines={[
+                        {
+                          text: `bash -c "$(curl '${scriptUrl}')"`,
+                        },
+                      ]}
+                    />
+                  </Box>
+                </Container>
+                <Container mb={5}>
+                  <Text bold>Step 3</Text>
+                  After configuring is finished, go to your{' '}
+                  <Link
+                    target="_blank"
+                    href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleName}`}
+                  >
+                    IAM Role dashboard
+                  </Link>{' '}
+                  and copy and paste the ARN below.
+                  <FieldInput
+                    mt={2}
+                    rule={requiredRoleArn(roleName)}
+                    value={roleArn}
+                    label="Role ARN (Amazon Resource Name)"
+                    placeholder={`arn:aws:iam::123456789012:role/${roleName}`}
+                    width="430px"
+                    onChange={e => setRoleArn(e.target.value)}
+                    disabled={attempt.status === 'processing'}
+                    toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<IAM_ROLE_NAME>`}
                   />
-                )}
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.Second && (
-                  <SecondStageInstructions
-                    awsOidc={awsOidc}
-                    onNext={updatedAwsOidc => {
-                      updateState(Stage.AddProvider, updatedAwsOidc);
-                    }}
-                    onPrev={updatedAwsOidc => {
-                      updateState(Stage.Initial, updatedAwsOidc);
-                    }}
-                    clusterPublicUri={clusterPublicUri}
-                  />
-                )}
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.Third && (
-                  <ThirdStageInstructions
-                    onNext={() => updateState(Stage.CreateNewRole)}
-                    onPrev={() => updateState(Stage.NewProviderFullScreen)}
-                    clusterPublicUri={clusterPublicUri}
-                  />
-                )}
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.Fourth && (
-                  <FourthStageInstructions
-                    onNext={() => updateState(Stage.CreatePolicy)}
-                    onPrev={() => updateState(Stage.AddProvider)}
-                    clusterPublicUri={clusterPublicUri}
-                  />
-                )}
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.Fifth && (
-                  <FifthStageInstructions
-                    onNext={() => updateState(Stage.AssignPolicyToRole)}
-                    onPrev={() => updateState(Stage.CreateNewRole)}
-                    clusterPublicUri={clusterPublicUri}
-                  />
-                )}
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.Sixth && (
-                  <SixthStageInstructions
-                    onNext={() => updateState(Stage.ListRoles)}
-                    onPrev={() => updateState(Stage.CreatePolicy)}
-                    clusterPublicUri={clusterPublicUri}
-                  />
-                )}
-                {currentStageConfig.instructionStep ===
-                  InstructionStep.Seventh && (
-                  <SeventhStageInstructions
-                    emitEvent={emitEvent}
-                    awsOidc={awsOidc}
-                    onPrev={updatedAwsOidc =>
-                      updateState(Stage.AssignPolicyToRole, updatedAwsOidc)
-                    }
-                  />
-                )}
-              </div>
+                </Container>
+              </>
             )}
-          </Transition>
-        </SwitchTransition>
-
-        <BrowserContainer>
-          <Browser stage={stage}>
-            <Cursor
-              top={currentStage.cursor.top}
-              left={currentStage.cursor.left}
-              click={currentStage.cursor.click}
-            />
-            {getStageComponent(stage, clusterPublicUri)}
-          </Browser>
-
-          <RestartAnimation
-            visible={showRestartAnimation}
-            onClick={() => restartAnimation()}
-          >
-            Restart animation
-          </RestartAnimation>
-        </BrowserContainer>
-      </InstructionsContainer>
-    </Container>
+            {attempt.status === 'failed' && (
+              <Flex>
+                <Icons.Warning mr={2} color="error.main" size="small" />
+                <Text color="error.main">Error: {attempt.statusText}</Text>
+              </Flex>
+            )}
+            <Box mt={6}>
+              <ButtonPrimary
+                onClick={() => handleOnCreate(validator)}
+                disabled={
+                  !scriptUrl || attempt.status === 'processing' || !roleArn
+                }
+              >
+                Create Integration
+              </ButtonPrimary>
+              <ButtonSecondary
+                ml={3}
+                as={InternalRouteLink}
+                to={cfg.getIntegrationEnrollRoute(null)}
+              >
+                Back
+              </ButtonSecondary>
+            </Box>
+          </>
+        )}
+      </Validation>
+      {createdIntegration && <FinishDialog integration={createdIntegration} />}
+    </Box>
   );
 }
 
-function getStageComponent(stage: Stage, uri: string) {
-  let clusterPublicUri = uri;
-  // Truncate long URI's so it doesn't mess up the animation screens.
-  if (clusterPublicUri.length > 30) {
-    clusterPublicUri = `${clusterPublicUri.substring(0, 30)}...`;
-  }
-  const props = { stage, clusterPublicUri };
+const Container = styled(Box)`
+  max-width: 1000px;
+  background-color: ${p => p.theme.colors.spotBackground[0]};
+  border-radius: ${p => `${p.theme.space[2]}px`};
+  padding: ${p => p.theme.space[3]}px;
+`;
 
-  if (stage >= Stage.Initial && stage <= Stage.ClickIdentityProviders) {
-    return <IAMHomeScreen />;
-  }
+const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
+  const regex = new RegExp(
+    '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
+  );
 
-  if (stage >= Stage.IdentityProviders && stage <= Stage.ClickAddProvider) {
-    return <IAMIdentityProvidersScreen {...props} />;
-  }
-
-  if (stage >= Stage.NewProvider && stage <= Stage.AddProvider) {
-    return <IAMNewProviderScreen {...props} />;
-  }
-
-  if (stage >= Stage.ProviderAdded && stage <= Stage.SelectProvider) {
-    return <IAMIdentityProvidersScreen {...props} />;
-  }
-
-  if (stage >= Stage.ProviderView && stage <= Stage.ClickCreateNewRole) {
-    return <IAMProvider {...props} />;
-  }
-
-  if (stage >= Stage.CreateNewRole && stage <= Stage.ClickNextPermissions) {
-    return <IAMCreateNewRole {...props} />;
-  }
-
-  if (
-    stage >= Stage.ConfigureRolePermissions &&
-    stage <= Stage.ClickCreatePolicy
-  ) {
-    return <IAMCreateNewRolePermissions {...props} />;
-  }
-
-  if (stage >= Stage.CreatePolicy && stage <= Stage.ClickCreatePolicyButton) {
-    return <IAMCreateNewPolicy {...props} />;
-  }
-
-  if (
-    stage >= Stage.AssignPolicyToRole &&
-    stage <= Stage.ClickCreateRoleButton
-  ) {
-    return <IAMCreateNewRolePermissions {...props} />;
-  }
-
-  if (stage >= Stage.ListRoles) {
-    return <IAMRoles {...props} />;
-  }
-}
-
-function getStageConfig(stage: Stage) {
-  if (stage >= Stage.Initial && stage <= Stage.NewProvider) {
+  if (regex.test(roleArn)) {
     return {
-      instructionStep: InstructionStep.First,
-      restartStage: Stage.Initial,
+      valid: true,
     };
   }
 
-  if (
-    stage >= Stage.NewProviderFullScreen &&
-    stage <= Stage.ThumbprintSelected
-  ) {
-    return {
-      instructionStep: InstructionStep.Second,
-      restartStage: Stage.NewProviderFullScreen,
-    };
+  return {
+    valid: false,
+    message:
+      'invalid role ARN, double check you copied and pasted the correct output',
+  };
+};
+
+const RouteLink = styled(InternalRouteLink)`
+  color: ${({ theme }) => theme.colors.buttons.link.default};
+
+  &:hover,
+  &:focus {
+    color: ${({ theme }) => theme.colors.buttons.link.hover};
   }
-
-  if (stage >= Stage.AddProvider && stage <= Stage.ClickCreateNewRole) {
-    return {
-      instructionStep: InstructionStep.Third,
-      restartStage: Stage.AddProvider,
-    };
-  }
-
-  if (stage >= Stage.CreateNewRole && stage <= Stage.ClickCreatePolicy) {
-    return {
-      instructionStep: InstructionStep.Fourth,
-      restartStage: Stage.CreateNewRole,
-    };
-  }
-
-  if (stage >= Stage.CreatePolicy && stage <= Stage.ClickCreatePolicyButton) {
-    return {
-      instructionStep: InstructionStep.Fifth,
-      restartStage: Stage.CreatePolicy,
-    };
-  }
-
-  if (
-    stage >= Stage.AssignPolicyToRole &&
-    stage <= Stage.ClickCreateRoleButton
-  ) {
-    return {
-      instructionStep: InstructionStep.Sixth,
-      restartStage: Stage.AssignPolicyToRole,
-    };
-  }
-
-  if (stage >= Stage.ListRoles) {
-    return {
-      instructionStep: InstructionStep.Seventh,
-      restartStage: Stage.ListRoles,
-    };
-  }
-}
-
-function getClusterPublicUri(uri: string) {
-  const uriParts = uri.split(':');
-  const port = uriParts.length > 1 ? uriParts[1] : '';
-
-  // Strip 443 ports from uri.
-  if (port === '443') {
-    return uriParts[0];
-  }
-
-  return uri;
-}
+`;

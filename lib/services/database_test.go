@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -479,6 +481,28 @@ func TestValidateDatabase(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestValidateSQLServerDatabaseURI(t *testing.T) {
+	for _, test := range []struct {
+		uri       string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{"mssql://computer.domain.com:1433", require.NoError},
+		{"computer.domain.com:1433", require.NoError},
+		{"computer.ad.domain.com:1433", require.NoError},
+		{"computer.ad.domain.com:1433/hello", require.Error},
+		{"mssql://computer.domain.com:1433/hello", require.Error},
+		{"computer.domain.com", require.Error},
+		{"computer.com:1433", require.Error},
+		{"0.0.0.0:1433", require.Error},
+		{"mssql://", require.Error},
+		{"http://computer.domain.com:1433", require.Error},
+	} {
+		t.Run(test.uri, func(t *testing.T) {
+			test.assertErr(t, ValidateSQLServerURI(test.uri))
 		})
 	}
 }
@@ -1270,94 +1294,122 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 }
 
 func TestDatabaseFromRDSProxy(t *testing.T) {
-	var port int64 = 9999
-	dbProxy := &rds.DBProxy{
-		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
-		DBProxyName:  aws.String("testproxy"),
-		EngineFamily: aws.String(rds.EngineFamilyMysql),
-		Endpoint:     aws.String("proxy.rds.test"),
-		VpcId:        aws.String("test-vpc-id"),
+	tests := []struct {
+		desc         string
+		engineFamily string
+		wantProtocol string
+		wantPort     int
+	}{
+		{
+			desc:         "mysql",
+			engineFamily: rds.EngineFamilyMysql,
+			wantProtocol: "mysql",
+			wantPort:     3306,
+		},
+		{
+			desc:         "postgres",
+			engineFamily: rds.EngineFamilyPostgresql,
+			wantProtocol: "postgres",
+			wantPort:     5432,
+		},
+		{
+			desc:         "sqlserver",
+			engineFamily: rds.EngineFamilySqlserver,
+			wantProtocol: "sqlserver",
+			wantPort:     1433,
+		},
 	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			dbProxy := &rds.DBProxy{
+				DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
+				DBProxyName:  aws.String("testproxy"),
+				EngineFamily: aws.String(test.engineFamily),
+				Endpoint:     aws.String("proxy.rds.test"),
+				VpcId:        aws.String("test-vpc-id"),
+			}
 
-	dbProxyEndpoint := &rds.DBProxyEndpoint{
-		Endpoint:            aws.String("custom.proxy.rds.test"),
-		DBProxyEndpointName: aws.String("custom"),
-		DBProxyName:         aws.String("testproxy"),
-		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
-		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+			dbProxyEndpoint := &rds.DBProxyEndpoint{
+				Endpoint:            aws.String("custom.proxy.rds.test"),
+				DBProxyEndpointName: aws.String("custom"),
+				DBProxyName:         aws.String("testproxy"),
+				DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
+				TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+			}
+
+			tags := []*rds.Tag{{
+				Key:   aws.String("key"),
+				Value: aws.String("val"),
+			}}
+
+			t.Run("default endpoint", func(t *testing.T) {
+				expected, err := types.NewDatabaseV3(types.Metadata{
+					Name:        "testproxy",
+					Description: "RDS Proxy in ca-central-1",
+					Labels: map[string]string{
+						"key":                         "val",
+						types.DiscoveryLabelAccountID: "123456789012",
+						types.CloudLabel:              types.CloudAWS,
+						types.DiscoveryLabelRegion:    "ca-central-1",
+						types.DiscoveryLabelEngine:    test.engineFamily,
+						types.DiscoveryLabelVPCID:     "test-vpc-id",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: test.wantProtocol,
+					URI:      fmt.Sprintf("proxy.rds.test:%d", test.wantPort),
+					AWS: types.AWS{
+						Region:    "ca-central-1",
+						AccountID: "123456789012",
+						RDSProxy: types.RDSProxy{
+							ResourceID: "prx-abcdef",
+							Name:       "testproxy",
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				actual, err := NewDatabaseFromRDSProxy(dbProxy, tags)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expected, actual))
+			})
+
+			t.Run("custom endpoint", func(t *testing.T) {
+				expected, err := types.NewDatabaseV3(types.Metadata{
+					Name:        "testproxy-custom",
+					Description: "RDS Proxy endpoint in ca-central-1",
+					Labels: map[string]string{
+						"key":                            "val",
+						types.DiscoveryLabelAccountID:    "123456789012",
+						types.CloudLabel:                 types.CloudAWS,
+						types.DiscoveryLabelRegion:       "ca-central-1",
+						types.DiscoveryLabelEngine:       test.engineFamily,
+						types.DiscoveryLabelVPCID:        "test-vpc-id",
+						types.DiscoveryLabelEndpointType: "READ_ONLY",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: test.wantProtocol,
+					URI:      fmt.Sprintf("custom.proxy.rds.test:%d", test.wantPort),
+					AWS: types.AWS{
+						Region:    "ca-central-1",
+						AccountID: "123456789012",
+						RDSProxy: types.RDSProxy{
+							ResourceID:         "prx-abcdef",
+							Name:               "testproxy",
+							CustomEndpointName: "custom",
+						},
+					},
+					TLS: types.DatabaseTLS{
+						ServerName: "proxy.rds.test",
+					},
+				})
+				require.NoError(t, err)
+
+				actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, tags)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expected, actual))
+			})
+		})
 	}
-
-	tags := []*rds.Tag{{
-		Key:   aws.String("key"),
-		Value: aws.String("val"),
-	}}
-
-	t.Run("default endpoint", func(t *testing.T) {
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "testproxy",
-			Description: "RDS Proxy in ca-central-1",
-			Labels: map[string]string{
-				"key":                         "val",
-				types.DiscoveryLabelAccountID: "123456789012",
-				types.CloudLabel:              types.CloudAWS,
-				types.DiscoveryLabelRegion:    "ca-central-1",
-				types.DiscoveryLabelEngine:    "MYSQL",
-				types.DiscoveryLabelVPCID:     "test-vpc-id",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "proxy.rds.test:9999",
-			AWS: types.AWS{
-				Region:    "ca-central-1",
-				AccountID: "123456789012",
-				RDSProxy: types.RDSProxy{
-					ResourceID: "prx-abcdef",
-					Name:       "testproxy",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		actual, err := NewDatabaseFromRDSProxy(dbProxy, port, tags)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
-
-	t.Run("custom endpoint", func(t *testing.T) {
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "testproxy-custom",
-			Description: "RDS Proxy endpoint in ca-central-1",
-			Labels: map[string]string{
-				"key":                            "val",
-				types.DiscoveryLabelAccountID:    "123456789012",
-				types.CloudLabel:                 types.CloudAWS,
-				types.DiscoveryLabelRegion:       "ca-central-1",
-				types.DiscoveryLabelEngine:       "MYSQL",
-				types.DiscoveryLabelVPCID:        "test-vpc-id",
-				types.DiscoveryLabelEndpointType: "READ_ONLY",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "custom.proxy.rds.test:9999",
-			AWS: types.AWS{
-				Region:    "ca-central-1",
-				AccountID: "123456789012",
-				RDSProxy: types.RDSProxy{
-					ResourceID:         "prx-abcdef",
-					Name:               "testproxy",
-					CustomEndpointName: "custom",
-				},
-			},
-			TLS: types.DatabaseTLS{
-				ServerName: "proxy.rds.test",
-			},
-		})
-		require.NoError(t, err)
-
-		actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, port, tags)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
 }
 
 func TestAuroraMySQLVersion(t *testing.T) {
@@ -2316,7 +2368,7 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
-				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, defaults.ProtocolSQLServer, db.GetProtocol())
 				require.Equal(t, "sqlserver", db.GetName())
 				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
 				require.Equal(t, "sqlserver", db.GetAzure().Name)
@@ -2371,7 +2423,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
-				require.Equal(t, db.GetProtocol(), defaults.ProtocolSQLServer)
+				require.Equal(t, defaults.ProtocolSQLServer, db.GetProtocol())
 				require.Equal(t, "sqlserver", db.GetName())
 				require.Equal(t, "sqlserver.database.windows.net:1433", db.GetURI())
 				require.Equal(t, "sqlserver", db.GetAzure().Name)

@@ -1,25 +1,26 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type testConfigFiles struct {
@@ -207,8 +209,8 @@ func TestSampleConfig(t *testing.T) {
 			require.NoError(t, err)
 
 			// validate a couple of values:
-			require.Equal(t, fc.Global.DataDir, defaults.DataDir)
-			require.Equal(t, fc.Logger.Severity, "INFO")
+			require.Equal(t, defaults.DataDir, fc.Global.DataDir)
+			require.Equal(t, "INFO", fc.Logger.Severity)
 			require.Equal(t, testCase.expectClusterName, fc.Auth.ClusterName)
 			require.Equal(t, testCase.expectLicenseFile, fc.Auth.LicenseFile)
 			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
@@ -592,7 +594,7 @@ func TestLabelParsing(t *testing.T) {
 	var err error
 	// empty spec. no errors, no labels
 	err = parseLabelsApply("", &conf)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, conf.CmdLabels)
 	require.Nil(t, conf.Labels)
 
@@ -600,7 +602,7 @@ func TestLabelParsing(t *testing.T) {
 	err = parseLabelsApply(`key=value,more="much better"`, &conf)
 	require.NoError(t, err)
 	require.NotNil(t, conf.CmdLabels)
-	require.Len(t, conf.CmdLabels, 0)
+	require.Empty(t, conf.CmdLabels)
 	require.Equal(t, map[string]string{
 		"key":  "value",
 		"more": "much better",
@@ -608,7 +610,7 @@ func TestLabelParsing(t *testing.T) {
 
 	// static labels + command labels
 	err = parseLabelsApply(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, map[string]string{
 		"key":  "value",
 		"more": "much better",
@@ -758,7 +760,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddress.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
-	require.Equal(t, true, cfg.Proxy.IdP.SAMLIdP.Enabled)
+	require.True(t, cfg.Proxy.IdP.SAMLIdP.Enabled)
 	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
@@ -880,7 +882,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 		},
 	))
-	require.Equal(t, cfg.Kube.KubeconfigPath, "/tmp/kubeconfig")
+	require.Equal(t, "/tmp/kubeconfig", cfg.Kube.KubeconfigPath)
 	require.Empty(t, cmp.Diff(cfg.Kube.StaticLabels,
 		map[string]string{
 			"testKey": "testValue",
@@ -888,22 +890,22 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	))
 
 	require.True(t, cfg.Discovery.Enabled)
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, &types.InstallerParams{
+	require.Equal(t, []string{"eu-central-1"}, cfg.Discovery.AWSMatchers[0].Regions)
+	require.Equal(t, []string{"ec2"}, cfg.Discovery.AWSMatchers[0].Types)
+	require.Equal(t, "arn:aws:iam::123456789012:role/DBDiscoverer", cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN)
+	require.Equal(t, "externalID123", cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID)
+	require.Equal(t, &types.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
 		JoinToken:       types.IAMInviteTokenName,
 		ScriptName:      "default-installer",
 		SSHDConfig:      types.SSHDConfigPath,
-	})
+	}, cfg.Discovery.AWSMatchers[0].Params)
 
 	require.True(t, cfg.Okta.Enabled)
-	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
-	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
-	require.Equal(t, cfg.Okta.SyncPeriod, time.Second*300)
+	require.Equal(t, "https://some-endpoint", cfg.Okta.APIEndpoint)
+	require.Equal(t, oktaAPITokenPath, cfg.Okta.APITokenPath)
+	require.Equal(t, time.Second*300, cfg.Okta.SyncPeriod)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1020,7 +1022,7 @@ func TestApplyCustomSessionRecordingConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, cfg.Auth.Enabled)
-	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
 	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
 	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
 	require.Equal(t, types.OriginConfigFile, cfg.Auth.SessionRecordingConfig.Origin())
@@ -1207,8 +1209,8 @@ func TestBackendDefaults(t *testing.T) {
        type: dir
        path: /var/lib/teleport/mybackend
 `)
-	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], "/var/lib/teleport/mybackend")
+	require.Equal(t, lite.GetName(), cfg.Auth.StorageConfig.Type)
+	require.Equal(t, "/var/lib/teleport/mybackend", cfg.Auth.StorageConfig.Params[defaults.BackendPath])
 
 	// Kubernetes proxy is disabled by default.
 	cfg = read(`teleport:
@@ -1323,9 +1325,9 @@ func TestParseCachePolicy(t *testing.T) {
 }
 
 func checkStaticConfig(t *testing.T, conf *FileConfig) {
-	require.Equal(t, conf.AuthToken, "xxxyyy")
-	require.Equal(t, conf.AdvertiseIP, "10.10.10.1:3022")
-	require.Equal(t, conf.PIDFile, "/var/run/teleport.pid")
+	require.Equal(t, "xxxyyy", conf.AuthToken)
+	require.Equal(t, "10.10.10.1:3022", conf.AdvertiseIP)
+	require.Equal(t, "/var/run/teleport.pid", conf.PIDFile)
 
 	require.Empty(t, cmp.Diff(conf.Limits, ConnectionLimits{
 		MaxConnections: 90,
@@ -2784,7 +2786,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
 				DatabaseProtocol:     defaults.ProtocolSQLServer,
-				DatabaseURI:          "localhost:1433",
+				DatabaseURI:          "sqlserver.example.com:1433",
 				DatabaseADKeytabFile: "/etc/keytab",
 				DatabaseADDomain:     "EXAMPLE.COM",
 				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
@@ -2792,7 +2794,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			outDatabase: servicecfg.Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
+				URI:      "sqlserver.example.com:1433",
 				TLS: servicecfg.DatabaseTLS{
 					Mode: servicecfg.VerifyFull,
 				},
@@ -2905,10 +2907,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t,
-					config.Databases.Databases,
-					[]servicecfg.Database{tt.outDatabase},
-				)
+				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 			}
 		})
 	}
@@ -2934,7 +2933,7 @@ func TestTextFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &utils.TextFormatter{
+			formatter := &logutils.TextFormatter{
 				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
@@ -2962,7 +2961,7 @@ func TestJSONFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &utils.JSONFormatter{
+			formatter := &logutils.JSONFormatter{
 				ExtraFields: tt.extraFields,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
@@ -3574,7 +3573,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 	}
 	notExist := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.Error(t, err)
-		require.True(t, errors.Is(err, os.ErrNotExist), `expected "does not exist", but got %v`)
+		require.ErrorIs(t, err, os.ErrNotExist, `expected "does not exist", but got %v`, err)
 	}
 
 	tmpDir := t.TempDir()

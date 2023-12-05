@@ -132,10 +132,6 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 // to connect to the Auth server without mTLS.
 type insecureCredentials struct{}
 
-func (mc insecureCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
 func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
@@ -276,6 +272,8 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
+					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
 					interceptors.GRPCClientUnaryErrorInterceptor,
@@ -283,6 +281,8 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
+					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
 					interceptors.GRPCClientStreamErrorInterceptor,

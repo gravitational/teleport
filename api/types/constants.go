@@ -280,14 +280,15 @@ const (
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
 
-	// KindExternalCloudAudit the resource for external cloud audit.
-	KindExternalCloudAudit = "external_cloud_audit"
-	// MetaNameExternalCloudAuditDraft is the exact name of the singleton resource
-	// holding external cloud audit draft configuration.
-	MetaNameExternalCloudAuditDraft = "draft"
-	// MetaNameExternalCloudAuditCluster is the exact name of the singleton resource
-	// holding external cloud audit cluster configuration.
-	MetaNameExternalCloudAuditCluster = "cluster"
+	// KindExternalAuditStorage the resource kind for External Audit Storage
+	// configuration.
+	KindExternalAuditStorage = "external_audit_storage"
+	// MetaNameExternalAuditStorageDraft is the exact name of the singleton resource
+	// holding External Audit Storage draft configuration.
+	MetaNameExternalAuditStorageDraft = "draft"
+	// MetaNameExternalAuditStorageCluster is the exact name of the singleton resource
+	// holding External Audit Storage cluster configuration.
+	MetaNameExternalAuditStorageCluster = "cluster"
 
 	// KindClusterConfig is the resource that holds cluster level configuration.
 	// Deprecated: This does not correspond to an actual resource anymore but is
@@ -444,6 +445,9 @@ const (
 	// KindAssistant is used to program RBAC for
 	// Teleport Assist resources.
 	KindAssistant = "assistant"
+
+	// KindAccessGraph is the RBAC kind for access graph.
+	KindAccessGraph = "access_graph"
 
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
@@ -914,6 +918,18 @@ const (
 	// that's used by reverse tunnel agents to know which proxies in each proxy
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
+
+	// OktaAppNameLabel is the individual app name label.
+	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
+
+	// OktaAppDescriptionLabel is the individual app description label.
+	OktaAppDescriptionLabel = TeleportInternalLabelPrefix + "okta-app-description"
+
+	// OktaGroupNameLabel is the individual group name label.
+	OktaGroupNameLabel = TeleportInternalLabelPrefix + "okta-group-name"
+
+	// OktaGroupDescriptionLabel is the individual group description label.
+	OktaGroupDescriptionLabel = TeleportInternalLabelPrefix + "okta-group-description"
 )
 
 const (

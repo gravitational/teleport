@@ -1,18 +1,20 @@
-/*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { generatePath } from 'react-router';
 import { mergeDeep } from 'shared/utils/highbar';
@@ -38,17 +40,38 @@ const cfg = {
   isCloud: false,
   assistEnabled: false,
   automaticUpgrades: false,
+  automaticUpgradesTargetVersion: '',
+  // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
+  // the case of a self-hosted license tenant dashboard.
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+  // Historically, this flag used to refer to "Cloud Team" product,
+  // but with the new EUB (Enterprise Usage Based) product, it can mean either EUB or Team.
+  // Use the `isTeam` config flag to determine if product used is Team.
+  // EUB can be determined from a combination of existing config flags eg: `isCloud && !isTeam`.
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
+  // isTeam is true if [Features.ProductType] == Team
+  isTeam: false,
+  // isIgsEnabled refers to Identity Governance & Security product.
+  // It refers to a group of features: access request, device trust,
+  // access list, and access monitoring.
+  isIgsEnabled: false,
 
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,
+
+  // featureLimits define limits for features.
+  // Typically used with feature teasers if feature is not enabled for the
+  // product type eg: Team product contains teasers to upgrade to Enterprise.
+  featureLimits: {
+    accessListCreateLimit: 0,
+    accessMonitoringMaxReportRangeLimit: 0,
+  },
 
   ui: {
     scrollbackLines: 1000,
@@ -189,14 +212,12 @@ const cfg = {
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
+    connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
-
-    deployServiceIamConfigureScriptPath:
-      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
@@ -236,6 +257,16 @@ const cfg = {
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
+
+    awsConfigureIamScriptOidcIdpPath:
+      '/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+    awsConfigureIamScriptDeployServicePath:
+      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+    awsConfigureIamScriptListDatabasesPath:
+      '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+    awsConfigureIamScriptEc2InstanceConnectPath:
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -248,8 +279,6 @@ const cfg = {
     ec2InstanceConnectEndpointsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
     // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
-    ec2InstanceConnectIAMConfigureScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:awsOidcRoleArn',
     ec2InstanceConnectDeployPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
 
@@ -271,6 +300,8 @@ const cfg = {
 
     // Assist needs some access request info to exist in OSS
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
+
+    accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -340,6 +371,14 @@ const cfg = {
     return 'sso';
   },
 
+  // isLegacyEnterprise describes product that should have legacy support
+  // where certain features access remain unlimited. This was before
+  // product EUB (enterprise usage based) was introduced.
+  // eg: access request and device trust.
+  isLegacyEnterprise() {
+    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  },
+
   getAuthType() {
     return cfg.auth.authType;
   },
@@ -385,7 +424,14 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.deployServiceIamConfigureScriptPath, { ...p })
+      generatePath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
+    );
+  },
+
+  getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptOidcIdpPath, { ...p })
     );
   },
 
@@ -686,6 +732,10 @@ const cfg = {
     return cfg.api.presetRolesPath;
   },
 
+  getConnectMyComputerLoginsUrl() {
+    return cfg.api.connectMyComputerLoginsPath;
+  },
+
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesPath, {
       clusterId,
@@ -832,6 +882,10 @@ const cfg = {
     return generatePath(cfg.routes.requests, { requestId });
   },
 
+  getAccessGraphFeaturesUrl() {
+    return cfg.api.accessGraphFeatures;
+  },
+
   getListEc2InstancesUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -869,11 +923,22 @@ const cfg = {
   },
 
   getEc2InstanceConnectIAMConfigureScriptUrl(
-    params: UrlEc2InstanceIamConfigureScriptParams
+    params: UrlAwsConfigureIamScriptParams
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.ec2InstanceConnectIAMConfigureScriptPath, {
+      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
+        ...params,
+      })
+    );
+  },
+
+  getAwsConfigureIamScriptListDatabasesUrl(
+    params: UrlAwsConfigureIamScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
         ...params,
       })
     );
@@ -983,9 +1048,14 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   taskRoleArn: string;
 }
 
-export interface UrlEc2InstanceIamConfigureScriptParams {
+export interface UrlAwsOidcConfigureIdp {
+  integrationName: string;
+  roleName: string;
+}
+
+export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
-  awsOidcRoleArn: string;
+  iamRoleName: string;
 }
 
 export default cfg;

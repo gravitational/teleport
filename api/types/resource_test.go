@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -474,7 +474,7 @@ func TestResourcesWithLabels_ToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.r.ToMap(), tt.want)
+			require.Equal(t, tt.want, tt.r.ToMap())
 		})
 	}
 }
@@ -503,25 +503,29 @@ func TestValidLabelKey(t *testing.T) {
 }
 
 func TestFriendlyName(t *testing.T) {
-	appNoFriendly, err := NewAppV3(Metadata{
-		Name: "no friendly",
-	}, AppSpecV3{
-		URI: "https://some-uri.com",
-	},
-	)
-	require.NoError(t, err)
+	newApp := func(t *testing.T, name, description string, labels map[string]string) Application {
+		app, err := NewAppV3(Metadata{
+			Name:        name,
+			Description: description,
+			Labels:      labels,
+		}, AppSpecV3{
+			URI: "https://some-uri.com",
+		})
+		require.NoError(t, err)
 
-	appFriendly, err := NewAppV3(Metadata{
-		Name:        "no friendly",
-		Description: "friendly name",
-		Labels: map[string]string{
-			OriginLabel: OriginOkta,
-		},
-	}, AppSpecV3{
-		URI: "https://some-uri.com",
-	},
-	)
-	require.NoError(t, err)
+		return app
+	}
+
+	newGroup := func(t *testing.T, name, description string, labels map[string]string) UserGroup {
+		group, err := NewUserGroup(Metadata{
+			Name:        name,
+			Description: description,
+			Labels:      labels,
+		}, UserGroupSpecV1{})
+		require.NoError(t, err)
+
+		return group
+	}
 
 	node, err := NewServer("node", KindNode, ServerSpecV2{
 		Hostname: "friendly hostname",
@@ -535,13 +539,38 @@ func TestFriendlyName(t *testing.T) {
 	}{
 		{
 			name:     "no friendly name",
-			resource: appNoFriendly,
+			resource: newApp(t, "no friendly", "no friendly", map[string]string{}),
 			expected: "",
 		},
 		{
-			name:     "friendly app name",
-			resource: appFriendly,
+			name: "friendly app name (uses description)",
+			resource: newApp(t, "friendly", "friendly name", map[string]string{
+				OriginLabel: OriginOkta,
+			}),
 			expected: "friendly name",
+		},
+		{
+			name: "friendly app name (uses label)",
+			resource: newApp(t, "friendly", "friendly name", map[string]string{
+				OriginLabel:      OriginOkta,
+				OktaAppNameLabel: "label friendly name",
+			}),
+			expected: "label friendly name",
+		},
+		{
+			name: "friendly group name (uses description)",
+			resource: newGroup(t, "friendly", "friendly name", map[string]string{
+				OriginLabel: OriginOkta,
+			}),
+			expected: "friendly name",
+		},
+		{
+			name: "friendly group name (uses label)",
+			resource: newGroup(t, "friendly", "friendly name", map[string]string{
+				OriginLabel:        OriginOkta,
+				OktaGroupNameLabel: "label friendly name",
+			}),
+			expected: "label friendly name",
 		},
 		{
 			name:     "friendly node name",

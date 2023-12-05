@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package service
 
@@ -37,23 +39,29 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 const (
-	// updateDeployAgentsInterval specifies how frequently to check for available updates.
-	updateDeployAgentsInterval = time.Minute * 30
+	// updateAWSOIDCDeployServiceInterval specifies how frequently to check for available updates.
+	updateAWSOIDCDeployServiceInterval = time.Minute * 30
 
 	// maxConcurrentUpdates specifies the maximum number of concurrent updates
 	maxConcurrentUpdates = 3
 )
 
-func (process *TeleportProcess) initDeployServiceUpdater() error {
+func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 	// start process only after teleport process has started
 	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return trace.Wrap(err)
 	}
 
-	resp, err := process.getInstanceClient().Ping(process.GracefulExitContext())
+	authClient := process.getInstanceClient()
+	if authClient == nil {
+		return trace.Errorf("instance client not yet initialized")
+	}
+
+	resp, err := authClient.Ping(process.GracefulExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -76,19 +84,19 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 		}
 	}
 
-	issuer, err := awsoidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
+	issuer, err := oidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := process.getInstanceClient().GetClusterName()
+	clusterNameConfig, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	updater, err := NewDeployServiceUpdater(DeployServiceUpdaterConfig{
+	updater, err := NewDeployServiceUpdater(AWSOIDCDeployServiceUpdaterConfig{
 		Log:                    process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
-		AuthClient:             process.getInstanceClient(),
+		AuthClient:             authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
@@ -100,12 +108,12 @@ func (process *TeleportProcess) initDeployServiceUpdater() error {
 		return trace.Wrap(err)
 	}
 
-	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateDeployAgentsInterval)
+	process.log.Infof("The new service has started successfully. Checking for deploy service updates every %v.", updateAWSOIDCDeployServiceInterval)
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
-// DeployServiceUpdaterConfig specifies updater configs
-type DeployServiceUpdaterConfig struct {
+// AWSOIDCDeployServiceUpdaterConfig specifies updater configs
+type AWSOIDCDeployServiceUpdaterConfig struct {
 	// Log is the logger
 	Log *logrus.Entry
 	// AuthClient is the auth api client
@@ -116,7 +124,7 @@ type DeployServiceUpdaterConfig struct {
 	TeleportClusterName string
 	// TeleportClusterVersion specifies the teleport cluster version
 	TeleportClusterVersion string
-	// AWSOIDCProvderAddr specifies the aws oidc provider address used to generate AWS OIDC tokens
+	// AWSOIDCProvderAddr specifies the AWS OIDC provider address used to generate AWS OIDC tokens
 	AWSOIDCProviderAddr string
 	// CriticalEndpoint specifies the endpoint to check for critical updates
 	CriticalEndpoint string
@@ -125,7 +133,7 @@ type DeployServiceUpdaterConfig struct {
 }
 
 // CheckAndSetDefaults checks and sets default config values.
-func (cfg *DeployServiceUpdaterConfig) CheckAndSetDefaults() error {
+func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	if cfg.AuthClient == nil {
 		return trace.BadParameter("auth client required")
 	}
@@ -139,7 +147,7 @@ func (cfg *DeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.AWSOIDCProviderAddr == "" {
-		return trace.BadParameter("aws oidc provider address required")
+		return trace.BadParameter("AWS OIDC provider address required")
 	}
 
 	if cfg.Log == nil {
@@ -153,33 +161,33 @@ func (cfg *DeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DeployServiceUpdater periodically updates deploy service agents
-type DeployServiceUpdater struct {
-	DeployServiceUpdaterConfig
+// AWSOIDCDeployServiceUpdater periodically updates AWS OIDC deploy service
+type AWSOIDCDeployServiceUpdater struct {
+	AWSOIDCDeployServiceUpdaterConfig
 }
 
-// NewDeployServiceUpdater returns a new DeployServiceUpdater
-func NewDeployServiceUpdater(config DeployServiceUpdaterConfig) (*DeployServiceUpdater, error) {
+// NewAWSOIDCDeployServiceUpdater returns a new AWSOIDCDeployServiceUpdater
+func NewDeployServiceUpdater(config AWSOIDCDeployServiceUpdaterConfig) (*AWSOIDCDeployServiceUpdater, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &DeployServiceUpdater{
-		DeployServiceUpdaterConfig: config,
+	return &AWSOIDCDeployServiceUpdater{
+		AWSOIDCDeployServiceUpdaterConfig: config,
 	}, nil
 }
 
-// Run periodically updates the deploy service agents
-func (updater *DeployServiceUpdater) Run(ctx context.Context) error {
+// Run periodically updates the AWS OIDC deploy service
+func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
-		Duration: updateDeployAgentsInterval,
+		Duration: updateAWSOIDCDeployServiceInterval,
 		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
 	for {
-		if err := updater.updateDeployServiceAgents(ctx); err != nil {
-			updater.Log.WithError(err).Warningf("Update failed. Retrying in ~%v.", updateDeployAgentsInterval)
+		if err := updater.updateAWSOIDCDeployServices(ctx); err != nil {
+			updater.Log.WithError(err).Warningf("Update failed. Retrying in ~%v.", updateAWSOIDCDeployServiceInterval)
 		}
 
 		select {
@@ -190,7 +198,7 @@ func (updater *DeployServiceUpdater) Run(ctx context.Context) error {
 	}
 }
 
-func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Context) error {
+func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx context.Context) error {
 	cmc, err := updater.AuthClient.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,14 +223,14 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	stableVersion = strings.TrimPrefix(stableVersion, "v")
 
 	// minServerVersion specifies the minimum version of the cluster required for
-	// updated agents to remain compatible with the cluster.
+	// updated AWS OIDC deploy service to remain compatible with the cluster.
 	minServerVersion, err := utils.MajorSemver(stableVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if !utils.MeetsVersion(updater.TeleportClusterVersion, minServerVersion) {
-		updater.Log.Debugf("Skipping update. %v agents will not be compatible with a %v cluster.", stableVersion, updater.TeleportClusterVersion)
+		updater.Log.Debugf("Skipping update. %v AWS OIDC Deploy Service will not be compatible with a %v cluster.", stableVersion, updater.TeleportClusterVersion)
 		return nil
 	}
 
@@ -232,7 +240,7 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	}
 
 	// The updater needs to iterate over all integrations and aws regions to check
-	// for deploy service agents to update. In order to reduce the number of api
+	// for AWS OIDC deploy services to update. In order to reduce the number of api
 	// calls, the aws regions are first reduced to only the regions containing
 	// an RDS database.
 	awsRegions := make(map[string]interface{})
@@ -256,8 +264,8 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 			}
 			go func(ig types.Integration, region string) {
 				defer sem.Release(1)
-				if err := updater.updateDeployServiceAgent(ctx, ig, region, stableVersion); err != nil {
-					updater.Log.WithError(err).Warningf("Failed to update deploy service agent for integration %s in region %s.", ig.GetName(), region)
+				if err := updater.updateAWSOIDCDeployService(ctx, ig, region, stableVersion); err != nil {
+					updater.Log.WithError(err).Warningf("Failed to update AWS OIDC Deploy Service for integration %s in region %s.", ig.GetName(), region)
 				}
 			}(ig, region)
 		}
@@ -267,8 +275,8 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgents(ctx context.Conte
 	return trace.Wrap(sem.Acquire(ctx, maxConcurrentUpdates))
 }
 
-func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
-	// Do not attempt update if integration is not an aws oidc integration.
+func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
+	// Do not attempt update if integration is not an AWS OIDC integration.
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil
 	}
@@ -288,7 +296,7 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient)
+	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -301,18 +309,18 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 		types.IntegrationLabel: integration.GetName(),
 	}
 
-	// Acquire a lease for the region + integration before attempting to update the deploy service agent.
+	// Acquire a lease for the region + integration before attempting to update the deploy service.
 	// If the lease cannot be acquired, the update is already being handled by another instance.
 	semLock, err := updater.AuthClient.AcquireSemaphore(ctx, types.AcquireSemaphoreRequest{
 		SemaphoreKind: types.SemaphoreKindConnection,
-		SemaphoreName: fmt.Sprintf("update_deploy_service_agents_%s_%s", awsRegion, integration.GetName()),
+		SemaphoreName: fmt.Sprintf("update_aws_oidc_deploy_service_%s_%s", awsRegion, integration.GetName()),
 		MaxLeases:     1,
-		Expires:       updater.Clock.Now().Add(updateDeployAgentsInterval),
-		Holder:        "update_deploy_service_agents",
+		Expires:       updater.Clock.Now().Add(updateAWSOIDCDeployServiceInterval),
+		Holder:        "update_aws_oidc_deploy_service",
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
-			updater.Log.WithError(err).Debug("Deploy service agent update is already being processed.")
+			updater.Log.WithError(err).Debug("AWS OIDC Deploy Service update is already being processed.")
 			return nil
 		}
 		return trace.Wrap(err)
@@ -323,8 +331,8 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 		}
 	}()
 
-	updater.Log.Debugf("Updating Deploy Service Agents for integration %s in AWS region: %s", integration.GetName(), awsRegion)
-	if err := awsoidc.UpdateDeployServiceAgent(ctx, deployServiceClient, awsoidc.UpdateServiceRequest{
+	updater.Log.Debugf("Updating AWS OIDC Deploy Service for integration %s in AWS region: %s", integration.GetName(), awsRegion)
+	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, awsoidc.UpdateServiceRequest{
 		TeleportClusterName: updater.TeleportClusterName,
 		TeleportVersionTag:  teleportVersion,
 		OwnershipTags:       ownershipTags,
@@ -338,7 +346,7 @@ func (updater *DeployServiceUpdater) updateDeployServiceAgent(ctx context.Contex
 			updater.Log.Debugf("Integration %s does not manage any services within region %s.", integration.GetName(), awsRegion)
 			return nil
 		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
-			// The aws oidc role may lack permissions due to changes in teleport.
+			// The AWS OIDC role may lack permissions due to changes in teleport.
 			// In this situation users should be notified that they will need to
 			// re-run the deploy service iam configuration script and update the
 			// permissions.

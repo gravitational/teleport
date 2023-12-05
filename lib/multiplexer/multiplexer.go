@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package multiplexer implements SSH and TLS multiplexing
 // on the same listener
@@ -563,14 +565,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
-			// Proxy and other services might call itself directly, avoiding
-			// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
-			selfConnection, err := m.isSelfConnection(conn)
-			if err != nil {
+			if err := m.checkPROXYProtocolRequirement(conn, unsignedPROXYLineReceived); err != nil {
 				return nil, trace.Wrap(err)
-			}
-			if !selfConnection && m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
-				return nil, trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 			}
 
 			return &Conn{
@@ -583,6 +579,50 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	}
 	// if code ended here after three attempts, something is wrong
 	return nil, trace.BadParameter(unknownProtocolError)
+}
+
+// checkPROXYProtocolRequirement checks that if multiplexer is required to receive unsigned PROXY line
+// that requirement is fulfilled, or exceptions apply - self connections and connections that are passed
+// from upstream multiplexed listener (as it happens for alpn proxy).
+func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineReceived bool) error {
+	if m.PROXYProtocolMode != PROXYProtocolOn {
+		return nil
+	}
+
+	// Proxy and other services might call itself directly, avoiding
+	// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
+	selfConnection, err := m.isSelfConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We try to get inner multiplexer connection, if we succeed and there is on, it means conn was passed
+	// to us from another multiplexer listener and unsigned PROXY protocol requirement was handled there.
+	innerConn := unwrapMuxConn(conn)
+
+	if !selfConnection && innerConn == nil && !unsignedPROXYLineReceived {
+		return trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
+	}
+
+	return nil
+}
+
+func unwrapMuxConn(conn net.Conn) *Conn {
+	type netConn interface {
+		NetConn() net.Conn
+	}
+
+	for {
+		if muxConn, ok := conn.(*Conn); ok {
+			return muxConn
+		}
+
+		connGetter, ok := conn.(netConn)
+		if !ok {
+			return nil
+		}
+		conn = connGetter.NetConn()
+	}
 }
 
 func (m *Mux) isSelfConnection(conn net.Conn) (bool, error) {

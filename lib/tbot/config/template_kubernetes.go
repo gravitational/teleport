@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -27,16 +29,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
@@ -62,30 +60,10 @@ func (t *templateKubernetes) describe() []FileDescription {
 // kubeconfig.
 type kubernetesStatus struct {
 	clusterAddr           string
-	proxyAddr             string
 	teleportClusterName   string
 	kubernetesClusterName string
 	tlsServerName         string
 	credentials           *client.Key
-}
-
-func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.PingResponse) (string, int, error) {
-	addr := proxyPong.Proxy.Kube.PublicAddr
-	if addr == "" {
-		addr = authPong.ProxyPublicAddr
-	}
-
-	if addr == "" {
-		return "", 0, trace.BadParameter(
-			"Teleport server reported no usable public proxy address")
-	}
-
-	parsed, err := utils.ParseAddr(addr)
-	if err != nil {
-		return "", 0, trace.Wrap(err, "invalid proxy address")
-	}
-
-	return parsed.Host(), parsed.Port(defaults.KubeListenPort), nil
 }
 
 // generateKubeConfig creates a Kubernetes config object with the given cluster
@@ -161,30 +139,14 @@ func (t *templateKubernetes) render(
 		return trace.BadParameter("Destination %s must be a directory", destination)
 	}
 
-	// Ping the auth server and proxy to resolve connection addresses.
-	authPong, err := bot.AuthPing(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Ping the proxy to resolve connection addresses.
 	proxyPong, err := bot.ProxyPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	host, port, err := getKubeProxyHostPort(authPong, proxyPong)
+	clusterAddr, tlsServerName, err := selectKubeConnectionMethod(proxyPong)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	kubeAddr := fmt.Sprintf("https://%s:%d", host, port)
-
-	// Next, determine the TLS routing config (if any)
-	// Note: derived from tool/tsh/kube.go; this impl should defer to it for
-	// future changes.
-	serverName := fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, host)
-	isIPFormat := net.ParseIP(host) != nil
-	if host == "" || isIPFormat {
-		serverName = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	}
 
 	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
@@ -198,15 +160,11 @@ func (t *templateKubernetes) render(
 	}
 
 	status := &kubernetesStatus{
-		clusterAddr:           kubeAddr,
-		proxyAddr:             authPong.ProxyPublicAddr,
+		clusterAddr:           clusterAddr,
+		tlsServerName:         tlsServerName,
 		credentials:           key,
-		teleportClusterName:   authPong.ClusterName,
+		teleportClusterName:   proxyPong.ClusterName,
 		kubernetesClusterName: t.clusterName,
-	}
-
-	if proxyPong.Proxy.TLSRoutingEnabled {
-		status.tlsServerName = serverName
 	}
 
 	executablePath, err := t.executablePathGetter()
@@ -225,4 +183,46 @@ func (t *templateKubernetes) render(
 	}
 
 	return trace.Wrap(destination.Write(ctx, defaultKubeconfigPath, yamlCfg))
+}
+
+// selectKubeConnectionMethod determines the address and SNI that should be
+// put into the kubeconfig file.
+func selectKubeConnectionMethod(proxyPong *webclient.PingResponse) (clusterAddr string, sni string, err error) {
+	// First we check for TLS routing. If this is enabled, we use the Proxy's
+	// PublicAddr, and we must also specify a special SNI.
+	//
+	// Even if KubePublicAddr is specified, we still use the general
+	// PublicAddr when using TLS routing.
+	if proxyPong.Proxy.TLSRoutingEnabled {
+		addr := proxyPong.Proxy.SSH.PublicAddr
+		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing proxy public_addr")
+		}
+
+		return fmt.Sprintf("https://%s", addr), client.GetKubeTLSServerName(host), nil
+	}
+
+	// Next, we try to use the KubePublicAddr.
+	if proxyPong.Proxy.Kube.PublicAddr != "" {
+		return fmt.Sprintf("https://%s", proxyPong.Proxy.Kube.PublicAddr), "", nil
+	}
+
+	// Finally, we fall back to the main proxy PublicAddr with the port from
+	// KubeListenAddr.
+	if proxyPong.Proxy.Kube.ListenAddr != "" {
+		host, _, err := net.SplitHostPort(proxyPong.Proxy.SSH.PublicAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing proxy public_addr")
+		}
+
+		_, port, err := net.SplitHostPort(proxyPong.Proxy.Kube.ListenAddr)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing proxy kube_listen_addr")
+		}
+
+		return fmt.Sprintf("https://%s:%s", host, port), "", nil
+	}
+
+	return "", "", trace.BadParameter("unable to determine kubernetes address")
 }

@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { formatDistanceStrict } from 'date-fns';
 import { pluralize } from 'shared/utils/text';
@@ -78,8 +80,9 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_REVIEWED]: {
     type: 'access_request.review',
     desc: 'Access Request Reviewed',
-    format: ({ id, reviewer }) =>
-      `User [${reviewer}] reviewed access request [${id}]`,
+    format: ({ id, reviewer, state }) => {
+      return `User [${reviewer}] ${state.toLowerCase()} access request [${id}]`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_DELETED]: {
     type: 'access_request.delete',
@@ -1157,8 +1160,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1168,8 +1171,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1179,8 +1182,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         desktopMessage += ` on [${windows_domain}]`;
       }
@@ -1601,6 +1604,18 @@ export const formatters: Formatters = {
     desc: 'Access Monitoring Report Executed',
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: {
+    type: 'external_audit_storage.enable',
+    desc: 'External Audit Storage Enabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] enabled External Audit Storage`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: {
+    type: 'external_audit_storage.disable',
+    desc: 'External Audit Storage Disabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] disabled External Audit Storage`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

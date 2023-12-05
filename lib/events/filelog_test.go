@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
@@ -98,7 +100,7 @@ func TestFileLogPagination(t *testing.T) {
 		Order:    types.EventOrderAscending,
 		StartKey: checkpoint,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Len(t, eventArr, 1)
 	require.Empty(t, checkpoint)
 }
@@ -113,7 +115,7 @@ func TestSearchSessionEvents(t *testing.T) {
 		RotationPeriod: time.Hour * 24,
 		Clock:          clock,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	clock.Advance(1 * time.Minute)
 
 	require.NoError(t, log.EmitAuditEvent(ctx, &events.SessionEnd{
@@ -133,8 +135,8 @@ func TestSearchSessionEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, result[0].GetType(), SessionEndEvent)
-	require.Equal(t, result[0].GetID(), "a")
+	require.Equal(t, SessionEndEvent, result[0].GetType())
+	require.Equal(t, "a", result[0].GetID())
 
 	// emit a non-session event, it should not show up in the next query
 	require.NoError(t, log.EmitAuditEvent(ctx, &events.SessionJoin{
@@ -154,8 +156,8 @@ func TestSearchSessionEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	require.Equal(t, result[0].GetType(), SessionEndEvent)
-	require.Equal(t, result[0].GetID(), "a")
+	require.Equal(t, SessionEndEvent, result[0].GetType())
+	require.Equal(t, "a", result[0].GetID())
 
 	// emit a desktop session event, it should show up in the next query
 	require.NoError(t, log.EmitAuditEvent(ctx, &events.WindowsDesktopSessionEnd{
@@ -175,10 +177,10 @@ func TestSearchSessionEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, result, 2)
-	require.Equal(t, result[0].GetType(), SessionEndEvent)
-	require.Equal(t, result[0].GetID(), "a")
-	require.Equal(t, result[1].GetType(), WindowsDesktopSessionEndEvent)
-	require.Equal(t, result[1].GetID(), "c")
+	require.Equal(t, SessionEndEvent, result[0].GetType())
+	require.Equal(t, "a", result[0].GetID())
+	require.Equal(t, WindowsDesktopSessionEndEvent, result[1].GetType())
+	require.Equal(t, "c", result[1].GetID())
 }
 
 // TestLargeEvent test fileLog behavior in case of large events.
@@ -188,7 +190,7 @@ func TestLargeEvent(t *testing.T) {
 
 	hasEventsLength := func(n int) check {
 		return func(t *testing.T, ee []events.AuditEvent) {
-			require.Equal(t, n, len(ee), "events length mismatch")
+			require.Len(t, ee, n, "events length mismatch")
 		}
 	}
 	hasEventsIDs := func(ids ...string) check {

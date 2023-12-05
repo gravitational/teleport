@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -71,6 +73,8 @@ type ConnectionMonitorConfig struct {
 	ServerID string
 	// Emitter allows events to be emitted.
 	Emitter apievents.Emitter
+	// EmitterContext is long-lived context suitable to be used with Emitter
+	EmitterContext context.Context
 	// Logger is a logging entry.
 	Logger log.FieldLogger
 	// MonitorCloseChannel will be signaled when the monitor closes a connection.
@@ -91,6 +95,9 @@ func (c *ConnectionMonitorConfig) CheckAndSetDefaults() error {
 	}
 	if c.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
+	}
+	if c.EmitterContext == nil {
+		return trace.BadParameter("missing parameter EmitterContext")
 	}
 	if c.ServerID == "" {
 		return trace.BadParameter("missing parameter ServerID")
@@ -183,6 +190,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          identity.Username,
 		Emitter:               c.cfg.Emitter,
+		EmitterContext:        c.cfg.EmitterContext,
 		Entry:                 c.cfg.Logger,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
@@ -224,6 +232,8 @@ type MonitorConfig struct {
 	ServerID string
 	// Emitter is events emitter
 	Emitter apievents.Emitter
+	// EmitterContext is long-lived context suitable to be used with Emitter. Typically, a server exit context will be used here.
+	EmitterContext context.Context
 	// Entry is a logging entry
 	Entry log.FieldLogger
 	// IdleTimeoutMessage is sent to the client when the idle timeout expires.
@@ -258,6 +268,9 @@ func (m *MonitorConfig) CheckAndSetDefaults() error {
 	}
 	if m.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
+	}
+	if m.EmitterContext == nil {
+		return trace.BadParameter("missing parameter EmitterContext")
 	}
 	if m.Clock == nil {
 		m.Clock = clockwork.NewRealClock()
@@ -411,11 +424,6 @@ type withCauseCloser interface {
 
 func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
-	// Emit Audit event first to make sure that that underlying context will not be canceled during
-	// emitting audit event.
-	if err := w.emitDisconnectEvent(reason); err != nil {
-		w.Entry.WithError(err).Warn("Failed to emit audit event.")
-	}
 
 	if connWithCauseCloser, ok := w.Conn.(withCauseCloser); ok {
 		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied(reason)); err != nil {
@@ -425,6 +433,11 @@ func (w *Monitor) disconnectClient(reason string) {
 		if err := w.Conn.Close(); err != nil {
 			w.Entry.WithError(err).Error("Failed to close connection.")
 		}
+	}
+
+	// emit audit event after client has been disconnected.
+	if err := w.emitDisconnectEvent(reason); err != nil {
+		w.Entry.WithError(err).Warn("Failed to emit audit event.")
 	}
 }
 
@@ -447,7 +460,7 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 		},
 		Reason: reason,
 	}
-	return trace.Wrap(w.Emitter.EmitAuditEvent(w.Context, event))
+	return trace.Wrap(w.Emitter.EmitAuditEvent(w.EmitterContext, event))
 }
 
 func (w *Monitor) handleLockInForce(lockErr error) {

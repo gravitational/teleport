@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -220,13 +223,13 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
 	for i := 0; i < 10; i++ {
-		testCtx.clock.Advance(clientIdleTimeout / 2)
+		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
 	}
 
-	// advance clock by full idle timeout, expect the client to be disconnected automatically.
-	testCtx.clock.Advance(clientIdleTimeout)
+	// advance clock by full idle timeout (plus a safety margin, to allow for reads in flight to be finished), expect the client to be disconnected automatically.
+	advanceInSteps(testCtx.clock, clientIdleTimeout+time.Second*5)
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 
 	// expect failure after timeout.
@@ -234,6 +237,24 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	require.Error(t, err)
 
 	require.NoError(t, pgConn.Close(ctx))
+}
+
+// advanceInSteps makes the clockwork.FakeClock behave closer to the real clock, smoothing the transition for large advances in time.
+// This works around a class of issues in the production code which expects that clock is smooth, not choppy.
+// Most testing code should NOT need to use this function.
+//
+// In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
+func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
+	step := total / 100
+	if step <= 0 {
+		step = 1
+	}
+
+	end := clock.Now().Add(total)
+	for clock.Now().Before(end) {
+		clock.Advance(step)
+		time.Sleep(time.Millisecond * 1)
+	}
 }
 
 func TestHeartbeatEvents(t *testing.T) {
@@ -337,7 +358,7 @@ func TestShutdown(t *testing.T) {
 			})
 
 			// Validate that the server is proxying db0 after start.
-			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
 			// Validate heartbeat is present after start.
 			server.ForceHeartbeat()

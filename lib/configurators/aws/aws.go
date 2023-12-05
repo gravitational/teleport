@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aws
 
@@ -23,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
@@ -41,6 +46,7 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -188,7 +194,6 @@ var (
 		discovery: []string{
 			"rds:DescribeDBProxies",
 			"rds:DescribeDBProxyEndpoints",
-			"rds:DescribeDBProxyTargets",
 			"rds:ListTagsForResource",
 		},
 		metadata: []string{
@@ -200,9 +205,12 @@ var (
 	}
 	// redshiftActions contains IAM actions for types.AWSMatcherRedshift.
 	redshiftActions = databaseActions{
-		discovery:      []string{"redshift:DescribeClusters"},
-		metadata:       []string{"redshift:DescribeClusters"},
-		authBoundary:   []string{"redshift:GetClusterCredentials"},
+		discovery: []string{"redshift:DescribeClusters"},
+		metadata:  []string{"redshift:DescribeClusters"},
+		authBoundary: append(
+			[]string{"redshift:GetClusterCredentials"},
+			stsActions..., // For IAM-auth-as-IAM-role.
+		),
 		requireIAMEdit: true,
 	}
 	// redshiftServerlessActions contains IAM actions for types.AWSMatcherRedshiftServerless.
@@ -252,6 +260,8 @@ var (
 			"memorydb:UpdateUser",
 		},
 		requireSecretsManager: true,
+		authBoundary:          []string{"memorydb:Connect"},
+		requireIAMEdit:        true,
 	}
 	// awsKeyspacesActions contains IAM actions for static AWS Keyspaces databases.
 	awsKeyspacesActions = databaseActions{
@@ -310,6 +320,11 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("config file is required")
 	}
 
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	// When running the command in manual mode, we want to have zero dependency
 	// with AWS configurations (like awscli or environment variables), so that
 	// the user can run this command and generate the instructions without any
@@ -320,6 +335,10 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.AWSSession == nil {
 			c.AWSSession, err = awssession.NewSessionWithOptions(awssession.Options{
 				SharedConfigState: awssession.SharedConfigEnable,
+				Config: aws.Config{
+					EC2MetadataEnableFallback: aws.Bool(false),
+					UseFIPSEndpoint:           useFIPSEndpoint,
+				},
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -350,7 +369,9 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					}
 					session, err := awssession.NewSessionWithOptions(awssession.Options{
 						Config: aws.Config{
-							Region: &region,
+							Region:                    &region,
+							EC2MetadataEnableFallback: aws.Bool(false),
+							UseFIPSEndpoint:           useFIPSEndpoint,
 						},
 						SharedConfigState: awssession.SharedConfigEnable,
 					})

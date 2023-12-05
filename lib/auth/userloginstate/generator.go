@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package userloginstate
 
@@ -34,13 +36,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// AccessListsAndLockGetter is an interface for retrieving access lists and locks.
+type AccessListsAndLockGetter interface {
+	services.AccessListsGetter
+	services.LockGetter
+}
+
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
 	// Log is a logger to use for the generator.
 	Log *logrus.Entry
 
-	// AccessLists is a service for retrieving access lists from the backend.
-	AccessLists services.AccessListsGetter
+	// AccessLists is a service for retrieving access lists and locks from the backend.
+	AccessLists AccessListsAndLockGetter
 
 	// Access is a service that will be used for retrieving roles from the backend.
 	Access services.Access
@@ -88,11 +96,12 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
-	log         *logrus.Entry
-	accessLists services.AccessListsGetter
-	access      services.Access
-	usageEvents UsageEventsClient
-	clock       clockwork.Clock
+	log           *logrus.Entry
+	accessLists   AccessListsAndLockGetter
+	access        services.Access
+	usageEvents   UsageEventsClient
+	memberChecker *services.AccessListMembershipChecker
+	clock         clockwork.Clock
 }
 
 // NewGenerator creates a new user login state generator.
@@ -102,31 +111,41 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	}
 
 	return &Generator{
-		log:         config.Log,
-		accessLists: config.AccessLists,
-		access:      config.Access,
-		usageEvents: config.UsageEvents,
-		clock:       config.Clock,
+		log:           config.Log,
+		accessLists:   config.AccessLists,
+		access:        config.Access,
+		usageEvents:   config.UsageEvents,
+		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.Access),
+		clock:         config.Clock,
 	}, nil
 }
 
 // Generate will generate the user login state for the given user.
 func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
+	var originalTraits map[string][]string
 	var traits map[string][]string
 	if len(user.GetTraits()) > 0 {
+		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
+			originalTraits[k] = utils.CopyStrings(v)
 			traits[k] = utils.CopyStrings(v)
 		}
 	}
+
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name: user.GetName(),
+			Labels: map[string]string{
+				userloginstate.OriginalRolesAndTraitsSet: "true",
+			},
 		}, userloginstate.Spec{
-			Roles:    utils.CopyStrings(user.GetRoles()),
-			Traits:   traits,
-			UserType: user.GetUserType(),
+			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
+			OriginalTraits: originalTraits,
+			Roles:          utils.CopyStrings(user.GetRoles()),
+			Traits:         traits,
+			UserType:       user.GetUserType(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -169,7 +188,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 	for _, accessList := range accessLists {
 		// Check that the user meets the access list requirements.
-		if err := services.IsAccessListMember(ctx, identity, g.clock, accessList, g.accessLists); err != nil {
+		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err != nil {
 			continue
 		}
 

@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { useStore } from 'shared/libs/stores';
@@ -42,7 +44,11 @@ import {
   getEmptyPendingAccessRequest,
 } from './accessRequestsService';
 
-import { Document, DocumentsService } from './documentsService';
+import {
+  Document,
+  DocumentsService,
+  getDefaultDocumentClusterQueryParams,
+} from './documentsService';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
@@ -216,9 +222,31 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    * workspace state for the cluster and then asks the user about restoring documents from the
    * previous session if there are any.
    *
-   * The promise returned by it never rejects.
+   * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(clusterUri: RootClusterUri): Promise<void> {
+  setActiveWorkspace(
+    clusterUri: RootClusterUri,
+    /**
+     * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
+     * no valid cert. The user will be asked to log in before the workspace is set as active.
+     */
+    prefill?: { clusterAddress: string; username: string }
+  ): Promise<{
+    /**
+     * Determines whether the call to setActiveWorkspace actually succeeded in switching to the
+     * workspace of the given cluster.
+     *
+     * setActiveWorkspace never rejects on its own. However, it may fail to switch to the workspace
+     * if the user closes the cluster connect dialog or if the cluster with the given clusterUri
+     * wasn't found.
+     *
+     * Callsites which don't check this return value were most likely written before this field was
+     * added. They operate with the assumption that by the time the program gets to the
+     * setActiveWorkspace call, the cluster must be in the state and have a valid cert, otherwise an
+     * earlier action within the callsite would have failed.
+     */
+    isAtDesiredWorkspace: boolean;
+  }> {
     const setWorkspace = () => {
       this.setState(draftState => {
         // adding a new workspace
@@ -235,7 +263,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.setState(draftState => {
         draftState.rootClusterUri = undefined;
       });
-      return Promise.resolve();
+      return Promise.resolve({ isAtDesiredWorkspace: true });
     }
 
     const cluster = this.clustersService.findCluster(clusterUri);
@@ -247,7 +275,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.logger.warn(
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
-      return Promise.resolve();
+      return Promise.resolve({ isAtDesiredWorkspace: false });
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -255,8 +283,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         setWorkspace();
         return resolve();
       }
-      this.modalsService.openClusterConnectDialog({
-        clusterUri: clusterUri,
+      this.modalsService.openRegularDialog({
+        kind: 'cluster-connect',
+        clusterUri,
+        reason: undefined,
+        prefill,
         onCancel: () => {
           reject();
         },
@@ -265,13 +296,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           resolve();
         },
       });
-    })
-      .then(() => {
-        return new Promise<void>(resolve => {
+    }).then(
+      () => {
+        return new Promise<{ isAtDesiredWorkspace: boolean }>(resolve => {
           const previousWorkspaceState =
             this.getWorkspace(clusterUri)?.previous;
           if (!previousWorkspaceState) {
-            return resolve();
+            return resolve({ isAtDesiredWorkspace: true });
           }
           const numberOfDocuments = previousWorkspaceState.documents.length;
 
@@ -281,16 +312,17 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             numberOfDocuments,
             onConfirm: () => {
               this.reopenPreviousDocuments(clusterUri);
-              resolve();
+              resolve({ isAtDesiredWorkspace: true });
             },
             onCancel: () => {
               this.discardPreviousDocuments(clusterUri);
-              resolve();
+              resolve({ isAtDesiredWorkspace: true });
             },
           });
         });
-      })
-      .catch(() => undefined); // catch ClusterConnectDialog cancellation
+      },
+      () => ({ isAtDesiredWorkspace: false }) // catch ClusterConnectDialog cancellation
+    );
   }
 
   removeWorkspace(clusterUri: RootClusterUri): void {
@@ -367,6 +399,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           };
         }
 
+        if (d.kind === 'doc.cluster') {
+          const defaultParams = getDefaultDocumentClusterQueryParams();
+          // TODO(gzdunek): this should be parsed by a tool like zod
+          return {
+            ...d,
+            queryParams: {
+              defaultParams,
+              ...d.queryParams,
+              sort: {
+                ...defaultParams.sort,
+                ...d.queryParams?.sort,
+              },
+            },
+          };
+        }
+
         return d;
       });
       workspace.location = workspace.previous.location;
@@ -435,5 +483,5 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 }
 
 export type PendingAccessRequest = {
-  [k in ResourceKind]: Record<string, string>;
+  [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
 };

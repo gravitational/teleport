@@ -1,27 +1,38 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/digitorus/pkcs7"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -31,6 +42,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -223,6 +236,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		PublicSSHKey: publicKey,
 	})
 	require.NoError(t, err)
+	checkCertLoginIP(t, certs.TLS, "127.0.0.1")
 
 	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
 	require.NoError(t, err)
@@ -306,4 +320,171 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, locks)
+}
+
+// TestRegisterBot_RemoteAddr checks that certs returned for bot registration contain specified in the request remote addr.
+func TestRegisterBot_RemoteAddr(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+	a := p.a
+
+	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	require.NoError(t, err)
+
+	roleName := "test-role"
+	_, err = CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	botName := "botty"
+	_, err = a.createBot(ctx, &proto.CreateBotRequest{
+		Name:  botName,
+		Roles: []string{roleName},
+	})
+	require.NoError(t, err)
+
+	remoteAddr := "42.42.42.42:42"
+
+	t.Run("IAM method", func(t *testing.T) {
+		a.httpClientForAWSSTS = &mockClient{
+			respStatusCode: http.StatusOK,
+			respBody: responseFromAWSIdentity(awsIdentity{
+				Account: "1234",
+				Arn:     "arn:aws::1111",
+			}),
+		}
+
+		// add token to auth server
+		awsTokenName := "aws-test-token"
+		awsToken, err := types.NewProvisionTokenFromSpec(
+			awsTokenName,
+			time.Now().Add(time.Minute),
+			types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleBot},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				BotName:    botName,
+				JoinMethod: types.JoinMethodIAM,
+			})
+		require.NoError(t, err)
+		require.NoError(t, a.UpsertToken(ctx, awsToken))
+
+		certs, err := a.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+			templateInput := defaultIdentityRequestTemplateInput(challenge)
+			var identityRequest bytes.Buffer
+			require.NoError(t, identityRequestTemplate.Execute(&identityRequest, templateInput))
+
+			req := &proto.RegisterUsingIAMMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+					Token:        awsTokenName,
+					HostID:       "test-bot",
+					Role:         types.RoleBot,
+					PublicSSHKey: sshPublicKey,
+					PublicTLSKey: tlsPublicKey,
+					RemoteAddr:   "42.42.42.42:42",
+				},
+				StsIdentityRequest: identityRequest.Bytes(),
+			}
+			return req, nil
+		})
+		require.NoError(t, err)
+		checkCertLoginIP(t, certs.TLS, remoteAddr)
+	})
+
+	t.Run("Azure method", func(t *testing.T) {
+		subID := uuid.NewString()
+		resourceGroup := "rg"
+		rsID := resourceID(subID, resourceGroup, "test-vm")
+		vmID := "vmID"
+
+		accessToken, err := makeToken(rsID, a.clock.Now())
+		require.NoError(t, err)
+
+		// add token to auth server
+		azureTokenName := "azure-test-token"
+		azureToken, err := types.NewProvisionTokenFromSpec(
+			azureTokenName,
+			time.Now().Add(time.Minute),
+			types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleBot},
+				Azure:      &types.ProvisionTokenSpecV2Azure{Allow: []*types.ProvisionTokenSpecV2Azure_Rule{{Subscription: subID}}},
+				BotName:    botName,
+				JoinMethod: types.JoinMethodAzure,
+			})
+		require.NoError(t, err)
+		require.NoError(t, a.UpsertToken(ctx, azureToken))
+
+		vmClient := &mockAzureVMClient{vm: &azure.VirtualMachine{
+			ID:            rsID,
+			Name:          "test-vm",
+			Subscription:  subID,
+			ResourceGroup: resourceGroup,
+			VMID:          vmID,
+		}}
+
+		tlsConfig, err := fixtures.LocalTLSConfig()
+		require.NoError(t, err)
+
+		block, _ := pem.Decode(fixtures.LocalhostKey)
+		pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		require.NoError(t, err)
+
+		certs, err := a.RegisterUsingAzureMethod(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			ad := attestedData{
+				Nonce:          challenge,
+				SubscriptionID: subID,
+				ID:             vmID,
+			}
+			adBytes, err := json.Marshal(&ad)
+			require.NoError(t, err)
+			s, err := pkcs7.NewSignedData(adBytes)
+			require.NoError(t, err)
+			require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
+			signature, err := s.Finish()
+			require.NoError(t, err)
+			signedAD := signedAttestedData{
+				Encoding:  "pkcs7",
+				Signature: base64.StdEncoding.EncodeToString(signature),
+			}
+			signedADBytes, err := json.Marshal(&signedAD)
+			require.NoError(t, err)
+
+			req := &proto.RegisterUsingAzureMethodRequest{
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+					Token:        azureTokenName,
+					HostID:       "test-node",
+					Role:         types.RoleBot,
+					PublicSSHKey: sshPublicKey,
+					PublicTLSKey: tlsPublicKey,
+					RemoteAddr:   remoteAddr,
+				},
+				AttestedData: signedADBytes,
+				AccessToken:  accessToken,
+			}
+			return req, nil
+		}, withCerts([]*x509.Certificate{tlsConfig.Certificate}), withVerifyFunc(mockVerifyToken(nil)), withVMClient(vmClient))
+		require.NoError(t, err)
+		checkCertLoginIP(t, certs.TLS, remoteAddr)
+	})
+}
+
+func checkCertLoginIP(t *testing.T, certBytes []byte, loginIP string) {
+	t.Helper()
+
+	cert, err := tlsca.ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(identity.LoginIP, loginIP))
 }

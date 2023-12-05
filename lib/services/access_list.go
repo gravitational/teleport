@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -25,6 +27,7 @@ import (
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -210,11 +213,42 @@ func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessLis
 	return nil
 }
 
+// AccessListMembershipChecker will check if users are members of an access list and
+// makes sure the user is not locked and meets membership requirements.
+type AccessListMembershipChecker struct {
+	members AccessListMembersGetter
+	locks   LockGetter
+	clock   clockwork.Clock
+}
+
+// NewAccessListMembershipChecker will create a new access list membership checker.
+func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListMembersGetter, locks LockGetter) *AccessListMembershipChecker {
+	return &AccessListMembershipChecker{
+		members: members,
+		locks:   locks,
+		clock:   clock,
+	}
+}
+
 // IsAccessListMember will return true if the user is a member for the current list.
-func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, memberGetter AccessListMembersGetter) error {
+func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	username := identity.Username
 
-	member, err := memberGetter.GetAccessListMember(ctx, accessList.GetName(), username)
+	// Allow for nil locks while we transition away from using `IsAccessListMember` outside of this struct.
+	if a.locks != nil {
+		locks, err := a.locks.GetLocks(ctx, true, types.LockTarget{
+			User: username,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(locks) > 0 {
+			return trace.AccessDenied("user %s is currently locked", username)
+		}
+	}
+
+	member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
 	if trace.IsNotFound(err) {
 		// The member has not been found, so we know they're not a member of this list.
 		return trace.NotFound("user %s is not a member of the access list", username)
@@ -223,19 +257,26 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 		return trace.Wrap(err)
 	}
 
-	expires := member.Spec.Expires
-	if expires.IsZero() {
-		return nil
-	}
-
-	if !clock.Now().Before(expires) {
-		return trace.AccessDenied("user %s's membership has expired in the access list", username)
-	}
-
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
 		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
 	}
+
+	if !member.Spec.Expires.IsZero() && !a.clock.Now().Before(member.Spec.Expires) {
+		return trace.AccessDenied("user %s's membership has expired in the access list", username)
+	}
+
 	return nil
+}
+
+// TODO(mdwn): Remove this in favor of using the access list membership checker.
+func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListMembersGetter) error {
+	// See if the member getter also implements lock getter. If so, use it. Otherwise, nil is fine.
+	lockGetter, _ := members.(LockGetter)
+	return AccessListMembershipChecker{
+		members: members,
+		locks:   lockGetter,
+		clock:   clock,
+	}.IsAccessListMember(ctx, identity, accessList)
 }
 
 // UserMeetsRequirements will return true if the user meets the requirements for the access list.

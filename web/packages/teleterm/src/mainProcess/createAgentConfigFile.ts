@@ -1,54 +1,56 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { access, rm } from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import path from 'node:path';
+
+import * as connectMyComputer from 'shared/connectMyComputer';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
-import type * as tsh from 'teleterm/services/tshd/types';
-
-export interface AgentConfigFileClusterProperties {
+export interface CreateAgentConfigFileArgs {
   rootClusterUri: RootClusterUri;
   proxy: string;
   token: string;
-  labels: tsh.Label[];
+  username: string;
 }
 
 export async function createAgentConfigFile(
   runtimeSettings: RuntimeSettings,
-  clusterProperties: AgentConfigFileClusterProperties
+  args: CreateAgentConfigFileArgs
 ): Promise<void> {
   const asyncExecFile = promisify(execFile);
   const { configFile, dataDirectory } = generateAgentConfigPaths(
     runtimeSettings,
-    clusterProperties.rootClusterUri
+    args.rootClusterUri
   );
 
   // remove the config file if exists
-  try {
-    await rm(configFile);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      throw e;
-    }
-  }
+  await fs.rm(configFile, { force: true });
+
+  const labels = Object.entries({
+    [connectMyComputer.NodeOwnerLabel]: args.username,
+  })
+    .map(keyAndValue => keyAndValue.join('='))
+    .join(',');
 
   await asyncExecFile(
     runtimeSettings.agentBinaryPath,
@@ -57,9 +59,9 @@ export async function createAgentConfigFile(
       'configure',
       `--output=${configFile}`,
       `--data-dir=${dataDirectory}`,
-      `--proxy=${clusterProperties.proxy}`,
-      `--token=${clusterProperties.token}`,
-      `--labels=${clusterProperties.labels.map(toNameAndValue).join(',')}`,
+      `--proxy=${args.proxy}`,
+      `--token=${args.token}`,
+      `--labels=${labels}`,
     ],
     {
       timeout: 10_000, // 10 seconds
@@ -76,7 +78,7 @@ export async function removeAgentDirectory(
     rootClusterUri
   );
   // `force` ignores exceptions if path does not exist
-  await rm(agentDirectory, { recursive: true, force: true });
+  await fs.rm(agentDirectory, { recursive: true, force: true });
 }
 
 export async function isAgentConfigFileCreated(
@@ -88,7 +90,7 @@ export async function isAgentConfigFileCreated(
     rootClusterUri
   );
   try {
-    await access(configFile);
+    await fs.access(configFile);
     return true;
   } catch (e) {
     if (e.code === 'ENOENT') {
@@ -160,8 +162,4 @@ function getAgentDirectoryOrThrow(
     throw new Error(`The agent config path is incorrect: ${resolved}`);
   }
   return resolved;
-}
-
-function toNameAndValue(label: tsh.Label): string {
-  return `${label.name}=${label.value}`;
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package forward
 
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -179,12 +182,19 @@ type Server struct {
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
-	AuthClient      auth.ClientI
-	UserAgent       teleagent.Agent
-	TargetConn      net.Conn
-	SrcAddr         net.Addr
-	DstAddr         net.Addr
-	HostCertificate ssh.Signer
+	// LocalAuthClient is a client that provides access to this local cluster.
+	// This is used for actions that should always happen on the local cluster
+	// and not remote clusters, such as session recording.
+	LocalAuthClient auth.ClientI
+	// TargetClusterAccessPoint is a client that provides access to the cluster
+	// of the server being connected to, whether it is the local cluster or a
+	// remote cluster.
+	TargetClusterAccessPoint srv.AccessPoint
+	UserAgent                teleagent.Agent
+	TargetConn               net.Conn
+	SrcAddr                  net.Addr
+	DstAddr                  net.Addr
+	HostCertificate          ssh.Signer
 
 	// AgentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
@@ -250,8 +260,11 @@ type ServerConfig struct {
 
 // CheckDefaults makes sure all required parameters are passed in.
 func (s *ServerConfig) CheckDefaults() error {
-	if s.AuthClient == nil {
-		return trace.BadParameter("auth client required")
+	if s.LocalAuthClient == nil {
+		return trace.BadParameter("local auth client required")
+	}
+	if s.TargetClusterAccessPoint == nil {
+		return trace.BadParameter("target cluster access point client required")
 	}
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
@@ -332,8 +345,8 @@ func New(c ServerConfig) (*Server, error) {
 		hostCertificate: c.HostCertificate,
 		useTunnel:       c.UseTunnel,
 		address:         c.Address,
-		authClient:      c.AuthClient,
-		authService:     c.AuthClient,
+		authClient:      c.LocalAuthClient,
+		authService:     c.LocalAuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
@@ -366,7 +379,7 @@ func New(c ServerConfig) (*Server, error) {
 		Server:       s,
 		Component:    teleport.ComponentForwardingNode,
 		Emitter:      c.Emitter,
-		AccessPoint:  c.AuthClient,
+		AccessPoint:  c.TargetClusterAccessPoint,
 		TargetServer: c.TargetServer,
 		FIPS:         c.FIPS,
 		Clock:        c.Clock,
@@ -657,7 +670,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := awsoidc.IssuerForCluster(ctx, s.authClient)
+	issuer, err := oidc.IssuerForCluster(ctx, s.authClient)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get issuer %v", err)
 	}
