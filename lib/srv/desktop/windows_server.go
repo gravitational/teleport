@@ -795,8 +795,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	if len(desktops) == 0 {
-		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
-			desktopName)
+		log.Errorf("desktop %v/%v not found", s.cfg.Heartbeat.HostUUID, desktopName)
 		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
@@ -826,6 +825,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	addr, err := utils.ParseHostPortAddr(desktop.GetAddr(), defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -903,7 +907,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
 		CertTTL:               windows.CertTTL,
-		Addr:                  desktop.GetAddr(),
+		Addr:                  addr.String(),
 		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
