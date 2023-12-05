@@ -19,8 +19,11 @@
 package automaticupgrades
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -31,6 +34,9 @@ const (
 
 	// automaticUpgradesChannelEnvar defines a customer automatic upgrades version release channel.
 	automaticUpgradesChannelEnvar = "TELEPORT_AUTOMATIC_UPGRADES_CHANNEL"
+
+	// teleportUpgradeScript defines the default teleport-upgrade script path
+	teleportUpgradeScript = "/usr/sbin/teleport-upgrade"
 )
 
 // IsEnabled reads the TELEPORT_AUTOMATIC_UPGRADES and returns whether Automatic Upgrades are enabled or disabled.
@@ -57,4 +63,19 @@ func IsEnabled() bool {
 // https://updates.releases.teleport.dev/v1/stable/cloud
 func GetChannel() string {
 	return os.Getenv(automaticUpgradesChannelEnvar)
+}
+
+// GetUpgraderVersion returns the teleport upgrader version
+func GetUpgraderVersion(ctx context.Context) string {
+	if os.Getenv("TELEPORT_EXT_UPGRADER") == "unit" {
+		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
+		if err != nil {
+			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
+		} else {
+			if version := strings.TrimSpace(string(out)); version != "" {
+				return version
+			}
+		}
+	}
+	return os.Getenv("TELEPORT_EXT_UPGRADER_VERSION")
 }
