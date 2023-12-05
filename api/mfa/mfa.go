@@ -128,6 +128,9 @@ func MFAResponseFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse
 		if !ok {
 			return nil, trace.BadParameter("unexpected context value type %T", val)
 		}
+		if mfaResp == nil {
+			return nil, trace.NotFound("mfa response not found in the context")
+		}
 		return mfaResp, nil
 	}
 	return nil, trace.NotFound("mfa response not found in the context")
