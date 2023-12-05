@@ -54,13 +54,10 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         // If the device announce for the smart card failed, return an error that will end the session.
         // Authentication is impossible without a smart card.
         if pdu.device_id == SCARD_DEVICE_ID && pdu.result_code != NtStatus::SUCCESS {
-            return Err(custom_err!(
-                "TeleportRdpdrBackend::handle_server_device_announce_response",
-                TeleportRdpdrBackendError(format!(
-                    "ServerDeviceAnnounceResponse for smartcard failed with NtStatus: {:?}",
-                    pdu.result_code
-                ))
-            ));
+            return Err(custom_err!(TeleportRdpdrBackendError(format!(
+                "ServerDeviceAnnounceResponse for smartcard failed with NtStatus: {:?}",
+                pdu.result_code
+            ))));
         }
 
         // If the device announce is not for a smart card, assume it's for a directory
@@ -87,13 +84,9 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         if self.allow_directory_sharing {
             self.fs.handle_rdp_drive_io_request(req)
         } else {
-            Err(custom_err!(
-                "TeleportRdpdrBackend::handle_drive_io_request",
-                TeleportRdpdrBackendError(
-                    "Received a directory sharing PDU but directory sharing is not enabled"
-                        .to_string()
-                )
-            ))
+            Err(custom_err!(TeleportRdpdrBackendError(
+                "Received a directory sharing PDU but directory sharing is not enabled".to_string()
+            )))
         }
     }
 }
