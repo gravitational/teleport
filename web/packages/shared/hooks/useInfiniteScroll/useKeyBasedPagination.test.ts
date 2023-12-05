@@ -385,3 +385,26 @@ test("doesn't get confused if aborting a request still results in a successful p
   await act(async () => Promise.all([f1, f2]));
   expect(resourceNames(result)).toEqual(['rabbit0']);
 });
+
+test('fetch() calculates new state from the fresh state', async () => {
+  let props = hookProps({
+    fetchFunc: newFetchFunc({
+      search: 'rabbit',
+      numResources: 1,
+      newAbortError: () => null,
+    }),
+  });
+  const { result } = renderHook(useKeyBasedPagination, {
+    initialProps: props,
+  });
+  await act(result.current.fetch);
+  expect(resourceNames(result)).toEqual(['rabbit0']);
+  await act(async () => {
+    // Because `fetch` calculates the new state based on a fresh state,
+    // we can safely call these two functions one after another,
+    // without the risk of `fetch` operating on the stale state.
+    result.current.clear();
+    await result.current.fetch({ force: true });
+  });
+  expect(resourceNames(result)).toEqual(['rabbit0']);
+});
