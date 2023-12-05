@@ -141,6 +141,16 @@ To access the target EKS cluster in API mode, we will generate an access token u
 That token will grant access to the `system:masters` group, so the Helm chart installation will be able to set up
 all the required infrastructure for the Teleport kube agent, including service accounts.
 
+### Plan of implementation
+
+Implementation will be done in three main steps:
+
+1. Introducing a UI flow for the enrollment of selected EKS clusters using AWS CloudShell.
+2. Adding API-only enrollment for selected EKS clusters with the use of an associated OIDC identity provider.
+3. Adding the capability to set up automatic discovery and enrollment of EKS clusters.
+
+Each of these steps is functionally complete and allows building upon it to implement the next step.
+
 ## Product Usage
 
 We will add a new PostHog event to track the usage of the Discover flow for EKS.
