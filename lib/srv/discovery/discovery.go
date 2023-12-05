@@ -386,37 +386,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
-		matcherAssumeRole := &types.AssumeRole{}
+		matcherAssumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
-			matcherAssumeRole = matcher.AssumeRole
+			matcherAssumeRole = *matcher.AssumeRole
 		}
 
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
 				case types.AWSMatcherEKS:
-					client, err := s.CloudClients.GetAWSEKSClient(
-						s.ctx,
-						region,
-						cloud.WithAssumeRole(
-							matcherAssumeRole.RoleARN,
-							matcherAssumeRole.ExternalID,
-						),
-						cloud.WithAmbientCredentials(),
-					)
+					fetcher, err := s.getEKSFetcher(region, matcherAssumeRole, matcher.Tags)
 					if err != nil {
-						return trace.Wrap(err)
-					}
-					fetcher, err := fetchers.NewEKSFetcher(
-						fetchers.EKSFetcherConfig{
-							Client:       client,
-							Region:       region,
-							FilterLabels: matcher.Tags,
-							Log:          s.Log,
-						},
-					)
-					if err != nil {
-						return trace.Wrap(err)
+						s.Log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
+						continue
 					}
 					s.kubeFetchers = append(s.kubeFetchers, fetcher)
 				}
@@ -425,6 +407,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	}
 
 	return nil
+}
+
+func (s *Server) getEKSFetcher(region string, assumeRole types.AssumeRole, tags types.Labels) (common.Fetcher, error) {
+	fetcher, err := fetchers.NewEKSFetcher(
+		fetchers.EKSFetcherConfig{
+			EKSClientGetter: s.CloudClients,
+			AssumeRole:      assumeRole,
+			Region:          region,
+			FilterLabels:    tags,
+			Log:             s.Log,
+		},
+	)
+	return fetcher, trace.Wrap(err)
 }
 
 func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
