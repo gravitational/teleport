@@ -1013,7 +1013,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.20.11
+  RUNTIME: go1.20.12
 trigger:
   event:
     include:
@@ -1222,7 +1222,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.20.11
+  RUNTIME: go1.20.12
 trigger:
   event:
     include:
@@ -1430,7 +1430,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.20.11
+  RUNTIME: go1.20.12
 trigger:
   event:
     include:
@@ -1645,7 +1645,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.20.11
+  RUNTIME: go1.20.12
 trigger:
   event:
     include:
@@ -2945,7 +2945,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.20.11
+  RUNTIME: go1.20.12
 trigger:
   event:
     include:
@@ -3771,7 +3771,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport12
-  RUNTIME: go1.20.11
+  RUNTIME: go1.20.12
 trigger:
   event:
     include:
@@ -19264,6 +19264,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c94d544ca9f9fe4fc75e90f0c46dc20f3f1030d242c541f4cab4b2066a078892
+hmac: bc1d914fc32bcd68597f22fe1be6568fc9f718b5dfcecde022f7a69ba6b27a62
 
 ...
