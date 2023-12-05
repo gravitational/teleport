@@ -5,8 +5,10 @@ description: Configure automatic user provisioning for MongoDB.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
-- Teleport cluster v14.3 or above with a configured [self-hosted
-  MongoDB](../guides/mongodb-self-hosted.mdx).
+- Teleport cluster v14.3 or above.
+- A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
+  the [Teleport documentation](../guides/mongodb-self-hosted.mdx) to learn how
+  to enroll your database.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">
@@ -23,6 +25,7 @@ grant them privileges. The admin user must also have privileges to monitor user
 connections.
 
 First create a role on `admin` database with the following privileges:
+
 ```bash
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
@@ -35,7 +38,7 @@ db.getSiblingDB("admin").runCommand({
 })
 ```
 
-<Details title="Limit grantRole action to specific databases">
+<Details title="Limit the grantRole action to specific databases">
 In the above example, the `grantRole` privilege is granted to the admin user
 for all databases in order for the admin user to assign roles from all
 databases, including the `admin` database.
@@ -61,6 +64,7 @@ db.getSiblingDB("admin").runCommand({
 </Details>
 
 Now create the admin user with this role:
+
 ```bash
 db.getSiblingDB("$external").runCommand({
   createUser: "CN=teleport-admin",
@@ -71,7 +75,7 @@ db.getSiblingDB("$external").runCommand({
 (!docs/pages/includes/database-access/auto-user-provisioning/db-definition-self-hosted.mdx protocol="mongodb" uri="localhost:27017"!)
 
 
-## Step 2/3. Configure Teleport role
+## Step 2/3. Configure a Teleport role
 
 To specify the database roles a user should be assigned within the database,
 use the `db_roles` role option:
@@ -105,8 +109,8 @@ spec:
 
 Users created within the database will:
 
-- Have the same name as Teleport username.
-- Have `teleport-auto-user` set to `true` in user's `customData`.
+- Have the same username as the authenticated Teleport user.
+- Have `teleport-auto-user` set to `true` in the user's `customData`.
 - Be assigned all roles from the Teleport user's role set that match the database.
   The role names must be valid and exist in the database.
 
