@@ -20,7 +20,7 @@ import teleport from 'design/assets/images/icons/teleport.png';
 
 import { useTeleport } from 'teleport';
 
-export const TeleportImage = styled.div<{ backgroundImage: string }>`
+export const TeleportImage = styled.div`
   background: url(${teleport}) no-repeat;
   width: 22px;
   height: 22px;

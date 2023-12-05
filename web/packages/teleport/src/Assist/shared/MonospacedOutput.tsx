@@ -16,7 +16,7 @@
 
 import styled from 'styled-components';
 
-export const MonospacedOutput = styled.pre.attrs({
+export const MonospacedOutput = styled.pre.attrs<{ 'data-scrollbar'?: string }>({
   'data-scrollbar': 'default',
 })`
   background: #161b22;

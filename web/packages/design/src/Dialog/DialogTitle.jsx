@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import Text from './../Text';
+import Text from '../Text';
 
 export default function DialogTitle(props) {
   return <Text typography="h3" color="text.main" caps {...props} />;

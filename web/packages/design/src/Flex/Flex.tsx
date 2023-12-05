@@ -16,18 +16,23 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import {
-  alignItems,
-  justifyContent,
-  flexWrap,
-  flexDirection,
-  gap,
-  propTypes,
-} from 'design/system';
+import { AlignItemsProps, FlexDirectionProps, FlexWrapProps, JustifyContentProps } from 'styled-system';
+
+import { alignItems, flexDirection, flexWrap, gap, justifyContent } from 'design/system';
+
+import { BoxProps } from 'design/Box/Box';
+import { GapProps } from 'design/system/gap';
 
 import Box from '../Box';
 
-const Flex = styled(Box)`
+export type FlexProps = AlignItemsProps &
+  JustifyContentProps &
+  FlexWrapProps &
+  FlexDirectionProps &
+  GapProps &
+  BoxProps;
+
+const Flex = styled(Box)<FlexProps>`
   display: flex;
   ${alignItems}
   ${justifyContent}
@@ -35,15 +40,6 @@ const Flex = styled(Box)`
   ${flexDirection}
   ${gap};
 `;
-
-Flex.propTypes = {
-  ...propTypes.Box,
-  ...propTypes.alignItems,
-  ...propTypes.justifyContent,
-  ...propTypes.flexWrap,
-  ...propTypes.flexDirection,
-  ...propTypes.gap,
-};
 
 Flex.displayName = 'Flex';
 

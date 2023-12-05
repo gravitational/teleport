@@ -76,7 +76,6 @@ export function TabItem(props: TabItemProps) {
         ref={ref}
         active={active}
         dragging={isDragging}
-        canDrag={canDrag}
         title={name}
       >
         <Title color="inherit" fontWeight={700} fontSize="12px">
@@ -135,7 +134,7 @@ const RelativeContainer = styled.div`
   height: 100%;
 `;
 
-const TabContent = styled.div`
+const TabContent = styled.div<{ active: boolean, dragging?: boolean }>`
   display: flex;
   z-index: 1; // covers shadow from the top
   align-items: center;

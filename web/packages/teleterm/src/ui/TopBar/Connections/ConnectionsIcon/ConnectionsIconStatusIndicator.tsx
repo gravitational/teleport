@@ -20,10 +20,10 @@ import { Box } from 'design';
 
 export const ConnectionsIconStatusIndicator: React.FC<Props> = props => {
   const { connected, ...styles } = props;
-  return <StyledStatus $connected={connected} {...styles} />;
+  return <StyledStatus connected={connected} {...styles} />;
 };
 
-const StyledStatus = styled<Props>(Box)`
+const StyledStatus = styled(Box)<Props>`
   position: absolute;
   top: -4px;
   right: -4px;
@@ -33,9 +33,9 @@ const StyledStatus = styled<Props>(Box)`
   border-radius: 50%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   ${props => {
-    const { $connected, theme } = props;
-    const backgroundColor = $connected ? theme.colors.success : null;
-    const border = $connected
+    const { connected, theme } = props;
+    const backgroundColor = connected ? theme.colors.success : null;
+    const border = connected
       ? null
       : `1px solid ${theme.colors.text.slightlyMuted}`;
     return {

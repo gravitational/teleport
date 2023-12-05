@@ -87,7 +87,7 @@ const Wrapper = styled.div`
   position: relative;
 `;
 
-const TabLabel = styled.label`
+const TabLabel = styled.label<{ itemCount: number }>`
   cursor: pointer;
   display: flex;
   justify-content: center;
@@ -100,7 +100,14 @@ const TabInput = styled.input`
   display: none;
 `;
 
-const TabSlider = styled.div`
+interface TabSliderProps {
+  appearance: 'square' | 'round';
+  activeIndex: number;
+  itemCount: number;
+  size: 'xlarge' | 'medium';
+}
+
+const TabSlider = styled.div<TabSliderProps>`
   background-color: ${({ theme }) => theme.colors.brand};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
@@ -114,7 +121,7 @@ const TabSlider = styled.div`
   width: calc(${props => 100 / props.itemCount}% - 16px);
 `;
 
-const TabNav = styled.nav`
+const TabNav = styled.nav<Pick<TabSliderProps, 'appearance' | 'size'>>`
   align-items: center;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
@@ -122,6 +129,7 @@ const TabNav = styled.nav`
   height: ${props => (props.size === 'xlarge' ? '80px' : '47px')};
   justify-content: space-around;
   color: ${props => props.theme.colors.text.main};
+
   .selected {
     color: ${props => props.theme.colors.text.primaryInverse};
     transition: color 0.2s ease-in 0s;

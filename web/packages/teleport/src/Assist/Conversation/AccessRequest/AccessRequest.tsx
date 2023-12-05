@@ -48,7 +48,7 @@ const Container = styled.div`
   padding: 15px 15px 15px 17px;
 `;
 
-const StyledInput = styled.input<{ hasError: boolean }>`
+const StyledInput = styled.input<{ hasError?: boolean }>`
   border: 1px solid
     ${p =>
       p.hasError

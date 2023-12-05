@@ -62,7 +62,7 @@ export function Tabs(props: Props) {
   );
 
   return (
-    <StyledTabs as="nav" typography="h5" bold {...styledProps}>
+    <StyledTabs as="nav" {...styledProps}>
       {$items}
       <NewTabItem tooltip={newTabTooltip} onClick={onNew} />
     </StyledTabs>

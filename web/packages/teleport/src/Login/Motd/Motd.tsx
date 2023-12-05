@@ -31,7 +31,6 @@ export function Motd({ message, onClick }: Props) {
           mt={3}
           size="large"
           onClick={onClick}
-          align="center"
         >
           Acknowledge
         </ButtonPrimary>

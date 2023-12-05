@@ -52,7 +52,7 @@ const DimmedBackground = styled.div`
   background: rgba(0, 0, 0, 0.3);
 `;
 
-const ViewModeContainer = styled.div`
+const ViewModeContainer = styled.div<{ active: boolean }>`
   color: ${p =>
     p.active
       ? p.theme.colors.buttons.primary.default
@@ -84,7 +84,7 @@ const Chat = styled.div`
   padding: 5px;
 `;
 
-const Message = styled.div`
+const Message = styled.div<{ author: string }>`
   height: 6px;
   flex: 0 0 6px;
   margin-bottom: 5px;

@@ -14,21 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
 import styled from 'styled-components';
-import { bool, string } from 'prop-types';
 
-import { space, width, height, alignSelf, gap } from 'design/system';
+import { AlignSelfProps, HeightProps, SpaceProps, WidthProps } from 'styled-system';
 
-const Button = ({ children, setRef, ...props }) => {
-  return (
-    <StyledButton {...props} ref={setRef}>
-      {children}
-    </StyledButton>
-  );
-};
+import { ExecutionProps } from 'styled-components/dist/types';
 
-const size = props => {
+import { alignSelf, gap, height, space, width } from 'design/system';
+import { GapProps } from 'design/system/gap';
+
+interface SizeProps {
+  size?: 'small' | 'medium' | 'large';
+}
+
+const size = (props: SizeProps) => {
   switch (props.size) {
     case 'small':
       return {
@@ -52,7 +51,7 @@ const size = props => {
   }
 };
 
-const themedStyles = props => {
+const themedStyles = (props: ExecutionProps & ButtonProps) => {
   const { colors } = props.theme;
   const { kind } = props;
 
@@ -60,9 +59,16 @@ const themedStyles = props => {
     background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
     color: colors.buttons.textDisabled,
     cursor: 'auto',
+    pointerEvents: null,
   };
 
-  let style = {
+  let style:
+    | {
+        '&:disabled': typeof disabledStyle;
+      }
+    | {
+        '&[disabled]': typeof disabledStyle;
+      } = {
     '&:disabled': disabledStyle,
   };
 
@@ -92,7 +98,7 @@ const themedStyles = props => {
   };
 };
 
-export const kinds = props => {
+export const kinds = (props: ExecutionProps & ButtonProps) => {
   const { kind, theme } = props;
   switch (kind) {
     case 'secondary':
@@ -154,17 +160,40 @@ export const kinds = props => {
   }
 };
 
-const block = props =>
+export interface BlockProps {
+  block?: boolean;
+}
+
+const block = (props: BlockProps) =>
   props.block
     ? {
         width: '100%',
       }
     : null;
 
-const textTransform = props =>
+export interface TextTransformProps {
+  textTransform?: string;
+}
+
+const textTransform = (props: TextTransformProps) =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
-const StyledButton = styled.button`
+interface ButtonBaseProps {
+  kind?: 'primary' | 'secondary' | 'border' | 'warning' | 'text';
+  disabled?: boolean;
+}
+
+export type ButtonProps = ButtonBaseProps &
+  SizeProps &
+  SpaceProps &
+  WidthProps &
+  BlockProps &
+  HeightProps &
+  TextTransformProps &
+  AlignSelfProps &
+  GapProps;
+
+const Button = styled.button<ButtonProps>`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -187,43 +216,6 @@ const StyledButton = styled.button`
   ${themedStyles}
 `;
 
-Button.propTypes = {
-  /**
-   * block specifies if an element's display is set to block or not.
-   * Set to true to set display to block.
-   */
-  block: bool,
-
-  /**
-   * kind specifies the styling a button takes.
-   * Select from primary (default), secondary, warning.
-   */
-  kind: string,
-
-  /**
-   * size specifies the size of button.
-   * Select from small, medium (default), large
-   */
-  size: string,
-
-  /**
-   * textTransform specifies the case transform of the button text.
-   * default is UPPERCASE
-   *
-   * TODO (avatus): eventually, we will move away from every button being
-   * uppercase and this probably won't be needed anymore. This is a temporary
-   * fix before we audit the whole site and migrate
-   */
-  textTransform: string,
-
-  /**
-   * styled-system
-   */
-  ...space.propTypes,
-  ...height.propTypes,
-  ...alignSelf.propTypes,
-};
-
 Button.defaultProps = {
   size: 'medium',
   kind: 'primary',
@@ -232,8 +224,19 @@ Button.defaultProps = {
 Button.displayName = 'Button';
 
 export default Button;
-export const ButtonPrimary = props => <Button kind="primary" {...props} />;
-export const ButtonSecondary = props => <Button kind="secondary" {...props} />;
-export const ButtonBorder = props => <Button kind="border" {...props} />;
-export const ButtonWarning = props => <Button kind="warning" {...props} />;
-export const ButtonText = props => <Button kind="text" {...props} />;
+
+export const ButtonPrimary = styled(Button).attrs({ kind: 'primary' })<
+  Omit<ButtonProps, 'kind'>
+>``;
+export const ButtonSecondary = styled(Button).attrs({ kind: 'secondary' })<
+  Omit<ButtonProps, 'kind'>
+>``;
+export const ButtonBorder = styled(Button).attrs({ kind: 'border' })<
+  Omit<ButtonProps, 'kind'>
+>``;
+export const ButtonWarning = styled(Button).attrs({ kind: 'warning' })<
+  Omit<ButtonProps, 'kind'>
+>``;
+export const ButtonText = styled(Button).attrs({ kind: 'text' })<
+  Omit<ButtonProps, 'kind'>
+>``;

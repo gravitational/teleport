@@ -19,7 +19,7 @@ import { configure } from '@storybook/react';
 import { addDecorator } from '@storybook/react';
 import theme from './../../theme';
 import ThemeProvider from '../ThemeProvider';
-import Box from './../Box';
+import Box from '../Box';
 
 const ThemeDecorator = storyFn => (
   <ThemeProvider theme={theme}>

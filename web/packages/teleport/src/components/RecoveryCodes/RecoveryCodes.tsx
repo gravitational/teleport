@@ -74,8 +74,10 @@ export default function RecoveryCodesDialog({
   return (
     <PrintWrapper>
       <Card
-        as={Flex}
-        flexWrap="wrap"
+        css={`
+          display: flex;
+          flex-wrap: wrap;
+        `}
         mx="auto"
         minWidth="584px"
         maxWidth="1024px"
@@ -199,9 +201,11 @@ const PrintWrapper = styled(Box)`
     .print-only {
       visibility: visible;
     }
+
     .no-print {
       visibility: hidden;
     }
+
     .codes {
       font-size: 16px;
     }

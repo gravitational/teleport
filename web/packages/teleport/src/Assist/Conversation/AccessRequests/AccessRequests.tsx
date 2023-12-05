@@ -47,7 +47,7 @@ const ExpandButton = styled.button`
   text-shadow: 0 0 2px black;
 `;
 
-const Container = styled.div`
+const Container = styled.div<{ expanded: boolean }>`
   padding: 10px 15px;
   width: 100%;
   box-sizing: border-box;

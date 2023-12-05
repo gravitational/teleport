@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { CSSProperties } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { space, width, color, height } from 'styled-system';
 
@@ -59,8 +59,10 @@ export const TextArea: React.FC<TextAreaProps> = styled.textarea`
     color: ${props => props.theme.colors.text.disabled};
     border-color: ${props => props.theme.colors.text.disabled};
   }
+  
+  resize: ${props => (props.resizable ? 'vertical' : 'none')};
 
-  ${color} ${space} ${width} ${height} ${error} ${resize};
+  ${color} ${space} ${width} ${height} ${error}
 `;
 
 function error({
@@ -79,10 +81,4 @@ function error({
       border: `2px solid ${theme.colors.error.main}`,
     },
   };
-}
-
-function resize({
-  resizable,
-}: Pick<TextAreaProps, 'resizable'>): CSSProperties {
-  return { resize: resizable ? 'vertical' : 'none' };
 }

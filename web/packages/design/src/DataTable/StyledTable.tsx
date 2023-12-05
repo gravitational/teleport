@@ -19,8 +19,9 @@ import styled from 'styled-components';
 import { space, borderRadius } from 'design/system';
 
 import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
+import { BorderRadiusProps, SpaceProps } from 'styled-system';
 
-export const StyledTable = styled.table(
+export const StyledTable = styled.table<BorderRadiusProps & SpaceProps>(
   props => `
   background: ${props.theme.colors.levels.surface};
   border-collapse: collapse;
@@ -100,7 +101,7 @@ function getSolidRowBorderColor(theme) {
   return emphasize(theme.colors.levels.surface, alpha);
 }
 
-export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
+export const StyledPanel = styled.nav<{ showTopBorder?: boolean } & BorderRadiusProps>`
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -108,14 +109,14 @@ export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
   align-items: center;
   justify-content: space-between;
   background: ${props => props.theme.colors.levels.surface};
-  ${borderRadius}
+  ${borderRadius};
   border-top: ${props =>
     props.showTopBorder
       ? '1px solid ' + props.theme.colors.spotBackground[0]
       : undefined};
 `;
 
-export const StyledTableWrapper = styled.div`
+export const StyledTableWrapper = styled.div<BorderRadiusProps>`
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
   ${borderRadius}

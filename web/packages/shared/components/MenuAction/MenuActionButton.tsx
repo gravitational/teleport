@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { PropsWithChildren } from 'react';
+import React, { createRef, PropsWithChildren } from 'react';
 import Menu from 'design/Menu';
 import { ButtonBorder } from 'design';
 import { ChevronDown } from 'design/Icon';
@@ -31,7 +31,7 @@ type Props = MenuProps & {
 export default class MenuActionIcon extends React.Component<
   PropsWithChildren<Props>
 > {
-  anchorEl = null;
+  anchorEl = createRef<HTMLButtonElement>();
 
   state = {
     open: false,
@@ -59,7 +59,7 @@ export default class MenuActionIcon extends React.Component<
         <ButtonBorder
           height="24px"
           size="small"
-          setRef={e => (this.anchorEl = e)}
+          ref={this.anchorEl}
           onClick={this.onOpen}
           {...buttonProps}
         >

@@ -15,10 +15,11 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
-import { space, width, color, height } from 'styled-system';
 
-function error({ hasError, theme }) {
+import { color, ColorProps, height, HeightProps, space, SpaceProps, width, WidthProps } from 'styled-system';
+import { ExecutionProps } from 'styled-components/dist/types';
+
+function error({ hasError, theme }: ExecutionProps & InputProps) {
   if (!hasError) {
     return;
   }
@@ -32,7 +33,18 @@ function error({ hasError, theme }) {
   };
 }
 
-const Input = styled.input`
+interface InputBaseProps {
+  hasError?: boolean;
+  label?: string;
+}
+
+export type InputProps = InputBaseProps &
+  ColorProps &
+  SpaceProps &
+  WidthProps &
+  HeightProps;
+
+const Input = styled.input<InputProps>`
   appearance: none;
   border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
@@ -74,10 +86,5 @@ const Input = styled.input`
 `;
 
 Input.displayName = 'Input';
-
-Input.propTypes = {
-  placeholder: PropTypes.string,
-  hasError: PropTypes.bool,
-};
 
 export default Input;

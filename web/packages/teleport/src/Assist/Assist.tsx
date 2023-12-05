@@ -190,7 +190,7 @@ const Container = styled.div<{ docked: boolean }>`
   justify-content: flex-end;
 `;
 
-const AssistContainer = styled.div`
+const AssistContainer = styled.div<{ viewMode: ViewMode, sidebarVisible: boolean }>`
   ${variables};
   ${sidebarVariables};
 

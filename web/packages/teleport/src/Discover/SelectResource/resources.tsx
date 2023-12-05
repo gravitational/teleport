@@ -151,7 +151,7 @@ export const RESOURCES = !cfg.isEnterprise
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
-    return {};
+    return '';
   }
 
   switch (r.kind) {

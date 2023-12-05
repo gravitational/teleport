@@ -26,7 +26,9 @@ interface ConversationListProps {
   viewMode: ViewMode;
 }
 
-const Container = styled.div.attrs({ 'data-scrollbar': 'default' })`
+const Container = styled.div.attrs<{ 'data-scrollbar'?: string }>({
+  'data-scrollbar': 'default',
+})`
   flex: 1 1 auto;
   overflow-y: auto;
 

@@ -332,6 +332,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       ? ListView
       : CardsView;
 
+  const longerTextCss = 'color: red';
+
   return (
     <div
       className="ContainerContext"
@@ -543,8 +545,7 @@ function NoResults({
 }) {
   if (query) {
     return (
-      <Text
-        typography="h3"
+      <Flex
         mt={9}
         mx="auto"
         justifyContent="center"
@@ -555,10 +556,11 @@ function NoResults({
         as={Flex}
       >
         <Magnifier mr={2} />
-        No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
+       <Text typography="h3">No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;</Text>
         <Text
           as="span"
           bold
+          typography="h3"
           css={`
             max-width: 270px;
             overflow: hidden;
@@ -568,7 +570,7 @@ function NoResults({
         >
           {query}
         </Text>
-      </Text>
+      </Flex>
     );
   }
 
@@ -581,7 +583,7 @@ const ErrorBox = styled(Box)`
   z-index: 1;
 `;
 
-const ErrorBoxInternal = styled(Box)`
+const ErrorBoxInternal = styled(Box)<{ topPadding: string }>`
   position: absolute;
   left: 0;
   right: 0;

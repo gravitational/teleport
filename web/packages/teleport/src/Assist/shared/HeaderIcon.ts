@@ -18,7 +18,7 @@ import styled from 'styled-components';
 
 import { Tooltip } from 'teleport/Assist/shared/Tooltip';
 
-export const HeaderIcon = styled.div`
+export const HeaderIcon = styled.div<{ rotated?: boolean }>`
   border-radius: 7px;
   width: 38px;
   height: 38px;

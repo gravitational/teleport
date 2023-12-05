@@ -87,6 +87,6 @@ const Focusable = (props: {
     shouldFocus: props.shouldFocus,
     refocusDeps: props.reFocusDeps,
   });
-  ref.current = props.element;
+  ref.current = props.element as HTMLElement;
   return null;
 };

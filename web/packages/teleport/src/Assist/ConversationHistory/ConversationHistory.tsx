@@ -28,7 +28,7 @@ interface ConversationHistoryProps {
   onError: (message: string) => void;
 }
 
-const Container = styled.ul.attrs({ 'data-scrollbar': 'default' })`
+const Container = styled.ul.attrs<{ 'data-scrollbar'?: string }>({ 'data-scrollbar': 'default' })`
   border-right: 1px solid ${p => p.theme.colors.spotBackground[0]};
   display: flex;
   flex-direction: column;
@@ -45,7 +45,7 @@ const Container = styled.ul.attrs({ 'data-scrollbar': 'default' })`
   z-index: 999;
 `;
 
-const List = styled.ul.attrs({ 'data-scrollbar': 'default' })`
+const List = styled.ul.attrs<{ 'data-scrollbar'?: string }>({ 'data-scrollbar': 'default' })`
   display: flex;
   padding: 10px 10px;
   width: 100%;

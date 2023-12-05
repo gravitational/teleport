@@ -16,7 +16,7 @@
 
 import React, { useCallback, useState } from 'react';
 
-import { Flex } from 'design';
+import { Box, ButtonPrimary, Flex } from 'design';
 
 import {
   FilterKind,
@@ -46,6 +46,12 @@ import { FeatureFlags } from 'teleport/types';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
+import Image from 'design/Image';
+import { emptyPng } from 'teleport/TrustedClusters/assets';
+import Card from 'design/Card';
+import styled from 'styled-components';
+import { IconCircle } from 'design/Icon/IconCircle';
+import { LockIcon } from 'design/SVGIcon';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -88,6 +94,19 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
     },
   ];
 };
+
+const InputWrapper = styled.div`
+  border-radius: 200px;
+  height: 40px;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+
+  &:hover,
+  &:focus,
+  &:active {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
+
 
 function ClusterResources({
   clusterId,

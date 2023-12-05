@@ -35,7 +35,7 @@ const disappear = keyframes`
   }
 `;
 
-const Container = styled.div`
+const Container = styled.div<{ hiding: boolean }>`
   position: relative;
   border-top: 2px solid ${props => props.theme.colors.error.main};
   border-bottom: 2px solid ${props => props.theme.colors.error.main};

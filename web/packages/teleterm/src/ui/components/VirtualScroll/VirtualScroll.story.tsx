@@ -107,7 +107,7 @@ export function TreeList() {
   );
 }
 
-const ClickableItem = styled.span`
+const ClickableItem = styled.span<{ hidden: boolean, ml: string }>`
   visibility: ${props => (props.hidden ? 'hidden' : 'visible')};
   margin-left: ${props => props.ml};
   font-weight: bold;

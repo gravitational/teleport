@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
 
-import { space, color, width } from 'design/system';
+import { MarginProps, SpaceProps, WidthProps } from 'styled-system';
+import { ExecutionProps } from 'styled-components/dist/types';
 
-const kind = props => {
+import { space, width } from 'design/system';
+
+const kind = (props: ExecutionProps & AlertProps) => {
   const { kind, theme } = props;
   switch (kind) {
     case 'danger':
@@ -51,7 +52,13 @@ const kind = props => {
   }
 };
 
-const Alert = styled.div`
+interface AlertBaseProps {
+  kind?: 'danger' | 'info' | 'warning' | 'success';
+}
+
+export type AlertProps = AlertBaseProps & SpaceProps & WidthProps & MarginProps;
+
+const Alert = styled.div<AlertProps>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -64,21 +71,14 @@ const Alert = styled.div`
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
+
   ${space}
   ${kind}
   ${width}
-
   a {
     color: ${({ theme }) => theme.colors.light};
   }
 `;
-
-Alert.propTypes = {
-  kind: PropTypes.oneOf(['danger', 'info', 'warning', 'success']),
-  ...color.propTypes,
-  ...space.propTypes,
-  ...width.propTypes,
-};
 
 Alert.defaultProps = {
   kind: 'danger',
@@ -87,7 +87,15 @@ Alert.defaultProps = {
 Alert.displayName = 'Alert';
 
 export default Alert;
-export const Danger = props => <Alert kind="danger" {...props} />;
-export const Info = props => <Alert kind="info" {...props} />;
-export const Warning = props => <Alert kind="warning" {...props} />;
-export const Success = props => <Alert kind="success" {...props} />;
+export const Danger = styled(Alert).attrs({ kind: 'danger' })<
+  Omit<AlertProps, 'kind'>
+>``;
+export const Info = styled(Alert).attrs({ kind: 'info' })<
+  Omit<AlertProps, 'kind'>
+>``;
+export const Warning = styled(Alert).attrs({ kind: 'warning' })<
+  Omit<AlertProps, 'kind'>
+>``;
+export const Success = styled(Alert).attrs({ kind: 'success' })<
+  Omit<AlertProps, 'kind'>
+>``;

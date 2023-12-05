@@ -65,18 +65,15 @@ function PromptCredential({
         Select the user for login:
       </Text>
       <Box
-        disabled={processing}
         css={`
           overflow: auto;
           height: 240px;
           width: 100%;
           padding: 8px;
           border: 1px solid #252c52;
-          border-radius: 4px;
-          &[disabled] {
-            pointer-events: none;
-            opacity: 0.5;
-          }
+          border-radius: 4px; 
+          pointer-events: ${processing ? 'none' : 'auto'};
+          opacity: ${processing ? 0.5 : 1};
         `}
       >
         {loginUsernames.map((username, index) => {

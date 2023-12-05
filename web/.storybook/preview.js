@@ -23,7 +23,7 @@ import {
   bblpTheme,
 } from './../packages/design/src/theme';
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
-import Box from './../packages/design/src/Box';
+import Box from 'design/Box';
 import '../packages/teleport/src/lib/polyfillRandomUuid';
 import { StaticThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
 import {

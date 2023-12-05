@@ -16,15 +16,11 @@ limitations under the License.
 
 import React from 'react';
 import { Danger } from 'design/Alert';
-import { Indicator, Text, Box, Flex, ButtonPrimary, Link } from 'design';
+import { Box, ButtonPrimary, Flex, Indicator, Link, Text } from 'design';
 import Card from 'design/Card';
 import Image from 'design/Image';
 
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+import { FeatureBox, FeatureHeader, FeatureHeaderTitle, } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
 
 import useResources from 'teleport/components/useResources';
@@ -153,9 +149,11 @@ const Empty = (props: EmptyProps) => {
       mt={4}
       mx="auto"
       py={4}
-      as={Flex}
-      alignItems="center"
-      flex="0 0 auto"
+      css={`
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `}
     >
       <Box mx="4">
         <Image width="180px" src={emptyPng} />

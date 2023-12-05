@@ -15,9 +15,10 @@
  */
 
 import styled from 'styled-components';
+import { Children } from 'react';
 
 export const ErrorList = styled.div`
   transition: height 0.3s ease-in-out;
   margin-top: -1px; // cover up the header's bottom border
-  height: ${p => 2 + p.children.length * 36}px;
+  height: ${p => 2 + Children.count(p.children) * 36}px;
 `;

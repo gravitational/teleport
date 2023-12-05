@@ -26,6 +26,7 @@ import { ChevronDown } from 'design/Icon';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { MenuLoginProps, LoginItem, MenuLoginHandle } from './types';
+import { SpaceProps } from 'styled-system';
 
 export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
   (props, ref) => {
@@ -37,7 +38,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       required = true,
       width,
     } = props;
-    const anchorRef = useRef<HTMLElement>();
+    const anchorRef = useRef<HTMLButtonElement>();
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
       Promise.resolve().then(() => props.getLoginItems())
@@ -80,7 +81,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           textTransform={props.textTransform}
           height="24px"
           size="small"
-          setRef={anchorRef}
+          ref={anchorRef}
           onClick={onOpen}
         >
           Connect
@@ -207,7 +208,7 @@ const StyledMenuItem = styled(MenuItem)(
 `
 );
 
-const Input = styled.input(
+const Input = styled.input<SpaceProps>(
   ({ theme }) => `
   background: transparent;
   border: 1px solid ${theme.colors.text.muted};

@@ -27,6 +27,7 @@ import * as stores from 'teleport/Console/stores';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
 import TabItem from './TabItem';
+import { TypographyProps } from 'design/system/typography';
 
 export default function TabsContainer(props: Props) {
   const ctx = useConsoleContext();
@@ -75,7 +76,6 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
 
   return (
     <StyledTabs
-      as="nav"
       typography="h5"
       color="text.slightlyMuted"
       bold
@@ -106,7 +106,7 @@ type Props = {
   [index: string]: any;
 };
 
-const StyledTabs = styled(Box)`
+const StyledTabs = styled(Box)<TypographyProps>`
   background: ${props => props.theme.colors.levels.surface};
   min-height: 32px;
   border-radius: 4px;

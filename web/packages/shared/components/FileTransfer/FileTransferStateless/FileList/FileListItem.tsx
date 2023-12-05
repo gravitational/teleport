@@ -116,7 +116,7 @@ const ProgressBackground = styled.div`
   width: 100%;
 `;
 
-const ProgressIndicator = styled.div`
+const ProgressIndicator = styled.div<{ isFailure: boolean; progress: number }>`
   border-radius: 50px;
   background: ${props =>
     props.isFailure

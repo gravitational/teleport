@@ -91,7 +91,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
   );
 }
 
-const StyledButton = styled(Button)`
+const StyledButton = styled(Button)<{ hasWarnings: boolean }>`
   color: ${({ theme }) => theme.colors.light};
   min-height: 0;
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};

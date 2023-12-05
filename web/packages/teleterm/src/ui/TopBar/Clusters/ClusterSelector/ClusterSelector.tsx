@@ -28,7 +28,7 @@ interface ClusterSelectorProps {
   onClick(): void;
 }
 
-export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
+export const ClusterSelector = forwardRef<HTMLButtonElement, ClusterSelectorProps>(
   (props, ref) => {
     const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
     const SortIcon = props.isOpened ? ChevronUp : ChevronDown;
@@ -38,7 +38,6 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
       <Container
         ref={ref}
         onClick={props.onClick}
-        isOpened={props.isOpened}
         isClusterSelected={!!props.clusterName}
         title={getLabelWithAccelerator(
           [props.clusterName, 'Open Clusters'].filter(Boolean).join('\n'),
@@ -58,7 +57,7 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
   }
 );
 
-const Container = styled.button`
+const Container = styled.button<{ isClusterSelected: boolean }>`
   background: inherit;
   color: inherit;
   font-family: inherit;

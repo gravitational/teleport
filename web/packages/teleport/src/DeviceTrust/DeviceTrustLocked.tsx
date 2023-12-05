@@ -65,7 +65,7 @@ export function DeviceTrustLocked() {
         />
       </Box>
       <StyledMessageContainer>
-        <Box bgColor={theme.colors.spotBackground[0]} p="3" borderRadius="50%">
+        <Box p="3" borderRadius="50%">
           <IconCircle Icon={LockIcon} size={64} />
         </Box>
         <Text typography="subtitle" textAlign="justify">

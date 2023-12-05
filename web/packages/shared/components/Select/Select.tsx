@@ -19,9 +19,10 @@ import ReactSelect from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
 import styled from 'styled-components';
-import { width, space } from 'design/system';
+import { space, width } from 'design/system';
 
-import { Props, AsyncProps, CreatableProps } from './types';
+import { AsyncProps, CreatableProps, Props } from './types';
+import { SpaceProps, WidthProps } from 'styled-system';
 
 export default function Select(props: Props) {
   const {
@@ -80,7 +81,14 @@ export function SelectCreatable(props: CreatableProps) {
   );
 }
 
-export const StyledSelect = styled.div`
+interface StyledSelectBaseProps {
+  hasError?: boolean;
+  elevated?: boolean;
+}
+
+type StyledSelectProps = StyledSelectBaseProps & WidthProps & SpaceProps;
+
+export const StyledSelect = styled.div<StyledSelectProps>`
   .react-select-container {
     box-sizing: border-box;
     display: block;
@@ -101,6 +109,7 @@ export const StyledSelect = styled.div`
     border-radius: 4px;
     background-color: transparent;
     box-shadow: none;
+
     ${({ hasError, theme }) => {
       if (hasError) {
         return {
@@ -110,7 +119,6 @@ export const StyledSelect = styled.div`
         };
       }
     }}
-
     .react-select__dropdown-indicator {
       color: ${props => props.theme.colors.text.muted};
     }
@@ -157,12 +165,15 @@ export const StyledSelect = styled.div`
 
   .react-select__multi-value {
     background-color: ${props => props.theme.colors.spotBackground[1]};
+
     .react-select__multi-value__label {
       color: ${props => props.theme.colors.text.main};
       padding: 0 6px;
     }
+
     .react-select__multi-value__remove {
       color: ${props => props.theme.colors.text.main};
+
       &:hover {
         background-color: ${props => props.theme.colors.spotBackground[0]};
         color: ${props => props.theme.colors.error.main};
@@ -179,6 +190,7 @@ export const StyledSelect = styled.div`
 
   .react-select__option--is-focused {
     background-color: ${props => props.theme.colors.spotBackground[0]};
+
     &:hover {
       cursor: pointer;
       background-color: ${props => props.theme.colors.spotBackground[0]};
@@ -197,9 +209,11 @@ export const StyledSelect = styled.div`
 
   .react-select__clear-indicator {
     color: ${props => props.theme.colors.text.slightlyMuted};
+
     &:hover,
     &:focus {
       background-color: ${props => props.theme.colors.spotBackground[0]};
+
       svg {
         color: ${props => props.theme.colors.error.main};
       }
@@ -233,6 +247,7 @@ export const StyledSelect = styled.div`
   .react-select__control--is-disabled {
     color: ${props => props.theme.colors.text.disabled};
     border: 1px solid ${props => props.theme.colors.text.disabled};
+
     .react-select__single-value,
     .react-select__placeholder {
       color: ${props => props.theme.colors.text.disabled};

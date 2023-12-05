@@ -34,7 +34,9 @@ export const Story = () => (
 );
 
 export const AsFlex = () => (
-  <Card p={8} as={Flex} gap={4} flexWrap="wrap">
+  <Card p={8} css={`display: flex;
+    flex-wrap: wrap;
+    gap: ${p => p.theme.space[4]};`}>
     {Array(12)
       .fill(undefined)
       .map((_, i) => (

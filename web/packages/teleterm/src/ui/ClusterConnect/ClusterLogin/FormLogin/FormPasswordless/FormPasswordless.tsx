@@ -29,8 +29,6 @@ export const FormPasswordless = ({
     <StyledPaswordlessBtn
       py={2}
       px={3}
-      border={1}
-      borderRadius={2}
       width="100%"
       onClick={onLoginWithPasswordless}
       disabled={loginAttempt.status === 'processing'}

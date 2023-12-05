@@ -68,7 +68,7 @@ export function ResourceCard({
 
   const [hovered, setHovered] = useState(false);
 
-  const innerContainer = useRef<Element | null>(null);
+  const innerContainer = useRef<HTMLDivElement>(null);
   const labelsInnerContainer = useRef(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -155,8 +155,6 @@ export function ResourceCard({
           pl={6}
           alignItems="start"
           onMouseLeave={onMouseLeave}
-          pinned={pinned}
-          selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <StyledCheckbox
@@ -274,7 +272,7 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
-const CardOuterContainer = styled(Box)`
+const CardOuterContainer = styled(Box)<{ showAllLabels: boolean }>`
   border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
@@ -348,7 +346,7 @@ const SingleLineBox = styled(Box)`
  * single row, or all labels. It hides the internal container's overflow if more
  * than one row of labels exist, but is not yet visible.
  */
-const LabelsContainer = styled(Box)`
+const LabelsContainer = styled(Box)<{ showAll: boolean }>`
   ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
   overflow: hidden;
 `;

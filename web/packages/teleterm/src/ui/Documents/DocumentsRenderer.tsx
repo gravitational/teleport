@@ -111,7 +111,7 @@ export function DocumentsRenderer(props: {
   );
 }
 
-const DocumentsContainer = styled.div`
+const DocumentsContainer = styled.div<{ isVisible: boolean }>`
   display: ${props => (props.isVisible ? 'contents' : 'none')};
 `;
 

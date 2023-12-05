@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import Button from './../Button/Button';
+import Button from '../Button/Button';
 
 function ButtonLink({ ...props }) {
   return <Button as={StyledButtonLink} {...props} />;

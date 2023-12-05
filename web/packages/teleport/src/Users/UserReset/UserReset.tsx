@@ -48,7 +48,7 @@ export function UserReset({
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
       disableEscapeKeyDown={false}
-      onClose={close}
+      onClose={onClose}
       open={true}
     >
       <DialogHeader>

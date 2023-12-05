@@ -14,15 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
 import styled from 'styled-components';
 
-import { fontSize, color, width, space } from 'design/system';
+import { ColorProps, FontSizeProps, SpaceProps, WidthProps } from 'styled-system';
+
+import { ExecutionProps } from 'styled-components/dist/types';
+
+import { color, fontSize, space, width } from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
 
-const kinds = ({ theme, kind, shadow }) => {
+const kinds = ({ theme, kind, shadow }: ExecutionProps & LabelStateProps) => {
   // default is primary
-  const styles = {
+  const styles: Record<string, string> = {
     background: theme.colors.brand,
     color: theme.colors.text.primaryInverse,
   };
@@ -57,7 +60,20 @@ const kinds = ({ theme, kind, shadow }) => {
   return styles;
 };
 
-const LabelState = styled.span`
+export type LabelStateKind = 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+
+interface LabelStateBaseProps {
+  kind?: LabelStateKind;
+  shadow?: boolean;
+}
+
+export type LabelStateProps = LabelStateBaseProps &
+  SpaceProps &
+  WidthProps &
+  ColorProps &
+  FontSizeProps;
+
+const LabelState = styled.span<LabelStateProps>`
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -75,14 +91,23 @@ const LabelState = styled.span`
   ${color}
   ${fontSize}
 `;
+
 LabelState.defaultProps = {
   fontSize: 0,
-  fontWeight: 'bold',
   shadow: false,
 };
 
 export default LabelState;
-export const StateDanger = props => <LabelState kind="danger" {...props} />;
-export const StateInfo = props => <LabelState kind="secondary" {...props} />;
-export const StateWarning = props => <LabelState kind="warning" {...props} />;
-export const StateSuccess = props => <LabelState kind="success" {...props} />;
+
+export const StateDanger = styled(LabelState).attrs({ kind: 'danger' })<
+  Omit<LabelStateProps, 'kind'>
+>``;
+export const StateInfo = styled(LabelState).attrs({ kind: 'secondary' })<
+  Omit<LabelStateProps, 'kind'>
+>``;
+export const StateWarning = styled(LabelState).attrs({ kind: 'warning' })<
+  Omit<LabelStateProps, 'kind'>
+>``;
+export const StateSuccess = styled(LabelState).attrs({ kind: 'success' })<
+  Omit<LabelStateProps, 'kind'>
+>``;

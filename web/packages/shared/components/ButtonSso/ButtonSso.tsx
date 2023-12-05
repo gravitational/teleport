@@ -22,7 +22,7 @@ import * as Icons from 'design/Icon';
 
 import { AuthProviderType } from 'shared/services';
 
-const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {
+const ButtonSso = forwardRef<HTMLButtonElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
   const { color, Icon } = getSSOIcon(ssoType);
 

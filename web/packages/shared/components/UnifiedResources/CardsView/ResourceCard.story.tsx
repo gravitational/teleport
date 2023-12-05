@@ -42,6 +42,7 @@ import {
 import { PinningSupport } from '../types';
 
 import { ResourceCard } from './ResourceCard';
+import { GapProps } from 'design/system/gap';
 
 const additionalResources = [
   makeApp({
@@ -85,7 +86,7 @@ const meta: Meta<typeof ResourceCard> = {
   title: 'Shared/UnifiedResources/Items',
 };
 
-const Grid = styled.div`
+const Grid = styled.div<GapProps>`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   ${gap}

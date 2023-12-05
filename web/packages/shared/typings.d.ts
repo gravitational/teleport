@@ -25,3 +25,11 @@ declare module '*.yaml?raw';
 type Subset<K> = {
   [attr in keyof K]?: K[attr] extends object ? Subset<K[attr]> : K[attr];
 };
+
+import 'styled-components';
+
+declare module 'styled-components' {
+  import { Theme } from 'design/theme/themes/types';
+
+  export interface DefaultTheme extends Theme {}
+}

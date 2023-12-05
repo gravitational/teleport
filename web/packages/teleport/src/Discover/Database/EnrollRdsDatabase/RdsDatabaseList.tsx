@@ -144,7 +144,7 @@ function getStatus(item: CheckedAwsRdsDatabase) {
 
 // TODO(lisa): copy from IntegrationList.tsx
 // move to common file for both files.
-const StatusLight = styled(Box)`
+const StatusLight = styled(Box)<{ status: Status }>`
   border-radius: 50%;
   margin-right: 6px;
   width: 8px;

@@ -76,7 +76,7 @@ const SuggestedCommandTitle = styled.div`
   color: ${props => props.theme.colors.text.slightlyMuted};
 `;
 
-const Command = styled.pre.attrs({
+const Command = styled.pre.attrs<{ 'data-scrollbar'?: string }>({
   'data-scrollbar': 'default',
 })`
   margin: 0 -${p => p.theme.space[2]}px -${p => p.theme.space[2]}px;

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { CSSTransition, TransitionGroup } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -81,7 +81,7 @@ export function StepSlider<T>(props: Props<T>) {
 
   // rootRef is used to set the height on initial render.
   // Needed to animate the height on initial transition.
-  const rootRef = useRef<HTMLElement>();
+  const rootRef = useRef<HTMLDivElement>();
 
   // preMountState is used to hold the latest pre mount data.
   // useState's could not be used b/c they became stale for
@@ -189,7 +189,7 @@ export function StepSlider<T>(props: Props<T>) {
     heightWithMargins = rootRef.current.style.height;
   }
 
-  const rootStyle = {
+  const rootStyle: CSSProperties = {
     // During the *-enter transition state, children are positioned absolutely
     // to keep views "stacked" on top of each other. Position relative is needed
     // so these children's position themselves relative to parent.
@@ -237,7 +237,7 @@ const HiddenBox = styled.div`
   position: absolute;
 `;
 
-const Wrap = styled.div(
+const Wrap = styled.div<{ tDuration: number }>(
   ({ tDuration }) => `
  
  .prev-slide-enter {

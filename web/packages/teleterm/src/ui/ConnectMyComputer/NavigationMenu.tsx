@@ -24,10 +24,7 @@ import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
-import {
-  CurrentAction,
-  useConnectMyComputerContext,
-} from './connectMyComputerContext';
+import { CurrentAction, useConnectMyComputerContext, } from './connectMyComputerContext';
 
 /**
  * IndicatorStatus combines a couple of different states into a single enum which dictates the
@@ -171,14 +168,15 @@ function getIndicatorStatus(
 
 interface MenuIconProps {
   onClick(): void;
+
   indicatorStatus: IndicatorStatus;
 }
 
-export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
+export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
   (props, ref) => {
     return (
       <StyledButton
-        setRef={ref}
+        ref={ref}
         onClick={props.onClick}
         kind="secondary"
         size="small"
@@ -204,7 +202,9 @@ const StyledButton = styled(Button)`
   height: ${props => props.theme.space[5]}px;
 `;
 
-const StyledStatus = styled(Box)`
+const StyledStatus = styled(Box)<{
+  status: 'processing' | 'not-configured' | '' | 'success';
+}>`
   position: absolute;
   top: -4px;
   right: -4px;

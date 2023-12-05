@@ -50,7 +50,7 @@ export const ResourceTab = ({
   return $tab;
 };
 
-const TabBox = styled(Box)`
+const TabBox = styled(Box)<{ disabled: boolean, selected: boolean }>`
   cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
   color: ${props =>
     props.disabled
@@ -60,7 +60,7 @@ const TabBox = styled(Box)`
     props.selected ? `2px solid ${props.theme.colors.brand}` : 'transparent'};
 `;
 
-const TabText = styled(Text)`
+const TabText = styled(Text)<{ selected: boolean }>`
   font-size: ${props => props.theme.fontSizes[2]};
   font-weight: ${props =>
     props.selected

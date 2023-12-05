@@ -20,7 +20,7 @@ import styled from 'styled-components';
 
 import { typography } from 'design/system';
 
-import Flex from './../Flex';
+import Flex from '../Flex';
 
 export default function DialogHeader(props) {
   return (

@@ -83,7 +83,7 @@ export default function LoginForm(props: Props) {
           {title}
         </Text>
         <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
-        <Text mb={2} typography="paragraph2" width="100%">
+        <Text mb={2} typography="paragraph2">
           The ability to login has not been enabled. Please contact your system
           administrator for more information.
         </Text>
@@ -139,9 +139,10 @@ const Passwordless = ({
   autoFocus = false,
   hasTransitionEnded,
 }: Props & { hasTransitionEnded: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
+  const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
+
   // Firefox currently does not support passwordless and when
   // logging in, it will return an ambigugous error.
   // We display a soft warning because firefox may provide
@@ -158,7 +159,7 @@ const Passwordless = ({
         </Alerts.Info>
       )}
       <StyledPaswordlessBtn
-        setRef={ref}
+        ref={ref}
         mt={3}
         py={2}
         px={3}

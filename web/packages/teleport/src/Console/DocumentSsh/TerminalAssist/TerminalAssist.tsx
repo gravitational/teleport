@@ -64,7 +64,7 @@ const Button = styled.div`
   }
 `;
 
-const Background = styled.div`
+const Background = styled.div<{ visible: boolean }>`
   position: absolute;
   bottom: 32px;
   right: 2px;
@@ -81,7 +81,7 @@ const Background = styled.div`
   box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
 `;
 
-const ChatContainer = styled.div`
+const ChatContainer = styled.div<{ visible: boolean }>`
   position: absolute;
   bottom: 30px;
   right: 2px;
@@ -108,7 +108,7 @@ const Header = styled.header`
   box-sizing: border-box;
 `;
 
-const ScrollArea = styled.div.attrs({
+const ScrollArea = styled.div.attrs<{ 'data-scrollbar'?: string }>({
   'data-scrollbar': 'default',
 })`
   flex: 1;

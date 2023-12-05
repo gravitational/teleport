@@ -79,10 +79,9 @@ export default function Empty(props: Props) {
   }
 
   return (
-    <Box
+    <Flex
       p={8}
       pt={5}
-      as={Flex}
       width="100%"
       mx="auto"
       alignItems="center"
@@ -134,7 +133,7 @@ export default function Empty(props: Props) {
           )}
         </Box>
       </Box>
-    </Box>
+    </Flex>
   );
 }
 

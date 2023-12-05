@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import Text from '../Text';
+import Text from './index';
 
 export default {
   title: 'Design/Text',

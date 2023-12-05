@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import Input from '../Input';
+import Input from './index';
 
 export default {
   title: 'Design/Inputs',

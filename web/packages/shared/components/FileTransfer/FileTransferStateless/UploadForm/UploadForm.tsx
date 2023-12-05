@@ -46,7 +46,7 @@ export function UploadForm(props: UploadFormProps) {
     fileSelectorRef.current.click();
   }
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>): void {
+  function handleDrop(e: React.DragEvent<HTMLButtonElement>): void {
     removeDropzoneStyle(e);
 
     const { files } = e.dataTransfer;
@@ -63,7 +63,7 @@ export function UploadForm(props: UploadFormProps) {
     }
   }
 
-  function addDropzoneStyle(e: React.DragEvent<HTMLDivElement>): void {
+  function addDropzoneStyle(e: React.DragEvent<HTMLButtonElement>): void {
     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
   }
 
@@ -118,7 +118,7 @@ export function UploadForm(props: UploadFormProps) {
   );
 }
 
-const Dropzone = styled.button`
+const Dropzone = styled.button<{ disabled: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;

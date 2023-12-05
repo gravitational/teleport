@@ -322,7 +322,7 @@ type SortMenuProps = {
   sortType: string;
   sortDir: SortDir;
   onChange: (value: string) => void;
-  onDirChange: (dir: SortDir) => void;
+  onDirChange: (dir?: SortDir) => void;
 };
 
 const SortMenu: React.FC<SortMenuProps> = props => {
@@ -379,7 +379,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
       </Menu>
       <HoverTooltip tipContent={'Sort direction'}>
         <ButtonBorder
-          onClick={onDirChange}
+          onClick={() => onDirChange()}
           textTransform="none"
           css={`
             width: 0px; // remove extra width around the button icon

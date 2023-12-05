@@ -23,21 +23,13 @@ import { ExternalLinkIcon } from 'design/SVGIcon';
 
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
-import {
-  commonNavigationItemStyles,
-  LinkContent,
-  NavigationItemSize,
-} from 'teleport/Navigation/common';
+import { commonNavigationItemStyles, LinkContent, NavigationItemSize, } from 'teleport/Navigation/common';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
 import { useTeleport } from 'teleport';
+import type { TeleportFeature, TeleportFeatureNavigationItem, } from 'teleport/types';
 import { NavTitle, RecommendationStatus } from 'teleport/types';
 import { NotificationKind } from 'teleport/stores/storeNotifications';
-
-import type {
-  TeleportFeature,
-  TeleportFeatureNavigationItem,
-} from 'teleport/types';
 
 interface NavigationItemProps {
   feature: TeleportFeature;
@@ -95,7 +87,7 @@ export function NavigationItem(props: NavigationItemProps) {
   } = props.feature;
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLAnchorElement>) => {
       switch (event.key) {
         case 'ArrowDown':
           let nextSibling = event.currentTarget.nextSibling as HTMLDivElement;
@@ -273,9 +265,9 @@ export function NavigationItem(props: NavigationItemProps) {
   );
 }
 
-const AttentionDot = styled.div.attrs(() => ({
+const AttentionDot = styled.div.attrs<{ 'data-testid'?: string }>({
   'data-testid': 'nav-item-attention-dot',
-}))`
+})`
   margin-left: 15px;
   margin-top: 2px;
   width: 7px;

@@ -17,7 +17,7 @@
 import styled from 'styled-components';
 
 interface TooltipPositionProps {
-  position: 'left' | 'middle' | 'right';
+  position?: 'left' | 'middle' | 'right';
 }
 
 const tooltipPosition = (props: TooltipPositionProps) => {

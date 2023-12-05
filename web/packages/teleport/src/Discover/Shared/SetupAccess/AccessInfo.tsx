@@ -137,7 +137,7 @@ export function YamlReader({
 }
 
 const Info = ({ children }: { children: React.ReactNode }) => (
-  <Text mt={4} width="100px">
+  <Text mt={4} style={{ width: '100px' }}>
     {children}
   </Text>
 );

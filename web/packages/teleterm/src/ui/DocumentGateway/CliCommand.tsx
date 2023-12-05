@@ -52,7 +52,6 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
       <Flex
         mr="2"
         width="100%"
-        shouldDisplayIsLoading={shouldDisplayIsLoading}
         css={`
           overflow: auto;
           white-space: pre;
@@ -62,7 +61,7 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
             // always use light colors
             const { light } = props.theme.colors;
             // 0.72 - text.slightlyMuted opacity
-            return props.shouldDisplayIsLoading ? fade(light, 0.72) : light;
+            return shouldDisplayIsLoading ? fade(light, 0.72) : light;
           }};
           font-family: ${props => props.theme.fonts.mono};
         `}

@@ -34,26 +34,16 @@ import {
   minHeight,
   minWidth,
   overflow,
-  propTypes,
   size,
   space,
   textAlign,
   width,
-  style,
 } from 'styled-system';
+
+import { gap } from './gap';
 
 import typography from './typography';
 import borderRadius from './borderRadius';
-
-const gap = style({
-  prop: 'gap',
-  cssProperty: 'gap',
-  // This makes gap use the space defined in the theme.
-  // https://github.com/styled-system/styled-system/blob/v3.1.11/src/index.js#L67
-  key: 'space',
-});
-
-propTypes.gap = gap.propTypes;
 
 export {
   alignItems,
@@ -77,7 +67,6 @@ export {
   minHeight,
   minWidth,
   overflow,
-  propTypes,
   size,
   space,
   textAlign,

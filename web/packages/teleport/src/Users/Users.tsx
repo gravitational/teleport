@@ -71,7 +71,7 @@ export function Users(props: State) {
               <ButtonPrimary
                 ml="auto"
                 width="240px"
-                onClick={onStartInviteCollaborators}
+                onClick={() => onStartInviteCollaborators()}
               >
                 Enroll Users
               </ButtonPrimary>

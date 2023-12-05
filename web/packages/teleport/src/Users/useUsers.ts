@@ -54,7 +54,7 @@ export default function useUsers({
     setOperation({ type: 'reset', user });
   }
 
-  function onStartInviteCollaborators(user: User) {
+  function onStartInviteCollaborators(user?: User) {
     setOperation({ type: 'invite-collaborators', user });
     setInviteCollaboratorsOpen(true);
   }
@@ -163,20 +163,16 @@ export interface EmailPasswordResetDialogProps {
   onClose: () => void;
 }
 
-type InviteCollaboratorsElement = (
+export type InviteCollaboratorsElement = (
   props: InviteCollaboratorsDialogProps
 ) => ReactElement;
-type EmailPasswordResetElement = (
+export type EmailPasswordResetElement = (
   props: EmailPasswordResetDialogProps
 ) => ReactElement;
 
 export type UsersContainerProps = {
-  InviteCollaborators?:
-    | LazyExoticComponent<InviteCollaboratorsElement>
-    | InviteCollaboratorsElement;
-  EmailPasswordReset?:
-    | LazyExoticComponent<EmailPasswordResetElement>
-    | EmailPasswordResetElement;
+  InviteCollaborators?: InviteCollaboratorsElement;
+  EmailPasswordReset?: EmailPasswordResetElement;
 };
 
 export type State = ReturnType<typeof useUsers>;

@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import PropTypes from 'prop-types';
 import styled from 'styled-components';
-import { fontSize, color, space } from 'styled-system';
+
+import { fontSize, color, space, FontSizeProps, SpaceProps, ColorProps } from 'styled-system';
 
 const defaultValues = {
   fontSize: 1,
@@ -46,7 +46,13 @@ const fromTheme = props => {
   };
 };
 
-const MenuItem = styled.div`
+interface MenuItemBaseProps {
+  disabled?: boolean;
+}
+
+type MenuItemProps = MenuItemBaseProps & FontSizeProps & SpaceProps & ColorProps;
+
+const MenuItem = styled.div<MenuItemProps>`
   min-height: 40px;
   box-sizing: border-box;
   cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
@@ -66,11 +72,5 @@ const MenuItem = styled.div`
 `;
 
 MenuItem.displayName = 'MenuItem';
-MenuItem.propTypes = {
-  /**
-   * Menu item contents.
-   */
-  children: PropTypes.node,
-};
 
 export default MenuItem;

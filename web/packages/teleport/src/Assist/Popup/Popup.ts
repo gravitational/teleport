@@ -22,7 +22,7 @@ export const PopupLogosSpacer = styled.div`
   padding: 0 8px;
 `;
 
-export const TeleportIcon = styled.div`
+export const TeleportIcon = styled.div<{ light: boolean }>`
   background: url(${teleport}) no-repeat;
   width: 30px;
   height: 30px;

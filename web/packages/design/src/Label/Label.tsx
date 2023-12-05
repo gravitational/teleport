@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import PropTypes from 'prop-types';
+import { SpaceProps } from 'styled-system';
 
 import { space } from 'design/system';
 
@@ -58,7 +58,14 @@ const kind = ({ kind, theme }) => {
   };
 };
 
-const Label = styled.div`
+interface LabelBaseProps {
+  kind: 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+  invert?: boolean;
+}
+
+export type LabelProps = LabelBaseProps & SpaceProps;
+
+const Label = styled.div<LabelProps>`
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -71,17 +78,6 @@ const Label = styled.div`
   ${kind}
   ${space}
 `;
-
-Label.propTypes = {
-  kind: PropTypes.oneOf([
-    'primary',
-    'secondary',
-    'warning',
-    'danger',
-    'success',
-  ]),
-  invert: PropTypes.oneOf([true, false]),
-};
 
 export default Label;
 export const Primary = props => <Label kind="primary" {...props} />;

@@ -43,15 +43,11 @@ export function Toggle({
   );
 }
 
-const StyledWrapper = styled.label`
+const StyledWrapper = styled.label<{ disabled: boolean }>`
   position: relative;
   display: flex;
   align-items: center;
-  cursor: pointer;
-
-  &[disabled] {
-    cursor: default;
-  }
+  cursor: ${p => p.disabled ? 'default' : 'pointer'};
 `;
 
 const StyledSlider = styled.div`

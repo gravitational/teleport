@@ -56,6 +56,7 @@ import {
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
+import { FlexWrapProps } from 'styled-system';
 
 export function Status(props: { closeDocument?: () => void }) {
   const ctx = useAppContext();
@@ -232,7 +233,7 @@ export function Status(props: { closeDocument?: () => void }) {
         </Flex>
 
         <Flex flexDirection="column" gap={2}>
-          <Flex gap={1} display="flex" alignItems="center" minHeight="32px">
+          <Flex gap={1} alignItems="center" minHeight="32px">
             {prettyCurrentAction.Icon && (
               <prettyCurrentAction.Icon size="medium" />
             )}
@@ -328,7 +329,7 @@ function renderLabels(labelsList: tsh.Label[]): JSX.Element[] {
 }
 
 function prettifyCurrentAction(currentAction: CurrentAction): {
-  Icon: React.FC<IconProps>;
+  Icon: React.FC<IconProps> | typeof StyledIndicator;
   title: string;
   error?: string;
   logs?: string;
@@ -533,7 +534,7 @@ const StyledIndicator = styled(Indicator).attrs({ delay: 'none' })`
   display: inline-flex;
 `;
 
-const LabelsContainer = styled(Flex).attrs({ flexWrap: 'wrap' })`
+const LabelsContainer = styled(Flex).attrs<FlexWrapProps>({ flexWrap: 'wrap' })`
   &.entering {
     animation-duration: 1.8s;
     animation-name: lineInserted;

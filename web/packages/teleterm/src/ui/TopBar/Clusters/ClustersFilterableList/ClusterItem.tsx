@@ -42,7 +42,6 @@ export function ClusterItem(props: ClusterItemProps) {
     <StyledListItem
       onClick={props.onSelect}
       isActive={isActive}
-      isSelected={props.isSelected}
       isLeaf={props.item.leaf}
     >
       <Flex
@@ -72,7 +71,7 @@ export function ClusterItem(props: ClusterItemProps) {
   );
 }
 
-const StyledListItem = styled(ListItem)`
+const StyledListItem = styled(ListItem)<{ isLeaf: boolean }>`
   padding-left: ${props => (props.isLeaf ? '32px' : null)};
 
   &:hover,

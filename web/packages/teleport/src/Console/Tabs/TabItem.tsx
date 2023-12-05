@@ -21,6 +21,7 @@ import { space } from 'design/system';
 import { Flex, Text } from 'design';
 
 import JoinedUsers from './JoinedUsers';
+import { FlexProps } from 'design/Flex/Flex';
 
 export default function TabItem(props: Props) {
   const { name, users, active, onClick, onClose, style } = props;
@@ -77,7 +78,7 @@ function fromProps({ theme, active }) {
   return styles;
 }
 
-const StyledTabItem = styled(Flex)`
+const StyledTabItem = styled(Flex)<FlexProps & { active: boolean }>`
   max-width: 450px;
   height: 100%;
   ${fromProps}

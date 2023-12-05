@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
+import { ChevronDown, Logout as LogoutIcon, Moon, Sun } from 'design/Icon';
 import { Text } from 'design';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
@@ -28,13 +28,13 @@ import { useUser } from 'teleport/User/UserContext';
 import { ThemePreference } from 'teleport/services/userPreferences/types';
 import {
   Dropdown,
+  DropdownDivider,
   DropdownItem,
   DropdownItemButton,
-  DropdownItemLink,
   DropdownItemIcon,
-  DropdownDivider,
-  STARTING_TRANSITION_DELAY,
+  DropdownItemLink,
   INCREMENT_TRANSITION_DELAY,
+  STARTING_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
 
 interface UserMenuNavProps {
@@ -84,7 +84,7 @@ const StyledAvatar = styled.div`
   min-width: 32px;
 `;
 
-const Arrow = styled.div`
+const Arrow = styled.div<{ open: boolean }>`
   position: absolute;
   right: 10px;
   top: 50%;
@@ -145,7 +145,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
   return (
     <Container ref={ref}>
-      <UserInfo onClick={() => setOpen(!open)} open={open}>
+      <UserInfo onClick={() => setOpen(!open)}>
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>

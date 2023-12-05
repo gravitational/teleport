@@ -132,7 +132,6 @@ function getRenderedContent(
         <Text
           typography="body1"
           fontSize={13}
-          lineHeight={20}
           css={longerTextCss}
         >
           {content}
@@ -171,7 +170,6 @@ function getRenderedContent(
         </div>
         <Text
           fontSize={13}
-          lineHeight={20}
           color="text.slightlyMuted"
           css={longerTextCss}
         >
@@ -216,13 +214,13 @@ function List(props: { items: string[] }) {
   );
 }
 
-const textCss = css`
+const textCss = `
   line-height: 20px;
   overflow-wrap: anywhere;
   white-space: pre-line;
 `;
 
-const shortTextCss = css`
+const shortTextCss = `
   ${textCss};
   display: -webkit-box;
   -webkit-box-orient: vertical;

@@ -14,7 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import PropTypes from 'prop-types';
+export interface TypographyProps {
+  typography?: string;
+  caps?: boolean;
+  bold?: boolean;
+  breakAll?: boolean;
+  mono?: boolean;
+  italic?: boolean;
+  color?: string;
+  theme?: any;
+}
 
 function getTypography(props) {
   const { typography, theme } = props;
@@ -42,12 +51,5 @@ function breakAll(props) {
 function bold(props) {
   return props.bold ? { fontWeight: props.theme.fontWeights.bold } : null;
 }
-
-getTypography.propTypes = {
-  caps: PropTypes.bool,
-  bold: PropTypes.bool,
-  italic: PropTypes.bool,
-  color: PropTypes.string,
-};
 
 export default getTypography;

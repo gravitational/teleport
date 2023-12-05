@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { CSSProperties } from 'react';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonPrimary, Box, Flex } from 'design';
@@ -38,7 +38,7 @@ export function TextSelectCopy({
     onCopy && onCopy();
   }
 
-  const boxStyles =
+  const boxStyles: CSSProperties =
     bash && !allowMultiline
       ? {
           overflow: 'auto',

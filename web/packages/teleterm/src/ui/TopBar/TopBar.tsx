@@ -54,7 +54,7 @@ const Grid = styled(Flex).attrs({ gap: 3, py: 2, px: 3 })`
   justify-content: space-between;
 `;
 
-const CentralContainer = styled(Flex).attrs({ gap: 3 })`
+const CentralContainer = styled(Flex).attrs({ gap: 3, py: 0, px: 0 })`
   flex: 1;
   align-items: center;
   justify-content: center;
@@ -63,7 +63,7 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
-const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
+const JustifyLeft = styled(Flex).attrs({ gap: 3, py: 0, px: 0 })`
   align-items: center;
   min-width: 80px; // reserves space for CMC icon to prevent layout shifting
   height: 100%;

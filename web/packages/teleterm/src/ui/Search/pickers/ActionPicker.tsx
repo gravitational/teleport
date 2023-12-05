@@ -58,6 +58,7 @@ import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem, IconAndContent } from './ResultList';
 import { PickerContainer } from './PickerContainer';
+import { GapProps } from 'design/system/gap';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
@@ -902,7 +903,7 @@ function Labels(
   );
 }
 
-const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
+const LabelsFlex = styled(Flex).attrs<GapProps>({ gap: 1 })`
   overflow-x: hidden;
   flex-wrap: nowrap;
   align-items: baseline;
@@ -914,7 +915,7 @@ const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
   }
 `;
 
-const ResourceFields = styled(Flex).attrs({ gap: 1 })`
+const ResourceFields = styled(Flex).attrs<GapProps>({ gap: 1 })`
   color: ${props => props.theme.colors.text.main};
   font-size: ${props => props.theme.fontSizes[0]}px;
 `;
@@ -979,7 +980,6 @@ function FilterButton(props: { text: string; onClick(): void }) {
         border-radius: ${props => props.theme.radii[2]}px;
       `}
       px="6px"
-      size="small"
     >
       <CloseIcon
         color="buttons.text"

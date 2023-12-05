@@ -48,9 +48,11 @@ export function LockedAccessRequests() {
         m="auto"
         p={4}
         pb="44px"
-        as={Flex}
-        flex="0 0 auto"
-        flexDirection="column"
+        css={`
+          display: flex;
+          flex: 0 0 auto;
+          flex-direction: column;
+        `}
         width="auto"
       >
         <Box width="100%" textAlign="left">

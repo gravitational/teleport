@@ -17,7 +17,7 @@ limitations under the License.
 import styled from 'styled-components';
 
 import { borderColor } from './../system';
-import Flex from './../Flex';
+import Flex from '../Flex';
 
 const fromTheme = ({ theme }) => {
   return {

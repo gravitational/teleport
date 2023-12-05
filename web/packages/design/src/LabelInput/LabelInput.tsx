@@ -18,8 +18,15 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import { space } from 'design/system';
+import { SpaceProps } from 'styled-system';
 
-const LabelInput = styled.label`
+interface LabelInputBaseProps {
+  hasError?: boolean;
+}
+
+export type LabelInputProps = LabelInputBaseProps & SpaceProps;
+
+const LabelInput = styled.label<LabelInputProps>`
   color: ${props =>
     props.hasError
       ? props.theme.colors.error.main
@@ -30,13 +37,8 @@ const LabelInput = styled.label`
   ${space}
 `;
 
-LabelInput.propTypes = {
-  hasError: PropTypes.bool,
-};
-
 LabelInput.defaultProps = {
   hasError: false,
-  fontSize: 0,
   mb: 1,
 };
 

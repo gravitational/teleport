@@ -76,7 +76,7 @@ const ThemeProvider = props => {
 
   return (
     <StyledThemeProvider theme={theme}>
-      <StyleSheetManager disableVendorPrefixes>
+      <StyleSheetManager>
         <React.Fragment>
           <GlobalStyle />
           {props.children}

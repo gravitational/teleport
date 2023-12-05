@@ -85,7 +85,7 @@ const SidebarItemIcon = styled.div`
   align-items: center;
 `;
 
-const SidebarItem = styled.div`
+const SidebarItem = styled.div<{ active: boolean }>`
   display: flex;
   align-items: center;
   margin-bottom: 5px;

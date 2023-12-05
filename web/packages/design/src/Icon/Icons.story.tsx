@@ -18,7 +18,7 @@ import React from 'react';
 
 import { Text } from '..';
 
-import Flex from './../Flex';
+import Flex from '../Flex';
 
 import * as Icon from '.';
 

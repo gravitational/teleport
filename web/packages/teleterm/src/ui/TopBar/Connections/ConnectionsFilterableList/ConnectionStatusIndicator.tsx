@@ -20,16 +20,16 @@ import { Box } from 'design';
 
 export const ConnectionStatusIndicator: React.FC<Props> = props => {
   const { connected, ...styles } = props;
-  return <StyledStatus $connected={connected} {...styles} />;
+  return <StyledStatus connected={connected} {...styles} />;
 };
 
-const StyledStatus = styled<Props>(Box)`
+const StyledStatus = styled(Box)<Props>`
   width: 8px;
   height: 8px;
   border-radius: 50%;
   ${props => {
-    const { $connected, theme } = props;
-    const backgroundColor = $connected
+    const { connected, theme } = props;
+    const backgroundColor = connected
       ? theme.colors.success
       : theme.colors.grey[300];
     return {

@@ -64,7 +64,7 @@ export const StaticThemeProvider = (
 ) => {
   return (
     <StyledThemeProvider theme={props.theme}>
-      <StyleSheetManager disableVendorPrefixes>
+      <StyleSheetManager>
         <React.Fragment>
           <GlobalStyle />
           {props.children}

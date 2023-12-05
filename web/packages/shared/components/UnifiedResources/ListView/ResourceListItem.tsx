@@ -70,7 +70,7 @@ export function ResourceListItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <RowInnerContainer alignItems="start" pinned={pinned} selected={selected}>
+      <RowInnerContainer alignItems="start">
         {/* checkbox */}
         <HoverTooltip
           css={`

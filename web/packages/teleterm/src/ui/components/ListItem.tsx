@@ -16,7 +16,7 @@
 
 import styled from 'styled-components';
 
-export const ListItem = styled.li`
+export const ListItem = styled.li<{ isActive?: boolean }>`
   white-space: nowrap;
   box-sizing: border-box;
   display: flex;

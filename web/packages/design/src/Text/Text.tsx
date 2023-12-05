@@ -16,16 +16,19 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import {
-  typography,
-  fontSize,
-  space,
-  color,
-  textAlign,
-  fontWeight,
-} from 'design/system';
+import { ColorProps, FontSizeProps, FontWeightProps, SpaceProps, TextAlignProps } from 'styled-system';
 
-const Text = styled.div`
+import { color, fontSize, fontWeight, space, textAlign, typography } from 'design/system';
+import { TypographyProps } from 'design/system/typography';
+
+export type TextProps = TypographyProps &
+  FontSizeProps &
+  SpaceProps &
+  ColorProps &
+  TextAlignProps &
+  FontWeightProps;
+
+const Text = styled.div<TextProps>`
   overflow: hidden;
   text-overflow: ellipsis;
   ${typography}
@@ -37,13 +40,6 @@ const Text = styled.div`
 `;
 
 Text.displayName = 'Text';
-
-Text.propTypes = {
-  ...space.propTypes,
-  ...fontSize.propTypes,
-  ...textAlign.propTypes,
-  ...typography.propTypes,
-};
 
 Text.defaultProps = {
   m: 0,
