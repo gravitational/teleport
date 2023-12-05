@@ -322,6 +322,12 @@ func WithSSHLabel(key, value string) TestServerOptFunc {
 	})
 }
 
+func WithAuthPreference(authPref types.AuthPreference) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Auth.Preference = authPref
+	})
+}
+
 type cliModules struct{}
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
