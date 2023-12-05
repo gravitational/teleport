@@ -18,6 +18,10 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
+import { ContextProvider } from 'teleport/index';
+import TeleportContext from 'teleport/teleportContext';
+import cfg from 'teleport/config';
+
 import { IntegrationTiles } from './IntegrationTiles';
 
 test('render', async () => {
@@ -29,8 +33,8 @@ test('render', async () => {
 
   expect(screen.getByText(/amazon web services/i)).toBeInTheDocument();
   expect(screen.queryByText(/no permission/i)).not.toBeInTheDocument();
-  expect(screen.getByTestId('svg')).toBeInTheDocument();
-  expect(screen.getByRole('link')).toBeInTheDocument();
+  expect(screen.getAllByTestId('svg')).toHaveLength(2);
+  expect(screen.getAllByRole('link')).toHaveLength(2);
 
   const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).toBeEnabled();
@@ -40,7 +44,10 @@ test('render', async () => {
 test('render disabled', async () => {
   render(
     <MemoryRouter>
-      <IntegrationTiles hasAccess={false} />
+      <IntegrationTiles
+        hasIntegrationAccess={false}
+        hasExternalAuditStorage={false}
+      />
     </MemoryRouter>
   );
 
@@ -54,4 +61,23 @@ test('render disabled', async () => {
   // so "toBeDisabled" interprets it as false.
   // eslint-disable-next-line jest-dom/prefer-enabled-disabled
   expect(tile).toHaveAttribute('disabled');
+});
+
+test('dont render External Audit Storage for enterprise unless it is cloud', async () => {
+  cfg.isEnterprise = true;
+  const ctx = new TeleportContext();
+  ctx.isEnterprise = true;
+  ctx.isCloud = false;
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <IntegrationTiles />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(
+    screen.queryByText(/AWS External Audit Storage/i)
+  ).not.toBeInTheDocument();
 });

@@ -33,6 +33,7 @@ export function ConnectionDiagnosticResult({
   testConnection,
   stepNumber,
   stepDescription,
+  numberAndDescriptionOnSameLine,
 }: Props) {
   const showDiagnosisOutput = !!diagnosis || attempt.status === 'failed';
 
@@ -62,10 +63,18 @@ export function ConnectionDiagnosticResult({
 
   return (
     <StyledBox mb={5}>
-      <Text bold>Step {stepNumber}</Text>
-      <Text typography="subtitle1" mb={3}>
-        {stepDescription}
-      </Text>
+      {numberAndDescriptionOnSameLine ? (
+        <Text bold mb={3}>
+          Step {stepNumber}: {stepDescription}
+        </Text>
+      ) : (
+        <>
+          <Text bold>Step {stepNumber}</Text>
+          <Text typography="subtitle1" mb={3}>
+            {stepDescription}
+          </Text>
+        </>
+      )}
       <Flex alignItems="center" mt={3}>
         {canTestConnection ? (
           <>
@@ -132,7 +141,7 @@ export function ConnectionDiagnosticResult({
   );
 }
 
-const ErrorWithDetails = ({
+export const ErrorWithDetails = ({
   details,
   error,
 }: {
@@ -170,4 +179,5 @@ export type Props = {
   testConnection(): void;
   stepNumber: number;
   stepDescription: string;
+  numberAndDescriptionOnSameLine?: boolean;
 };

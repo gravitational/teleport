@@ -32,13 +32,14 @@ test('loaded', () => {
 });
 
 test('active sessions CTA', () => {
-  cfg.isUsageBasedBilling = true;
+  cfg.isTeam = true;
+  cfg.isEnterprise = true;
   const { container } = render(<ActiveSessionsCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('moderated sessions CTA', () => {
-  cfg.isUsageBasedBilling = true;
+test('moderated sessions CTA for non-enterprise', () => {
+  cfg.isEnterprise = false;
   const { container } = render(<ModeratedSessionsCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

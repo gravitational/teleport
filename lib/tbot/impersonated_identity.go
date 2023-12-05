@@ -256,7 +256,7 @@ func (b *Bot) generateIdentity(
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  publicKey,
-	}, certs, identity.DestinationKinds()...)
+	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -496,6 +496,8 @@ func (b *Bot) generateImpersonatedIdentity(
 		return routedIdentity, impersonatedClient, nil
 	case *config.SSHHostOutput:
 		return impersonatedIdentity, impersonatedClient, nil
+	case *config.UnstableClientCredentialOutput:
+		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
@@ -673,7 +675,9 @@ func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 		return nil, trace.Wrap(err)
 	}
 
-	proxyPong, err := webclient.Ping(&webclient.Config{
+	// We use find instead of Ping as it's less resource intense and we can
+	// ping the AuthServer directly for its configuration if necessary.
+	proxyPong, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: authPong.ProxyPublicAddr,
 		Insecure:  drc.cfg.Insecure,

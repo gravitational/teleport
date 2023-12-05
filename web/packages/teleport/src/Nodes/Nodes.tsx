@@ -29,7 +29,7 @@ import useTeleport from 'teleport/useTeleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history/history';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import { SearchResource } from 'teleport/Discover/SelectResource';
 
@@ -74,7 +74,7 @@ export function Nodes(props: State) {
     fetchedData.agents.length === 0 &&
     isSearchEmpty;
 
-  const enabled = localStorage.areUnifiedResourcesEnabled();
+  const enabled = storageService.areUnifiedResourcesEnabled();
   if (enabled) {
     history.replace(cfg.getUnifiedResourcesRoute(clusterId));
   }

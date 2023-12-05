@@ -37,7 +37,7 @@ import {
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 
 import {
   ClusterResource,
@@ -101,7 +101,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
       acl,
       filterResources(platform, authType, RESOURCES)
     );
-    const onboardDiscover = localStorage.getOnboardDiscover();
+    const onboardDiscover = storageService.getOnboardDiscover();
     const sortedResources = sortResources(
       resources,
       preferences,

@@ -30,7 +30,7 @@ import { Desktop } from 'teleport/services/desktops';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Node } from 'teleport/services/nodes';
+import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { App } from 'teleport/services/apps';
 
 type Props = {
@@ -54,13 +54,7 @@ export const ResourceActionButton = ({ resource }: Props) => {
   }
 };
 
-export const NodeConnect = ({
-  node,
-  textTransform,
-}: {
-  node: Node;
-  textTransform?: string;
-}) => {
+const NodeConnect = ({ node }: { node: Node }) => {
   const { clusterId } = useStickyClusterId();
   const startSshSession = (login: string, serverId: string) => {
     const url = cfg.getSshConnectRoute({
@@ -84,7 +78,7 @@ export const NodeConnect = ({
   return (
     <MenuLogin
       width="90px"
-      textTransform={textTransform || 'none'}
+      textTransform={'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
       onSelect={handleOnSelect}
@@ -269,14 +263,6 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
       )}
     </>
   );
-};
-
-const sortNodeLogins = (logins: string[]) => {
-  const noRoot = logins.filter(l => l !== 'root').sort();
-  if (noRoot.length === logins.length) {
-    return logins;
-  }
-  return ['root', ...noRoot];
 };
 
 const makeNodeOptions = (clusterId: string, node: Node | undefined) => {

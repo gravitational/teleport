@@ -29,8 +29,7 @@ import {
   Rows,
 } from 'design/Icon';
 
-import { UnifiedViewModePreference } from 'teleport/services/userPreferences/types';
-
+import { ViewMode } from 'shared/services/unifiedResourcePreferences';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { FilterKind } from './UnifiedResources';
@@ -57,8 +56,8 @@ interface FilterPanelProps {
   selectVisible: () => void;
   selected: boolean;
   BulkActions?: React.ReactElement;
-  currentViewMode: UnifiedViewModePreference;
-  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
 }
 
 export function FilterPanel({
@@ -418,16 +417,16 @@ function ViewModeSwitch({
   currentViewMode,
   onSelectViewMode,
 }: {
-  currentViewMode: UnifiedViewModePreference;
-  onSelectViewMode: (viewMode: UnifiedViewModePreference) => void;
+  currentViewMode: ViewMode;
+  onSelectViewMode: (viewMode: ViewMode) => void;
 }) {
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
         className={
-          currentViewMode === UnifiedViewModePreference.Card ? 'selected' : ''
+          currentViewMode === ViewMode.VIEW_MODE_CARD ? 'selected' : ''
         }
-        onClick={() => onSelectViewMode(UnifiedViewModePreference.Card)}
+        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_CARD)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -439,9 +438,9 @@ function ViewModeSwitch({
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
         className={
-          currentViewMode === UnifiedViewModePreference.List ? 'selected' : ''
+          currentViewMode === ViewMode.VIEW_MODE_LIST ? 'selected' : ''
         }
-        onClick={() => onSelectViewMode(UnifiedViewModePreference.List)}
+        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_LIST)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;

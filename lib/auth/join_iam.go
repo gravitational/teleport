@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/authz"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -348,11 +347,6 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		opt(cfg)
 	}
 
-	clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	challenge, err := generateIAMChallenge()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -363,8 +357,6 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		return nil, trace.Wrap(err)
 	}
 
-	// fill in the client remote addr to the register request
-	req.RegisterUsingTokenRequest.RemoteAddr = clientAddr.String()
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,9 +439,8 @@ func createSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 
 func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS, error) {
 	awsConfig := awssdk.Config{
-		EC2MetadataEnableFallback: awssdk.Bool(false),
-		UseFIPSEndpoint:           cfg.fipsEndpointOption,
-		STSRegionalEndpoint:       cfg.regionalEndpointOption,
+		UseFIPSEndpoint:     cfg.fipsEndpointOption,
+		STSRegionalEndpoint: cfg.regionalEndpointOption,
 	}
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,

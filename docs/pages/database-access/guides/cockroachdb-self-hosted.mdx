@@ -162,6 +162,23 @@ To log out of the database and remove credentials:
 $ tsh db logout roach
 ```
 
+## Troubleshooting
+
+### Unimplemented client encoding error
+
+You may encounter the `unimplemented client encoding: "sqlascii"` error when
+connecting to your CockroachDB database if your `psql` uses SQL_ASCII encoding.
+
+CockroachDB supports only UTF8 client encoding. To enforce the encoding, set
+the following environment variable in the shell running `tsh db connect`:
+```bash
+export PGCLIENTENCODING='utf-8'
+```
+
+If you are connecting the CockroachDB database with Teleport Connect, add the
+environment variable to your shell startup scripts and restart the Teleport
+Connect app.
+
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)

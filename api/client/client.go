@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
-	"github.com/gravitational/teleport/api/client/externalcloudaudit"
+	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -56,7 +56,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
+	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -68,6 +68,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/internal/context121"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -520,10 +521,14 @@ func onceValue[T any](f func() T) func() T {
 // See https://github.com/gravitational/teleport/issues/30759
 // See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
 var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.StreamClientInterceptor()
 })
 
 var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.UnaryClientInterceptor()
 })
 
@@ -803,13 +808,13 @@ func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
 }
 
-// ExternalCloudAuditClient returns an unadorned External Cloud Audit client,
-// using the underlying Auth gRPC connection.
+// ExternalAuditStorageClient returns an unadorned External Audit Storage
+// client, using the underlying Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
 // still get a external audit client when calling this method, but all RPCs will
 // return "not implemented" errors (as per the default gRPC behavior).
-func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
-	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(c.conn))
+func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
+	return externalauditstorage.NewClient(externalauditstoragev1.NewExternalAuditStorageServiceClient(c.conn))
 }
 
 // TrustClient returns an unadorned Trust client, using the underlying
@@ -974,7 +979,7 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.grpc.EmitAuditEvent(ctx, grpcEvent)
+	_, err = c.grpc.EmitAuditEvent(context121.WithoutCancel(ctx), grpcEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}

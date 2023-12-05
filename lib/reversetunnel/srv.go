@@ -638,10 +638,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
-	// Apply read/write timeouts to the server connection.
-	conn := utils.ObeyIdleTimeout(ccx.NetConn,
-		s.offlineThreshold,
-		"reverse tunnel server")
+	conn := ccx.NetConn
 	sconn := ccx.ServerConn
 
 	channelType := nch.ChannelType()

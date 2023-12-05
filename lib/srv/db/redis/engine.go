@@ -101,11 +101,11 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	}
 
 	state := e.sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database,
-		e.sessionCtx.DatabaseUser,
-		e.sessionCtx.DatabaseName,
-	)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     e.sessionCtx.Database,
+		DatabaseUser: e.sessionCtx.DatabaseUser,
+		DatabaseName: e.sessionCtx.DatabaseName,
+	})
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
 		state,
@@ -360,7 +360,9 @@ func checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, 
 
 func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
 	client, err := clients.GetAWSElastiCacheClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta))
+		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -381,7 +383,9 @@ func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Cli
 
 func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
 	client, err := clients.GetAWSMemoryDBClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta))
+		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

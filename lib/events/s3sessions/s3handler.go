@@ -76,7 +76,7 @@ type Config struct {
 	ACL string
 	// Session is an optional existing AWS client session
 	Session *awssession.Session
-	// Credentials if supplied are used in tests or with external cloud audit.
+	// Credentials if supplied are used in tests or with External Audit Storage.
 	Credentials *credentials.Credentials
 	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
 	SSEKMSKey string
@@ -177,8 +177,6 @@ func (s *Config) CheckAndSetDefaults() error {
 		if s.Credentials != nil {
 			sess.Config.Credentials = s.Credentials
 		}
-
-		sess.Config.EC2MetadataEnableFallback = aws.Bool(false)
 
 		sess.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint)
 

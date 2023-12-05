@@ -33,7 +33,7 @@ import desktopService from './services/desktops';
 import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
-import localStorage from './services/localStorage';
+import { storageService } from './services/storageService';
 
 class TeleportContext implements types.Context {
   // stores
@@ -66,14 +66,20 @@ class TeleportContext implements types.Context {
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.
-  // TODO(mcbattirola): use cluster features instead of only using `isUsageBasedBilling`
+  // TODO(mcbattirola): use cluster features instead of only using `isTeam`
   // to determine which feature is locked
   lockedFeatures: types.LockedFeatures = {
-    authConnectors: cfg.isUsageBasedBilling,
-    activeSessions: cfg.isUsageBasedBilling,
-    accessRequests: cfg.isUsageBasedBilling,
-    premiumSupport: cfg.isUsageBasedBilling,
-    trustedDevices: cfg.isUsageBasedBilling,
+    authConnectors: cfg.isTeam,
+    activeSessions: cfg.isTeam,
+    premiumSupport: cfg.isTeam,
+    externalCloudAudit: cfg.isTeam,
+    // Below should be locked for the following cases:
+    //  1) is team
+    //  2) is not a legacy and igs is not enabled. legacies should have unlimited access.
+    accessRequests:
+      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
+    trustedDevices:
+      cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
   // init fetches data required for initial rendering of components.
@@ -86,11 +92,11 @@ class TeleportContext implements types.Context {
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
       this.storeUser.hasAccessToQueryAgent() &&
-      !localStorage.getOnboardDiscover()
+      !storageService.getOnboardDiscover()
     ) {
       const hasResource =
         await userService.checkUserHasAccessToRegisteredResource();
-      localStorage.setOnboardDiscover({ hasResource });
+      storageService.setOnboardDiscover({ hasResource });
     }
 
     if (user.acl.accessGraph.list) {
@@ -186,10 +192,13 @@ class TeleportContext implements types.Context {
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.getPluginsAccess().list,
       integrations: userContext.getIntegrationsAccess().list,
-      enrollIntegrations: userContext.getIntegrationsAccess().create,
+      enrollIntegrations:
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       enrollIntegrationsOrPlugins:
         userContext.getPluginsAccess().create ||
-        userContext.getIntegrationsAccess().create,
+        userContext.getIntegrationsAccess().create ||
+        userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
       newLocks:
@@ -198,6 +207,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
     };
   }
 }
@@ -231,6 +241,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  externalAuditStorage: false,
 };
 
 export default TeleportContext;

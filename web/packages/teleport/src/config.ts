@@ -45,9 +45,19 @@ const cfg = {
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+  // Historically, this flag used to refer to "Cloud Team" product,
+  // but with the new EUB (Enterprise Usage Based) product, it can mean either EUB or Team.
+  // Use the `isTeam` config flag to determine if product used is Team.
+  // EUB can be determined from a combination of existing config flags eg: `isCloud && !isTeam`.
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
+  // isTeam is true if [Features.ProductType] == Team
+  isTeam: false,
+  // isIgsEnabled refers to Identity Governance & Security product.
+  // It refers to a group of features: access request, device trust,
+  // access list, and access monitoring.
+  isIgsEnabled: false,
 
   configDir: '$HOME/.config',
 
@@ -192,6 +202,7 @@ const cfg = {
     presetRolesPath: '/v1/webapi/presetroles',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
+    connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
     joinTokenPath: '/v1/webapi/token',
     dbScriptPath: '/scripts/:token/install-database.sh',
@@ -348,6 +359,14 @@ const cfg = {
     if (cfg.auth.authType === 'local') return 'local';
 
     return 'sso';
+  },
+
+  // isLegacyEnterprise describes product that should have legacy support
+  // where certain features access remain unlimited. This was before
+  // product EUB (enterprise usage based) was introduced.
+  // eg: access request and device trust.
+  isLegacyEnterprise() {
+    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
   },
 
   getAuthType() {
@@ -701,6 +720,10 @@ const cfg = {
 
   getPresetRolesUrl() {
     return cfg.api.presetRolesPath;
+  },
+
+  getConnectMyComputerLoginsUrl() {
+    return cfg.api.connectMyComputerLoginsPath;
   },
 
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {

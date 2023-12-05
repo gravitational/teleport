@@ -17,6 +17,7 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"database/sql"
@@ -45,7 +46,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
@@ -76,10 +76,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
+	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -435,6 +437,54 @@ func TestAccessRedis(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestRedisCommandDocs is a regression test to verify if simple/status strings
+// (+<string>) are returned to Redis client for "COMMAND DOCS" command.
+//
+// "redis-cli" expects command info flags in simple/status strings (+<string>),
+// not regular ones ($<string>). An error is thrown by "redis-cli" if +<string>
+// is not received.
+func TestRedisCommandDocs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	go testCtx.startHandlingConnections()
+
+	// Create user/role with the requested permissions.
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	// Try to connect to the database as this user.
+	redisClient, err := testCtx.redisClient(ctx, "alice", "redis", "default")
+	require.NoError(t, err)
+
+	// Miniredis returns a sample command result:
+	// https://github.com/alicebob/miniredis/blob/master/cmd_command.go
+	//
+	// Unlike "redis-cli", redisClient.Command accepts any kind of string
+	// regardless whether the flag is in +<flag> or in $<flag>. This should
+	// always succeeds but it will be used as a reference to test the raw
+	// output.
+	parsedCommandInfos := redisClient.Command(ctx)
+	require.NoError(t, parsedCommandInfos.Err())
+
+	// Capture the raw bytes.
+	rawCommandInfos := goredis.NewCmd(ctx, "COMMAND", "DOCS")
+	require.NoError(t, redisClient.Process(ctx, rawCommandInfos))
+	rawCommandInfosBuffer := &bytes.Buffer{}
+	require.NoError(t, redisprotocol.WriteCmd(goredis.NewWriter(rawCommandInfosBuffer), rawCommandInfos.Val()))
+
+	// Loop each flag to make sure +<flag> is written to the raw bytes.
+	rawCommandInfosOutput := rawCommandInfosBuffer.String()
+	var flagsVerified int
+	for _, commandInfo := range parsedCommandInfos.Val() {
+		for _, flag := range commandInfo.Flags {
+			require.Contains(t, rawCommandInfosOutput, "+"+flag)
+			flagsVerified += 1
+		}
+	}
+	// Just to make sure miniredis is returning a command info with some flags.
+	require.Greater(t, flagsVerified, 0)
 }
 
 // TestMySQLBadHandshake verifies MySQL proxy can gracefully handle truncated
@@ -862,7 +912,7 @@ func TestAccessMongoDB(t *testing.T) {
 		{
 			name: "current server",
 			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion),
+				mongodb.TestServerWireVersion(protocol.OpmsgWireVersion),
 			},
 		},
 		{
@@ -903,14 +953,14 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx := setupTestContext(ctx, t, withSelfHostedMongo("mongo", serverOpt.opts...))
 				go testCtx.startHandlingConnections()
 
+				// Create user/role with the requested permissions.
+				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+
 				for _, clientOpt := range clientOpts {
 					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
-
-						// Create user/role with the requested permissions.
-						testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 						// Try to connect to the database as this user.
 						mongoClient, err := testCtx.mongoClient(ctx, test.user, "mongo", test.dbUser, clientOpt.opts)
@@ -951,13 +1001,13 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 		expectedQueryError bool
 	}{
 		"default message size": {
-			messageSize: 256,
+			messageSize: 300,
 		},
 		"message size exceeded": {
 			// Set a value that will enable handshake message to complete
 			// successfully.
-			maxMessageSize:     256,
-			messageSize:        512,
+			maxMessageSize:     300,
+			messageSize:        500,
 			expectedQueryError: true,
 		},
 	} {
@@ -2193,12 +2243,13 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
-		Clock:       testCtx.clock,
-		ServerID:    testCtx.hostID,
-		Emitter:     testCtx.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    proxyAuthClient,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          testCtx.clock,
+		ServerID:       testCtx.hostID,
+		Emitter:        testCtx.emitter,
+		EmitterContext: ctx,
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2342,12 +2393,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: c.authClient,
-		LockWatcher: lockWatcher,
-		Clock:       c.clock,
-		ServerID:    p.HostID,
-		Emitter:     c.emitter,
-		Logger:      utils.NewLoggerForTests(),
+		AccessPoint:    c.authClient,
+		LockWatcher:    lockWatcher,
+		Clock:          c.clock,
+		ServerID:       p.HostID,
+		Emitter:        c.emitter,
+		EmitterContext: context.Background(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2922,6 +2974,10 @@ func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
 }
 
 func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
+	return withSelfHostedMongoWithAdminUser(name, "", opts...)
+}
+
+func withSelfHostedMongoWithAdminUser(name, adminUsername string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
 			Name:       name,
@@ -2931,12 +2987,21 @@ func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withData
 		require.NoError(t, err)
 		go mongoServer.Serve()
 		t.Cleanup(func() { mongoServer.Close() })
+
+		var adminUser *types.DatabaseAdminUser
+		if adminUsername != "" {
+			adminUser = &types.DatabaseAdminUser{
+				Name: adminUsername,
+			}
+		}
+
 		database, err := types.NewDatabaseV3(types.Metadata{
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolMongoDB,
 			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
 			DynamicLabels: dynamicLabels,
+			AdminUser:     adminUser,
 		})
 		require.NoError(t, err)
 		testCtx.mongo[name] = testMongoDB{

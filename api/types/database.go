@@ -329,6 +329,12 @@ func (d *DatabaseV3) SupportsAutoUsers() bool {
 		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
 			return true
 		}
+
+	case DatabaseProtocolMongoDB:
+		switch d.GetType() {
+		case DatabaseTypeSelfHosted:
+			return true
+		}
 	}
 	return false
 }
@@ -1024,6 +1030,8 @@ const (
 	DatabaseProtocolClickHouse = "clickhouse"
 	// DatabaseProtocolMySQL is the MySQL database protocol.
 	DatabaseProtocolMySQL = "mysql"
+	// DatabaseProtocolMongoDB is the MongoDB database protocol.
+	DatabaseProtocolMongoDB = "mongodb"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"

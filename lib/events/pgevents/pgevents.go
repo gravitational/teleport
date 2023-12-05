@@ -34,6 +34,7 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/internal/context121"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -294,6 +295,7 @@ var _ events.AuditLogger = (*Log)(nil)
 
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	var sessionID uuid.UUID
 	if s := events.GetSessionID(event); s != "" {
 		u, err := uuid.Parse(s)

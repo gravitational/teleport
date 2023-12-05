@@ -26,25 +26,30 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 )
 
 // TestAutoUsersPostgres verifies automatic database user creation for Postgres.
 func TestAutoUsersPostgres(t *testing.T) {
 	ctx := context.Background()
 	for name, tc := range map[string]struct {
-		mode                types.CreateDatabaseUserMode
-		databaseRoles       []string
-		expectConnectionErr bool
+		mode                 types.CreateDatabaseUserMode
+		databaseRoles        []string
+		adminDefaultDatabase string
+		expectConnectionErr  bool
+		expectAdminDatabase  string
 	}{
 		"activate/deactivate users": {
 			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 			databaseRoles:       []string{"reader", "writer"},
 			expectConnectionErr: false,
+			expectAdminDatabase: "user-db",
 		},
 		"activate/delete users": {
 			mode:                types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
 			databaseRoles:       []string{"reader", "writer"},
 			expectConnectionErr: false,
+			expectAdminDatabase: "user-db",
 		},
 		"disabled": {
 			mode:          types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
@@ -54,6 +59,13 @@ func TestAutoUsersPostgres(t *testing.T) {
 			// error.
 			expectConnectionErr: true,
 		},
+		"admin user default database": {
+			mode:                 types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			databaseRoles:        []string{"reader", "writer"},
+			adminDefaultDatabase: "admin-db",
+			expectConnectionErr:  false,
+			expectAdminDatabase:  "admin-db",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			tc := tc
@@ -62,7 +74,8 @@ func TestAutoUsersPostgres(t *testing.T) {
 			// At initial setup, only allows postgres (used to create execute the procedures).
 			testCtx := setupTestContext(ctx, t, withSelfHostedPostgresUsers("postgres", []string{"postgres"}, func(db *types.DatabaseV3) {
 				db.Spec.AdminUser = &types.DatabaseAdminUser{
-					Name: "postgres",
+					Name:            "postgres",
+					DefaultDatabase: tc.adminDefaultDatabase,
 				}
 			}))
 			go testCtx.startHandlingConnections()
@@ -79,12 +92,16 @@ func TestAutoUsersPostgres(t *testing.T) {
 			require.NoError(t, err)
 
 			// Try to connect to the database as this user.
-			pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "postgres")
+			pgConn, err := testCtx.postgresClient(ctx, "alice", "postgres", "alice", "user-db")
 			if tc.expectConnectionErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
+
+			// Verify there are two connections.
+			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", tc.expectAdminDatabase)
+			requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "alice", "user-db")
 
 			// Verify user was activated.
 			select {
@@ -109,6 +126,18 @@ func TestAutoUsersPostgres(t *testing.T) {
 				t.Fatal("user not deactivated after 5s")
 			}
 		})
+	}
+}
+
+func requirePostgresConnection(t *testing.T, parametersCh chan map[string]string, expectUser, expectDatabase string) {
+	t.Helper()
+	select {
+	case parameters := <-parametersCh:
+		require.NotNil(t, parameters)
+		require.Equal(t, expectUser, parameters["user"])
+		require.Equal(t, expectDatabase, parameters["database"])
+	case <-time.After(5 * time.Second):
+		t.Fatal("no connection after 5s")
 	}
 }
 
@@ -247,6 +276,89 @@ func TestAutoUsersMySQL(t *testing.T) {
 				require.Equal(t, tc.teleportUser, e.TeleportUser)
 				require.Equal(t, tc.expectDatabaseUser, e.DatabaseUser)
 				require.False(t, e.Active)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not deactivated after 5s")
+			}
+		})
+	}
+}
+
+func TestAutoUsersMongoDB(t *testing.T) {
+	t.Setenv("TELEPORT_DISABLE_MONGODB_ADMIN_CLIENT_CACHE", "true")
+	ctx := context.Background()
+	username := "alice"
+
+	tests := []struct {
+		name             string
+		mode             types.CreateDatabaseUserMode
+		wantTeardownType mongodb.UserEventType
+	}{
+		{
+			name:             "keep",
+			mode:             types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			wantTeardownType: mongodb.UserEventDeactivate,
+		},
+		{
+			name:             "best_effort_drop",
+			mode:             types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			wantTeardownType: mongodb.UserEventDelete,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			testCtx := setupTestContext(ctx, t, withSelfHostedMongoWithAdminUser("mongo-server", "teleport-admin"))
+			go testCtx.startHandlingConnections()
+
+			// Create user with role that allows user provisioning.
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), username, []string{"auto"}, nil)
+			require.NoError(t, err)
+			options := role.GetOptions()
+			options.CreateDatabaseUserMode = test.mode
+			role.SetOptions(options)
+			role.SetDatabaseRoles(types.Allow, []string{"readWrite@db1", "readAnyDatabase@admin"})
+			role.SetDatabaseNames(types.Allow, []string{"db1", "db2", "admin"})
+			err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			// DatabaseUser must match identity.
+			_, err = testCtx.mongoClient(ctx, username, "mongo-server", "some-other-username")
+			require.Error(t, err)
+
+			// Try to connect to the database as this user.
+			mongoClient, err := testCtx.mongoClient(ctx, username, "mongo-server", username)
+			t.Cleanup(func() {
+				if mongoClient != nil {
+					err := mongoClient.Disconnect(ctx)
+					if !strings.Contains(err.Error(), "client is disconnected") {
+						require.NoError(t, err)
+					}
+				}
+			})
+			require.NoError(t, err)
+
+			// Verify user was activated.
+			select {
+			case e := <-testCtx.mongo["mongo-server"].db.UserEventsCh():
+				require.Equal(t, "CN=alice", e.DatabaseUser)
+				require.Equal(t, []string{"readAnyDatabase@admin", "readWrite@db1"}, e.Roles)
+				require.Equal(t, mongodb.UserEventActivate, e.Type)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not activated after 5s")
+			}
+
+			// Disconnect.
+			err = mongoClient.Disconnect(ctx)
+			require.NoError(t, err)
+
+			// Verify user was teared down.
+			select {
+			case e := <-testCtx.mongo["mongo-server"].db.UserEventsCh():
+				require.Equal(t, "CN=alice", e.DatabaseUser)
+				require.Equal(t, test.wantTeardownType, e.Type)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not deactivated after 5s")
 			}
