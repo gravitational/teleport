@@ -1,4 +1,4 @@
-#![allow(clippy::new_without_default)] // default trait not supported in wasm
+// default trait not supported in wasm
 // Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// default trait not supported in wasm
+#![allow(clippy::new_without_default)]
 
 #[macro_use]
 extern crate log;
@@ -193,7 +195,10 @@ impl FastPathProcessor {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
                 io_channel_id,
                 user_channel_id,
+                // These should be set to the same values as they're set to in the
+                // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
                 no_server_pointer: true,
+                pointer_software_rendering: false,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
@@ -235,14 +240,12 @@ impl FastPathProcessor {
                     UpdateKind::Region(region) => {
                         outputs.push(ActiveStageOutput::GraphicsUpdate(region));
                     }
-                    UpdateKind::PointerDefault => {
-                        outputs.push(ActiveStageOutput::PointerDefault);
-                    }
-                    UpdateKind::PointerHidden => {
-                        outputs.push(ActiveStageOutput::PointerHidden);
-                    }
-                    UpdateKind::PointerPosition { x, y } => {
-                        outputs.push(ActiveStageOutput::PointerPosition { x, y });
+                    UpdateKind::PointerDefault
+                    | UpdateKind::PointerHidden
+                    | UpdateKind::PointerPosition { .. }
+                    | UpdateKind::PointerBitmap(_) => {
+                        warn!("Pointer updates are not supported");
+                        continue;
                     }
                 }
             }

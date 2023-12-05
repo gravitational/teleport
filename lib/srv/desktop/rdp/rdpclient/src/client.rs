@@ -938,10 +938,13 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
             color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
         }),
         dig_product_id: "".to_string(),
+        // `client_dir` is apparently unimportant, however most RDP clients hardcode this value (including FreeRDP):
+        // https://github.com/FreeRDP/FreeRDP/blob/4e24b966c86fdf494a782f0dfcfc43a057a2ea60/libfreerdp/core/settings.c#LL49C34-L49C70
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
-        no_server_pointer: false,
+        no_server_pointer: true,
         autologon: true,
+        pointer_software_rendering: false,
     }
 }
 
