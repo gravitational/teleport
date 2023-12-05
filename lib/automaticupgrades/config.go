@@ -70,7 +70,7 @@ func GetUpgraderVersion(ctx context.Context) string {
 	if os.Getenv("TELEPORT_EXT_UPGRADER") == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
-			log.WithError(err).Debug("Failed to exec teleport-upgrade version command.")
+			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
 		} else {
 			if version := strings.TrimSpace(string(out)); version != "" {
 				return version
