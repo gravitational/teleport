@@ -211,17 +211,12 @@ export function useIntegrations() {
   }
 
   function onCancelDeleteExternalAuditStorage() {
-    console.log(
-      'onCancelDeleteExternalAuditStorage',
-      onCancelDeleteExternalAuditStorage
-    );
     setExternalAuditStorageOps({ type: 'none' });
   }
 
   function onStartDeleteExternalAuditStorage(
     opType: ExternalAuditStorageOpType
   ) {
-    console.log('onStartDeleteExternalAuditStorage', opType);
     setExternalAuditStorageOps({ type: 'delete', item: { name: opType } });
   }
 

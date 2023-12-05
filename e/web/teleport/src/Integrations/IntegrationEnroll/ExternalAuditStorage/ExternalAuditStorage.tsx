@@ -19,6 +19,8 @@ import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png
 
 import cfg from 'teleport/config';
 
+import useTeleport from 'teleport/useTeleport';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import { ConfigurePermissions } from './ConfigurePermissions';
@@ -28,6 +30,7 @@ import { SelectIntegration } from './SelectIntegration';
 import { Step, useExternalAuditStorage } from './useExternalAuditStorage';
 
 export function ExternalAuditStorage() {
+  const ctx = useTeleport();
   const { currentStep, setCurrentStep, draft, continuePreviousDraft } =
     useExternalAuditStorage();
 
@@ -49,6 +52,7 @@ export function ExternalAuditStorage() {
     activateRun(() =>
       externalAuditStorageService.promoteDraft().then(() => {
         setActivated(true);
+        ctx.hasExternalAuditStorage = true;
       })
     );
   }

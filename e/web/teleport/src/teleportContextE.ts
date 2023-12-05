@@ -105,6 +105,27 @@ class TeleportEContext extends TeleportContext {
         console.error(err);
       }
     }
+
+    // check if there's already a external audit storage configured
+    // so we don't show the feature's CTAs
+    const isDismissed = storageService.getExternalAuditStorageCtaDisabled();
+    const isCloudEnterprise = this.isCloud && !cfg.isTeam;
+    if (
+      !isDismissed &&
+      isCloudEnterprise &&
+      this.storeUser.getExternalAuditStorageAccess().read
+    ) {
+      try {
+        const externalAuditStorage =
+          await this.externalAuditStorageService.getCluster();
+        if (externalAuditStorage) {
+          this.hasExternalAuditStorage = true;
+        }
+      } catch (err) {
+        // log error instead of bubbling it up and crashing the app
+        console.error(err);
+      }
+    }
   }
 }
 
