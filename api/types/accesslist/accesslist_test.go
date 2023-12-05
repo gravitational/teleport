@@ -234,7 +234,7 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("invalid ownership is an error", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = Inclusion(42)
+		uut.Spec.Ownership = Inclusion("potato")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
@@ -252,7 +252,7 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("invalid membership is an error", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Membership = Inclusion(42)
+		uut.Spec.Membership = Inclusion("banana")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)

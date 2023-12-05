@@ -111,6 +111,28 @@ func parseReviewDayOfMonth(input string) ReviewDayOfMonth {
 	return 0
 }
 
+// Inclusion values indicate how membership and ownership of an AccessList
+// should be applied.
+type Inclusion string
+
+const (
+	// InclusionUnspecified is the default, un-set inclusion value used to
+	// detect when inclusion is not specified in an access list. The only times
+	// you should encounter this value in practice is when un-marshaling an
+	// AccessList that pre-dates the implementation of dynamic access lists.
+	InclusionUnspecified Inclusion = ""
+
+	// InclusionImplicit indicates that a user need only meet a requirement set
+	// to be considered included in a list. Both list membership and ownership
+	// may be Implicit.
+	InclusionImplicit Inclusion = "implicit"
+
+	// InclusionExplicit indicates that a user must meet a requirement set AND
+	// be explicitly added to an access list to be included in it. Both list
+	// membership and ownership may be Explicit.
+	InclusionExplicit Inclusion = "explicit"
+)
+
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
 // regularly audited.
@@ -252,7 +274,9 @@ func checkInclusion(i Inclusion) (Inclusion, error) {
 		return i, nil
 
 	default:
-		return InclusionUnspecified, trace.BadParameter("invalid inclusion mode %d (must be %d or %d)", i, InclusionExplicit, InclusionImplicit)
+		return InclusionUnspecified,
+			trace.BadParameter("invalid inclusion mode %s (must be %s or %s)",
+				i, InclusionExplicit, InclusionImplicit)
 	}
 }
 

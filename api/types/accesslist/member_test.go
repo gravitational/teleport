@@ -62,7 +62,7 @@ func TestAccessListMemberDefaults(t *testing.T) {
 
 	t.Run("bad membership value is an error", func(t *testing.T) {
 		uut := newValidAccessListMember()
-		uut.Spec.Membership = Inclusion(42)
+		uut.Spec.Membership = Inclusion("nonsense")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
