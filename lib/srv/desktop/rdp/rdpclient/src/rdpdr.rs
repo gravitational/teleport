@@ -22,6 +22,7 @@ use self::filesystem::FilesystemBackend;
 use self::scard::ScardBackend;
 use self::tdp::{
     SharedDirectoryCreateResponse, SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse,
+    SharedDirectoryListResponse,
 };
 use crate::client::ClientHandle;
 use crate::CgoHandle;
@@ -108,6 +109,13 @@ impl TeleportRdpdrBackend {
         tdp_resp: SharedDirectoryDeleteResponse,
     ) -> PduResult<()> {
         self.fs.handle_tdp_sd_delete_response(tdp_resp)
+    }
+
+    pub fn handle_tdp_sd_list_response(
+        &mut self,
+        tdp_resp: SharedDirectoryListResponse,
+    ) -> PduResult<()> {
+        self.fs.handle_tdp_sd_list_response(tdp_resp)
     }
 }
 

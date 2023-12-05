@@ -339,6 +339,10 @@ impl Client {
                             Client::handle_tdp_sd_delete_response(x224_processor.clone(), res)
                                 .await?;
                         }
+                        ClientFunction::HandleTdpSdListResponse(res) => {
+                            Client::handle_tdp_sd_list_response(x224_processor.clone(), res)
+                                .await?;
+                        }
                         ClientFunction::WriteCliprdr(f) => {
                             Client::write_cliprdr(x224_processor.clone(), &mut write_stream, f)
                                 .await?;
@@ -555,6 +559,21 @@ impl Client {
             .await?
     }
 
+    async fn handle_tdp_sd_list_response(
+        x224_processor: Arc<Mutex<X224Processor>>,
+        res: tdp::SharedDirectoryListResponse,
+    ) -> ClientResult<()> {
+        global::TOKIO_RT
+            .spawn_blocking(move || {
+                debug!("received tdp: {:?}", res);
+                let mut x224_processor = Self::x224_lock(&x224_processor)?;
+                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+                rdpdr.handle_tdp_sd_list_response(res)?;
+                Ok(())
+            })
+            .await?
+    }
+
     async fn add_drive(
         x224_processor: Arc<Mutex<X224Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
@@ -710,6 +729,8 @@ enum ClientFunction {
     HandleTdpSdCreateResponse(tdp::SharedDirectoryCreateResponse),
     /// Corresponds to [`Client::handle_tdp_sd_delete_response`]
     HandleTdpSdDeleteResponse(tdp::SharedDirectoryDeleteResponse),
+    /// Corresponds to [`Client::handle_tdp_sd_list_response`]
+    HandleTdpSdListResponse(tdp::SharedDirectoryListResponse),
     /// Corresponds to [`Client::write_cliprdr`]
     WriteCliprdr(Box<dyn ClipboardFn>),
     /// Corresponds to [`Client::update_clipboard`]
@@ -817,6 +838,21 @@ impl ClientHandle {
         res: tdp::SharedDirectoryDeleteResponse,
     ) -> ClientResult<()> {
         self.send(ClientFunction::HandleTdpSdDeleteResponse(res))
+            .await
+    }
+
+    pub fn handle_tdp_sd_list_response(
+        &self,
+        res: tdp::SharedDirectoryListResponse,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdListResponse(res))
+    }
+
+    pub async fn handle_tdp_sd_list_response_async(
+        &self,
+        res: tdp::SharedDirectoryListResponse,
+    ) -> ClientResult<()> {
+        self.send(ClientFunction::HandleTdpSdListResponse(res))
             .await
     }
 

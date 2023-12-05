@@ -17,10 +17,11 @@ use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadResponse,
 };
-use ironrdp_pdu::{custom_err, PduResult};
-use ironrdp_rdpdr::pdu::efs::{DeviceCloseRequest, DeviceCreateRequest};
+use ironrdp_pdu::{cast_length, custom_err, PduResult};
+use ironrdp_rdpdr::pdu::efs::{self, DeviceCloseRequest, DeviceCreateRequest};
+use std::convert::TryInto;
 use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
@@ -135,6 +136,78 @@ impl FileSystemObject {
                 TdpHandlingError(format!("failed to extract name from path: {:?}", self.path))
             ))
         }
+    }
+
+    pub fn into_both_directory(self) -> PduResult<efs::FileBothDirectoryInformation> {
+        let file_attributes = if self.file_type == FileType::Directory {
+            efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+        };
+
+        let last_modified = to_windows_time(self.last_modified);
+
+        Ok(efs::FileBothDirectoryInformation::new(
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
+            cast_length!(
+                "FileSystemObject::into_both_directory",
+                "self.size",
+                self.size
+            )?,
+            file_attributes,
+            self.name()?,
+        ))
+    }
+
+    pub fn into_full_directory(self) -> PduResult<efs::FileFullDirectoryInformation> {
+        let file_attributes = if self.file_type == FileType::Directory {
+            efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+        };
+
+        let last_modified = to_windows_time(self.last_modified);
+
+        Ok(efs::FileFullDirectoryInformation::new(
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
+            cast_length!(
+                "FileSystemObject::into_both_directory",
+                "self.size",
+                self.size
+            )?,
+            file_attributes,
+            self.name()?,
+        ))
+    }
+
+    pub fn into_names(self) -> PduResult<efs::FileNamesInformation> {
+        Ok(efs::FileNamesInformation::new(self.name()?))
+    }
+
+    pub fn into_directory(self) -> PduResult<efs::FileDirectoryInformation> {
+        let file_attributes = if self.file_type == FileType::Directory {
+            efs::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            efs::FileAttributes::FILE_ATTRIBUTE_NORMAL
+        };
+
+        let last_modified = to_windows_time(self.last_modified);
+
+        Ok(efs::FileDirectoryInformation::new(
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
+            cast_length!("FileSystemObject::into_directory", "self.size", self.size)?,
+            file_attributes,
+            self.name()?,
+        ))
     }
 }
 
@@ -383,6 +456,21 @@ pub struct SharedDirectoryListRequest {
     pub path: UnixPath,
 }
 
+impl SharedDirectoryListRequest {
+    /// See [`CGOWithStrings`].
+    pub fn into_cgo(self) -> PduResult<CGOWithStrings<CGOSharedDirectoryListRequest>> {
+        let path = self.path.to_cstring()?;
+        Ok(CGOWithStrings {
+            cgo: CGOSharedDirectoryListRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                path: path.as_ptr(),
+            },
+            _strings: vec![path],
+        })
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TdpErrCode {
@@ -447,6 +535,17 @@ impl<T> CGOWithStrings<T> {
 pub const FALSE: u8 = 0;
 #[allow(dead_code)]
 pub const TRUE: u8 = 1;
+
+/// TDP handles time in milliseconds since the UNIX epoch (https://en.wikipedia.org/wiki/Unix_time),
+/// whereas Windows prefers 64-bit signed integers representing the number of 100-nanosecond intervals
+/// that have elapsed since January 1, 1601, Coordinated Universal Time (UTC)
+/// (https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a69cc039-d288-4673-9598-772b6083f8bf).
+pub(crate) fn to_windows_time(tdp_time_ms: u64) -> i64 {
+    // https://stackoverflow.com/a/5471380/6277051
+    // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
+    let tdp_time_sec = tdp_time_ms / 1000;
+    ((tdp_time_sec * 10000000) + 116444736000000000) as i64
+}
 
 /// A generic error type that can contain any arbitrary error message.
 ///
