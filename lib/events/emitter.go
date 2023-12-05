@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/internal/context121"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -161,6 +162,7 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 
 // EmitAuditEvent emits audit event
 func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	auditEmitEvent.Inc()
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
@@ -281,6 +283,7 @@ type MultiEmitter struct {
 
 // EmitAuditEvent emits audit event to all emitters
 func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	var errors []error
 	for i := range m.emitters {
 		err := m.emitters[i].EmitAuditEvent(ctx, event)
@@ -494,6 +497,7 @@ func (t *TeeStream) Complete(ctx context.Context) error {
 // EmitAuditEvent emits audit events and forwards session control events
 // to the audit log
 func (t *TeeStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	var errors []error
 	if err := t.stream.EmitAuditEvent(ctx, event); err != nil {
 		errors = append(errors, err)
@@ -615,6 +619,7 @@ func (s *CallbackStream) Complete(ctx context.Context) error {
 
 // EmitAuditEvent emits audit event
 func (s *CallbackStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context121.WithoutCancel(ctx)
 	if s.streamer.OnEmitAuditEvent != nil {
 		if err := s.streamer.OnEmitAuditEvent(ctx, s.sessionID, event); err != nil {
 			return trace.Wrap(err)
