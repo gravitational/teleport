@@ -91,13 +91,6 @@ type Features struct {
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
 
-	// IsTrialProduct is true if the cluster is in trial mode.
-	//
-	// TODO: Cannot use this field until cloud/salescenter sets this field
-	// when `func FetchFromCloud` and cloud/tenant.pb.go defines this field.
-	// see `e/lib/secreports/ func cloudLimits`, where it's currently the only
-	// place where we need to determine if product is trial.
-	IsTrialProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
