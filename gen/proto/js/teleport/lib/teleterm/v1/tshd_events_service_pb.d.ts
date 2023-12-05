@@ -211,3 +211,57 @@ export namespace SendPendingHeadlessAuthenticationResponse {
     export type AsObject = {
     }
 }
+
+export class PromptMFARequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): PromptMFARequest;
+
+    getReason(): string;
+    setReason(value: string): PromptMFARequest;
+
+    getTotp(): boolean;
+    setTotp(value: boolean): PromptMFARequest;
+
+    getWebauthn(): boolean;
+    setWebauthn(value: boolean): PromptMFARequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromptMFARequest.AsObject;
+    static toObject(includeInstance: boolean, msg: PromptMFARequest): PromptMFARequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromptMFARequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromptMFARequest;
+    static deserializeBinaryFromReader(message: PromptMFARequest, reader: jspb.BinaryReader): PromptMFARequest;
+}
+
+export namespace PromptMFARequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        reason: string,
+        totp: boolean,
+        webauthn: boolean,
+    }
+}
+
+export class PromptMFAResponse extends jspb.Message { 
+    getTotpCode(): string;
+    setTotpCode(value: string): PromptMFAResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromptMFAResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: PromptMFAResponse): PromptMFAResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromptMFAResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromptMFAResponse;
+    static deserializeBinaryFromReader(message: PromptMFAResponse, reader: jspb.BinaryReader): PromptMFAResponse;
+}
+
+export namespace PromptMFAResponse {
+    export type AsObject = {
+        totpCode: string,
+    }
+}
