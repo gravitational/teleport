@@ -152,25 +152,6 @@ func getRDSProxyCustomEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, 
 	return customEndpointsByProxyName, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
-// getRDSProxyTargetPort gets the port number that the targets of the RDS Proxy
-// are using.
-func getRDSProxyTargetPort(ctx context.Context, rdsClient rdsiface.RDSAPI, dbProxyName *string) (int64, error) {
-	output, err := rdsClient.DescribeDBProxyTargetsWithContext(ctx, &rds.DescribeDBProxyTargetsInput{
-		DBProxyName: dbProxyName,
-	})
-	if err != nil {
-		return 0, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
-	}
-
-	// The proxy may have multiple targets but they should have the same port.
-	for _, target := range output.Targets {
-		if target.Port != nil {
-			return aws.Int64Value(target.Port), nil
-		}
-	}
-	return 0, trace.NotFound("RDS Proxy target port not found")
-}
-
 // listRDSResourceTags returns tags for provided RDS resource.
 func listRDSResourceTags(ctx context.Context, rdsClient rdsiface.RDSAPI, resourceName *string) ([]*rds.Tag, error) {
 	output, err := rdsClient.ListTagsForResourceWithContext(ctx, &rds.ListTagsForResourceInput{

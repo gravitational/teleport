@@ -41,9 +41,8 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
 				RDS: &mocks.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-					DBProxyTargetPort: 9999,
+					DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
@@ -53,9 +52,8 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 			name: "fetch vpc1",
 			inputClients: &cloud.TestCloudClients{
 				RDS: &mocks.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-					DBProxyTargetPort: 9999,
+					DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
