@@ -2341,7 +2341,13 @@ func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDo
 	m.expectedInput.Content = &replacedExpected
 	replacedInput := uuidRegex.ReplaceAllString(*input.Content, "")
 	input.Content = &replacedInput
-	require.Equal(m.t, m.expectedInput, input)
+	// Diff content first for a nicer error message.
+	require.Empty(m.t,
+		cmp.Diff(m.expectedInput.Content, input.Content),
+		"Document content diff (-want +got)")
+	require.Empty(m.t,
+		cmp.Diff(m.expectedInput, input, cmpopts.IgnoreFields(ssm.CreateDocumentInput{}, "Content")),
+		"Document diff (-want +got)")
 
 	return nil, nil
 }
