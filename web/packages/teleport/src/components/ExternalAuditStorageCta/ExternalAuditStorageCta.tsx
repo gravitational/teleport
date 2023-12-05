@@ -39,7 +39,9 @@ export const ExternalAuditStorageCta = () => {
 
   useEffect(() => {
     setShowCta(
-      cfg.isCloud && !localStorage.getExternalAuditStorageCtaDisabled()
+      !ctx.hasExternalAuditStorage &&
+        cfg.isCloud &&
+        !localStorage.getExternalAuditStorageCtaDisabled()
     );
   }, [cfg.isCloud]);
 
