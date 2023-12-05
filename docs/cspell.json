@@ -470,6 +470,7 @@
     "ingressclass",
     "initcontainers",
     "initdb",
+    "inprog",
     "insecureskipproxytlsverify",
     "ioreg",
     "isnt",
