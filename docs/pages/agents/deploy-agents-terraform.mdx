@@ -23,28 +23,7 @@ resources:
 - Compute instances to run Teleport services
 - A join token for each compute instance in the agent pool
 
-```mermaid
-flowchart TB
-subgraph agent1["Teleport agent"]
-  service1["Teleport service"]
-  service2["Teleport service"]
-  join1["Join token"]
-end
-
-subgraph agent2["Teleport agent"]
-  join2["Join token"]
-  service3["Teleport service"]
-  service4["Teleport service"]
-end
-
-subgraph auth["Auth Service"]
-  join3["Join token"]
-  join4["Join token"]
-end
-
-join1<-.Matches.->join3
-join2<-.Matches.->join4
-```
+![A Teleport agent pool](../../img/tf-agent-diagram.png)
 
 ## Prerequisites
 
