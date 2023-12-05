@@ -78,14 +78,6 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 			continue
 		}
 
-		// rds.DBProxy has no port information. An extra SDK call is made to
-		// find the port from its targets.
-		port, err := getRDSProxyTargetPort(ctx, rdsClient, dbProxy.DBProxyName)
-		if err != nil {
-			cfg.Log.Debugf("Failed to get port for RDS Proxy %v: %v.", aws.StringValue(dbProxy.DBProxyName), err)
-			continue
-		}
-
 		// rds.DBProxy has no tags information. An extra SDK call is made to
 		// fetch the tags. If failed, keep going without the tags.
 		tags, err := listRDSResourceTags(ctx, rdsClient, dbProxy.DBProxyArn)
@@ -94,7 +86,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 		}
 
 		// Add a database from RDS Proxy (default endpoint).
-		database, err := services.NewDatabaseFromRDSProxy(dbProxy, port, tags)
+		database, err := services.NewDatabaseFromRDSProxy(dbProxy, tags)
 		if err != nil {
 			cfg.Log.Debugf("Could not convert RDS Proxy %q to database resource: %v.",
 				aws.StringValue(dbProxy.DBProxyName), err)
@@ -112,7 +104,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 				continue
 			}
 
-			database, err = services.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, port, tags)
+			database, err = services.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, tags)
 			if err != nil {
 				cfg.Log.Debugf("Could not convert custom endpoint %q of RDS Proxy %q to database resource: %v.",
 					aws.StringValue(customEndpoint.DBProxyEndpointName),

@@ -68,7 +68,7 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
 	rdsProxy := mocks.RDSProxy(name, region, vpcID)
-	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
+	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(rdsProxyDatabase, types.AWSMatcherRDSProxy)
 	return rdsProxy, rdsProxyDatabase
@@ -76,7 +76,7 @@ func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types
 
 func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
 	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
-	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
+	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, nil)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(rdsProxyEndpointDatabase, types.AWSMatcherRDSProxy)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase

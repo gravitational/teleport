@@ -938,12 +938,12 @@ func NewDatabasesFromRDSCluster(cluster *rds.DBCluster) (types.Databases, error)
 }
 
 // NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
-func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) (types.Database, error) {
+func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxy(dbProxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily))
+	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.StringValue(dbProxy.EngineFamily))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -961,12 +961,12 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) 
 
 // NewDatabaseFromRDSProxyCustomEndpoint creates database resource from RDS
 // Proxy custom endpoint.
-func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, port int64, tags []*rds.Tag) (types.Database, error) {
+func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxyCustomEndpoint(dbProxy, customEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily))
+	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.StringValue(dbProxy.EngineFamily))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1521,17 +1521,17 @@ func rdsEngineToProtocol(engine string) (string, error) {
 	return "", trace.BadParameter("unknown RDS engine type %q", engine)
 }
 
-// rdsEngineFamilyToProtocol converts RDS engine family to the database protocol.
-func rdsEngineFamilyToProtocol(engineFamily string) (string, error) {
+// rdsEngineFamilyToProtocolAndPort converts RDS engine family to the database protocol and port.
+func rdsEngineFamilyToProtocolAndPort(engineFamily string) (string, int, error) {
 	switch engineFamily {
 	case rds.EngineFamilyMysql:
-		return defaults.ProtocolMySQL, nil
+		return defaults.ProtocolMySQL, RDSProxyMySQLPort, nil
 	case rds.EngineFamilyPostgresql:
-		return defaults.ProtocolPostgres, nil
+		return defaults.ProtocolPostgres, RDSProxyPostgresPort, nil
 	case rds.EngineFamilySqlserver:
-		return defaults.ProtocolSQLServer, nil
+		return defaults.ProtocolSQLServer, RDSProxySQLServerPort, nil
 	}
-	return "", trace.BadParameter("unknown RDS engine family type %q", engineFamily)
+	return "", 0, trace.BadParameter("unknown RDS engine family type %q", engineFamily)
 }
 
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
@@ -2036,6 +2036,15 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	// RDSProxyMySQLPort is the port that RDS Proxy listens on for MySQL connections.
+	RDSProxyMySQLPort = 3306
+	// RDSProxyPostgresPort is the port that RDS Proxy listens on for Postgres connections.
+	RDSProxyPostgresPort = 5432
+	// RDSProxySQLServerPort is the port that RDS Proxy listens on for SQL Server connections.
+	RDSProxySQLServerPort = 1433
 )
 
 const (
