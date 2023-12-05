@@ -126,7 +126,23 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 	var data accessrequest.SentMessages
 	var errors []error
 
-	for _, recipient := range recipients {
+	// Fetch the user as a recipient.
+	userRecipient, err := b.FetchRecipient(ctx, reqData.User)
+	if err != nil {
+		log.Errorf("Unable to find user %s in Slack, will not be able to notify.", reqData.User)
+	}
+
+	// Include the user in the list of recipients if it exists.
+	var allRecipients []common.Recipient
+	if userRecipient == nil {
+		allRecipients = recipients
+	} else {
+		allRecipients = make([]common.Recipient, len(recipients)+1)
+		copy(allRecipients[1:], recipients)
+		allRecipients[0] = *userRecipient
+	}
+
+	for _, recipient := range allRecipients {
 		var result ChatMsgResponse
 		_, err := b.client.NewRequest().
 			SetContext(ctx).
