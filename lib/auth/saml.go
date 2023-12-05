@@ -45,7 +45,7 @@ type SAMLService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
@@ -109,12 +109,12 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 
 // ValidateSAMLResponse delegates the method call to the samlAuthService if present,
 // or returns a NotImplemented error if not present.
-func (a *Server) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
 	if a.samlAuthService == nil {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
-	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, re, connectorID)
+	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	return resp, trace.Wrap(err)
 }
 
@@ -159,8 +159,13 @@ type SAMLAuthRequest struct {
 // ValidateSAMLResponseReq is the request made by the proxy to validate
 // and activate a login via SAML.
 type ValidateSAMLResponseReq struct {
-	Response    string `json:"response"`
+	// Response is SAML statements coming from the identity provider.
+	Response string `json:"response"`
+	// ConnectorID is ID of a SAML connector that should be used for this request.
 	ConnectorID string `json:"connector_id,omitempty"`
+	// ClientIP is IP of the logging in client, used in identity provider initiated login case,
+	// when we don't have original client's request with their IP stored.
+	ClientIP string `json:"client_ip,omitempty"`
 }
 
 // SAMLAuthRawResponse is returned when auth server validated callback parameters
