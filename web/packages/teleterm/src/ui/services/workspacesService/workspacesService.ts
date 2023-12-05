@@ -23,6 +23,8 @@ import { arrayObjectIsEqual } from 'shared/utils/highbar';
 // @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
+import { UnifiedResourcePreferences } from 'shared/services/unifiedResourcePreferences';
+
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
@@ -66,6 +68,7 @@ export interface Workspace {
   connectMyComputer?: {
     autoStart: boolean;
   };
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
   previous?: {
     documents: Document[];
     location: DocumentUri;
@@ -216,6 +219,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  setUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri,
+    preferences: UnifiedResourcePreferences
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].unifiedResourcePreferences =
+        preferences;
+    });
+  }
+
+  getUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri
+  ): UnifiedResourcePreferences | undefined {
+    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+  }
+
   /**
    * setActiveWorkspace changes the active workspace to that of the given root cluster.
    * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
@@ -360,6 +379,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
+          unifiedResourcePreferences:
+            persistedWorkspace?.unifiedResourcePreferences,
         };
         return workspaces;
       }, {});
@@ -476,6 +497,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,
         connectMyComputer: workspace.connectMyComputer,
+        unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
     }
     this.statePersistenceService.saveWorkspacesState(stateToSave);
