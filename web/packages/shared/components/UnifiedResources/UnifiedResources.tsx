@@ -139,9 +139,11 @@ interface UnifiedResourcesProps {
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   unifiedResourcePreferencesAttempt: AsyncAttempt<UnifiedResourcePreferences>;
+  unifiedResourcePreferencesFallback?: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
+  updateUnifiedResourcesPreferencesAttempt?: AsyncAttempt<void>;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -155,6 +157,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     pinning,
     unifiedResourcePreferencesAttempt,
     updateUnifiedResourcesPreferences,
+    unifiedResourcePreferencesFallback,
+    updateUnifiedResourcesPreferencesAttempt,
     bulkActions = [],
   } = props;
 
@@ -277,7 +281,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   const unifiedResourcePreferences =
     unifiedResourcePreferencesAttempt.status === 'success'
       ? unifiedResourcePreferencesAttempt.data
-      : undefined;
+      : unifiedResourcePreferencesFallback;
 
   const selectTab = (value: DefaultTab) => {
     const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
@@ -399,6 +403,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {unifiedResourcePreferencesAttempt.status === 'error' && (
         <ErrorBox>
           <Danger>{unifiedResourcePreferencesAttempt.statusText}</Danger>
+        </ErrorBox>
+      )}
+      {updateUnifiedResourcesPreferencesAttempt?.status === 'error' && (
+        <ErrorBox>
+          <Danger>{updateUnifiedResourcesPreferencesAttempt.statusText}</Danger>
         </ErrorBox>
       )}
       {props.Header}
