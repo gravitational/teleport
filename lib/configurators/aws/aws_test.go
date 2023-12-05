@@ -17,6 +17,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"testing"
 
@@ -1317,6 +1318,13 @@ type SSMMock struct {
 func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDocumentInput, opts ...request.Option) (*ssm.CreateDocumentOutput, error) {
 
 	m.t.Helper()
+
+	// UUID's are unpredictable, so we remove them from the content
+	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	replacedExpected := uuidRegex.ReplaceAllString(*m.expectedInput.Content, "")
+	m.expectedInput.Content = &replacedExpected
+	replacedInput := uuidRegex.ReplaceAllString(*input.Content, "")
+	input.Content = &replacedInput
 	require.Equal(m.t, m.expectedInput, input)
 
 	return nil, nil
