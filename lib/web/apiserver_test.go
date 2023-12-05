@@ -4597,6 +4597,56 @@ func TestGetWebConfig(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 }
 
+func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ProductType:                modules.ProductTypeTeam,
+			IdentityGovernanceSecurity: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 5,
+			},
+			AccessMonitoring: modules.AccessMonitoringFeature{
+				MaxReportRangeLimit: 10,
+			},
+		},
+	})
+
+	expectedCfg := webclient.WebConfig{
+		Auth: webclient.WebConfigAuthSettings{
+			SecondFactor:     constants.SecondFactorOff,
+			LocalAuthEnabled: true,
+			AuthType:         constants.Local,
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		},
+		CanJoinSessions:  true,
+		ProxyClusterName: env.server.ClusterName(),
+		FeatureLimits: webclient.FeatureLimits{
+			AccessListCreateLimit:               5,
+			AccessMonitoringMaxReportRangeLimit: 10,
+		},
+		IsTeam:       true,
+		IsIGSEnabled: true,
+	}
+
+	// Make a request.
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, expectedCfg, cfg)
+}
+
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
