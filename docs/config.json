@@ -1407,7 +1407,7 @@
               "title": "Jenkins",
               "slug": "/machine-id/deployment/jenkins/"
             },
-	        {
+            {
               "title": "Linux Server",
               "slug": "/machine-id/deployment/linux/"
             },
