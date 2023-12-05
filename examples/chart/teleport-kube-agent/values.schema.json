@@ -393,6 +393,18 @@
                 }
             }
         },
+        "initSecurityContext": {
+            "$id": "#/properties/initSecurityContext",
+            "type": "object"
+        },
+        "securityContext": {
+            "$id": "#/properties/podSecurityContext",
+            "type": "object"
+        },
+        "podSecurityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object"
+        },
         "priorityClassName": {
             "$id": "#/properties/priorityClassName",
             "type": "string",
