@@ -2207,11 +2207,13 @@ type WindowsDesktopService struct {
 	// Hosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
-	// This field is deprecated.
+	//
+	// Deprecated: prefer StaticHosts instead.
 	Hosts []string `yaml:"hosts,omitempty"`
 	// NonADHosts is a list of standalone Windows hosts that are not
 	// jointed to an Active Directory domain.
-	// This field is deprecated.
+	//
+	// Deprecated: prefer StaticHosts instead.
 	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
 	// StaticHosts is a list of Windows hosts (both AD-connected and standalone).
 	// User can specify name for each host and labels specific to it.
@@ -2224,15 +2226,9 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	hasAD := len(wds.Hosts) > 0
-	if !hasAD {
-		for _, host := range wds.StaticHosts {
-			if host.AD {
-				hasAD = true
-				break
-			}
-		}
-	}
+	hasAD := len(wds.Hosts) > 0 || slices.ContainsFunc(wds.StaticHosts, func(host WindowsHost) bool {
+		return host.AD
+	})
 
 	if hasAD && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
