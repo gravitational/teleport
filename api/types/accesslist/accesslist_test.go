@@ -225,16 +225,16 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("ownership defaults to explicit", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = ""
+		uut.Spec.Ownership = InclusionUnspecified
 
 		err := uut.CheckAndSetDefaults()
 		require.NoError(t, err)
-		require.Equal(t, Explicit, uut.Spec.Ownership)
+		require.Equal(t, InclusionExplicit, uut.Spec.Ownership)
 	})
 
 	t.Run("invalid ownership is an error", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = "banana"
+		uut.Spec.Ownership = Inclusion("potato")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
@@ -243,16 +243,16 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("membership defaults to explicit", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Membership = ""
+		uut.Spec.Membership = InclusionUnspecified
 
 		err := uut.CheckAndSetDefaults()
 		require.NoError(t, err)
-		require.Equal(t, Explicit, uut.Spec.Membership)
+		require.Equal(t, InclusionExplicit, uut.Spec.Membership)
 	})
 
 	t.Run("invalid membership is an error", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Membership = "banana"
+		uut.Spec.Membership = Inclusion("banana")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
@@ -261,7 +261,7 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("owners are required for explicit owner lists", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = Explicit
+		uut.Spec.Ownership = InclusionExplicit
 		uut.Spec.Owners = []Owner{}
 
 		err := uut.CheckAndSetDefaults()
@@ -271,11 +271,10 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("owners are not required for implicit owner lists", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = Implicit
+		uut.Spec.Ownership = InclusionImplicit
 		uut.Spec.Owners = []Owner{}
 
 		err := uut.CheckAndSetDefaults()
 		require.NoError(t, err)
 	})
-
 }

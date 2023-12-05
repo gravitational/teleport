@@ -105,6 +105,7 @@ func TestAccessListMarshal(t *testing.T) {
 		accesslist.Spec{
 			Title:       "title",
 			Description: "test access list",
+			Ownership:   accesslist.InclusionExplicit,
 			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
@@ -118,6 +119,7 @@ func TestAccessListMarshal(t *testing.T) {
 			Audit: accesslist.Audit{
 				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
 			},
+			Membership: accesslist.InclusionImplicit,
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
@@ -141,9 +143,11 @@ func TestAccessListMarshal(t *testing.T) {
 			},
 		},
 	)
+
 	require.NoError(t, err)
 	data, err := MarshalAccessList(expected)
 	require.NoError(t, err)
+
 	actual, err := UnmarshalAccessList(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -162,6 +166,7 @@ func TestAccessListMemberUnmarshal(t *testing.T) {
 			Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 			Reason:     "because",
 			AddedBy:    "test-user1",
+			Membership: accesslist.InclusionExplicit,
 		},
 	)
 	require.NoError(t, err)
