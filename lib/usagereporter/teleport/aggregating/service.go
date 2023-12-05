@@ -89,6 +89,7 @@ func prepareResourcePresenceReports(
 	reports := make([]*prehogv1.ResourcePresenceReport, 0, 1) // at least one report
 
 	for len(records) > 0 {
+		// Optimistic case: try to put all records into a single report in hope that they will fit.
 		reportUUID := uuid.New()
 		report := &prehogv1.ResourcePresenceReport{
 			ReportUuid:          reportUUID[:],
@@ -105,46 +106,43 @@ func prepareResourcePresenceReports(
 		}
 
 		// We're over the size limit, so we need to split the report and try again.
-		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(records)-1)
+		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(records))
 
-		emptyKindReportSize := proto.Size(&prehogv1.ResourceKindPresenceReport{
-			ResourceKind: records[0].GetResourceKind(),
-			ResourceIds:  make([]uint64, 1), // need to have non-empty slice to calculate size
-		})
-		const singleItemSize = 8
-
+		// First pass: try to fit as many resource kind reports as possible, skipping big ones.
+		unfitRecords := make([]*prehogv1.ResourceKindPresenceReport, 0, len(records))
 		for _, kindReport := range records {
-			if proto.Size(report)+proto.Size(kindReport) <= maxItemSize {
-				// This kind report fits, so we're done.
+			if proto.Size(report)+proto.Size(kindReport) > maxItemSize {
+				unfitRecords = append(unfitRecords, kindReport)
+			} else {
 				report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
-				records = records[1:]
-				continue // try next kind report
 			}
+		}
+		records = unfitRecords
 
-			freeSize := maxItemSize - proto.Size(report)
-			elementsToFit := (freeSize - emptyKindReportSize) / singleItemSize
-			if elementsToFit <= 0 {
-				// This kind report is too big to fit even if we remove all elements,
-				break // try to insert it into next report
-			}
+		// Second pass: try to split the last oversized resource by two until it fits
+		resourceIds := records[0].GetResourceIds()
+		kindReportHead := &prehogv1.ResourceKindPresenceReport{
+			ResourceKind: records[0].GetResourceKind(),
+			ResourceIds:  resourceIds[:len(resourceIds)/2],
+		}
+		kindReportTail := &prehogv1.ResourceKindPresenceReport{
+			ResourceKind: records[0].GetResourceKind(),
+			ResourceIds:  resourceIds[len(resourceIds)/2:],
+		}
 
-			// Split the kind report into two fragments, the first of which will be
-			// added to the current report, and the second of which will be added to
-			// the next report.
-			kindReport1 := &prehogv1.ResourceKindPresenceReport{
-				ResourceKind: kindReport.GetResourceKind(),
-				ResourceIds:  kindReport.GetResourceIds()[:elementsToFit],
-			}
+		report.ResourceKindReports = append(report.ResourceKindReports, kindReportHead)
 
-			// Add the first fragment to the current report.
-			report.ResourceKindReports = append(report.ResourceKindReports, kindReport1)
+		for proto.Size(report) > maxItemSize && len(kindReportHead.ResourceIds) > 1 {
+			resourceIds = kindReportHead.GetResourceIds()
+			kindReportHead.ResourceIds = resourceIds[:len(resourceIds)/2]
+			kindReportTail.ResourceIds = append(resourceIds[len(resourceIds)/2:], kindReportTail.ResourceIds...)
+		}
 
-			kindReport2 := &prehogv1.ResourceKindPresenceReport{
-				ResourceKind: kindReport.GetResourceKind(),
-				ResourceIds:  kindReport.GetResourceIds()[elementsToFit:],
-			}
-
-			records = append([]*prehogv1.ResourceKindPresenceReport{kindReport2}, records[1:]...)
+		if proto.Size(report) <= maxItemSize {
+			records = append([]*prehogv1.ResourceKindPresenceReport{kindReportTail}, records[1:]...)
+		} else {
+			// Exclude it from the report and try to fit it to the next one
+			report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)-1]
 		}
 
 		// Sanity check that report is still fits

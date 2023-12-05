@@ -16,6 +16,7 @@ package aggregating
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -148,15 +149,15 @@ func TestResourcePresenceReporting(t *testing.T) {
 }
 
 func TestResourcePresenceReportSplitting(t *testing.T) {
-	resKindReports := make([]*prehogv1.ResourceKindPresenceReport, 0, 7)
-	resKinds := []prehogv1.ResourceKind{1, 2, 3, 4, 5, 6, 7}
-	maxResourceIdsPerReport := 20000 // Should be more than can be persisted in single report
-	for _, kind := range resKinds {
+	resKinds := []prehogv1.ResourceKind{1, 2, 3, 4, 5}
+	resKindReports := make([]*prehogv1.ResourceKindPresenceReport, 0, len(resKinds))
+	for idx, kind := range resKinds {
+		resourceIdsPerReport := int(math.Pow(10, float64(len(resKinds)-idx))) // max 100k per report
 		kindReport := prehogv1.ResourceKindPresenceReport{
 			ResourceKind: kind,
-			ResourceIds:  make([]uint64, 0, maxResourceIdsPerReport),
+			ResourceIds:  make([]uint64, 0, resourceIdsPerReport),
 		}
-		for i := 0; i < maxResourceIdsPerReport; i++ {
+		for i := 0; i < resourceIdsPerReport; i++ {
 			kindReport.ResourceIds = append(kindReport.ResourceIds, uint64(i))
 		}
 		resKindReports = append(resKindReports, &kindReport)
@@ -164,13 +165,14 @@ func TestResourcePresenceReportSplitting(t *testing.T) {
 
 	reports, err := prepareResourcePresenceReports([]byte("clusterName"), []byte("reporterHostID"), time.Now(), resKindReports)
 	require.NoError(t, err)
-	require.Greater(t, len(reports), len(resKindReports))                                        // some reports were split into two
-	require.Less(t, len(reports[0].ResourceKindReports[0].ResourceIds), maxResourceIdsPerReport) // reports have less resource id than passed
+	require.Greater(t, len(reports), len(resKindReports))             // some reports were split into two
+	require.GreaterOrEqual(t, len(reports[0].ResourceKindReports), 2) // first report was able to contain a few resource kind reports
 
 	// reassemble resource ids per resource kind and ensure that nothing was lost
 	resourceIdsPerKind := make(map[prehogv1.ResourceKind][]uint64)
-	for _, kind := range resKinds {
-		resourceIdsPerKind[kind] = make([]uint64, 0, maxResourceIdsPerReport)
+	for idx, kind := range resKinds {
+		resourceIdsPerReport := int(math.Pow(10, float64(len(resKinds)-idx)))
+		resourceIdsPerKind[kind] = make([]uint64, 0, resourceIdsPerReport)
 	}
 	for _, report := range reports {
 		for _, kindReport := range report.ResourceKindReports {
