@@ -802,8 +802,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Covert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+
+		var text string
+		if errors.Is(err, services.ErrTrustedDeviceRequired) {
+			// Return a nicer error message for device trust errors.
+			text = `Access to this app requires a trusted device.
+
+See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+`
+		} else {
+			text = http.StatusText(code)
+		}
+
 		w.Header().Set("Connection", "close")
-		http.Error(w, http.StatusText(code), code)
+		http.Error(w, text, code)
 	}
 }
 
@@ -968,11 +980,14 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 	}
 
 	state := authContext.GetAccessState(authPref)
-	err = authContext.Checker.CheckAccess(
+	switch err := authContext.Checker.CheckAccess(
 		app,
 		state,
-		matchers...)
-	if err != nil {
+		matchers...); {
+	case errors.Is(err, services.ErrTrustedDeviceRequired):
+		// Let the trusted device error through for clarity.
+		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
+	case err != nil:
 		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}

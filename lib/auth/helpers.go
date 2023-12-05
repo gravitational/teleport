@@ -427,7 +427,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		AccessPoint: srv.AuthServer,
 		LockWatcher: srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
-		DisableDeviceAuthorization: true,
+		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			DisableGlobalMode: true,
+			DisableRoleMode:   true,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

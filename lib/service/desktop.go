@@ -162,7 +162,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		LockWatcher: lockWatcher,
 		Logger:      log,
 		// Device authorization breaks browser-based access.
-		DisableDeviceAuthorization: true,
+		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			DisableGlobalMode: true,
+			DisableRoleMode:   true,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
