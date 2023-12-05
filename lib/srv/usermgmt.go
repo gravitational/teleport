@@ -269,7 +269,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 
 	groups := make([]string, len(ui.Groups))
 	copy(groups, ui.Groups)
-	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP {
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP || ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
 		groups = append(groups, types.TeleportServiceGroup)
 	}
 	var errs []error
@@ -305,9 +305,10 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			return trace.Wrap(err)
 		}
 
-		err = u.backend.CreateHomeDirectory(name, user.Uid, user.Gid)
-		if err != nil {
-			return trace.Wrap(err)
+		if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+			if err := u.backend.CreateHomeDirectory(name, user.Uid, user.Gid); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 
 		return nil
