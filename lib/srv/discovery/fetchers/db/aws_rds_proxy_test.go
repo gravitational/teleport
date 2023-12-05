@@ -40,9 +40,8 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 
 	clients := &cloud.TestCloudClients{
 		RDS: &mocks.RDSMock{
-			DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-			DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-			DBProxyTargetPort: 9999,
+			DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+			DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 		},
 	}
 
