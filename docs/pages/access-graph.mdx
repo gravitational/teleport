@@ -86,7 +86,11 @@ Teleport Access Graph divides your infrastructure into five main components:
 
 Teleport Access Graph shows the relationships between users, roles, and
 resources. It does this by showing paths between nodes. Paths are the
-relationships between nodes. Paths can be divided into two categories:
+relationships between nodes. Paths always go from:
+
+  Users to User Groups to Actions to Resource Groups to Resources
+
+Paths can be divided into two categories:
 
 1. Allow paths
 
@@ -127,7 +131,9 @@ Users are created from Teleport Users.
 
 #### User Groups
 
-User Groups are created from Teleport Roles and access requests.
+User Groups are created from Teleport Roles and access requests. Roles create a User Groups where the members
+are the users that have that role. Access requests create a temporary User Group where the members are the users that
+got the access through the accepted access request.
 
 #### Actions
 
