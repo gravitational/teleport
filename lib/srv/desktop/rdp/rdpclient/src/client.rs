@@ -16,7 +16,7 @@ pub mod global;
 
 use crate::rdpdr::tdp;
 use crate::{
-    handle_fastpath_pdu, handle_rdp_channel_ids, handle_remote_copy, ssl, CGOErrCode,
+    cgo_handle_fastpath_pdu, cgo_handle_rdp_channel_ids, cgo_handle_remote_copy, ssl, CGOErrCode,
     CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CgoHandle,
 };
 #[cfg(feature = "fips")]
@@ -118,6 +118,7 @@ impl Client {
                 params.key_der,
                 pin,
                 cgo_handle,
+                params.allow_directory_sharing,
             )),
             "Teleport".to_string(), // directories will show up as "<directory> on Teleport"
         )
@@ -169,7 +170,7 @@ impl Client {
 
         // Register the RDP channels with the browser client.
         unsafe {
-            ClientResult::from(handle_rdp_channel_ids(
+            ClientResult::from(cgo_handle_rdp_channel_ids(
                 cgo_handle,
                 connection_result.io_channel_id,
                 connection_result.user_channel_id,
@@ -275,7 +276,7 @@ impl Client {
                     ironrdp_pdu::Action::FastPath => {
                         global::TOKIO_RT
                             .spawn_blocking(move || unsafe {
-                                let err_code = handle_fastpath_pdu(
+                                let err_code = cgo_handle_fastpath_pdu(
                                     cgo_handle,
                                     frame.as_mut_ptr(),
                                     frame.len() as u32,
@@ -395,7 +396,7 @@ impl Client {
     async fn handle_remote_copy(cgo_handle: CgoHandle, mut data: Vec<u8>) -> ClientResult<()> {
         let code = global::TOKIO_RT
             .spawn_blocking(move || unsafe {
-                handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
+                cgo_handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
             })
             .await?;
         ClientResult::from(code)

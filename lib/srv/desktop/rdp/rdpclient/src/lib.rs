@@ -29,8 +29,6 @@ use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
 use client::{ClientHandle, ClientResult, ConnectParams};
-use ironrdp_pdu::{other_err, PduError};
-use ironrdp_session::image::DecodedImage;
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
@@ -38,13 +36,11 @@ use rdpdr::tdp::{
     SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryWriteResponse,
     TdpErrCode,
 };
-use std::convert::TryFrom;
 use std::ffi::CString;
 use std::fmt::Debug;
-use std::io::Cursor;
 use std::os::raw::c_char;
-use std::{mem, ptr, time};
-use util::{encode_png, from_c_string, from_go_array};
+use std::ptr;
+use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
 mod piv;
@@ -408,15 +404,6 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     )
 }
 
-/// # Safety
-///
-/// client_ptr must be a valid pointer to a Client.
-#[no_mangle]
-pub unsafe extern "C" fn client_close_rdp(cgo_reg: usize) -> CGOErrCode {
-    warn!("unimplemented: client_close_rdp");
-    CGOErrCode::ErrCodeSuccess
-}
-
 #[repr(C)]
 pub struct CGOConnectParams {
     go_addr: *const c_char,
@@ -429,64 +416,6 @@ pub struct CGOConnectParams {
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
-}
-
-/// CGOPNG is a CGO-compatible version of PNG that we pass back to Go.
-#[repr(C)]
-pub struct CGOPNG {
-    pub dest_left: u16,
-    pub dest_top: u16,
-    pub dest_right: u16,
-    pub dest_bottom: u16,
-    /// The memory of this field is managed by the Rust side.
-    pub data_ptr: *mut u8,
-    pub data_len: usize,
-    pub data_cap: usize,
-}
-
-impl TryFrom<&DecodedImage> for CGOPNG {
-    type Error = PduError;
-
-    fn try_from(image: &DecodedImage) -> Result<Self, Self::Error> {
-        let w: u16 = image.width();
-        let h: u16 = image.height();
-        let mut res = CGOPNG {
-            dest_left: 0,
-            dest_top: 0,
-            dest_right: w,
-            dest_bottom: h,
-            data_ptr: ptr::null_mut(),
-            data_len: 0,
-            data_cap: 0,
-        };
-
-        let mut encoded = Vec::with_capacity(8192);
-        encode_png(&mut encoded, w, h, image.data().to_vec()).map_err(|err| {
-            other_err!(
-                "TryFrom<&DecodedImage> for CGOPNG",
-                "failed to encode bitmap to png"
-            )
-        })?;
-
-        res.data_ptr = encoded.as_mut_ptr();
-        res.data_len = encoded.len();
-        res.data_cap = encoded.capacity();
-
-        // Prevent the data field from being freed while Go handles it.
-        // It will be dropped once CGOPNG is dropped (see below).
-        mem::forget(encoded);
-
-        Ok(res)
-    }
-}
-
-impl Drop for CGOPNG {
-    fn drop(&mut self) {
-        // Reconstruct into Vec to drop the allocated buffer.
-        unsafe {
-            Vec::from_raw_parts(self.data_ptr, self.data_len, self.data_cap);
-        }
-    }
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
@@ -702,69 +631,51 @@ pub struct CGOSharedDirectoryListRequest {
     pub path: *const c_char,
 }
 
-// These functions are defined on the Go side. Look for functions with '//export funcname'
-// comments.
+// These functions are defined on the Go side.
+// Look for functions with '//export funcname' comments.
 extern "C" {
-    fn handle_png(cgo_handle: CgoHandle, b: *mut CGOPNG) -> CGOErrCode;
-    fn handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_rdp_channel_ids(
+    fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_rdp_channel_ids(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
     ) -> CGOErrCode;
-    fn tdp_sd_acknowledge(
+    fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,
         ack: *mut CGOSharedDirectoryAcknowledge,
     ) -> CGOErrCode;
-    fn tdp_sd_info_request(
+    fn cgo_tdp_sd_info_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryInfoRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_create_request(
+    fn cgo_tdp_sd_create_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryCreateRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_delete_request(
+    fn cgo_tdp_sd_delete_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryDeleteRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_list_request(
+    fn cgo_tdp_sd_list_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryListRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_read_request(
+    fn cgo_tdp_sd_read_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryReadRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_write_request(
+    fn cgo_tdp_sd_write_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryWriteRequest,
     ) -> CGOErrCode;
-    fn tdp_sd_move_request(
+    fn cgo_tdp_sd_move_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryMoveRequest,
     ) -> CGOErrCode;
 }
 
-/// Payload represents raw incoming RDP messages for parsing.
-pub(crate) type Payload = Cursor<Vec<u8>>;
-/// Message represents a raw outgoing RDP message to send to the RDP server.
-pub(crate) type Message = Vec<u8>;
-pub(crate) type Messages = Vec<Message>;
-
 /// A [cgo.Handle] passed to us by Go.
 ///
 /// [cgo.Handle]: https://pkg.go.dev/runtime/cgo#Handle
 type CgoHandle = usize;
-
-/// This is the maximum size of an RDP message which we will accept
-/// over a virtual channel.
-///
-/// Note that this is not an RDP defined value, but rather one we've chosen
-/// in order to harden system security.
-const MAX_ALLOWED_VCHAN_MSG_SIZE: usize = 2 * 1024 * 1024; // 2MB
-
-const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
-const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
-const RDPSND_CHANNEL_NAME: &str = "rdpsnd";

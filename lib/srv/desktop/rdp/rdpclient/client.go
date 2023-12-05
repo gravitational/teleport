@@ -20,35 +20,39 @@ limitations under the License.
 package rdpclient
 
 // Some implementation details that don't belong in the public godoc:
-// This package wraps a Rust library based on https://crates.io/crates/rdp-rs.
+// This package wraps a Rust library that ultimately calls IronRDP
+// (https://github.com/Devolutions/IronRDP).
 //
 // The Rust library is statically-compiled and called via CGO.
-// The Go code sends and receives the CGO versions of Rust RDP events
-// https://docs.rs/rdp-rs/0.1.0/rdp/core/event/index.html and translates them
-// to the desktop protocol versions.
+// The Go code sends and receives the CGO versions of Rust RDP/TDP
+// events and passes them to and from the browser.
 //
 // The flow is roughly this:
 //    Go                                Rust
 // ==============================================
-//  rdpclient.New -----------------> client_run
-//                   *connected*
-//
-//            *register output callback*
-//                -----------------> client_read_rdp_output
-//  handleBitmap  <----------------
-//  handleBitmap  <----------------
-//  handleBitmap  <----------------
-//           *output streaming continues...*
+//  rdpclient.Run -----------------> client_run
+//                    *connected*
+//                                    run_read_loop
+//  handleRDPFastPathPDU <----------- cgo_handle_fastpath_pdu
+//  handleRDPFastPathPDU <-----------
+//  handleRDPFastPathPDU <-----------
+//  			 *fast path (screen) streaming continues...*
 //
 //              *user input messages*
-//  ReadMessage(MouseMove) ------> client_write_rdp_pointer
-//  ReadMessage(MouseButton) ----> client_write_rdp_pointer
-//  ReadMessage(KeyboardButton) -> client_write_rdp_keyboard
+//                                   run_write_loop
+//  ReadMessage(MouseMove) --------> client_write_rdp_pointer
+//  ReadMessage(MouseButton) ------> client_write_rdp_pointer
+//  ReadMessage(KeyboardButton) ---> client_write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*
-//    Wait       -----------------> client_close_rdp
 //
+//  The wds <--> RDP connection is guaranteed to close when the rust Client is dropped,
+//  which happens when client_run returns (typically either due to an error or because
+//  client_stop was called).
+//
+//  The browser <--> wds connection is guaranteed to close when WindowsService.handleConnection
+//  returns.
 
 /*
 // Flags to include the static Rust library.
@@ -66,7 +70,6 @@ import "C"
 
 import (
 	"context"
-	"encoding/binary"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -267,8 +270,9 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Addr and username strings only need to be valid for the duration of
-	// C.client_run. They are copied on the Rust side and can be freed here.
+	// [addr] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 
@@ -613,41 +617,8 @@ func toClient(handle C.uintptr_t) (value *Client, err error) {
 	return cgo.Handle(handle).Value().(*Client), nil
 }
 
-//export handle_png
-func handle_png(handle C.uintptr_t, cb *C.CGOPNG) C.CGOErrCode {
-	client, err := toClient(handle)
-	if err != nil {
-		return C.ErrCodeFailure
-	}
-	return client.handlePNG(cb)
-}
-
-func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
-	// Notify the input forwarding goroutine that we're ready for input.
-	// Input can only be sent after connection was established, which we infer
-	// from the fact that a png was sent.
-	atomic.StoreUint32(&c.readyForInput, 1)
-
-	data := asRustBackedSlice(cb.data_ptr, int(cb.data_len))
-
-	c.png2FrameBuffer = c.png2FrameBuffer[:0]
-	c.png2FrameBuffer = append(c.png2FrameBuffer, byte(tdp.TypePNG2Frame))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(len(data)))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_left))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_top))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_right))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_bottom))
-	c.png2FrameBuffer = append(c.png2FrameBuffer, data...)
-
-	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame(c.png2FrameBuffer)); err != nil {
-		c.cfg.Log.Errorf("failed to write PNG2Frame: %v", err)
-		return C.ErrCodeFailure
-	}
-	return C.ErrCodeSuccess
-}
-
-//export handle_fastpath_pdu
-func handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+//export cgo_handle_fastpath_pdu
+func cgo_handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
 	client, err := toClient(handle)
 	if err != nil {
@@ -669,8 +640,8 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export handle_rdp_channel_ids
-func handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_channel_id C.uint16_t) C.CGOErrCode {
+//export cgo_handle_rdp_channel_ids
+func cgo_handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_channel_id C.uint16_t) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -691,8 +662,8 @@ func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CG
 	return C.ErrCodeSuccess
 }
 
-//export handle_remote_copy
-func handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+//export cgo_handle_remote_copy
+func cgo_handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
 	client, err := toClient(handle)
 	if err != nil {
@@ -713,8 +684,8 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_acknowledge
-func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
+//export cgo_tdp_sd_acknowledge
+func cgo_tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -740,8 +711,8 @@ func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) 
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_info_request
-func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOErrCode {
+//export cgo_tdp_sd_info_request
+func cgo_tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -767,8 +738,8 @@ func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) 
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_create_request
-func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRequest) C.CGOErrCode {
+//export cgo_tdp_sd_create_request
+func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -796,8 +767,8 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_delete_request
-func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRequest) C.CGOErrCode {
+//export cgo_tdp_sd_delete_request
+func cgo_tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -823,8 +794,8 @@ func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteReque
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_list_request
-func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRequest) C.CGOErrCode {
+//export cgo_tdp_sd_list_request
+func cgo_tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -850,8 +821,8 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_read_request
-func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRequest) C.CGOErrCode {
+//export cgo_tdp_sd_read_request
+func cgo_tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -879,8 +850,8 @@ func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) 
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_write_request
-func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequest) C.CGOErrCode {
+//export cgo_tdp_sd_write_request
+func cgo_tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -909,8 +880,8 @@ func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest
 	return C.ErrCodeSuccess
 }
 
-//export tdp_sd_move_request
-func tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRequest) C.CGOErrCode {
+//export cgo_tdp_sd_move_request
+func cgo_tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRequest) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
@@ -934,28 +905,6 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 	}
 	return C.ErrCodeSuccess
 
-}
-
-// close closes the RDP client connection and
-// the TDP connection to the browser.
-func (c *Client) close() {
-	c.closeOnce.Do(func() {
-		// Ensure the RDP connection is closed
-		// TODO: do we need to do something to ensure a closed connection on the rust side (the rdp connection)?
-		if errCode := C.client_close_rdp(C.ulong(c.handle)); errCode != C.ErrCodeSuccess {
-			c.cfg.Log.Warningf("error closing the RDP connection")
-		} else {
-			c.cfg.Log.Debug("RDP connection closed successfully")
-		}
-
-		// TODO: can we consolidate this with the cleanup/close logic in Client::Run?
-		// Ensure the TDP connection is closed
-		if err := c.cfg.Conn.Close(); err != nil {
-			c.cfg.Log.Warningf("error closing the TDP connection: %v", err)
-		} else {
-			c.cfg.Log.Debug("TDP connection closed successfully")
-		}
-	})
 }
 
 // GetClientLastActive returns the time of the last recorded activity.
