@@ -45,9 +45,9 @@ If you have a Teleport Enterprise Cloud account, you can find agents that need t
 
 ```code
 $ tctl inventory ls --upgrader=none
-Server ID                            Hostname          Services Version Upgrader
------------------------------------- ----------------- -------- ------- --------
-4fb2d97d-884a-4566-b477-c805d477df09 agent.example.com Node     v1.2.3  none
+Server ID                            Hostname          Services Agent Version Upgrader Upgrader Version
+------------------------------------ ----------------- -------- ------------- -------- ----------------
+4fb2d97d-884a-4566-b477-c805d477df09 agent.example.com Node     v1.2.3        none     none
 ...
 ```
 
@@ -56,9 +56,27 @@ your oldest agents, you can limit your search using the `--older-than` filter:
 
 ```code
 $ tctl inventory ls --upgrader=none --older-than=v1.2.3
-Server ID                            Hostname        Services Version Upgrader
------------------------------------- --------------- -------- ------- --------
-1e6578b6-9530-448e-8013-d32641324abb old.example.com Node     v1.1.1  none
+Server ID                            Hostname        Services Agent Version Upgrader Upgrader Version
+------------------------------------ --------------- -------- ------------- -------- ----------------
+1e6578b6-9530-448e-8013-d32641324abb old.example.com Node     v1.1.1        none     none
+...
+```
+
+The `tctl inventory ls` command will also display the installed version of the Teleport Upgrader, which is versioned independently from Teleport itself:
+```code
+$ tctl inventory ls
+Server ID                            Hostname          Services Agent Version Upgrader Upgrader Version
+------------------------------------ ----------------- -------- ------------- -------- ----------------
+4fb2d97d-884a-4566-b477-c805d477df09 agent.example.com Node     v1.2.3        unit     v14.2.0
+...
+```
+
+If the Upgrader Version displays `none`, that means the Upgrader version is too old to report the version:
+```code
+$ tctl inventory ls
+Server ID                            Hostname          Services Agent Version Upgrader Upgrader Version
+------------------------------------ ----------------- -------- ------------- -------- ----------------
+4fb2d97d-884a-4566-b477-c805d477df09 agent.example.com Node     v1.2.3        unit     none
 ...
 ```
 
