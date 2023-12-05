@@ -25,9 +25,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -273,11 +275,38 @@ type ExitEventPayload struct {
 	Error error
 }
 
+var metricsServicesRunning = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      teleport.MetricTeleportServices,
+		Help:      "Teleport services currently enabled and running",
+	},
+	[]string{teleport.TagServiceName},
+)
+var metricsServicesRunningMap = map[string]string{
+	"discovery.init":       "discovery_service",
+	"ssh.node":             "ssh_service",
+	"auth.tls":             "auth_service",
+	"proxy.web":            "proxy_service",
+	"kube.init":            "kubernetes_service",
+	"apps.start":           "application_service",
+	"db.init":              "database_service",
+	"windows_desktop.init": "windows_desktop_service",
+	"okta.init":            "okta_service",
+	"jamf.init":            "jamf_service",
+}
+
 func (s *LocalSupervisor) serve(srv Service) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		defer s.RemoveService(srv)
+
+		if label, ok := metricsServicesRunningMap[srv.Name()]; ok {
+			metricsServicesRunning.WithLabelValues(label).Inc()
+			defer metricsServicesRunning.WithLabelValues(label).Dec()
+		}
+
 		l := s.log.WithField("service", srv.Name())
 		l.Debug("Service has started.")
 		err := srv.Serve()
@@ -305,6 +334,10 @@ func (s *LocalSupervisor) Start() error {
 	if len(s.services) == 0 {
 		s.log.Warning("Supervisor has no services to run. Exiting.")
 		return nil
+	}
+
+	if err := metrics.RegisterPrometheusCollectors(metricsServicesRunning); err != nil {
+		return trace.Wrap(err)
 	}
 
 	for _, srv := range s.services {
