@@ -1348,7 +1348,8 @@ func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+	authServer := testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	tests := []struct {
 		kind   string

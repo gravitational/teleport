@@ -42,7 +42,8 @@ func TestEditResources(t *testing.T) {
 	t.Parallel()
 	log := utils.NewLoggerForTests()
 	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	authServer := testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
 	tests := []struct {
