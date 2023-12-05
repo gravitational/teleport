@@ -17,8 +17,8 @@ use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
-    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryReadRequest,
-    CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
+    CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
+    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse, CGOSharedDirectoryWriteRequest,
 };
 use ironrdp_pdu::{cast_length, custom_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
@@ -70,7 +70,7 @@ pub struct SharedDirectoryInfoRequest {
 }
 
 impl SharedDirectoryInfoRequest {
-    /// See [`CGOWithStrings`].
+    /// See [`CGOWithData`].
     pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryInfoRequest>> {
         let path = self.path.to_cstring()?;
         Ok(CGOWithData {
@@ -211,6 +211,18 @@ impl FileSystemObject {
             file_attributes,
             self.name()?,
         ))
+    }
+
+    pub fn is_empty_directory(&self) -> bool {
+        self.file_type == FileType::Directory && self.is_empty == TRUE
+    }
+
+    pub fn is_non_empty_directory(&self) -> bool {
+        self.file_type == FileType::Directory && self.is_empty == FALSE
+    }
+
+    pub fn is_file(&self) -> bool {
+        self.file_type == FileType::File
     }
 }
 
@@ -364,7 +376,7 @@ impl SharedDirectoryCreateRequest {
         }
     }
 
-    /// See [`CGOWithStrings`].
+    /// See [`CGOWithData`].
     pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryCreateRequest>> {
         let path = self.path.to_cstring()?;
         Ok(CGOWithData {
@@ -421,6 +433,23 @@ pub struct SharedDirectoryMoveRequest {
     pub new_path: UnixPath,
 }
 
+impl SharedDirectoryMoveRequest {
+    /// See [`CGOWithData`].
+    pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryMoveRequest>> {
+        let original_path = self.original_path.to_cstring()?;
+        let new_path = self.new_path.to_cstring()?;
+        Ok(CGOWithData {
+            cgo: CGOSharedDirectoryMoveRequest {
+                completion_id: self.completion_id,
+                directory_id: self.directory_id,
+                original_path: original_path.as_ptr(),
+                new_path: new_path.as_ptr(),
+            },
+            _data: vec![original_path.into(), new_path.into()],
+        })
+    }
+}
+
 /// SharedDirectoryCreateResponse is sent by the TDP client to the server
 /// to acknowledge a SharedDirectoryCreateRequest was received and executed.
 #[derive(Debug)]
@@ -463,7 +492,7 @@ impl SharedDirectoryDeleteRequest {
         }
     }
 
-    /// See [`CGOWithStrings`].
+    /// See [`CGOWithData`].
     pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryDeleteRequest>> {
         let path = self.path.to_cstring()?;
         Ok(CGOWithData {
@@ -515,7 +544,7 @@ pub struct SharedDirectoryListRequest {
 }
 
 impl SharedDirectoryListRequest {
-    /// See [`CGOWithStrings`].
+    /// See [`CGOWithData`].
     pub fn into_cgo(self) -> PduResult<CGOWithData<CGOSharedDirectoryListRequest>> {
         let path = self.path.to_cstring()?;
         Ok(CGOWithData {
