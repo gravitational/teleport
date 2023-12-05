@@ -145,7 +145,6 @@ var (
 		discovery: []string{
 			"rds:DescribeDBProxies",
 			"rds:DescribeDBProxyEndpoints",
-			"rds:DescribeDBProxyTargets",
 			"rds:ListTagsForResource",
 		},
 		boundary:       []string{"rds-db:connect"},

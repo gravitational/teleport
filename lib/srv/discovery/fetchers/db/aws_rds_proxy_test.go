@@ -85,7 +85,7 @@ func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types
 		Status:       aws.String("available"),
 	}
 
-	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
+	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
 	return rdsProxy, rdsProxyDatabase
 }
@@ -99,7 +99,7 @@ func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, regio
 		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
 		Status:              aws.String("available"),
 	}
-	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
+	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, nil)
 	require.NoError(t, err)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }
