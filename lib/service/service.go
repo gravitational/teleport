@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -140,6 +141,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -973,15 +975,17 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
+	upgraderVersion := automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:         cfg.HostUUID,
-		Version:          teleport.Version,
-		Services:         process.getInstanceRoles(),
-		Hostname:         cfg.Hostname,
-		ExternalUpgrader: upgraderKind,
+		ServerID:                cfg.HostUUID,
+		Version:                 teleport.Version,
+		Services:                process.getInstanceRoles(),
+		Hostname:                cfg.Hostname,
+		ExternalUpgrader:        upgraderKind,
+		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
 	})
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {

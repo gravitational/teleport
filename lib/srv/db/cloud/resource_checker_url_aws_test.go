@@ -62,10 +62,10 @@ func TestURLChecker_AWS(t *testing.T) {
 
 	// RDS Proxy.
 	rdsProxy := mocks.RDSProxy("rds-proxy", region, "some-vpc")
-	rdsProxyDB, err := services.NewDatabaseFromRDSProxy(rdsProxy, 1234, nil)
+	rdsProxyDB, err := services.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
 	rdsProxyCustomEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, "my-custom", region)
-	rdsProxyCustomEndpointDB, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyCustomEndpoint, 1234, nil)
+	rdsProxyCustomEndpointDB, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyCustomEndpoint, nil)
 	require.NoError(t, err)
 	testCases = append(testCases, rdsProxyDB, rdsProxyCustomEndpointDB)
 

@@ -146,6 +146,8 @@ type AccessListFeature struct {
 type AccessMonitoringFeature struct {
 	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
 	Enabled bool
+	// Defines the max number of days to include in an access report.
+	MaxReportRangeLimit int
 }
 
 // ToProto converts Features into proto.Features
@@ -179,7 +181,8 @@ func (f Features) ToProto() *proto.Features {
 		},
 		IdentityGovernance: f.IdentityGovernanceSecurity,
 		AccessMonitoring: &proto.AccessMonitoringFeature{
-			Enabled: f.AccessMonitoring.Enabled,
+			Enabled:             f.AccessMonitoring.Enabled,
+			MaxReportRangeLimit: int32(f.AccessMonitoring.MaxReportRangeLimit),
 		},
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),

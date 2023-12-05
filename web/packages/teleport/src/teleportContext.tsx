@@ -84,6 +84,9 @@ class TeleportContext implements types.Context {
       cfg.isTeam || (!cfg.isLegacyEnterprise() && !cfg.isIgsEnabled),
   };
 
+  // hasExternalAuditStorage indicates if an account has set up external audit storage. It is used to show or hide the External Audit Storage CTAs.
+  hasExternalAuditStorage = false;
+
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.

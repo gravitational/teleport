@@ -58,8 +58,8 @@ user:
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
-| `device_trust_mode` | Enforce authenticated device access for the owner of this role (`required`, `optional`, `off`) | |
-| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `device_trust_mode` | Enforce authenticated device access for the owner of this role (`required`, `optional`, `off`). Applies only to the resources in the roles' allow field. | |
+| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`). Applies only to the resources in the roles' allow field. | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
 | `request_prompt` | Prompt for the Access Request "reason" field | |
@@ -328,8 +328,8 @@ allow:
 
 ### Allowing access to token resources
 
-If you configure a role that allows tokens to be created, users assigned to the 
-role can create tokens to provision any type of Teleport resource. 
+If you configure a role that allows tokens to be created, users assigned to the
+role can create tokens to provision any type of Teleport resource.
 For example, you might create a role with the following configuration to enable assigned
 users to enroll servers:
 
@@ -348,14 +348,14 @@ spec:
   deny: {}
 ```
 
-With these permissions, users assigned to the role can generate tokens to enroll  
-a server, application, or database, establish a trust relationship between a root 
+With these permissions, users assigned to the role can generate tokens to enroll
+a server, application, or database, establish a trust relationship between a root
 cluster and a new Teleport Proxy Service, or add a new leaf cluster.
 
-Because the token resource isn't scoped to a specific context, such as a node or 
-trusted cluster, you should consider any role that provides token permissions to be 
-an administrative role. In particular, you should avoid configuring `allow` rules 
-that grant `create` and `update` permissions on `token` resources to prevent 
+Because the token resource isn't scoped to a specific context, such as a node or
+trusted cluster, you should consider any role that provides token permissions to be
+an administrative role. In particular, you should avoid configuring `allow` rules
+that grant `create` and `update` permissions on `token` resources to prevent
 unexpected changes to the configuration or state of your cluster.
 
 ## RBAC for sessions

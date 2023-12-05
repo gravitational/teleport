@@ -81,6 +81,22 @@ type WebConfig struct {
 	IsTeam bool `json:"isTeam"`
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	IsIGSEnabled bool `json:"isIgsEnabled"`
+	// featureLimits define limits for features.
+	// Typically used with feature teasers if feature is not enabled for the
+	// product type eg: Team product contains teasers to upgrade to Enterprise.
+	FeatureLimits FeatureLimits `json:"featureLimits"`
+}
+
+// featureLimits define limits for features.
+// Typically used with feature teasers if feature is not enabled for the
+// product type eg: Team product contains teasers to upgrade to Enterprise.
+type FeatureLimits struct {
+	// Limit for the number of access list creatable when feature is
+	// not enabled.
+	AccessListCreateLimit int `json:"accessListCreateLimit"`
+	// Defines the max number of days to include in an access report if
+	// feature is not enabled.
+	AccessMonitoringMaxReportRangeLimit int `json:"accessMonitoringMaxReportRangeLimit"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

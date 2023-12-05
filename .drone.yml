@@ -5819,7 +5819,7 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -5865,7 +5865,7 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -5911,7 +5911,7 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -8237,7 +8237,7 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -8283,7 +8283,7 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -8329,7 +8329,7 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -10655,7 +10655,7 @@ steps:
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport15
-    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=amd64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -10701,7 +10701,7 @@ steps:
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
-    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -10747,7 +10747,7 @@ steps:
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
     --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport15
-    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.4
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc --build-arg GOLANG_VERSION=go1.21.5
     --build-arg PROTOC_VERSION=3.20.3 --build-arg TARGETARCH=arm64 --build-arg BUILD_ARCH=amd64
     /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
@@ -11346,6 +11346,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 38d4d238b00a3da76e2d1869f98a5828e60a05ee096cd1c709fc15342f9eda6f
+hmac: e5a7a7ed15691a8b042e3ec23f9d0831fb10a6f025ecb65f8cebf80c20ad5110
 
 ...
