@@ -48,7 +48,7 @@ func TestAccessListCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -148,16 +148,7 @@ func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -190,16 +181,7 @@ func TestAccessListCreate_UpsertAccessList_WithLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: false,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
+	service := newAccessListService(t, mem, clock, false /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -245,16 +227,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: false,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
+	service := newAccessListService(t, mem, clock, false /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -309,16 +282,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -351,7 +315,7 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Put an unduplicated owners access list in the backend.
 	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners", clock)
@@ -379,7 +343,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -454,7 +418,7 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -618,7 +582,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -1032,12 +996,15 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	return review
 }
 
-func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock) *AccessListService {
+func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
+			IdentityGovernanceSecurity: igsEnabled,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
 		},
 	})
 

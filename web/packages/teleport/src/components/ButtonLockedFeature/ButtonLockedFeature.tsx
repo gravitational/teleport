@@ -56,7 +56,7 @@ export function ButtonLockedFeature({
     return (
       <Link
         target="blank"
-        href={getSalesURL(version, isEnterprise, isUsageBased, event)}
+        href={getSalesURL(version, cfg.isEnterprise, event)}
         onClick={handleClick}
         {...rest}
       >
