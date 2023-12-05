@@ -221,6 +221,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		// Display the expiry time in the local timezone. UTC is confusing.
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
 	}
+	if req.GetAssumeTime() != nil {
+		table.AddRow([]string{"Assume Time (UTC):", req.GetAssumeTime().UTC().Format(time.RFC822)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
