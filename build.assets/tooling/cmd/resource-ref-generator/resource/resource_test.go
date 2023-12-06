@@ -1168,7 +1168,7 @@ func (stream *streamFunc[T]) Next() bool {
 			allMethods, err := GetMethodInfo(allDecls)
 			assert.NoError(t, err)
 
-			r, err := NewFromDecl(DeclarationInfo{
+			r, err := ReferenceDataFromDeclaration(DeclarationInfo{
 				FilePath:    "myfile.go",
 				Decl:        gd,
 				PackageName: f.Name.Name,
