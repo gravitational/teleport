@@ -3012,7 +3012,7 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) error
 	return a.authServer.UpdateUser(ctx, user)
 }
 
-func (a *ServerWithRoles) UpsertUser(u types.User) error {
+func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) error {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3023,7 +3023,37 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 			User: types.UserRef{Name: a.context.User.GetName()},
 		})
 	}
-	return a.authServer.UpsertUser(u)
+
+	if err := a.authServer.UpsertUser(u); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Emitting the audit event is done here and not within [Server.UpsertUser] because
+	// the UserMetadata for the event cannot be derived without the [context.Context].
+	var connectorName string
+	if u.GetCreatedBy().Connector == nil {
+		connectorName = constants.LocalConnector
+	} else {
+		connectorName = u.GetCreatedBy().Connector.ID
+	}
+
+	if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+		Metadata: apievents.Metadata{
+			Type: events.UserCreateEvent,
+			Code: events.UserCreateCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    u.GetName(),
+			Expires: u.Expiry(),
+		},
+		Connector: connectorName,
+		Roles:     u.GetRoles(),
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit user upsert event.")
+	}
+
+	return nil
 }
 
 // UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
