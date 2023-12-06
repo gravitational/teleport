@@ -116,7 +116,7 @@ function ClusterResources({
       dir: 'ASC',
     },
     pinnedOnly:
-      preferences.unifiedResourcePreferences.defaultTab ===
+      preferences?.unifiedResourcePreferences?.defaultTab ===
       DefaultTab.DEFAULT_TAB_PINNED,
   });
 
