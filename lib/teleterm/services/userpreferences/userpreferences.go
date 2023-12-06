@@ -72,10 +72,10 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 
 	if hasUnifiedResourcePreferencesForRoot || hasClusterPreferencesForRoot {
 		if hasUnifiedResourcePreferencesForRoot {
-			rootPreferences.UnifiedResourcePreferences = newPreferences.UnifiedResourcePreferences
+			rootPreferences.UnifiedResourcePreferences = updateUnifiedResourcePreferences(rootPreferences.UnifiedResourcePreferences, newPreferences.UnifiedResourcePreferences)
 		}
 		if hasClusterPreferencesForRoot {
-			rootPreferences.ClusterPreferences = newPreferences.ClusterPreferences
+			rootPreferences.ClusterPreferences = updateClusterPreferences(rootPreferences.ClusterPreferences, newPreferences.ClusterPreferences)
 		}
 
 		err := rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
@@ -88,7 +88,7 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 
 	hasClusterPreferencesForLeaf := newPreferences.ClusterPreferences != nil && leafPreferences != nil
 	if hasClusterPreferencesForLeaf {
-		leafPreferences.ClusterPreferences = newPreferences.ClusterPreferences
+		leafPreferences.ClusterPreferences = updateClusterPreferences(leafPreferences.ClusterPreferences, newPreferences.ClusterPreferences)
 
 		err := leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
 			Preferences: leafPreferences,
@@ -107,6 +107,32 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 	}
 
 	return updatedPreferences, nil
+}
+
+func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedResourcePreferences, newPreferences *userpreferencesv1.UnifiedResourcePreferences) *userpreferencesv1.UnifiedResourcePreferences {
+	updated := oldPreferences
+	if oldPreferences == nil {
+		updated = &userpreferencesv1.UnifiedResourcePreferences{}
+	}
+
+	updated.DefaultTab = newPreferences.DefaultTab
+	updated.ViewMode = newPreferences.ViewMode
+
+	return updated
+}
+
+func updateClusterPreferences(oldPreferences *userpreferencesv1.ClusterUserPreferences, newPreferences *userpreferencesv1.ClusterUserPreferences) *userpreferencesv1.ClusterUserPreferences {
+	updated := oldPreferences
+	if oldPreferences == nil {
+		updated = &userpreferencesv1.ClusterUserPreferences{}
+	}
+	if updated.PinnedResources == nil {
+		updated.PinnedResources = &userpreferencesv1.PinnedResourcesUserPreferences{}
+	}
+
+	updated.PinnedResources.ResourceIds = newPreferences.PinnedResources.ResourceIds
+
+	return updated
 }
 
 // Client represents auth.ClientI methods used by [Get] and [Update].
