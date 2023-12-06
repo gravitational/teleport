@@ -89,10 +89,6 @@ type Features struct {
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
 
-	// IsTrialProduct is true if the cluster is in trial mode.
-	IsTrialProduct bool
-	// IsTeam is true if the cluster is a Teleport Team cluster.
-	IsTeamProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
@@ -210,6 +206,10 @@ func (f Features) IsLegacy() bool {
 // TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
 	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
+}
+
+func (f Features) IsTeam() bool {
+	return f.ProductType == ProductTypeTeam
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
