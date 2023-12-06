@@ -84,11 +84,11 @@ func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte
 // multiple reports with single resource kind report split into multiple fragments.
 func prepareResourcePresenceReports(
 	clusterName, reporterHostID []byte,
-	startTime time.Time, records []*prehogv1.ResourceKindPresenceReport,
+	startTime time.Time, kindReports []*prehogv1.ResourceKindPresenceReport,
 ) ([]*prehogv1.ResourcePresenceReport, error) {
 	reports := make([]*prehogv1.ResourcePresenceReport, 0, 1) // at least one report
 
-	for len(records) > 0 {
+	for len(kindReports) > 0 {
 		// Optimistic case: try to put all records into a single report in hope that they will fit.
 		reportUUID := uuid.New()
 		report := &prehogv1.ResourcePresenceReport{
@@ -96,7 +96,7 @@ func prepareResourcePresenceReports(
 			ClusterName:         clusterName,
 			ReporterHostid:      reporterHostID,
 			StartTime:           timestamppb.New(startTime),
-			ResourceKindReports: records,
+			ResourceKindReports: kindReports,
 		}
 
 		if proto.Size(report) <= maxItemSize {
@@ -106,27 +106,27 @@ func prepareResourcePresenceReports(
 		}
 
 		// We're over the size limit, so we need to split the report and try again.
-		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(records))
+		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(kindReports))
 
 		// First pass: try to fit as many resource kind reports as possible, skipping big ones.
-		unfitRecords := make([]*prehogv1.ResourceKindPresenceReport, 0, len(records))
-		for _, kindReport := range records {
+		unfitRecords := make([]*prehogv1.ResourceKindPresenceReport, 0, len(kindReports))
+		for _, kindReport := range kindReports {
 			report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
 			if proto.Size(report) > maxItemSize {
 				unfitRecords = append(unfitRecords, kindReport)
 				report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)-1]
 			}
 		}
-		records = unfitRecords
+		kindReports = unfitRecords
 
 		// Second pass: try to split the last oversized resource by two until it fits
-		resourceIds := records[0].GetResourceIds()
+		resourceIds := kindReports[0].GetResourceIds()
 		kindReportHead := &prehogv1.ResourceKindPresenceReport{
-			ResourceKind: records[0].GetResourceKind(),
+			ResourceKind: kindReports[0].GetResourceKind(),
 			ResourceIds:  resourceIds[:len(resourceIds)/2],
 		}
 		kindReportTail := &prehogv1.ResourceKindPresenceReport{
-			ResourceKind: records[0].GetResourceKind(),
+			ResourceKind: kindReports[0].GetResourceKind(),
 			ResourceIds:  resourceIds[len(resourceIds)/2:],
 		}
 
@@ -139,7 +139,7 @@ func prepareResourcePresenceReports(
 		}
 
 		if proto.Size(report) <= maxItemSize {
-			records = append([]*prehogv1.ResourceKindPresenceReport{kindReportTail}, records[1:]...)
+			kindReports = append([]*prehogv1.ResourceKindPresenceReport{kindReportTail}, kindReports[1:]...)
 		} else {
 			// Exclude it from the report and try to fit it to the next one
 			report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)-1]

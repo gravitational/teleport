@@ -73,6 +73,7 @@ message DiscoveredDatabaseMetadata {
 }
 
 // the kind of a "resource" as intended by ResourceHeartbeatEvent
+// Keep in sync with prehog/v1/teleport.proto
 enum ResourceKind {
   RESOURCE_KIND_UNSPECIFIED = 0;
 

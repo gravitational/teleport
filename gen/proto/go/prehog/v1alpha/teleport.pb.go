@@ -37,6 +37,7 @@ const (
 )
 
 // the kind of a "resource" as intended by ResourceHeartbeatEvent
+// Keep in sync with prehog/v1/teleport.proto
 type ResourceKind int32
 
 const (
