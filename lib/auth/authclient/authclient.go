@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package authclient contains common code for creating an auth server client
 // which may use SSH tunneling through a proxy.
@@ -53,6 +55,8 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// Insecure turns off TLS certificate verification when enabled.
+	Insecure bool
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -91,7 +95,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 			apiclient.LoadTLS(cfg.TLS),
 		},
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
-		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
+		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
 		MFAPromptConstructor:     cfg.MFAPromptConstructor,
 	})
@@ -119,7 +123,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.TLS.InsecureSkipVerify,
+		Insecure:  cfg.Insecure,
 		Timeout:   cfg.DialTimeout,
 	})
 
@@ -134,7 +138,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 		Resolver:              resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
-		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+		InsecureSkipTLSVerify: cfg.Insecure,
 		ClusterCAs:            cfg.TLS.RootCAs,
 	})
 	if err != nil {

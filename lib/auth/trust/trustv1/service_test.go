@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package trustv1
 
@@ -66,6 +70,18 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	return &authz.Context{
 		Checker: f.checker,
 	}, nil
+}
+
+type fakeHostCertSigner struct {
+	data map[string]struct {
+		cert []byte
+		err  error
+	}
+}
+
+func (f *fakeHostCertSigner) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	data := f.data[hostID]
+	return data.cert, data.err
 }
 
 type fakeChecker struct {
@@ -384,6 +400,7 @@ func TestRBAC(t *testing.T) {
 				Cache:      trust,
 				Backend:    trust,
 				Authorizer: &test.authorizer,
+				AuthServer: &fakeHostCertSigner{},
 			}
 
 			service, err := NewService(cfg)
@@ -417,6 +434,7 @@ func TestGetCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -505,6 +523,7 @@ func TestGetCertAuthorities(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -598,6 +617,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -667,6 +687,7 @@ func TestUpsertCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
+		AuthServer: &fakeHostCertSigner{},
 	}
 
 	service, err := NewService(cfg)
@@ -720,6 +741,85 @@ func TestUpsertCertAuthority(t *testing.T) {
 				CertAuthority: test.ca(hostCA),
 			})
 			test.assertion(t, ca, err)
+		})
+	}
+}
+
+func TestGenerateHostCert(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindHostCert, types.VerbCreate}: true,
+			},
+		},
+	}
+
+	hostCertSigner := &fakeHostCertSigner{
+		data: map[string]struct {
+			cert []byte
+			err  error
+		}{
+			"success": {
+				cert: []byte("foo"),
+			},
+			"fail": {
+				err: trace.BadParameter("bad thing happened"),
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+		AuthServer: hostCertSigner,
+	}
+
+	tests := []struct {
+		name string
+		req  *trustpb.GenerateHostCertRequest
+
+		want    *trustpb.GenerateHostCertResponse
+		wantErr string
+	}{
+		{
+			name: "success",
+			req: &trustpb.GenerateHostCertRequest{
+				HostId: "success",
+			},
+
+			want: &trustpb.GenerateHostCertResponse{
+				SshCertificate: []byte("foo"),
+			},
+		},
+		{
+			name: "fail",
+			req: &trustpb.GenerateHostCertRequest{
+				HostId: "fail",
+			},
+
+			wantErr: "bad thing happened",
+		},
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := service.GenerateHostCert(ctx, test.req)
+			if test.wantErr != "" {
+				require.EqualError(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.want, got)
 		})
 	}
 }

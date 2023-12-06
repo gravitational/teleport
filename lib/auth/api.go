@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -709,6 +711,12 @@ type ReadDiscoveryAccessPoint interface {
 
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -745,6 +753,9 @@ type DiscoveryAccessPoint interface {
 
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1269,6 +1280,11 @@ func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.Server
 // SubmitUsageEvent submits an external usage event.
 func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
 	return w.NoCache.SubmitUsageEvent(ctx, req)
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
 }
 
 // Close closes all associated resources

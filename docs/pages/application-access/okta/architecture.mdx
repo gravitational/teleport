@@ -15,23 +15,7 @@ interactions with Okta. There are three main components of the Okta Service:
 - User access
 - Access Requests
 
-```mermaid
-flowchart TB
-  Okta[Okta API]
-
-  subgraph Svc[Okta Service]
-    direction TB
-    UA[User Access]
-    Sync[Synchronization]
-    AR[Access Requests]
-  end
-
-  Teleport[Teleport Cluster]<-- Reverse Tunnel -->Svc
-
-  Okta-- Import applications and groups-->Sync
-  UA-- Longer lived permissions-->Okta
-  AR-- Short lived permissions-->Okta
-```
+![Architecture of the Okta Service](../../../img/okta-diagram.png)
 
 The Okta Service uses an Okta API token and endpoint in order to interact
 with Okta's API. The API is used to import applications and user groups and

@@ -1,15 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -44,7 +49,9 @@ func (f *rdsDBProxyPlugin) ComponentShortName() string {
 // Proxies and custom endpoints.
 func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,14 +83,6 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 			continue
 		}
 
-		// rds.DBProxy has no port information. An extra SDK call is made to
-		// find the port from its targets.
-		port, err := getRDSProxyTargetPort(ctx, rdsClient, dbProxy.DBProxyName)
-		if err != nil {
-			cfg.Log.Debugf("Failed to get port for RDS Proxy %v: %v.", aws.StringValue(dbProxy.DBProxyName), err)
-			continue
-		}
-
 		// rds.DBProxy has no tags information. An extra SDK call is made to
 		// fetch the tags. If failed, keep going without the tags.
 		tags, err := listRDSResourceTags(ctx, rdsClient, dbProxy.DBProxyArn)
@@ -92,7 +91,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 		}
 
 		// Add a database from RDS Proxy (default endpoint).
-		database, err := services.NewDatabaseFromRDSProxy(dbProxy, port, tags)
+		database, err := services.NewDatabaseFromRDSProxy(dbProxy, tags)
 		if err != nil {
 			cfg.Log.Debugf("Could not convert RDS Proxy %q to database resource: %v.",
 				aws.StringValue(dbProxy.DBProxyName), err)
@@ -110,7 +109,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 				continue
 			}
 
-			database, err = services.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, port, tags)
+			database, err = services.NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, customEndpoint, tags)
 			if err != nil {
 				cfg.Log.Debugf("Could not convert custom endpoint %q of RDS Proxy %q to database resource: %v.",
 					aws.StringValue(customEndpoint.DBProxyEndpointName),
@@ -158,25 +157,6 @@ func getRDSProxyCustomEndpoints(ctx context.Context, rdsClient rdsiface.RDSAPI, 
 		},
 	)
 	return customEndpointsByProxyName, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
-}
-
-// getRDSProxyTargetPort gets the port number that the targets of the RDS Proxy
-// are using.
-func getRDSProxyTargetPort(ctx context.Context, rdsClient rdsiface.RDSAPI, dbProxyName *string) (int64, error) {
-	output, err := rdsClient.DescribeDBProxyTargetsWithContext(ctx, &rds.DescribeDBProxyTargetsInput{
-		DBProxyName: dbProxyName,
-	})
-	if err != nil {
-		return 0, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
-	}
-
-	// The proxy may have multiple targets but they should have the same port.
-	for _, target := range output.Targets {
-		if target.Port != nil {
-			return aws.Int64Value(target.Port), nil
-		}
-	}
-	return 0, trace.NotFound("RDS Proxy target port not found")
 }
 
 // listRDSResourceTags returns tags for provided RDS resource.

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package discovery
 
@@ -27,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -44,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
@@ -90,6 +94,9 @@ type gcpInstaller interface {
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
+	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
+	// When true, ambient credentials (used by the Cloud SDKs) are not used.
+	IntegrationOnlyCredentials bool
 	// KubernetesClient is the Kubernetes client interface
 	KubernetesClient kubernetes.Interface
 	// Matchers stores all types of matchers to discover resources
@@ -139,7 +146,12 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+		awsIntegrationSessionProvider := func(ctx context.Context, region, integration string) (*session.Session, error) {
+			return awsoidc.NewSessionV1(ctx, c.AccessPoint, region, integration)
+		}
+		cloudClients, err := cloud.NewClients(
+			cloud.WithAWSIntegrationSessionProvider(awsIntegrationSessionProvider),
+		)
 		if err != nil {
 			return trace.Wrap(err, "unable to create cloud clients")
 		}
@@ -267,6 +279,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 	}
+	s.discardUnsupportedMatchers(&s.Matchers)
 
 	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -375,36 +388,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
-		matcherAssumeRole := &types.AssumeRole{}
+		matcherAssumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
-			matcherAssumeRole = matcher.AssumeRole
+			matcherAssumeRole = *matcher.AssumeRole
 		}
 
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
 				case types.AWSMatcherEKS:
-					client, err := s.CloudClients.GetAWSEKSClient(
-						s.ctx,
-						region,
-						cloud.WithAssumeRole(
-							matcherAssumeRole.RoleARN,
-							matcherAssumeRole.ExternalID,
-						),
-					)
+					fetcher, err := s.getEKSFetcher(region, matcherAssumeRole, matcher.Tags)
 					if err != nil {
-						return trace.Wrap(err)
-					}
-					fetcher, err := fetchers.NewEKSFetcher(
-						fetchers.EKSFetcherConfig{
-							Client:       client,
-							Region:       region,
-							FilterLabels: matcher.Tags,
-							Log:          s.Log,
-						},
-					)
-					if err != nil {
-						return trace.Wrap(err)
+						s.Log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
+						continue
 					}
 					s.kubeFetchers = append(s.kubeFetchers, fetcher)
 				}
@@ -413,6 +409,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	}
 
 	return nil
+}
+
+func (s *Server) getEKSFetcher(region string, assumeRole types.AssumeRole, tags types.Labels) (common.Fetcher, error) {
+	fetcher, err := fetchers.NewEKSFetcher(
+		fetchers.EKSFetcherConfig{
+			EKSClientGetter: s.CloudClients,
+			AssumeRole:      assumeRole,
+			Region:          region,
+			FilterLabels:    tags,
+			Log:             s.Log,
+		},
+	)
+	return fetcher, trace.Wrap(err)
 }
 
 func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
@@ -705,8 +714,9 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+	// TODO(marco): support AWS SSM Client backed by an integration
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region)
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1200,6 +1210,7 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 		GCP:        dc.Spec.GCP,
 		Kubernetes: dc.Spec.Kube,
 	}
+	s.discardUnsupportedMatchers(&matchers)
 
 	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS)
 	if err != nil {
@@ -1233,6 +1244,41 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil
+}
+
+// discardUnsupportedMatchers drops any matcher that is not supported in the current DiscoveryService.
+// Discarded Matchers:
+// - when running in IntegrationOnlyCredentials mode, any Matcher that doesn't have an Integration is discarded.
+func (s *Server) discardUnsupportedMatchers(m *Matchers) {
+	if !s.IntegrationOnlyCredentials {
+		return
+	}
+
+	// Discard all matchers that don't have an Integration
+	validAWSMatchers := make([]types.AWSMatcher, 0, len(m.AWS))
+	for i, m := range m.AWS {
+		if m.Integration == "" {
+			s.Log.Warnf("discarding AWS matcher [%d] - missing integration", i)
+			continue
+		}
+		validAWSMatchers = append(validAWSMatchers, m)
+	}
+	m.AWS = validAWSMatchers
+
+	if len(m.GCP) > 0 {
+		s.Log.Warnf("discarding GCP matchers - missing integration")
+		m.GCP = []types.GCPMatcher{}
+	}
+
+	if len(m.Azure) > 0 {
+		s.Log.Warnf("discarding Azure matchers - missing integration")
+		m.Azure = []types.AzureMatcher{}
+	}
+
+	if len(m.Kubernetes) > 0 {
+		s.Log.Warnf("discarding Kubernetes matchers - missing integration")
+		m.Kubernetes = []types.KubernetesMatcher{}
+	}
 }
 
 // Stop stops the discovery service.

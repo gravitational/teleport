@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
@@ -28,6 +30,7 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import * as tsh from 'teleterm/services/tshd/types';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import { ResourcesContextProvider } from './resourcesContext';
 
@@ -36,12 +39,7 @@ import DocumentCluster from './DocumentCluster';
 const mio = mockIntersectionObserver();
 
 it('displays a button for Connect My Computer in the empty state if the user can use Connect My Computer', async () => {
-  const doc = {
-    kind: 'doc.cluster' as const,
-    clusterUri: '/clusters/localhost' as const,
-    uri: '/docs/123' as const,
-    title: 'sample',
-  };
+  const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
   appContext.clustersService.setState(draft => {
@@ -106,12 +104,12 @@ it('displays a button for Connect My Computer in the empty state if the user can
 });
 
 it('does not display a button for Connect My Computer in the empty state if the user cannot use Connect My Computer', async () => {
-  const doc = {
+  const doc = makeDocumentCluster({
     kind: 'doc.cluster' as const,
     clusterUri: '/clusters/localhost' as const,
     uri: '/docs/123' as const,
     title: 'sample',
-  };
+  });
 
   const appContext = new MockAppContext({ platform: 'linux' });
   appContext.clustersService.setState(draft => {

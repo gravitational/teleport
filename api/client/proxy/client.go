@@ -132,10 +132,6 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 // to connect to the Auth server without mTLS.
 type insecureCredentials struct{}
 
-func (mc insecureCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
-
 func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }

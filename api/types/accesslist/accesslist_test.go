@@ -203,3 +203,78 @@ func TestAuditUnmarshaling(t *testing.T) {
 	require.Equal(t, FirstDayOfMonth, audit.Recurrence.DayOfMonth)
 	require.Equal(t, twoWeeks, audit.Notifications.Start)
 }
+
+func TestAccessListDefaults(t *testing.T) {
+	newValidAccessList := func() *AccessList {
+		return &AccessList{
+			ResourceHeader: header.ResourceHeader{
+				Metadata: header.Metadata{
+					Name: "test",
+				},
+			},
+			Spec: Spec{
+				Title:  "test access list",
+				Owners: []Owner{{Name: "Daphne"}},
+				Grants: Grants{Roles: []string{"requester"}},
+				Audit: Audit{
+					NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
+				},
+			},
+		}
+	}
+
+	t.Run("ownership defaults to explicit", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Ownership = InclusionUnspecified
+
+		err := uut.CheckAndSetDefaults()
+		require.NoError(t, err)
+		require.Equal(t, InclusionExplicit, uut.Spec.Ownership)
+	})
+
+	t.Run("invalid ownership is an error", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Ownership = Inclusion("potato")
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ownership")
+	})
+
+	t.Run("membership defaults to explicit", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Membership = InclusionUnspecified
+
+		err := uut.CheckAndSetDefaults()
+		require.NoError(t, err)
+		require.Equal(t, InclusionExplicit, uut.Spec.Membership)
+	})
+
+	t.Run("invalid membership is an error", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Membership = Inclusion("banana")
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "membership")
+	})
+
+	t.Run("owners are required for explicit owner lists", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Ownership = InclusionExplicit
+		uut.Spec.Owners = []Owner{}
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "owners")
+	})
+
+	t.Run("owners are not required for implicit owner lists", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Ownership = InclusionImplicit
+		uut.Spec.Owners = []Owner{}
+
+		err := uut.CheckAndSetDefaults()
+		require.NoError(t, err)
+	})
+}

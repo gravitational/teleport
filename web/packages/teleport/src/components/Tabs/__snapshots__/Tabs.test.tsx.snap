@@ -5,13 +5,6 @@ exports[`clicking on other tabs renders correct content and style 1`] = `
   box-sizing: border-box;
 }
 
-.c1 {
-  box-sizing: border-box;
-  display: flex;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-
 .c3 {
   box-sizing: border-box;
   padding-left: 24px;
@@ -20,41 +13,49 @@ exports[`clicking on other tabs renders correct content and style 1`] = `
   padding-bottom: 16px;
   border-top-left-radius: 4px;
   border-top-right-radius: 4px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  padding: 8px;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c2 {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.c5 {
   color: inherit;
   border: none;
   background: rgba(255,255,255,0.07);
 }
 
-.c3:hover,
-.c3:focus {
-  cursor: pointer;
-  opacity: 1;
-}
-
-.c2 {
-  box-sizing: border-box;
-  padding-left: 24px;
-  padding-right: 24px;
-  padding-top: 16px;
-  padding-bottom: 16px;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
-  color: inherit;
-  border: none;
-  background: transparent;
-}
-
-.c2:hover,
-.c2:focus {
+.c5:hover,
+.c5:focus {
   cursor: pointer;
   opacity: 1;
 }
 
 .c4 {
-  box-sizing: border-box;
-  padding: 8px;
-  border-bottom-right-radius: 4px;
-  border-bottom-left-radius: 4px;
+  color: inherit;
+  border: none;
+  background: transparent;
+}
+
+.c4:hover,
+.c4:focus {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.c7 {
   background: rgba(255,255,255,0.07);
 }
 
@@ -63,21 +64,21 @@ exports[`clicking on other tabs renders correct content and style 1`] = `
     class="c0"
   >
     <div
-      class="c1"
+      class="c0 c1 c2"
     >
       <button
-        class="c2"
+        class="c3 c4"
       >
         tab one
       </button>
       <button
-        class="c3"
+        class="c3 c5"
       >
         tab two
       </button>
     </div>
     <div
-      class="c4"
+      class="c6 c7"
     >
       <div>
         content 2
@@ -92,32 +93,6 @@ exports[`init tab highlight and content 1`] = `
   box-sizing: border-box;
 }
 
-.c1 {
-  box-sizing: border-box;
-  display: flex;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-
-.c2 {
-  box-sizing: border-box;
-  padding-left: 24px;
-  padding-right: 24px;
-  padding-top: 16px;
-  padding-bottom: 16px;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
-  color: inherit;
-  border: none;
-  background: rgba(255,255,255,0.07);
-}
-
-.c2:hover,
-.c2:focus {
-  cursor: pointer;
-  opacity: 1;
-}
-
 .c3 {
   box-sizing: border-box;
   padding-left: 24px;
@@ -126,22 +101,49 @@ exports[`init tab highlight and content 1`] = `
   padding-bottom: 16px;
   border-top-left-radius: 4px;
   border-top-right-radius: 4px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  padding: 8px;
+  border-bottom-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c2 {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.c4 {
+  color: inherit;
+  border: none;
+  background: rgba(255,255,255,0.07);
+}
+
+.c4:hover,
+.c4:focus {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.c5 {
   color: inherit;
   border: none;
   background: transparent;
 }
 
-.c3:hover,
-.c3:focus {
+.c5:hover,
+.c5:focus {
   cursor: pointer;
   opacity: 1;
 }
 
-.c4 {
-  box-sizing: border-box;
-  padding: 8px;
-  border-bottom-right-radius: 4px;
-  border-bottom-left-radius: 4px;
+.c7 {
   background: rgba(255,255,255,0.07);
 }
 
@@ -150,21 +152,21 @@ exports[`init tab highlight and content 1`] = `
     class="c0"
   >
     <div
-      class="c1"
+      class="c0 c1 c2"
     >
       <button
-        class="c2"
+        class="c3 c4"
       >
         tab one
       </button>
       <button
-        class="c3"
+        class="c3 c5"
       >
         tab two
       </button>
     </div>
     <div
-      class="c4"
+      class="c6 c7"
     >
       <div>
         content 1

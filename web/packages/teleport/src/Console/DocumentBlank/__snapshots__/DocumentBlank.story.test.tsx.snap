@@ -1,7 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render DocumentBlank 1`] = `
-.c5 {
+.c0 {
+  box-sizing: border-box;
+  margin: -16px;
+  height: 100%;
+  width: 100%;
+}
+
+.c2 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -27,22 +39,22 @@ exports[`render DocumentBlank 1`] = `
   padding: 0px 24px;
 }
 
-.c5:hover,
-.c5:focus {
+.c6:hover,
+.c6:focus {
   background: #B29DFF;
 }
 
-.c5:active {
+.c6:active {
   background: #C5B6FF;
 }
 
-.c5:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -50,47 +62,35 @@ exports[`render DocumentBlank 1`] = `
   margin-top: 72px;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin: -16px;
-  height: 100%;
-  width: 100%;
-  display: flex;
-}
-
 .c1 {
-  box-sizing: border-box;
-  flex: 1;
   display: flex;
 }
 
-.c2 {
-  box-sizing: border-box;
-  flex: 1;
+.c3 {
   display: flex;
   align-items: center;
   flex-direction: column;
 }
 
-.c4 {
+.c5 {
   color: rgba(255,255,255,0.13);
 }
 
 <div
-  class="c0"
+  class="c0 c1"
   height="100%"
   style="position: absolute;"
   width="100%"
 >
   <div
-    class="c1"
+    class="c2 c1"
     style="overflow: auto; display: flex; position: relative;"
   >
     <div
-      class="c2"
+      class="c2 c3"
     >
       <span
-        class="c3 c4"
+        class="c4 c5"
       >
         <svg
           fill="currentColor"
@@ -106,7 +106,7 @@ exports[`render DocumentBlank 1`] = `
         </svg>
       </span>
       <button
-        class="c5"
+        class="c6"
         kind="primary"
       >
         Start a New Session

@@ -8,17 +8,7 @@ configuration resources via GitOps and infrastructure as code. This gives you an
 audit trail of changes to your Teleport configuration and a single source of
 truth for operators to examine.
 
-```mermaid
-flowchart TB
-subgraph Spacelift
-  idfile["Teleport Identity File"]-->spacelift["Spacelift Worker"]
-end
-
-repo["GitHub Repo"]--"Configuration Resources (Terraform)"--->spacelift
-
-spacelift-->proxy["Teleport Proxy Service"]
-proxy-- "gRPC API Traffic" -->auth["Teleport Auth Service"]
-```
+![Diagram of a Teleport setup with Spacelift](../../../img/spacelift.png)
 
 This guide will show you how to set up the GitOps platform Spacelift with the
 Teleport Terraform provider. While following this guide, you will create a

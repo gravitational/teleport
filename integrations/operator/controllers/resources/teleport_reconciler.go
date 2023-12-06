@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package resources
 
@@ -65,10 +67,15 @@ type TeleportResourceClient[T TeleportResource] interface {
 }
 
 // TeleportResourceMutator can be implemented by TeleportResourceClients
-// to edit a resource before its creation/update. In case of update mutations
-// the existing resource is passed as well.
+// to edit a resource before its creation/update.
 type TeleportResourceMutator[T TeleportResource] interface {
-	Mutate(new, existing T)
+	Mutate(new T)
+}
+
+// TeleportExistingResourceMutator can be implemented by TeleportResourceClients
+// to edit a resource before its update based on the existing one.
+type TeleportExistingResourceMutator[T TeleportResource] interface {
+	MutateExisting(new, existing T)
 }
 
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
@@ -135,19 +142,20 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
 
-	// Propagate revision as required by opportunistic locking
-	if exists {
-		teleportResource.SetRevision(existingResource.GetRevision())
-	}
-
-	// We apply resource-specific mutations.
-	if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
-		mutator.Mutate(teleportResource, existingResource)
-	}
-
 	if !exists {
+		// This is a new resource
+		if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
+			mutator.Mutate(teleportResource)
+		}
+
 		err = r.resourceClient.Create(ctx, teleportResource)
 	} else {
+		// This is a resource update, we must propagate the revision
+		teleportResource.SetRevision(existingResource.GetRevision())
+		if mutator, ok := r.resourceClient.(TeleportExistingResourceMutator[T]); ok {
+			mutator.MutateExisting(teleportResource, existingResource)
+		}
+
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.

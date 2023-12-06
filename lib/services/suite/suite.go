@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package suite
 
@@ -766,11 +768,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
 	require.NoError(t, err)
-	err = s.WebS.UpsertSAMLConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	require.NoError(t, err)
@@ -820,8 +820,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertSAMLConnector(ctx, connector))
-	upserted, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
@@ -854,11 +853,9 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 		},
 	}
 
-	err := s.WebS.UpsertOIDCConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetOIDCConnectors(ctx, true)
 	require.NoError(t, err)
@@ -908,8 +905,7 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertOIDCConnector(ctx, connector))
-	upserted, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
@@ -1007,11 +1003,9 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	}
 	err := connector.CheckAndSetDefaults()
 	require.NoError(t, err)
-	err = s.WebS.UpsertGithubConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertGithubConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	require.NoError(t, err)
@@ -1061,8 +1055,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertGithubConnector(ctx, connector))
-	upserted, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertGithubConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())

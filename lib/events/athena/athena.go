@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package athena
 
@@ -34,9 +38,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/externalcloudaudit"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
@@ -122,15 +126,15 @@ type Config struct {
 	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
 	// consumer components which publish/consume events from SQS (and S3 for
 	// large events). These are always hosted on Teleport cloud infra even when
-	// External Cloud Audit is enabled, any events written here are only held
+	// External Audit Storage is enabled, any events written here are only held
 	// temporarily while they are queued to write to s3 parquet files in
 	// batches.
 	PublisherConsumerAWSConfig *aws.Config
 
 	// StorerQuerierAWSConfig is an AWS config which can be used to construct AWS Clients
 	// using aws-sdk-go-v2, used by the consumer (store phase) and the querier.
-	// Often it is the same as PublisherConsumerAWSConfig unless External Cloud
-	// Audit is enabled, then this will authenticate and connect to
+	// Often it is the same as PublisherConsumerAWSConfig unless External Audit
+	// Storage is enabled, then this will authenticate and connect to
 	// external/customer AWS account.
 	StorerQuerierAWSConfig *aws.Config
 
@@ -138,6 +142,10 @@ type Config struct {
 
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+
+	// ObserveWriteEventsError will be called with every error encountered
+	// writing events to S3.
+	ObserveWriteEventsError func(error)
 
 	externalAuditStorage bool
 	metrics              *athenaMetrics
@@ -289,6 +297,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		cfg.Tracer = tracing.NoopTracer(teleport.ComponentAthena)
 	}
 
+	if cfg.ObserveWriteEventsError == nil {
+		cfg.ObserveWriteEventsError = func(error) {}
+	}
+
 	if cfg.metrics == nil {
 		cfg.metrics, err = newAthenaMetrics(athenaMetricsConfig{
 			batchInterval:        cfg.BatchMaxInterval,
@@ -398,8 +410,10 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
-func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *externalcloudaudit.ExternalCloudAuditSpec, credentialsProvider aws.CredentialsProvider) error {
+func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAuditStorage *externalauditstorage.Configurator) error {
 	cfg.externalAuditStorage = true
+
+	spec := externalAuditStorage.GetSpec()
 	cfg.LocationS3 = spec.AuditEventsLongTermURI
 	cfg.Workgroup = spec.AthenaWorkgroup
 	cfg.QueryResultsS3 = spec.AthenaResultsURI
@@ -408,13 +422,15 @@ func (cfg *Config) UpdateForExternalCloudAudit(ctx context.Context, spec *extern
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.Region),
-		awsconfig.WithCredentialsProvider(credentialsProvider),
+		awsconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 	cfg.StorerQuerierAWSConfig = &awsCfg
+
+	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
 
 	return nil
 }
@@ -474,6 +490,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package discovery
 
@@ -1040,8 +1042,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
 
-			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
-			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.ElementsMatch(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
@@ -1052,6 +1054,107 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					return reporter.EventsCount() != 0
 				}, time.Second, 100*time.Millisecond)
 			}
+		})
+	}
+}
+
+func TestDiscoveryServer_New(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc                string
+		cloudClients        cloud.Clients
+		matchers            Matchers
+		errAssertion        require.ErrorAssertionFunc
+		discServerAssertion require.ValueAssertionFunc
+	}{
+		{
+			desc:         "no matchers error",
+			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+			matchers:     Matchers{},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers or discovery group configured for discovery"})
+			},
+			discServerAssertion: require.Nil,
+		},
+		{
+			desc:         "success with EKS matcher",
+			cloudClients: &cloud.TestCloudClients{STS: &mocks.STSMock{}, EKS: &mocks.EKSMock{}},
+			matchers: Matchers{
+				AWS: []types.AWSMatcher{
+					{
+						Types:   []string{"eks"},
+						Regions: []string{"eu-west-1"},
+						Tags:    map[string]utils.Strings{"env": {"prod"}},
+						AssumeRole: &types.AssumeRole{
+							RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+							ExternalID: "external-id",
+						},
+					},
+				},
+			},
+			errAssertion: require.NoError,
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				val, ok := i.(*Server)
+				require.True(t, ok)
+				require.Len(t, val.kubeFetchers, 1, "unexpected amount of kube fetchers")
+			},
+		},
+		{
+			desc: "EKS fetcher is skipped on initialization error (missing region)",
+			cloudClients: &cloud.TestCloudClients{
+				STS: &mocks.STSMock{},
+				EKS: &mocks.EKSMock{},
+			},
+			matchers: Matchers{
+				AWS: []types.AWSMatcher{
+					{
+						Types:   []string{"eks"},
+						Regions: []string{},
+						Tags:    map[string]utils.Strings{"env": {"prod"}},
+						AssumeRole: &types.AssumeRole{
+							RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+							ExternalID: "external-id",
+						},
+					},
+					{
+						Types:   []string{"eks"},
+						Regions: []string{"eu-west-1"},
+						Tags:    map[string]utils.Strings{"env": {"staging"}},
+						AssumeRole: &types.AssumeRole{
+							RoleARN:    "arn:aws:iam::55555555555:role/teleport-role",
+							ExternalID: "external-id2",
+						},
+					},
+				},
+			},
+			errAssertion: require.NoError,
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				val, ok := i.(*Server)
+				require.True(t, ok)
+				require.Len(t, val.kubeFetchers, 1, "unexpected amount of kube fetchers")
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			discServer, err := New(
+				ctx,
+				&Config{
+					CloudClients:    nil,
+					AccessPoint:     newFakeAccessPoint(),
+					Matchers:        tt.matchers,
+					Emitter:         &mockEmitter{},
+					protocolChecker: &noopProtocolChecker{},
+				})
+
+			tt.errAssertion(t, err)
+			tt.discServerAssertion(t, discServer)
 		})
 	}
 }
@@ -1372,13 +1475,14 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 
 	tcs := []struct {
-		name              string
-		existingDatabases []types.Database
-		awsMatchers       []types.AWSMatcher
-		azureMatchers     []types.AzureMatcher
-		expectDatabases   []types.Database
-		discoveryConfigs  func(*testing.T) []*discoveryconfig.DiscoveryConfig
-		wantEvents        int
+		name                        string
+		existingDatabases           []types.Database
+		integrationsOnlyCredentials bool
+		awsMatchers                 []types.AWSMatcher
+		azureMatchers               []types.AzureMatcher
+		expectDatabases             []types.Database
+		discoveryConfigs            func(*testing.T) []*discoveryconfig.DiscoveryConfig
+		wantEvents                  int
 	}{
 		{
 			name: "discover AWS database",
@@ -1545,6 +1649,50 @@ func TestDiscoveryDatabase(t *testing.T) {
 			},
 			wantEvents: 1,
 		},
+		{
+			name:                        "running in integrations-only-mode with a matcher without an integration, must discard the dynamic matcher and find 0 databases",
+			integrationsOnlyCredentials: true,
+			expectDatabases:             []types.Database{},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{types.AWSMatcherRedshift},
+						Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions: []string{"us-east-1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 0,
+		},
+		{
+			name:            "running in integrations-only-mode with a dynamic matcher with an integration, must find 1 database",
+			expectDatabases: []types.Database{awsRedshiftDB},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:       []string{types.AWSMatcherRedshift},
+						Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Regions:     []string{"us-east-1"},
+						Integration: "xyz",
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
+		},
+		{
+			name:                        "running in integrations-only-mode with a matcher without an integration, must find 1 database",
+			integrationsOnlyCredentials: true,
+			awsMatchers: []types.AWSMatcher{{
+				Types:       []string{types.AWSMatcherRedshift},
+				Tags:        map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:     []string{"us-east-1"},
+				Integration: "xyz",
+			}},
+			expectDatabases: []types.Database{awsRedshiftDB},
+			wantEvents:      1,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1577,15 +1725,17 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			integrationOnlyCredential := tc.integrationsOnlyCredentials
 			waitForReconcile := make(chan struct{})
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			srv, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					CloudClients:     testCloudClients,
-					KubernetesClient: fake.NewSimpleClientset(),
-					AccessPoint:      tlsServer.Auth(),
+					IntegrationOnlyCredentials: integrationOnlyCredential,
+					CloudClients:               testCloudClients,
+					KubernetesClient:           fake.NewSimpleClientset(),
+					AccessPoint:                tlsServer.Auth(),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -2572,5 +2722,33 @@ func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster t
 
 func (f *fakeAccessPoint) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
 	f.upsertedServerInfos <- si
+	return nil
+}
+
+func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return newFakeWatcher(), nil
+}
+
+type fakeWatcher struct {
+}
+
+func newFakeWatcher() fakeWatcher {
+
+	return fakeWatcher{}
+}
+
+func (m fakeWatcher) Events() <-chan types.Event {
+	return make(chan types.Event)
+}
+
+func (m fakeWatcher) Done() <-chan struct{} {
+	return make(chan struct{})
+}
+
+func (m fakeWatcher) Close() error {
+	return nil
+}
+
+func (m fakeWatcher) Error() error {
 	return nil
 }
