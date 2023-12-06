@@ -926,15 +926,7 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var leafClusterClient *client.TeleportClient
-	if clusterURI.IsLeaf() {
-		_, clusterClient, err := s.ResolveClusterURI(clusterURI)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		leafClusterClient = clusterClient
-	}
+	leafClusterName := clusterURI.GetLeafClusterName()
 
 	var preferences *api.UserPreferences
 
@@ -952,8 +944,8 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 		defer rootAuthClient.Close()
 
 		var leafAuthClient auth.ClientI
-		if leafClusterClient != nil {
-			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterClient.SiteName)
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -977,15 +969,7 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var leafClusterClient *client.TeleportClient
-	if clusterURI.IsLeaf() {
-		_, clusterClient, err := s.ResolveClusterURI(clusterURI)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		leafClusterClient = clusterClient
-	}
+	leafClusterName := clusterURI.GetLeafClusterName()
 
 	var preferences *api.UserPreferences
 
@@ -1003,8 +987,8 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 		defer rootAuthClient.Close()
 
 		var leafAuthClient auth.ClientI
-		if leafClusterClient != nil {
-			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterClient.SiteName)
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
 			if err != nil {
 				return trace.Wrap(err)
 			}
