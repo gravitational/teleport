@@ -1,8 +1,8 @@
 <Tabs>
-<TabItem label="Linux server">
+<TabItem label="Linux server - Splunk Enterprise">
 
-Earlier, we generated a file called `teleport-event-handler.toml` to configure
-the Fluentd event handler. This file includes setting similar to the following:
+This is an example of Splunk Enterprise configuration on a Linux server. Your 
+configured could be different depending on your [Splunk settings](https://docs.splunk.com/Documentation/Splunk/9.0.1/Data/UsetheHTTPEventCollector#Send_data_to_HTTP_Event_Collector).
 
 ```toml
 storage = "./storage"
@@ -11,11 +11,39 @@ batch = 20
 namespace = "default"
 
 [forward.fluentd]
-ca = "/home/bob/event-handler/ca.crt"
-cert = "/home/bob/event-handler/client.crt"
-key = "/home/bob/event-handler/client.key"
-url = "https://fluentd.example.com:8888/test.log"
-session-url = "https://fluentd.example.com:8888/session"
+ca = "/home/teleport-logs/event-handler/ca.crt"
+cert = "/home/teleport-logs/event-handler/client.crt"
+key = "/home/teleport-logs/event-handler/client.key"
+url = "https://forwarder.<domain>.com:8088/services/collector/raw?token=<****>"
+session-url = "https://forwarder.<domain>.com:8088/services/collector/raw?token=<****>"
+
+[teleport]
+addr = "example.teleport.com:443"
+identity = "identity"
+```
+
+Modify the configuration to replace `fluentd.example.com` with the domain name
+of your Fluentd deployment.
+
+</TabItem>
+<Tabs>
+<TabItem label="Linux server - Splunk Cloud">
+
+This is an example of Splunk Cloud configuration on a Linux server. Your 
+configured could be different depending on your [Splunk settings](https://docs.splunk.com/Documentation/Splunk/9.0.1/Data/UsetheHTTPEventCollector#Send_data_to_HTTP_Event_Collector).
+
+```toml
+storage = "./storage"
+timeout = "10s"
+batch = 20
+namespace = "default"
+
+[forward.fluentd]
+ca = "/home/teleport-logs/event-handler/ca.crt"
+cert = "/home/teleport-logs/event-handler/client.crt"
+key = "/home/teleport-logs/event-handler/client.key"
+url = "https://http-inputs-example.splunkcloud.com:443/services/collector/raw?token=<****>"
+session-url = "https://http-inputs-example.splunkcloud.com:443/services/collector/raw?token=<****>"
 
 [teleport]
 addr = "example.teleport.com:443"
@@ -56,4 +84,3 @@ persistentVolumeClaim:
 
 </TabItem>
 </Tabs>
-
