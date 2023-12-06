@@ -57,9 +57,15 @@ func MakeUserGroups(userGroups []types.UserGroup, userGroupsToApps map[string]ty
 			}
 		}
 
+		// Use the explicitly set Okta label if it's present.
+		description := userGroup.GetMetadata().Description
+		if oktaDescription, ok := userGroup.GetLabel(types.OktaGroupDescriptionLabel); ok {
+			description = oktaDescription
+		}
+
 		uiUserGroups = append(uiUserGroups, UserGroup{
 			Name:         userGroup.GetName(),
-			Description:  userGroup.GetMetadata().Description,
+			Description:  description,
 			Labels:       uiLabels,
 			FriendlyName: types.FriendlyName(userGroup),
 			Applications: appsAndFriendlyNames,

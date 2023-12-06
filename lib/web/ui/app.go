@@ -112,10 +112,16 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		}
 	}
 
+	// Use the explicitly set Okta label if it's present.
+	description := app.GetMetadata().Description
+	if oktaDescription, ok := app.GetLabel(types.OktaAppDescriptionLabel); ok {
+		description = oktaDescription
+	}
+
 	resultApp := App{
 		Kind:         types.KindApp,
 		Name:         app.GetName(),
-		Description:  app.GetDescription(),
+		Description:  description,
 		URI:          app.GetURI(),
 		PublicAddr:   app.GetPublicAddr(),
 		Labels:       labels,
