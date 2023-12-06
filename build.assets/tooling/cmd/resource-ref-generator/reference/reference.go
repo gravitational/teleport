@@ -84,6 +84,9 @@ Example:
 {{ end }}
 `, "&", "`")
 
+// TypeInfo represents the name and package name of an exported Go type. It
+// makes no guarantees about whether the type was actually declared within the
+// package.
 type TypeInfo struct {
 	// Go package path (not a file path)
 	Package string `yaml:"package"`
@@ -91,6 +94,8 @@ type TypeInfo struct {
 	Name string `yaml:"name"`
 }
 
+// GeneratorConfig is the user-facing configuration object for the resource
+// reference generator.
 type GeneratorConfig struct {
 	// Field types that a type must have to be included in the reference.  A
 	// type must have one of these field types to be included in the
