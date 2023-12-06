@@ -72,7 +72,7 @@ const api = {
   },
 
   async fetchJson(url, params) {
-    const response = await this.fetch(url, params);
+    const response = await api.fetch(url, params);
 
     let json;
     try {
@@ -106,7 +106,7 @@ const api = {
         }),
       },
     };
-    return this.fetchJson(url, paramsWithMfaHeader);
+    return api.fetchJson(url, paramsWithMfaHeader);
   },
 
   fetch(url, params = {}) {
