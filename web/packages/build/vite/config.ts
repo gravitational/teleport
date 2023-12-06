@@ -107,6 +107,14 @@ export function createViteConfig(
           secure: false,
           ws: true,
         },
+        // /webapi/sites/:site/desktops/:desktopName/connect
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+          {
+            target: `wss://${target}`,
+            changeOrigin: false,
+            secure: false,
+            ws: true,
+          },
         // /webapi/sites/:site/desktopplayback/:sid
         '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,
