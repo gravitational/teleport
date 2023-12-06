@@ -111,10 +111,10 @@ func prepareResourcePresenceReports(
 		// First pass: try to fit as many resource kind reports as possible, skipping big ones.
 		unfitRecords := make([]*prehogv1.ResourceKindPresenceReport, 0, len(records))
 		for _, kindReport := range records {
-			if proto.Size(report)+proto.Size(kindReport) > maxItemSize {
+			report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
+			if proto.Size(report) > maxItemSize {
 				unfitRecords = append(unfitRecords, kindReport)
-			} else {
-				report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
+				report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)-1]
 			}
 		}
 		records = unfitRecords

@@ -196,7 +196,7 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 	}
 }
 
-// Processes events incoming from r.ingest, keeping statistics of
+// run processes events incoming from r.ingest, keeping statistics of
 // users activity and resource usage per users, also collects cluster resource counts.
 // Every granularity time period, it sends accumulated stats to the prehog.
 // Runs perpetually in a goroutine until the context is canceled or reporter is closed.
@@ -373,7 +373,7 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		record.ResourceIds = make([]uint64, 0, len(set))
 		for name := range set {
 			anonymized := r.anonymizer.AnonymizeNonEmpty(name)
-			packed := binary.LittleEndian.Uint64(anonymized[8:]) // other 24 bytes are ignored
+			packed := binary.LittleEndian.Uint64(anonymized[:]) // only the first 8 bytes are used
 			record.ResourceIds = append(record.ResourceIds, packed)
 		}
 		records = append(records, record)
