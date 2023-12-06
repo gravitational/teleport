@@ -19,3 +19,4 @@ excluded_resource_types:
     name: "PluginV1"
   - package: "types"
     name: "Namespace"
+field_assignment_method: "setStaticFields"

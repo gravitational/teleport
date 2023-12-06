@@ -14,3 +14,4 @@ destination: "testdata/golden.mdx"
 excluded_resource_types:
   - package: "typestest"
     name: "ResourceHeader"
+field_assignment_method: "setStaticFields"
