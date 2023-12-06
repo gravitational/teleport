@@ -310,7 +310,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
 			continue
 		}
-		entries, err := resource.NewFromDecl(decl, typeDecls, methods)
+		entries, err := resource.ReferenceDataFromDeclaration(decl, typeDecls, methods)
 		// Skip to the next declaration
 		if errors.Is(err, resource.NotAGenDeclError{}) {
 			continue

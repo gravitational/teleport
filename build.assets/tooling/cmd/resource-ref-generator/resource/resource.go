@@ -606,10 +606,8 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 
 }
 
-// NewFromDecl creates a Resource object from the provided *GenDecl. filepath is
-// the Go source file where the declaration was made, and is used only for
-// printing. NewFromDecl uses allResources to look up custom fields.
-func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
+// ReferenceDataFromDeclaration uses allResources to look up custom fields.
+func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
 	if err != nil {
 		return nil, err
@@ -707,7 +705,7 @@ func NewFromDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo,
 		if !ok {
 			continue
 		}
-		r, err := NewFromDecl(gd, allDecls, allMethods)
+		r, err := ReferenceDataFromDeclaration(gd, allDecls, allMethods)
 		if errors.Is(err, NotAGenDeclError{}) {
 			continue
 		}
