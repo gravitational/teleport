@@ -197,9 +197,16 @@ logins.
 
 1. Repeat these steps for **Deny log on through Remote Desktop Services**.
 
-  For added security, you can disable username and password authentication completely.
-  If you disable username and password authentication, only the Teleport virtual smart
-  card can be used to access Windows computers in the domain.
+   For added security, you can disable username and password authentication completely.
+   If you disable username and password authentication, only the Teleport virtual smart
+   card can be used to access Windows computers in the domain.
+
+1. To ensure your GPO update takes effect immediately on this host,
+   Open PowerShell and run the following command (optional):
+
+   ```powershell
+   gpupdate.exe /force
+   ```
 
 ## Step 3/7. Configure a GPO to allow Teleport connections
 
@@ -275,6 +282,13 @@ To configure the group policy object:
    ![Import Teleport CA](../../img/desktop-access/ca.png)
    </Figure>
 
+1. To ensure your GPO update takes effect immediately on this host,
+   Open PowerShell and run the following command (optional):
+
+   ```powershell
+   gpupdate.exe /force
+   ```
+
 ### Publish the Teleport CA to the Active Directory domain
 
 To publish the Teleport certificate in the Active Directory domain:
@@ -338,6 +352,13 @@ To add smart card authentication to your group policy object:
    ![Enable Smartcard](../../img/desktop-access/smartcard.png)
    </Figure>
 
+1. To ensure your GPO update takes effect immediately on this host,
+   Open PowerShell and run the following command (optional):
+
+   ```powershell
+   gpupdate.exe /force
+   ```
+
 ### Allow remote desktop connections
 
 Next you need to configure policies that allow remote connections to domain computers.
@@ -380,6 +401,13 @@ Next you need to configure policies that allow remote connections to domain comp
    ![Open the Firewall](../../img/desktop-access/firewall.png)
    </Figure>
 
+1. To ensure your GPO update takes effect immediately on this host,
+   Open PowerShell and run the following command (optional):
+
+   ```powershell
+   gpupdate.exe /force
+   ```
+
 ### Enable RemoteFX
 
 To finish configuring the `Teleport Access Policy` group policy object, you must
@@ -403,8 +431,8 @@ the performance of remote desktop connections.
 
 1. Again left-click **Remote Session Environment** in the left pane, and from the items in the right pane, right-click **Limit maximum color depth**, select **Edit**, select **Enabled**, then click **OK**.
 
-1. Open PowerShell and run the following command to update your Teleport
-   group policy object:
+1. To ensure your GPO update takes effect immediately on this host,
+   Open PowerShell and run the following command (optional):
 
    ```powershell
    gpupdate.exe /force
@@ -489,8 +517,8 @@ To update the Teleport group policy object to use the new certificate template:
 1. Double-click **Certificate Services Client - Auto-Enrollment**, then select
    **Enabled** in the Configuration Model.
 
-1. Open PowerShell and run the following command to update your Teleport
-   group policy object:
+1. To ensure your GPO update takes effect immediately on this host,
+   Open PowerShell and run the following command (optional):
 
    ```powershell
    gpupdate.exe /force
