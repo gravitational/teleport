@@ -109,7 +109,7 @@ export const APPLICATIONS: ResourceSpec[] = [
 
 export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
-    name: 'Active Directory',
+    name: 'Active Directory users',
     kind: ResourceKind.Desktop,
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
@@ -117,9 +117,9 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     platform: Platform.Windows,
   },
   {
-    name: 'Non Active Directory',
+    name: 'Local users',
     kind: ResourceKind.Desktop,
-    keywords: 'windows desktop non-ad',
+    keywords: 'windows desktop non-ad local',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktopNonAD,
     unguidedLink: 'https://goteleport.com/docs/desktop-access/getting-started/',
