@@ -515,6 +515,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_InstanceJoin{
 			InstanceJoin: e,
 		}
+	case *BotCreate:
+		out.Event = &OneOf_BotCreate{
+			BotCreate: e,
+		}
+	case *BotUpdate:
+		out.Event = &OneOf_BotUpdate{
+			BotUpdate: e,
+		}
+	case *BotDelete:
+		out.Event = &OneOf_BotDelete{
+			BotDelete: e,
+		}
 	case *LoginRuleCreate:
 		out.Event = &OneOf_LoginRuleCreate{
 			LoginRuleCreate: e,

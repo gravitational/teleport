@@ -52,6 +52,7 @@ import (
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -68,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -131,6 +133,10 @@ type GRPCServer struct {
 	// the new service so that logic only needs to exist in one place.
 	// TODO(tross) DELETE IN 16.0.0
 	usersService *usersv1.Service
+
+	// botService is used to forward requests to deprecated bot RPCs to the
+	// new service.
+	botService *machineidv1.BotService
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -1082,45 +1088,26 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *authpb.GetR
 }
 
 // CreateBot creates a new bot and an optional join token.
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1.BotService.CreateBot] instead.
 func (g *GRPCServer) CreateBot(ctx context.Context, req *authpb.CreateBotRequest) (*authpb.CreateBotResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := auth.ServerWithRoles.CreateBot(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Infof("%q bot created", req.GetName())
-
-	return response, nil
+	return g.botService.CreateBotLegacy(ctx, req)
 }
 
 // DeleteBot removes a bot and its associated resources.
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1.BotService.DeleteBot] instead.
 func (g *GRPCServer) DeleteBot(ctx context.Context, req *authpb.DeleteBotRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := auth.ServerWithRoles.DeleteBot(ctx, req.Name); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Infof("%q bot deleted", req.Name)
-
-	return &emptypb.Empty{}, nil
+	return g.botService.DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		BotName: req.Name,
+	})
 }
 
 // GetBotUsers lists all users with a bot label
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1.BotService.ListBots] instead.
 func (g *GRPCServer) GetBotUsers(_ *authpb.GetBotUsersRequest, stream authpb.AuthService_GetBotUsersServer) error {
-	auth, err := g.authenticate(stream.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	users, err := auth.ServerWithRoles.GetBotUsers(stream.Context())
+	users, err := g.botService.GetBotUsersLegacy(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5675,6 +5662,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+		Reporter:   cfg.AuthServer.Services.UsageReporter,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating bot service")
+	}
+	machineidv1pb.RegisterBotServiceServer(server, botService)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
@@ -5682,6 +5682,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		}),
 		server:       server,
 		usersService: usersService,
+		botService:   botService,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)

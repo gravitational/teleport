@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 )
@@ -387,28 +386,6 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 		// user with different error codes
 		requireAccessDenied(t, err)
 	})
-}
-
-func TestOktaMayNotCreateBotUser(t *testing.T) {
-	ctx := context.Background()
-
-	// Given an auth server...
-	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { srv.Close() })
-
-	// And an RBAC-checking `ServerWithRoles` facade configured with the
-	// built-in Okta Role...
-	authWithOktaRole := newTestServerWithRoles(t, srv, types.RoleOkta)
-
-	// When I attempt to create a Bot user
-	_, err = authWithOktaRole.CreateBot(ctx, &proto.CreateBotRequest{
-		Name:  t.Name(),
-		Roles: []string{string(types.RoleDiscovery)},
-	})
-
-	// The attempt should fail with access denied
-	requireAccessDenied(t, err)
 }
 
 func newTestLock(t *testing.T, target types.User, origin string) types.Lock {

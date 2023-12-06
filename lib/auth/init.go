@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1377,6 +1379,7 @@ var ResourceApplyPriority = map[string]int{
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
+	types.KindBot:                     3, // Bots should be applied after users and roles
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
@@ -1405,6 +1408,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
+		case interface{ Unwrap() types.Resource153 }:
+			switch r := r.Unwrap().(type) {
+			case *machineidv1pb.Bot:
+				_, err := machineidv1.UpsertBot(ctx, service, r)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

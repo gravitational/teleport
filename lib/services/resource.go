@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -224,6 +226,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSecurityReport, nil
 	case types.KindServerInfo:
 		return types.KindServerInfo, nil
+	case types.KindBot, "bots":
+		return types.KindBot, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -634,6 +638,13 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return ap, nil
+	})
+	RegisterResourceUnmarshaler(types.KindBot, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		b := &machineidv1pb.Bot{}
+		if err := protojson.Unmarshal(bytes, b); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(b), nil
 	})
 }
 

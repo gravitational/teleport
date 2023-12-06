@@ -1171,9 +1171,6 @@ type UserState interface {
 
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
-
-	// BotGenerationLabel returns the bot generation label for the user.
-	BotGenerationLabel() string
 }
 
 // AccessInfoFromUser return a new AccessInfo populated from the roles and

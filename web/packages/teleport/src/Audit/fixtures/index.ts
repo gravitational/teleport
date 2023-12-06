@@ -3273,6 +3273,28 @@ export const events = [
     uid: 'f44871b9-7247-467b-a760-8159d3f47bac',
     user: 'system',
   },
+  {
+    cluster_name: 'leaf.tele.ottr.sh:443',
+    code: 'TB003I',
+    ei: 0,
+    event: 'bot.delete',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'review2',
+    time: '2023-12-08T09:52:30.579Z',
+    uid: '0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab',
+    user: 'noah',
+  },
+  {
+    cluster_name: 'leaf.tele.ottr.sh:443',
+    code: 'TB001I',
+    ei: 0,
+    event: 'bot.create',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'made-by-noah',
+    time: '2023-12-08T10:53:39.798Z',
+    uid: '0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab',
+    user: 'noah',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

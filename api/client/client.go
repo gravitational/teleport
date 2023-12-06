@@ -60,6 +60,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
@@ -849,6 +850,11 @@ func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
 	return assist.NewAssistEmbeddingServiceClient(c.conn)
 }
 
+// BotServiceClient returns an unadorned client for the bot service.
+func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
+	return machineidv1pb.NewBotServiceClient(c.conn)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
@@ -1135,7 +1141,11 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 }
 
 // CreateBot creates a new bot from the specified descriptor.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1.BotService.CreateBot] instead.
 func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	response, err := c.grpc.CreateBot(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1145,7 +1155,11 @@ func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 }
 
 // DeleteBot deletes a bot and associated resources.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1.BotService.DeleteBot] instead.
 func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
 		Name: botName,
 	})
@@ -1153,7 +1167,11 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 }
 
 // GetBotUsers fetches all bot users.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1.BotService.ListBots] instead.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
