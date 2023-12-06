@@ -34,14 +34,15 @@ to configure auto-discovery.
 Teleport Device Trust will support Linux devices with compatible Trusted
 Platform Modules (TPM 2.0).
 
+#### Device Trust for Applications
+
+Teleport will permit accessing applications when device enforcement is required
+via `tsh proxy app`.
+
 #### Web UI SSH latency detector
 
 Teleport's web UI will detect and report on the latency of SSH sessions.
 
-#### Transparent session resumption for `tsh`
-
-SSH sessions started with `tsh` will be able to resume transparently after brief
-disruptions like network glitches or proxy restarts.
 
 #### Improved registration of static desktops
 
@@ -52,10 +53,10 @@ hostnames and labels for static desktops.
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of           | Description                                                |
-|-------------------|------------------------------------------------------------|
-| November 27, 2023 | Teleport 14.2 begins rollout on Cloud.                     |
-| December 2023     | Add ability to write audit log to customer owned S3 bucket |
+| Week of           | Description                                                       |
+|-------------------|-------------------------------------------------------------------|
+| January 1, 2024   | Teleport 14.3 begins rollout on Cloud.                            |
+| January 1, 2024   | Agents will be automatically upgraded to Teleport 14.             |
 
 ## Production readiness
 

@@ -107,7 +107,7 @@ export function makeUnifiedResourceViewItemApp(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
-    name: resource.name,
+    name: resource.friendlyName || resource.name,
     SecondaryIcon: ApplicationIcon,
     primaryIconName: guessAppIcon(resource),
     ActionButton: ui.ActionButton,
@@ -150,7 +150,7 @@ export function makeUnifiedResourceViewItemUserGroup(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
-    name: resource.name,
+    name: resource.friendlyName || resource.name,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'Server',
     ActionButton: ui.ActionButton,
