@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -221,6 +222,10 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.TracerProvider == nil {
 		t.TracerProvider = tracing.DefaultProvider()
+	}
+
+	if t.Clock == nil {
+		t.Clock = clockwork.NewRealClock()
 	}
 
 	t.tracer = t.TracerProvider.Tracer("webterminal")
@@ -428,6 +433,17 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.log.Debug("Closing websocket stream")
+}
+
+// SSHSessionLatencyStats contain latency measurements for both
+// legs of an ssh connection established via the Web UI.
+type SSHSessionLatencyStats struct {
+	// WebSocket measures the round trip time for a ping/pong via the websocket
+	// established between the client and the Proxy.
+	WebSocket int64 `json:"ws"`
+	// SSH measures the round trip time for a keepalive@openssh.com request via the
+	// connection established between the Proxy and the target host.
+	SSH int64 `json:"ssh"`
 }
 
 type stderrWriter struct {
@@ -756,6 +772,36 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	}
 }
 
+func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *WSStream, sshClient *tracessh.Client) error {
+	wsPinger, err := latency.NewWebsocketPinger(clock, stream.ws)
+	if err != nil {
+		return trace.Wrap(err, "creating websocket pinger")
+	}
+
+	sshPinger, err := latency.NewSSHPinger(clock, sshClient)
+	if err != nil {
+		return trace.Wrap(err, "creating ssh pinger")
+	}
+
+	monitor, err := latency.NewMonitor(latency.MonitorConfig{
+		ClientPinger: wsPinger,
+		ServerPinger: sshPinger,
+		Reporter: latency.ReporterFunc(func(ctx context.Context, statistics latency.Statistics) error {
+			return trace.Wrap(stream.writeLatency(SSHSessionLatencyStats{
+				WebSocket: statistics.Client,
+				SSH:       statistics.Server,
+			}))
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating latency monitor")
+	}
+
+	monitor.Run(ctx)
+	return nil
+}
+
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
@@ -782,6 +828,14 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 			}
 		}
 	}
+
+	monitorCtx, monitorCancel := context.WithCancel(ctx)
+	defer monitorCancel()
+	go func() {
+		if err := monitorSessionLatency(monitorCtx, t.clock, t.stream.WSStream, nc.Client); err != nil {
+			t.log.WithError(err).Warn("failure monitoring session latency")
+		}
+	}()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
@@ -982,7 +1036,7 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) *TerminalStream {
+func NewTerminalStream(ctx context.Context, ws WSConn, log logrus.FieldLogger) *TerminalStream {
 	t := &TerminalStream{
 		sessionReadyC: make(chan struct{}),
 	}
@@ -1282,6 +1336,34 @@ func (t *WSStream) writeAuditEvent(event []byte) error {
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketAudit,
+		Payload: encodedPayload,
+	}
+
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send bytes over the websocket to the web client.
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+func (t *WSStream) writeLatency(latency SSHSessionLatencyStats) error {
+	data, err := json.Marshal(latency)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	encodedPayload, err := t.encoder.String(string(data))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketLatency,
 		Payload: encodedPayload,
 	}
 
