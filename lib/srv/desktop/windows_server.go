@@ -631,6 +631,8 @@ func (s *WindowsService) startOldStaticHostHeartbeat(addr utils.NetAddr, ad bool
 	})
 }
 
+// startStaticHostHeartbeats spawns heartbeat goroutines for the hosts
+// defined in the static_hosts section of this service's configuration.
 func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeCtx,
