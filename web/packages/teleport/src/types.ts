@@ -116,6 +116,8 @@ export interface TeleportFeature {
   isLocked?(lockedFeatures: LockedFeatures): boolean;
   lockedNavigationItem?: TeleportFeatureNavigationItem;
   lockedRoute?: TeleportFeatureRoute;
+  // hideNavigation is used to hide the navigation completely
+  // and show a back button in the top bar
   hideNavigation?: boolean;
 }
 
