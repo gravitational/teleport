@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -39,12 +41,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -456,8 +460,9 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
+	upserted, err := srv.Auth().UpsertGithubConnector(context.Background(), conn)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 
 	reqNormal := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
 	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
@@ -4943,6 +4948,23 @@ func TestGenerateHostCert(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
+			// Calls deprecated HTTP endpoint to verify migrated code works
+			// fine.
+			_, err = client.generateHostCertHTTP(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			require.True(t, test.expect(err))
+			// Try by calling new gRPC endpoint directly
+			_, err = client.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+				Key:         pub,
+				HostId:      "",
+				NodeName:    "",
+				Principals:  test.principals,
+				ClusterName: clusterName,
+				Role:        string(types.RoleNode),
+				Ttl:         durationpb.New(0),
+			})
+			require.True(t, test.expect(err))
+			// Finally try calling the wrapper method that should call through
+			// to the gRPC client.
 			_, err = client.GenerateHostCert(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
 		})

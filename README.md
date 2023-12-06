@@ -29,8 +29,8 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
       </a>
-      <a href="https://www.apache.org/licenses/LICENSE-2.0">
-      <img src="https://img.shields.io/badge/Apache-2.0-red.svg" />
+      <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
+      <img src="https://img.shields.io/badge/AGPL-3.0-red.svg" />
       </a>
    </div>
 </div>
