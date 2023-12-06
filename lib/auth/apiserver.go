@@ -519,7 +519,7 @@ func (s *APIServer) upsertUser(auth *ServerWithRoles, w http.ResponseWriter, r *
 	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.UpsertUser(user)
+	err = auth.UpsertUser(r.Context(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

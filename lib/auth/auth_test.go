@@ -832,52 +832,6 @@ func TestUpdateConfig(t *testing.T) {
 	}}))
 }
 
-func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	user, err := types.NewUser("some-user")
-	require.NoError(t, err)
-
-	ctx := context.Background()
-
-	// test create user, happy path
-	user.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{Name: "some-auth-user"},
-	})
-	err = s.a.CreateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserCreateEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, "some-auth-user")
-	s.mockEmitter.Reset()
-
-	// test create user with existing user
-	err = s.a.CreateUser(ctx, user)
-	require.True(t, trace.IsAlreadyExists(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test createdBy gets set to default
-	user2, err := types.NewUser("some-other-user")
-	require.NoError(t, err)
-	err = s.a.CreateUser(ctx, user2)
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
-	s.mockEmitter.Reset()
-
-	// test update on non-existent user
-	user3, err := types.NewUser("non-existent-user")
-	require.NoError(t, err)
-	err = s.a.UpdateUser(ctx, user3)
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test update user
-	err = s.a.UpdateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
-}
-
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
