@@ -14,12 +14,16 @@ import (
 	"text/template"
 )
 
-type ReferenceContent struct {
-	Resources map[resource.PackageInfo]ResourceSection
+// content represents the sections of the resource reference.
+// Fields must be exported so we can use them in templates.
+type content struct {
+	Resources map[resource.PackageInfo]resourceSection
 	Fields    map[resource.PackageInfo]resource.ReferenceEntry
 }
 
-type ResourceSection struct {
+// resourceSection represents a top-level section of the resource reference
+// dedicated to a dynamic resource.
+type resourceSection struct {
 	Version string
 	Kind    string
 	resource.ReferenceEntry
@@ -292,8 +296,8 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		return err
 	}
 
-	content := ReferenceContent{
-		Resources: make(map[resource.PackageInfo]ResourceSection),
+	content := content{
+		Resources: make(map[resource.PackageInfo]resourceSection),
 		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
 	}
 
@@ -353,7 +357,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 					continue
 				}
 
-				ref := ResourceSection{
+				ref := resourceSection{
 					ReferenceEntry: e,
 					Version:        verName,
 					Kind:           kindName,
