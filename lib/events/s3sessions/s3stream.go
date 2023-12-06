@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -62,48 +63,69 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err), "CreateMultiPartUpload session(%v)", sessionID)
 	}
 
-	h.Infof("Upload for session %v created in %v.", sessionID, time.Since(start))
-	return &events.StreamUpload{SessionID: sessionID, ID: *resp.UploadId}, nil
+	h.WithFields(logrus.Fields{
+		"upload":  aws.StringValue(resp.UploadId),
+		"session": sessionID,
+		"key":     aws.StringValue(resp.Key),
+	}).Infof("Created upload in %v", time.Since(start))
+
+	return &events.StreamUpload{SessionID: sessionID, ID: aws.StringValue(resp.UploadId)}, nil
 }
 
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
-	start := time.Now()
-
 	// This upload exceeded maximum number of supported parts, error now.
 	if partNumber > s3manager.MaxUploadParts {
 		return nil, trace.LimitExceeded(
 			"exceeded total allowed S3 limit MaxUploadParts (%d). Adjust PartSize to fit in this limit", s3manager.MaxUploadParts)
 	}
 
+	start := time.Now()
+	uploadKey := h.path(upload.SessionID)
+	log := h.WithFields(logrus.Fields{
+		"upload":  upload.ID,
+		"session": upload.SessionID,
+		"key":     uploadKey,
+	})
+
 	params := &s3.UploadPartInput{
 		Bucket:     aws.String(h.Bucket),
 		UploadId:   aws.String(upload.ID),
-		Key:        aws.String(h.path(upload.SessionID)),
+		Key:        aws.String(uploadKey),
 		Body:       partBody,
 		PartNumber: aws.Int64(partNumber),
 	}
 
+	log.Debugf("Uploading part %v", partNumber)
 	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err),
 			"UploadPart(upload %v) part(%v) session(%v)", upload.ID, partNumber, upload.SessionID)
 	}
 
-	h.Infof("UploadPart(upload %v) part(%v) session(%v) uploaded in %v.", upload.ID, partNumber, upload.SessionID, time.Since(start))
-	return &events.StreamPart{ETag: *resp.ETag, Number: partNumber}, nil
+	log.Infof("Uploaded part %v in %v", partNumber, time.Since(start))
+	return &events.StreamPart{ETag: aws.StringValue(resp.ETag), Number: partNumber}, nil
 }
 
 func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
+	uploadKey := h.path(upload.SessionID)
+	log := h.WithFields(logrus.Fields{
+		"upload":  upload.ID,
+		"session": upload.SessionID,
+		"key":     uploadKey,
+	})
 	req := &s3.AbortMultipartUploadInput{
 		Bucket:   aws.String(h.Bucket),
-		Key:      aws.String(h.path(upload.SessionID)),
+		Key:      aws.String(uploadKey),
 		UploadId: aws.String(upload.ID),
 	}
+	log.Debug("Aborting upload")
 	_, err := h.client.AbortMultipartUploadWithContext(ctx, req)
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
 	}
+
+	log.Info("Aborted upload")
 	return nil
 }
 
@@ -122,6 +144,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	start := time.Now()
+	uploadKey := h.path(upload.SessionID)
+	log := h.WithFields(logrus.Fields{
+		"upload":  upload.ID,
+		"session": upload.SessionID,
+		"key":     uploadKey,
+	})
 
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
@@ -136,9 +164,10 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 	}
 
+	log.Debug("Completing upload")
 	params := &s3.CompleteMultipartUploadInput{
 		Bucket:          aws.String(h.Bucket),
-		Key:             aws.String(h.path(upload.SessionID)),
+		Key:             aws.String(uploadKey),
 		UploadId:        aws.String(upload.ID),
 		MultipartUpload: &s3.CompletedMultipartUpload{Parts: completedParts},
 	}
@@ -148,18 +177,26 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
 	}
 
-	h.Infof("Upload %v completed in %v", upload.ID, time.Since(start))
+	log.Infof("Completed upload in %v", time.Since(start))
 	return nil
 }
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	uploadKey := h.path(upload.SessionID)
+	log := h.WithFields(logrus.Fields{
+		"upload":  upload.ID,
+		"session": upload.SessionID,
+		"key":     uploadKey,
+	})
+	log.Debug("Listing parts for upload")
+
 	var parts []events.StreamPart
 	var partNumberMarker *int64
 	for i := 0; i < defaults.MaxIterationLimit; i++ {
 		re, err := h.client.ListPartsWithContext(ctx, &s3.ListPartsInput{
 			Bucket:           aws.String(h.Bucket),
-			Key:              aws.String(h.path(upload.SessionID)),
+			Key:              aws.String(uploadKey),
 			UploadId:         aws.String(upload.ID),
 			PartNumberMarker: partNumberMarker,
 		})
@@ -167,9 +204,10 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			return nil, awsutils.ConvertS3Error(err)
 		}
 		for _, part := range re.Parts {
+
 			parts = append(parts, events.StreamPart{
-				Number: *part.PartNumber,
-				ETag:   *part.ETag,
+				Number: aws.Int64Value(part.PartNumber),
+				ETag:   aws.StringValue(part.ETag),
 			})
 		}
 		if !aws.BoolValue(re.IsTruncated) {
@@ -207,9 +245,9 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 		for _, upload := range re.Uploads {
 			uploads = append(uploads, events.StreamUpload{
-				ID:        *upload.UploadId,
-				SessionID: h.fromPath(*upload.Key),
-				Initiated: *upload.Initiated,
+				ID:        aws.StringValue(upload.UploadId),
+				SessionID: h.fromPath(aws.StringValue(upload.Key)),
+				Initiated: aws.TimeValue(upload.Initiated),
 			})
 		}
 		if !aws.BoolValue(re.IsTruncated) {
