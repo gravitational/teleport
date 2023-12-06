@@ -39,25 +39,30 @@ func main() {
 
 	conffile, err := os.Open(*conf)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not open the configuration file %v: %v\n", *conf, err)
+		fmt.Fprintf(os.Stderr, "Could not open the configuration file %v: %v\n", *conf, err)
 		os.Exit(1)
 	}
 
 	genconf := reference.GeneratorConfig{}
 	if err = yaml.NewDecoder(conffile).Decode(&genconf); err != nil {
-		fmt.Fprintf(os.Stderr, "could not parse the configuration file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Could not parse the configuration file: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := genconf.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid configuration file: %v\n", err)
 		os.Exit(1)
 	}
 
 	outfile, err := os.Create(genconf.DestinationPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not create the output file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Could not create the output file: %v\n", err)
 		os.Exit(1)
 	}
 
 	err = reference.Generate(outfile, genconf)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not generate the resource reference: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Could not generate the resource reference: %v\n", err)
 		os.Exit(1)
 	}
 }
