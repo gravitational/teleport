@@ -25,6 +25,8 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 
+import Popover from 'design/Popover';
+
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
@@ -39,6 +41,7 @@ export const ExternalAuditStorageCta = () => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
   const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
+  const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {
     setShowCta(
@@ -72,26 +75,10 @@ export const ExternalAuditStorageCta = () => {
           </Box>
         </Flex>
         <Flex alignItems="center" minWidth="300px">
-          {featureEnabled ? (
-            <ButtonPrimary
-              as={Link}
-              to={cfg.getIntegrationEnrollRoute(
-                IntegrationKind.ExternalAuditStorage
-              )}
-              mr="2"
-            >
-              Connect your AWS storage
-            </ButtonPrimary>
-          ) : (
-            <ButtonLockedFeature
-              height="32px"
-              size="medium"
-              event={CtaEvent.CTA_EXTERNAL_AUDIT_STORAGE}
-              mr={5}
-            >
-              Contact Sales
-            </ButtonLockedFeature>
-          )}
+          <CtaButton
+            featureEnabled={featureEnabled}
+            userHasAccess={userHasAccess}
+          />
 
           <ButtonSecondary onClick={handleDismiss}>Dismiss</ButtonSecondary>
         </Flex>
@@ -100,9 +87,91 @@ export const ExternalAuditStorageCta = () => {
   );
 };
 
+function CtaButton(props: { featureEnabled: boolean; userHasAccess: boolean }) {
+  if (!props.featureEnabled) {
+    return (
+      <ButtonLockedFeature
+        height="32px"
+        size="medium"
+        event={CtaEvent.CTA_EXTERNAL_AUDIT_STORAGE}
+        mr={5}
+      >
+        Contact Sales
+      </ButtonLockedFeature>
+    );
+  }
+
+  const [anchorEl, setAnchorEl] = useState();
+  const open = Boolean(anchorEl);
+
+  function handlePopoverOpen(event) {
+    setAnchorEl(event.currentTarget);
+  }
+
+  function handlePopoverClose() {
+    setAnchorEl(null);
+  }
+
+  if (!props.userHasAccess) {
+    return (
+      <Box onMouseEnter={handlePopoverOpen} onMouseLeave={handlePopoverClose}>
+        <Popover
+          modalCss={() => `pointer-events: none`}
+          onClose={handlePopoverClose}
+          open={open}
+          anchorEl={anchorEl}
+          anchorOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+        >
+          <StyledOnHover>
+            <Text fontSize="1">
+              Insuficient permissions. Reach out to your Teleport administrator
+              to request External Audit Storage permissions.
+            </Text>
+          </StyledOnHover>
+        </Popover>
+
+        <ButtonPrimary
+          as={Link}
+          to={cfg.getIntegrationEnrollRoute(
+            IntegrationKind.ExternalAuditStorage
+          )}
+          mr="2"
+          disabled={true}
+        >
+          Connect your AWS storage
+        </ButtonPrimary>
+      </Box>
+    );
+  }
+
+  return (
+    <ButtonPrimary
+      as={Link}
+      to={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalAuditStorage)}
+      mr="2"
+    >
+      Connect your AWS storage
+    </ButtonPrimary>
+  );
+}
+
 const CtaContainer = styled(Box)`
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border: 1px solid ${props => props.theme.colors.spotBackground[2]};
   border-radius: ${props => `${props.theme.space[2]}px`};
+`;
+
+const StyledOnHover = styled(Box)`
+  background-color: white;
+  color: black;
+  max-width: 350px;
+  padding: ${p => p.theme.space[2]}px;
 `;
