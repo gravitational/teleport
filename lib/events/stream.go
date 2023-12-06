@@ -727,6 +727,12 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
+		log := log.WithFields(log.Fields{
+			"part":    partNumber,
+			"upload":  w.proto.cfg.Upload.ID,
+			"session": w.proto.cfg.Upload.SessionID,
+		})
+
 		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			reader, err := slice.reader()
@@ -739,11 +745,17 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 				activeUpload.setPart(*part)
 				return
 			}
+
+			log.WithError(err).Warn("failed to upload part")
+
 			// upload is not found is not a transient error, so abort the operation
 			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) {
+				log.Info("aborting part upload")
 				activeUpload.setError(err)
 				return
 			}
+			log.Info("will retry part upload")
+
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error

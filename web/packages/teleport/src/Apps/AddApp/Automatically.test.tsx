@@ -19,6 +19,8 @@
 import React from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
+import { act } from '@testing-library/react';
+
 import { Automatically, createAppBashCommand } from './Automatically';
 
 test('render command only after form submit', async () => {
@@ -47,7 +49,7 @@ test('render command only after form submit', async () => {
   });
 
   // click button
-  screen.getByRole('button', { name: /Generate Script/i }).click();
+  act(() => screen.getByRole('button', { name: /Generate Script/i }).click());
 
   // after form submission should show the command
   cmd = createAppBashCommand(token.id, 'app-name', 'https://gravitational.com');

@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act, waitFor } from '@testing-library/react';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
@@ -440,7 +440,7 @@ describe('registering new databases, mainly error checking', () => {
     jest
       .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockResolvedValue({ services: [] } as any);
-    const { result, waitFor } = renderHook(() => useCreateDatabase(), {
+    const { result } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
 

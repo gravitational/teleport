@@ -189,6 +189,7 @@ function Resources(props: {
       queryParams.resourceKinds =
         newParams.kinds as DocumentClusterResourceKind[];
       queryParams.search = newParams.search || newParams.query;
+      queryParams.advancedSearchEnabled = !!newParams.query;
     });
   }
 
@@ -198,7 +199,6 @@ function Resources(props: {
       setParams={onParamsChange}
       unifiedResourcePreferences={props.userPreferences}
       updateUnifiedResourcesPreferences={props.setUserPreferences}
-      onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
       resources={resources.map(mapToSharedResource)}
       resourcesFetchAttempt={attempt}

@@ -38,10 +38,67 @@ import {
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
 describe('test EnrollRdsDatabase.tsx', () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('without rds database result, does not attempt to fetch db servers', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+    jest
+      .spyOn(integrationService, 'fetchAwsRdsDatabases')
+      .mockResolvedValue({ databases: [] });
+
+    render(
+      <Wrapper ctx={ctx} discoverCtx={discoverCtx}>
+        <EnrollRdsDatabase />
+      </Wrapper>
+    );
+
+    // select a region from selector.
+    const selectEl = screen.getByLabelText(/aws region/i);
+    fireEvent.focus(selectEl);
+    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText('us-east-2'));
+
+    // No results are rendered.
+    await screen.findByText(/no result/i);
+
+    expect(integrationService.fetchAwsRdsDatabases).toHaveBeenCalledTimes(1);
+    expect(ctx.databaseService.fetchDatabases).not.toHaveBeenCalled();
+  });
+
+  test('with rds database result, makes a fetch request for db servers', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: mockAwsDbs,
+    });
+
+    render(
+      <Wrapper ctx={ctx} discoverCtx={discoverCtx}>
+        <EnrollRdsDatabase />
+      </Wrapper>
+    );
+
+    // select a region from selector.
+    const selectEl = screen.getByLabelText(/aws region/i);
+    fireEvent.focus(selectEl);
+    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText('us-east-2'));
+
+    // Rds results renders result.
+    await screen.findByText(/rds-1/i);
+
+    expect(integrationService.fetchAwsRdsDatabases).toHaveBeenCalledTimes(1);
+    expect(ctx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
+  });
+});
+
+function getMockedContexts() {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
@@ -74,70 +131,32 @@ describe('test EnrollRdsDatabase.tsx', () => {
     emitEvent: () => null,
     eventState: null,
   };
+  jest
+    .spyOn(ctx.databaseService, 'fetchDatabases')
+    .mockResolvedValue({ agents: [] });
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(undefined as never);
 
-  beforeEach(() => {
-    jest
-      .spyOn(ctx.databaseService, 'fetchDatabases')
-      .mockResolvedValue({ agents: [] });
-  });
+  return { ctx, discoverCtx };
+}
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('without rds database result, does not attempt to fetch db servers', async () => {
-    renderRdsDatabase(ctx, discoverCtx);
-    jest
-      .spyOn(integrationService, 'fetchAwsRdsDatabases')
-      .mockResolvedValue({ databases: [] });
-
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
-
-    // No results are rendered.
-    await screen.findByText(/no result/i);
-
-    expect(integrationService.fetchAwsRdsDatabases).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).not.toHaveBeenCalled();
-  });
-
-  test('with rds database result, makes a fetch request for db servers', async () => {
-    renderRdsDatabase(ctx, discoverCtx);
-    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
-      databases: mockAwsDbs,
-    });
-
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
-
-    // Rds results renders result.
-    await screen.findByText(/rds-1/i);
-
-    expect(integrationService.fetchAwsRdsDatabases).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
-  });
-});
-
-function renderRdsDatabase(
-  ctx: TeleportContext,
-  discoverCtx: DiscoverContextState
+function Wrapper(
+  props: React.PropsWithChildren<{
+    ctx: TeleportContext;
+    discoverCtx: DiscoverContextState;
+  }>
 ) {
-  return render(
+  return (
     <MemoryRouter
       initialEntries={[
         { pathname: cfg.routes.discover, state: { entity: 'database' } },
       ]}
     >
-      <ContextProvider ctx={ctx}>
+      <ContextProvider ctx={props.ctx}>
         <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <EnrollRdsDatabase />
+          <DiscoverProvider mockCtx={props.discoverCtx}>
+            {props.children}
           </DiscoverProvider>
         </FeaturesContextProvider>
       </ContextProvider>

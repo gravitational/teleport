@@ -49,8 +49,11 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowDown} text="ArrowDown" />
     <IconBox IconCmpt={Icon.ArrowFatLinesUp} text="ArrowFatLinesUp" />
     <IconBox IconCmpt={Icon.ArrowForward} text="ArrowForward" />
+    <IconBox IconCmpt={Icon.ArrowLeft} text="ArrowLeft" />
     <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
+    <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
+    <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.CCAmex} text="CCAmex" />
@@ -106,6 +109,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.EqualizersVertical} text="EqualizersVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
     <IconBox IconCmpt={Icon.Facebook} text="Facebook" />
+    <IconBox IconCmpt={Icon.Floppy} text="Floppy" />
     <IconBox IconCmpt={Icon.FlowArrow} text="FlowArrow" />
     <IconBox IconCmpt={Icon.FolderPlus} text="FolderPlus" />
     <IconBox IconCmpt={Icon.FolderShared} text="FolderShared" />

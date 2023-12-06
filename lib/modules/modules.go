@@ -209,8 +209,9 @@ func (f Features) IsLegacy() bool {
 	return !f.IsUsageBasedBilling
 }
 
+// TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
-	return f.IdentityGovernanceSecurity
+	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
