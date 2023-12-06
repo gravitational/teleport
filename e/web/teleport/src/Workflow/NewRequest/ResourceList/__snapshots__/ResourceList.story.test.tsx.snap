@@ -1,7 +1,11 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render Apps 1`] = `
-.c6 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -29,34 +33,48 @@ exports[`render Apps 1`] = `
   width: 134px;
 }
 
-.c6:hover,
-.c6:focus {
+.c8:hover,
+.c8:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c6:active {
+.c8:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c4 {
+.c6 {
   box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c1 {
+.c2 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -65,39 +83,39 @@ exports[`render Apps 1`] = `
   width: 100%;
 }
 
-.c1 > thead > tr > th,
-.c1 > tbody > tr > th,
-.c1 > tfoot > tr > th,
-.c1 > thead > tr > td,
-.c1 > tbody > tr > td,
-.c1 > tfoot > tr > td {
+.c2 > thead > tr > th,
+.c2 > tbody > tr > th,
+.c2 > tfoot > tr > th,
+.c2 > thead > tr > td,
+.c2 > tbody > tr > td,
+.c2 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th:first-child,
-.c1 > tbody > tr > th:first-child,
-.c1 > tfoot > tr > th:first-child,
-.c1 > thead > tr > td:first-child,
-.c1 > tbody > tr > td:first-child,
-.c1 > tfoot > tr > td:first-child {
+.c2 > thead > tr > th:first-child,
+.c2 > tbody > tr > th:first-child,
+.c2 > tfoot > tr > th:first-child,
+.c2 > thead > tr > td:first-child,
+.c2 > tbody > tr > td:first-child,
+.c2 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c1 > thead > tr > th:last-child,
-.c1 > tbody > tr > th:last-child,
-.c1 > tfoot > tr > th:last-child,
-.c1 > thead > tr > td:last-child,
-.c1 > tbody > tr > td:last-child,
-.c1 > tfoot > tr > td:last-child {
+.c2 > thead > tr > th:last-child,
+.c2 > tbody > tr > th:last-child,
+.c2 > tfoot > tr > th:last-child,
+.c2 > thead > tr > td:last-child,
+.c2 > tbody > tr > td:last-child,
+.c2 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th {
+.c2 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -111,62 +129,46 @@ exports[`render Apps 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th svg {
+.c2 > thead > tr > th svg {
   height: 12px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c1 tbody tr {
+.c2 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c1 tbody tr:hover {
+.c2 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c7 {
   cursor: pointer;
 }
 
-.c5:hover {
+.c7:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c2 > tbody > tr > td {
+.c3 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <table
-      class="c1 c2"
+      class="c2 c3"
     >
       <thead>
         <tr>
@@ -176,7 +178,7 @@ exports[`render Apps 1`] = `
             >
               Name
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -201,7 +203,7 @@ exports[`render Apps 1`] = `
             >
               Description
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -248,10 +250,10 @@ exports[`render Apps 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 aws_account_id: A1234
@@ -262,7 +264,7 @@ exports[`render Apps 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >
@@ -277,7 +279,11 @@ exports[`render Apps 1`] = `
 `;
 
 exports[`render Databases 1`] = `
-.c6 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -305,34 +311,48 @@ exports[`render Databases 1`] = `
   width: 134px;
 }
 
-.c6:hover,
-.c6:focus {
+.c8:hover,
+.c8:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c6:active {
+.c8:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c4 {
+.c6 {
   box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c1 {
+.c2 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -341,39 +361,39 @@ exports[`render Databases 1`] = `
   width: 100%;
 }
 
-.c1 > thead > tr > th,
-.c1 > tbody > tr > th,
-.c1 > tfoot > tr > th,
-.c1 > thead > tr > td,
-.c1 > tbody > tr > td,
-.c1 > tfoot > tr > td {
+.c2 > thead > tr > th,
+.c2 > tbody > tr > th,
+.c2 > tfoot > tr > th,
+.c2 > thead > tr > td,
+.c2 > tbody > tr > td,
+.c2 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th:first-child,
-.c1 > tbody > tr > th:first-child,
-.c1 > tfoot > tr > th:first-child,
-.c1 > thead > tr > td:first-child,
-.c1 > tbody > tr > td:first-child,
-.c1 > tfoot > tr > td:first-child {
+.c2 > thead > tr > th:first-child,
+.c2 > tbody > tr > th:first-child,
+.c2 > tfoot > tr > th:first-child,
+.c2 > thead > tr > td:first-child,
+.c2 > tbody > tr > td:first-child,
+.c2 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c1 > thead > tr > th:last-child,
-.c1 > tbody > tr > th:last-child,
-.c1 > tfoot > tr > th:last-child,
-.c1 > thead > tr > td:last-child,
-.c1 > tbody > tr > td:last-child,
-.c1 > tfoot > tr > td:last-child {
+.c2 > thead > tr > th:last-child,
+.c2 > tbody > tr > th:last-child,
+.c2 > tfoot > tr > th:last-child,
+.c2 > thead > tr > td:last-child,
+.c2 > tbody > tr > td:last-child,
+.c2 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th {
+.c2 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -387,62 +407,46 @@ exports[`render Databases 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th svg {
+.c2 > thead > tr > th svg {
   height: 12px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c1 tbody tr {
+.c2 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c1 tbody tr:hover {
+.c2 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c7 {
   cursor: pointer;
 }
 
-.c5:hover {
+.c7:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c2 > tbody > tr > td {
+.c3 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <table
-      class="c1 c2"
+      class="c2 c3"
     >
       <thead>
         <tr>
@@ -452,7 +456,7 @@ exports[`render Databases 1`] = `
             >
               Name
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -477,7 +481,7 @@ exports[`render Databases 1`] = `
             >
               Description
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -502,7 +506,7 @@ exports[`render Databases 1`] = `
             >
               Type
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -544,10 +548,10 @@ exports[`render Databases 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 cluster: root
@@ -558,7 +562,7 @@ exports[`render Databases 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >
@@ -573,7 +577,11 @@ exports[`render Databases 1`] = `
 `;
 
 exports[`render Desktops 1`] = `
-.c6 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -601,34 +609,48 @@ exports[`render Desktops 1`] = `
   width: 134px;
 }
 
-.c6:hover,
-.c6:focus {
+.c8:hover,
+.c8:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c6:active {
+.c8:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c4 {
+.c6 {
   box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c1 {
+.c2 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -637,39 +659,39 @@ exports[`render Desktops 1`] = `
   width: 100%;
 }
 
-.c1 > thead > tr > th,
-.c1 > tbody > tr > th,
-.c1 > tfoot > tr > th,
-.c1 > thead > tr > td,
-.c1 > tbody > tr > td,
-.c1 > tfoot > tr > td {
+.c2 > thead > tr > th,
+.c2 > tbody > tr > th,
+.c2 > tfoot > tr > th,
+.c2 > thead > tr > td,
+.c2 > tbody > tr > td,
+.c2 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th:first-child,
-.c1 > tbody > tr > th:first-child,
-.c1 > tfoot > tr > th:first-child,
-.c1 > thead > tr > td:first-child,
-.c1 > tbody > tr > td:first-child,
-.c1 > tfoot > tr > td:first-child {
+.c2 > thead > tr > th:first-child,
+.c2 > tbody > tr > th:first-child,
+.c2 > tfoot > tr > th:first-child,
+.c2 > thead > tr > td:first-child,
+.c2 > tbody > tr > td:first-child,
+.c2 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c1 > thead > tr > th:last-child,
-.c1 > tbody > tr > th:last-child,
-.c1 > tfoot > tr > th:last-child,
-.c1 > thead > tr > td:last-child,
-.c1 > tbody > tr > td:last-child,
-.c1 > tfoot > tr > td:last-child {
+.c2 > thead > tr > th:last-child,
+.c2 > tbody > tr > th:last-child,
+.c2 > tfoot > tr > th:last-child,
+.c2 > thead > tr > td:last-child,
+.c2 > tbody > tr > td:last-child,
+.c2 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th {
+.c2 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -683,62 +705,46 @@ exports[`render Desktops 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th svg {
+.c2 > thead > tr > th svg {
   height: 12px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c1 tbody tr {
+.c2 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c1 tbody tr:hover {
+.c2 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c7 {
   cursor: pointer;
 }
 
-.c5:hover {
+.c7:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c2 > tbody > tr > td {
+.c3 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <table
-      class="c1 c2"
+      class="c2 c3"
     >
       <thead>
         <tr>
@@ -753,7 +759,7 @@ exports[`render Desktops 1`] = `
             >
               Name
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -792,10 +798,10 @@ exports[`render Desktops 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 foo: bar
@@ -806,7 +812,7 @@ exports[`render Desktops 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >
@@ -821,7 +827,11 @@ exports[`render Desktops 1`] = `
 `;
 
 exports[`render Kubes 1`] = `
-.c6 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -849,34 +859,48 @@ exports[`render Kubes 1`] = `
   width: 134px;
 }
 
-.c6:hover,
-.c6:focus {
+.c8:hover,
+.c8:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c6:active {
+.c8:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c4 {
+.c6 {
   box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c1 {
+.c2 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -885,39 +909,39 @@ exports[`render Kubes 1`] = `
   width: 100%;
 }
 
-.c1 > thead > tr > th,
-.c1 > tbody > tr > th,
-.c1 > tfoot > tr > th,
-.c1 > thead > tr > td,
-.c1 > tbody > tr > td,
-.c1 > tfoot > tr > td {
+.c2 > thead > tr > th,
+.c2 > tbody > tr > th,
+.c2 > tfoot > tr > th,
+.c2 > thead > tr > td,
+.c2 > tbody > tr > td,
+.c2 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th:first-child,
-.c1 > tbody > tr > th:first-child,
-.c1 > tfoot > tr > th:first-child,
-.c1 > thead > tr > td:first-child,
-.c1 > tbody > tr > td:first-child,
-.c1 > tfoot > tr > td:first-child {
+.c2 > thead > tr > th:first-child,
+.c2 > tbody > tr > th:first-child,
+.c2 > tfoot > tr > th:first-child,
+.c2 > thead > tr > td:first-child,
+.c2 > tbody > tr > td:first-child,
+.c2 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c1 > thead > tr > th:last-child,
-.c1 > tbody > tr > th:last-child,
-.c1 > tfoot > tr > th:last-child,
-.c1 > thead > tr > td:last-child,
-.c1 > tbody > tr > td:last-child,
-.c1 > tfoot > tr > td:last-child {
+.c2 > thead > tr > th:last-child,
+.c2 > tbody > tr > th:last-child,
+.c2 > tfoot > tr > th:last-child,
+.c2 > thead > tr > td:last-child,
+.c2 > tbody > tr > td:last-child,
+.c2 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th {
+.c2 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -931,62 +955,46 @@ exports[`render Kubes 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th svg {
+.c2 > thead > tr > th svg {
   height: 12px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c1 tbody tr {
+.c2 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c1 tbody tr:hover {
+.c2 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c7 {
   cursor: pointer;
 }
 
-.c5:hover {
+.c7:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c2 > tbody > tr > td {
+.c3 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <table
-      class="c1 c2"
+      class="c2 c3"
     >
       <thead>
         <tr>
@@ -996,7 +1004,7 @@ exports[`render Kubes 1`] = `
             >
               Name
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -1032,10 +1040,10 @@ exports[`render Kubes 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 env: prod
@@ -1046,7 +1054,7 @@ exports[`render Kubes 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >
@@ -1061,7 +1069,11 @@ exports[`render Kubes 1`] = `
 `;
 
 exports[`render Nodes 1`] = `
-.c6 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1089,34 +1101,48 @@ exports[`render Nodes 1`] = `
   width: 134px;
 }
 
-.c6:hover,
-.c6:focus {
+.c8:hover,
+.c8:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c6:active {
+.c8:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c4 {
+.c6 {
   box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c1 {
+.c2 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1125,39 +1151,39 @@ exports[`render Nodes 1`] = `
   width: 100%;
 }
 
-.c1 > thead > tr > th,
-.c1 > tbody > tr > th,
-.c1 > tfoot > tr > th,
-.c1 > thead > tr > td,
-.c1 > tbody > tr > td,
-.c1 > tfoot > tr > td {
+.c2 > thead > tr > th,
+.c2 > tbody > tr > th,
+.c2 > tfoot > tr > th,
+.c2 > thead > tr > td,
+.c2 > tbody > tr > td,
+.c2 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th:first-child,
-.c1 > tbody > tr > th:first-child,
-.c1 > tfoot > tr > th:first-child,
-.c1 > thead > tr > td:first-child,
-.c1 > tbody > tr > td:first-child,
-.c1 > tfoot > tr > td:first-child {
+.c2 > thead > tr > th:first-child,
+.c2 > tbody > tr > th:first-child,
+.c2 > tfoot > tr > th:first-child,
+.c2 > thead > tr > td:first-child,
+.c2 > tbody > tr > td:first-child,
+.c2 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c1 > thead > tr > th:last-child,
-.c1 > tbody > tr > th:last-child,
-.c1 > tfoot > tr > th:last-child,
-.c1 > thead > tr > td:last-child,
-.c1 > tbody > tr > td:last-child,
-.c1 > tfoot > tr > td:last-child {
+.c2 > thead > tr > th:last-child,
+.c2 > tbody > tr > th:last-child,
+.c2 > tfoot > tr > th:last-child,
+.c2 > thead > tr > td:last-child,
+.c2 > tbody > tr > td:last-child,
+.c2 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th {
+.c2 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1171,62 +1197,46 @@ exports[`render Nodes 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th svg {
+.c2 > thead > tr > th svg {
   height: 12px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c1 tbody tr {
+.c2 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c1 tbody tr:hover {
+.c2 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c7 {
   cursor: pointer;
 }
 
-.c5:hover {
+.c7:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c2 > tbody > tr > td {
+.c3 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <table
-      class="c1 c2"
+      class="c2 c3"
     >
       <thead>
         <tr>
@@ -1236,7 +1246,7 @@ exports[`render Nodes 1`] = `
             >
               Hostname
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -1280,10 +1290,10 @@ exports[`render Nodes 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 cluster: one
@@ -1294,7 +1304,7 @@ exports[`render Nodes 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >
@@ -1309,7 +1319,21 @@ exports[`render Nodes 1`] = `
 `;
 
 exports[`render Roles 1`] = `
-.c18 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c9 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c21 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1337,59 +1361,19 @@ exports[`render Roles 1`] = `
   width: 134px;
 }
 
-.c18:hover,
-.c18:focus {
+.c21:hover,
+.c21:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c18:active {
+.c21:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c18:disabled {
+.c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c12 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c12:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c12:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c12:hover:enabled,
-.c12:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c12:active:enabled {
-  background: rgba(255,255,255,0.18);
 }
 
 .c15 {
@@ -1411,6 +1395,7 @@ exports[`render Roles 1`] = `
   height: 32px;
   width: 32px;
   margin-left: 0px;
+  margin-right: 0px;
 }
 
 .c15:disabled {
@@ -1431,7 +1416,46 @@ exports[`render Roles 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c10 {
+.c18 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c18:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c18:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c18:hover:enabled,
+.c18:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c18:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1442,32 +1466,27 @@ exports[`render Roles 1`] = `
   color: #FFFFFF;
 }
 
-.c14 {
+.c17 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c8 {
-  box-sizing: border-box;
-  width: 100%;
+.c10 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-right: 8px;
+.c12 {
   display: flex;
   align-items: center;
 }
 
-.c11 {
-  box-sizing: border-box;
+.c14 {
   display: flex;
 }
 
-.c16 {
+.c19 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1480,39 +1499,39 @@ exports[`render Roles 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c16 > thead > tr > th,
-.c16 > tbody > tr > th,
-.c16 > tfoot > tr > th,
-.c16 > thead > tr > td,
-.c16 > tbody > tr > td,
-.c16 > tfoot > tr > td {
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th:first-child,
-.c16 > tbody > tr > th:first-child,
-.c16 > tfoot > tr > th:first-child,
-.c16 > thead > tr > td:first-child,
-.c16 > tbody > tr > td:first-child,
-.c16 > tfoot > tr > td:first-child {
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c16 > thead > tr > th:last-child,
-.c16 > tbody > tr > th:last-child,
-.c16 > tfoot > tr > th:last-child,
-.c16 > thead > tr > td:last-child,
-.c16 > tbody > tr > td:last-child,
-.c16 > tfoot > tr > td:last-child {
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c16 > tbody > tr > td {
+.c19 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c16 > thead > tr > th {
+.c19 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1526,24 +1545,24 @@ exports[`render Roles 1`] = `
   white-space: nowrap;
 }
 
-.c16 > thead > tr > th svg {
+.c19 > thead > tr > th svg {
   height: 12px;
 }
 
-.c16 > tbody > tr > td {
+.c19 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c16 tbody tr {
+.c19 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c16 tbody tr:hover {
+.c19 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c2 {
+.c3 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1553,21 +1572,21 @@ exports[`render Roles 1`] = `
   background: #222C59;
 }
 
-.c1 {
+.c2 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c13 svg {
+.c16 svg {
   font-size: 20px;
 }
 
-.c13 svg:before {
+.c16 svg:before {
   padding-left: 1px;
 }
 
-.c7 {
+.c8 {
   position: relative;
   height: 100%;
   right: 0;
@@ -1578,7 +1597,7 @@ exports[`render Roles 1`] = `
   border-radius: 200px;
 }
 
-.c6 {
+.c7 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -1589,7 +1608,7 @@ exports[`render Roles 1`] = `
   border-radius: 200px;
 }
 
-.c4 {
+.c5 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -1599,14 +1618,14 @@ exports[`render Roles 1`] = `
   background: transparent;
 }
 
-.c3 {
+.c4 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c5 {
+.c6 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1621,70 +1640,66 @@ exports[`render Roles 1`] = `
   padding-right: 184px;
 }
 
-.c5:hover,
-.c5:focus,
-.c5:active {
+.c6:hover,
+.c6:focus,
+.c6:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c5::placeholder {
+.c6::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c17 > tbody > tr > td {
+.c20 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <div
-      class="c1"
+      class="c2"
     >
       <nav
-        class="c2"
+        class="c3"
       >
         <div
-          class="c3"
+          class="c4"
         >
           <div
-            class="c4"
+            class="c5"
           >
             <input
-              class="c5"
+              class="c6"
               placeholder="SEARCH..."
               value=""
             />
             <div
-              class="c6"
+              class="c7"
             >
               <div
-                class="c7"
+                class="c8"
               />
             </div>
           </div>
         </div>
         <div
-          class="c8"
+          class="c9 c10"
           width="100%"
         >
           <div
-            class="c9"
+            class="c11 c12"
           >
             <div
-              class="c10"
+              class="c13"
               color="text.main"
               style="white-space: nowrap; text-transform: uppercase;"
             >
@@ -1704,15 +1719,15 @@ exports[`render Roles 1`] = `
             </div>
           </div>
           <div
-            class="c11"
+            class="c0 c14"
           >
             <button
-              class="c12 c13"
+              class="c15 c16"
               disabled=""
               title="Previous page"
             >
               <span
-                class="c14 icon icon-circlearrowleft"
+                class="c17 icon icon-circlearrowleft"
               >
                 <svg
                   fill="currentColor"
@@ -1732,12 +1747,12 @@ exports[`render Roles 1`] = `
               </span>
             </button>
             <button
-              class="c15 c13"
+              class="c18 c16"
               disabled=""
               title="Next page"
             >
               <span
-                class="c14 icon icon-circlearrowright"
+                class="c17 icon icon-circlearrowright"
               >
                 <svg
                   fill="currentColor"
@@ -1757,7 +1772,7 @@ exports[`render Roles 1`] = `
         </div>
       </nav>
       <table
-        class="c16 c17"
+        class="c19 c20"
       >
         <thead>
           <tr>
@@ -1767,7 +1782,7 @@ exports[`render Roles 1`] = `
               >
                 Role Name
                 <span
-                  class="c14 icon icon-chevronup"
+                  class="c17 icon icon-chevronup"
                   title="sort items asc"
                 >
                   <svg
@@ -1799,7 +1814,7 @@ exports[`render Roles 1`] = `
               align="right"
             >
               <button
-                class="c18"
+                class="c21"
                 kind="border"
                 width="134px"
               >
@@ -1815,7 +1830,7 @@ exports[`render Roles 1`] = `
               align="right"
             >
               <button
-                class="c18"
+                class="c21"
                 kind="border"
                 width="134px"
               >
@@ -1831,7 +1846,11 @@ exports[`render Roles 1`] = `
 `;
 
 exports[`render UserGroups 1`] = `
-.c6 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1859,34 +1878,48 @@ exports[`render UserGroups 1`] = `
   width: 134px;
 }
 
-.c6:hover,
-.c6:focus {
+.c8:hover,
+.c8:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c6:active {
+.c8:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c3 {
+.c4 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c4 {
+.c6 {
   box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c1 {
+.c2 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1895,39 +1928,39 @@ exports[`render UserGroups 1`] = `
   width: 100%;
 }
 
-.c1 > thead > tr > th,
-.c1 > tbody > tr > th,
-.c1 > tfoot > tr > th,
-.c1 > thead > tr > td,
-.c1 > tbody > tr > td,
-.c1 > tfoot > tr > td {
+.c2 > thead > tr > th,
+.c2 > tbody > tr > th,
+.c2 > tfoot > tr > th,
+.c2 > thead > tr > td,
+.c2 > tbody > tr > td,
+.c2 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th:first-child,
-.c1 > tbody > tr > th:first-child,
-.c1 > tfoot > tr > th:first-child,
-.c1 > thead > tr > td:first-child,
-.c1 > tbody > tr > td:first-child,
-.c1 > tfoot > tr > td:first-child {
+.c2 > thead > tr > th:first-child,
+.c2 > tbody > tr > th:first-child,
+.c2 > tfoot > tr > th:first-child,
+.c2 > thead > tr > td:first-child,
+.c2 > tbody > tr > td:first-child,
+.c2 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c1 > thead > tr > th:last-child,
-.c1 > tbody > tr > th:last-child,
-.c1 > tfoot > tr > th:last-child,
-.c1 > thead > tr > td:last-child,
-.c1 > tbody > tr > td:last-child,
-.c1 > tfoot > tr > td:last-child {
+.c2 > thead > tr > th:last-child,
+.c2 > tbody > tr > th:last-child,
+.c2 > tfoot > tr > th:last-child,
+.c2 > thead > tr > td:last-child,
+.c2 > tbody > tr > td:last-child,
+.c2 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c1 > thead > tr > th {
+.c2 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1941,62 +1974,46 @@ exports[`render UserGroups 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th svg {
+.c2 > thead > tr > th svg {
   height: 12px;
 }
 
-.c1 > tbody > tr > td {
+.c2 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c1 tbody tr {
+.c2 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c1 tbody tr:hover {
+.c2 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c7 {
   cursor: pointer;
 }
 
-.c5:hover {
+.c7:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c2 > tbody > tr > td {
+.c3 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0.disabled {
+.c1.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <table
-      class="c1 c2"
+      class="c2 c3"
     >
       <thead>
         <tr>
@@ -2006,7 +2023,7 @@ exports[`render UserGroups 1`] = `
             >
               Name
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -2031,7 +2048,7 @@ exports[`render UserGroups 1`] = `
             >
               Description
               <span
-                class="c3 icon icon-chevronsvertical"
+                class="c4 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -2070,10 +2087,10 @@ exports[`render UserGroups 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 env: prod
@@ -2084,7 +2101,7 @@ exports[`render UserGroups 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >
@@ -2101,10 +2118,10 @@ exports[`render UserGroups 1`] = `
           </td>
           <td>
             <div
-              class="c4"
+              class="c0 c5"
             >
               <div
-                class="c5"
+                class="c6 c7"
                 kind="secondary"
               >
                 env: dev
@@ -2115,7 +2132,7 @@ exports[`render UserGroups 1`] = `
             align="right"
           >
             <button
-              class="c6"
+              class="c8"
               kind="border"
               width="134px"
             >

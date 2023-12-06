@@ -88,7 +88,7 @@ describe('test PluginPick.tsx', () => {
 
     // test an integration tile is not disabled by clicking on it to render guide
     await userEvent.click(screen.getByTestId('tile-aws-oidc'));
-    expect(screen.getByText(/set up your aws account/i)).toBeInTheDocument();
+    await screen.findByText(/set up your aws account/i);
   });
 
   test('no integration access disables integration tiles', async () => {
@@ -108,9 +108,7 @@ describe('test PluginPick.tsx', () => {
 
     // test a plugin tile is not disabled by clicking on it to render guide
     await userEvent.click(screen.getByTestId('tile-slack'));
-    expect(
-      screen.getByRole('button', { name: /connect slack/i })
-    ).toBeInTheDocument();
+    await screen.findByRole('button', { name: /connect slack/i });
   });
 
   test('disableForTeam disables jamf plugin tile in team plan', async () => {

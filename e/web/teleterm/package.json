@@ -24,7 +24,7 @@
     ]
   },
   "resolutions": {
-    "react": "16.14.0",
-    "**/@types/react": "^16.8.19"
+    "react": "^18.2.0",
+    "**/@types/react": "^18.2.39"
   }
 }

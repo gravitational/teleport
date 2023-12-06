@@ -1,16 +1,44 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
-.c7 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  width: 100%;
+}
+
+.c12 {
+  box-sizing: border-box;
+  max-width: 700px;
+  padding: 24px;
+}
+
+.c14 {
   box-sizing: border-box;
   margin-right: 32px;
 }
 
-.c9 {
+.c20 {
   box-sizing: border-box;
+  margin-top: 16px;
 }
 
-.c17 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -39,31 +67,37 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   width: 176px;
 }
 
-.c17:hover,
-.c17:focus {
+.c24:hover,
+.c24:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c24:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c6 {
-  box-sizing: border-box;
-  max-width: 700px;
-  padding: 24px;
+.c13 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c10 {
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -74,7 +108,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin-bottom: 16px;
 }
 
-.c11 {
+.c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -84,7 +118,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin-bottom: 16px;
 }
 
-.c13 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -93,14 +127,14 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin: 0px;
 }
 
-.c15 {
+.c22 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
 
-.c16 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -110,14 +144,14 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   margin-bottom: 8px;
 }
 
-.c8 {
+.c15 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: rgba(255,255,255,0.18);
 }
 
-.c12 {
+.c18 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -126,49 +160,34 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
   display: flex;
   align-items: start;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  width: 100%;
+.c11 {
   display: flex;
   align-items: center;
   flex-direction: column;
 }
 
-.c5 {
-  box-sizing: border-box;
-  max-width: 700px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-}
-
-.c14 {
-  box-sizing: border-box;
-  margin-top: 16px;
+.c21 {
   display: flex;
   align-items: center;
   justify-content: end;
   flex-direction: column;
 }
 
-.c18 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -178,59 +197,49 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Trusted Devices
     </div>
   </div>
   <div
-    class="c3"
+    class="c8 c9"
   >
     <div
-      class="c4"
+      class="c10 c11"
       width="100%"
     >
       <div
-        class="c5 sc-AxirZ c6"
+        class="c12 c4 sc-gEvEer c12 c13"
       >
         <div
-          class="c7"
+          class="c14"
           style="text-align: center;"
         >
           <span
-            class="c8 icon icon-laptop"
+            class="c15 icon icon-laptop"
             color="rgba(255,255,255,0.18)"
           >
             <svg
@@ -251,25 +260,25 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
           </span>
         </div>
         <div
-          class="c9"
+          class="c8"
         >
           <div
-            class="c10"
+            class="c16"
           >
             Register Trusted Device
           </div>
           <div
-            class="c11"
+            class="c17"
           >
             Device Trust enables authenticated device access. Resources protected by the Device Trust mode "required" will enforce the use of a Trusted Device, in addition to establishing the user's identity and enforcing the necessary roles.
           </div>
           <div
-            class="c11"
+            class="c17"
           >
             Trusted Devices can be registered manually using
              
             <a
-              class="c12"
+              class="c18"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
               rel="noreferrer"
@@ -281,7 +290,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
             or synced automatically from MDM services like
              
             <a
-              class="c12"
+              class="c18"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
               rel="noreferrer"
@@ -292,12 +301,12 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
             .
           </div>
           <div
-            class="c13"
+            class="c19"
           >
             Please
              
             <a
-              class="c12"
+              class="c18"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/guides/device-trust/"
               rel="noreferrer"
@@ -311,10 +320,10 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
         </div>
       </div>
       <div
-        class="c14"
+        class="c20 c21"
       >
         <div
-          class="c15"
+          class="c22"
           color="text.slightlyMuted"
         >
           <i>
@@ -322,12 +331,12 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
           </i>
         </div>
         <div
-          class="c16"
+          class="c23"
         >
           Want additional devices?
         </div>
         <a
-          class="c17"
+          class="c24"
           href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           kind="primary"
           rel="noreferrer"
@@ -336,7 +345,7 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
           width="176px"
         >
           <div
-            class="c18"
+            class="c8 c4"
           >
             Contact Sales
           </div>
@@ -348,16 +357,44 @@ exports[`test DeviceTrust.tsx empty EUB cta 1`] = `
 `;
 
 exports[`test DeviceTrust.tsx empty team cta 1`] = `
-.c7 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  width: 100%;
+}
+
+.c12 {
+  box-sizing: border-box;
+  max-width: 700px;
+  padding: 24px;
+}
+
+.c14 {
   box-sizing: border-box;
   margin-right: 32px;
 }
 
-.c9 {
+.c20 {
   box-sizing: border-box;
+  margin-top: 16px;
 }
 
-.c17 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -386,31 +423,37 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   width: 176px;
 }
 
-.c17:hover,
-.c17:focus {
+.c24:hover,
+.c24:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c24:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c6 {
-  box-sizing: border-box;
-  max-width: 700px;
-  padding: 24px;
+.c13 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c10 {
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -421,7 +464,7 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   margin-bottom: 16px;
 }
 
-.c11 {
+.c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -431,7 +474,7 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   margin-bottom: 16px;
 }
 
-.c13 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -440,14 +483,14 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   margin: 0px;
 }
 
-.c15 {
+.c22 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
 
-.c16 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -457,14 +500,14 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   margin-bottom: 8px;
 }
 
-.c8 {
+.c15 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: rgba(255,255,255,0.18);
 }
 
-.c12 {
+.c18 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -473,49 +516,34 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
   display: flex;
   align-items: start;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  width: 100%;
+.c11 {
   display: flex;
   align-items: center;
   flex-direction: column;
 }
 
-.c5 {
-  box-sizing: border-box;
-  max-width: 700px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-}
-
-.c14 {
-  box-sizing: border-box;
-  margin-top: 16px;
+.c21 {
   display: flex;
   align-items: center;
   justify-content: end;
   flex-direction: column;
 }
 
-.c18 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -525,59 +553,49 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Trusted Devices
     </div>
   </div>
   <div
-    class="c3"
+    class="c8 c9"
   >
     <div
-      class="c4"
+      class="c10 c11"
       width="100%"
     >
       <div
-        class="c5 sc-AxirZ c6"
+        class="c12 c4 sc-gEvEer c12 c13"
       >
         <div
-          class="c7"
+          class="c14"
           style="text-align: center;"
         >
           <span
-            class="c8 icon icon-laptop"
+            class="c15 icon icon-laptop"
             color="rgba(255,255,255,0.18)"
           >
             <svg
@@ -598,25 +616,25 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
           </span>
         </div>
         <div
-          class="c9"
+          class="c8"
         >
           <div
-            class="c10"
+            class="c16"
           >
             Register Trusted Device
           </div>
           <div
-            class="c11"
+            class="c17"
           >
             Device Trust enables authenticated device access. Resources protected by the Device Trust mode "required" will enforce the use of a Trusted Device, in addition to establishing the user's identity and enforcing the necessary roles.
           </div>
           <div
-            class="c11"
+            class="c17"
           >
             Trusted Devices can be registered manually using
              
             <a
-              class="c12"
+              class="c18"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
               rel="noreferrer"
@@ -628,7 +646,7 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
             or synced automatically from MDM services like
              
             <a
-              class="c12"
+              class="c18"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
               rel="noreferrer"
@@ -639,12 +657,12 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
             .
           </div>
           <div
-            class="c13"
+            class="c19"
           >
             Please
              
             <a
-              class="c12"
+              class="c18"
               color="text.main"
               href="https://goteleport.com/docs/access-controls/guides/device-trust/"
               rel="noreferrer"
@@ -658,10 +676,10 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
         </div>
       </div>
       <div
-        class="c14"
+        class="c20 c21"
       >
         <div
-          class="c15"
+          class="c22"
           color="text.slightlyMuted"
         >
           <i>
@@ -669,12 +687,12 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
           </i>
         </div>
         <div
-          class="c16"
+          class="c23"
         >
           Want additional devices?
         </div>
         <a
-          class="c17"
+          class="c24"
           href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           kind="primary"
           rel="noreferrer"
@@ -683,7 +701,7 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
           width="176px"
         >
           <div
-            class="c18"
+            class="c8 c4"
           >
             Contact Sales
           </div>
@@ -695,21 +713,46 @@ exports[`test DeviceTrust.tsx empty team cta 1`] = `
 `;
 
 exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
   margin-right: 40px;
   width: 100%;
 }
 
-.c22 {
+.c18 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c20 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c28 {
   box-sizing: border-box;
   margin-left: auto;
   width: 240px;
   color: #FFFFFF;
 }
 
-.c16 {
+.c22 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -731,25 +774,25 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   margin-right: 0px;
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c16:hover:enabled,
-.c16:focus:enabled {
+.c22:hover:enabled,
+.c22:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active:enabled {
+.c22:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c19 {
+.c25 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -770,46 +813,34 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   margin-left: 0px;
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c19:hover:enabled,
-.c19:focus:enabled {
+.c25:hover:enabled,
+.c25:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active:enabled {
+.c25:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c23 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
   margin: 0px;
-  margin-bottom: 16px;
 }
 
-.c24 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -820,20 +851,41 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   color: #FFFFFF;
 }
 
-.c18 {
+.c29 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c30 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c21 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-right: 4px;
 }
 
-.c25 {
+.c31 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -842,36 +894,26 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
   display: flex;
   align-items: start;
 }
 
-.c12 {
-  box-sizing: border-box;
-  width: 100%;
+.c19 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c13 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.c15 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -881,32 +923,22 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
-.c20 {
+.c26 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -919,39 +951,39 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c20 > thead > tr > th,
-.c20 > tbody > tr > th,
-.c20 > tfoot > tr > th,
-.c20 > thead > tr > td,
-.c20 > tbody > tr > td,
-.c20 > tfoot > tr > td {
+.c26 > thead > tr > th,
+.c26 > tbody > tr > th,
+.c26 > tfoot > tr > th,
+.c26 > thead > tr > td,
+.c26 > tbody > tr > td,
+.c26 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th:first-child,
-.c20 > tbody > tr > th:first-child,
-.c20 > tfoot > tr > th:first-child,
-.c20 > thead > tr > td:first-child,
-.c20 > tbody > tr > td:first-child,
-.c20 > tfoot > tr > td:first-child {
+.c26 > thead > tr > th:first-child,
+.c26 > tbody > tr > th:first-child,
+.c26 > tfoot > tr > th:first-child,
+.c26 > thead > tr > td:first-child,
+.c26 > tbody > tr > td:first-child,
+.c26 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c20 > thead > tr > th:last-child,
-.c20 > tbody > tr > th:last-child,
-.c20 > tfoot > tr > th:last-child,
-.c20 > thead > tr > td:last-child,
-.c20 > tbody > tr > td:last-child,
-.c20 > tfoot > tr > td:last-child {
+.c26 > thead > tr > th:last-child,
+.c26 > tbody > tr > th:last-child,
+.c26 > tfoot > tr > th:last-child,
+.c26 > thead > tr > td:last-child,
+.c26 > tbody > tr > td:last-child,
+.c26 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th {
+.c26 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -965,24 +997,24 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   white-space: nowrap;
 }
 
-.c20 > thead > tr > th svg {
+.c26 > thead > tr > th svg {
   height: 12px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c20 tbody tr {
+.c26 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c20 tbody tr:hover {
+.c26 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c12 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -992,21 +1024,21 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   background: #222C59;
 }
 
-.c5 {
+.c11 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c17 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c17 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c11 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -1017,7 +1049,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   border-radius: 200px;
 }
 
-.c10 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -1028,7 +1060,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   border-radius: 200px;
 }
 
-.c8 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -1038,14 +1070,14 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   background: transparent;
 }
 
-.c7 {
+.c13 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c9 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1060,72 +1092,72 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
   padding-right: 184px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c15:hover,
+.c15:focus,
+.c15:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c9::placeholder {
+.c15::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Trusted Devices
     </div>
   </div>
   <div
-    class="c3"
+    class="c8 c9"
   >
     <div
-      class="c4"
+      class="c10"
       width="100%"
     >
       <div
-        class="c5"
+        class="c11"
       >
         <nav
-          class="c6"
+          class="c12"
         >
           <div
-            class="c7"
+            class="c13"
           >
             <div
-              class="c8"
+              class="c14"
             >
               <input
-                class="c9"
+                class="c15"
                 placeholder="SEARCH..."
                 value=""
               />
               <div
-                class="c10"
+                class="c16"
               >
                 <div
-                  class="c11"
+                  class="c17"
                 />
               </div>
             </div>
           </div>
           <div
-            class="c12"
+            class="c18 c19"
             width="100%"
           >
             <div
-              class="c13"
+              class="c20 c4"
             >
               <div
-                class="c14"
+                class="c21"
                 color="text.main"
                 style="white-space: nowrap; text-transform: uppercase;"
               >
@@ -1145,15 +1177,15 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
               </div>
             </div>
             <div
-              class="c15"
+              class="c8 c1"
             >
               <button
-                class="c16 c17"
+                class="c22 c23"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c18 icon icon-circlearrowleft"
+                  class="c24 icon icon-circlearrowleft"
                 >
                   <svg
                     fill="currentColor"
@@ -1173,12 +1205,12 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
                 </span>
               </button>
               <button
-                class="c19 c17"
+                class="c25 c23"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c18 icon icon-circlearrowright"
+                  class="c24 icon icon-circlearrowright"
                 >
                   <svg
                     fill="currentColor"
@@ -1198,7 +1230,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
           </div>
         </nav>
         <table
-          class="c20"
+          class="c26"
         >
           <thead>
             <tr>
@@ -1226,7 +1258,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
                 style="display: flex;"
               >
                 <span
-                  class="c21 icon icon-apple"
+                  class="c27 icon icon-apple"
                 >
                   <svg
                     fill="currentColor"
@@ -1259,23 +1291,23 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
       </div>
     </div>
     <div
-      class="c22"
+      class="c28"
       color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
       <div
-        class="c23"
+        class="c29"
       >
         Register Trusted Device
       </div>
       <div
-        class="c24"
+        class="c30"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c25"
+          class="c31"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -1287,7 +1319,7 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c25"
+          class="c31"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"
@@ -1303,21 +1335,51 @@ exports[`test DeviceTrust.tsx loaded EUB with IGS (no CTA) 1`] = `
 `;
 
 exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
   margin-right: 40px;
   width: 100%;
 }
 
-.c27 {
+.c18 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c20 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c28 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c33 {
   box-sizing: border-box;
   margin-left: auto;
   width: 240px;
   color: #FFFFFF;
 }
 
-.c25 {
+.c32 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1346,22 +1408,22 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   width: 176px;
 }
 
-.c25:hover,
-.c25:focus {
+.c32:hover,
+.c32:focus {
   background: #B29DFF;
 }
 
-.c25:active {
+.c32:active {
   background: #C5B6FF;
 }
 
-.c25:disabled {
+.c32:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c16 {
+.c22 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1383,25 +1445,25 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   margin-right: 0px;
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c16:hover:enabled,
-.c16:focus:enabled {
+.c22:hover:enabled,
+.c22:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active:enabled {
+.c22:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c19 {
+.c25 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1422,63 +1484,34 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   margin-left: 0px;
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c19:hover:enabled,
-.c19:focus:enabled {
+.c25:hover:enabled,
+.c25:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active:enabled {
+.c25:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c29 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c24 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 16px;
+  font-size: 22px;
   line-height: 32px;
   margin: 0px;
-  margin-bottom: 8px;
 }
 
-.c14 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1489,20 +1522,58 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   color: #FFFFFF;
 }
 
-.c18 {
+.c30 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c31 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c34 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c35 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c21 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-right: 4px;
 }
 
-.c30 {
+.c36 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -1511,51 +1582,33 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
   display: flex;
   align-items: start;
 }
 
-.c26 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  width: 100%;
+.c19 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c13 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.c15 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c22 {
-  box-sizing: border-box;
-  margin-top: 16px;
+.c29 {
   display: flex;
   align-items: end;
   justify-content: end;
   flex-direction: column;
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -1565,32 +1618,22 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
-.c20 {
+.c26 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1603,39 +1646,39 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c20 > thead > tr > th,
-.c20 > tbody > tr > th,
-.c20 > tfoot > tr > th,
-.c20 > thead > tr > td,
-.c20 > tbody > tr > td,
-.c20 > tfoot > tr > td {
+.c26 > thead > tr > th,
+.c26 > tbody > tr > th,
+.c26 > tfoot > tr > th,
+.c26 > thead > tr > td,
+.c26 > tbody > tr > td,
+.c26 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th:first-child,
-.c20 > tbody > tr > th:first-child,
-.c20 > tfoot > tr > th:first-child,
-.c20 > thead > tr > td:first-child,
-.c20 > tbody > tr > td:first-child,
-.c20 > tfoot > tr > td:first-child {
+.c26 > thead > tr > th:first-child,
+.c26 > tbody > tr > th:first-child,
+.c26 > tfoot > tr > th:first-child,
+.c26 > thead > tr > td:first-child,
+.c26 > tbody > tr > td:first-child,
+.c26 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c20 > thead > tr > th:last-child,
-.c20 > tbody > tr > th:last-child,
-.c20 > tfoot > tr > th:last-child,
-.c20 > thead > tr > td:last-child,
-.c20 > tbody > tr > td:last-child,
-.c20 > tfoot > tr > td:last-child {
+.c26 > thead > tr > th:last-child,
+.c26 > tbody > tr > th:last-child,
+.c26 > tfoot > tr > th:last-child,
+.c26 > thead > tr > td:last-child,
+.c26 > tbody > tr > td:last-child,
+.c26 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th {
+.c26 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1649,24 +1692,24 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   white-space: nowrap;
 }
 
-.c20 > thead > tr > th svg {
+.c26 > thead > tr > th svg {
   height: 12px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c20 tbody tr {
+.c26 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c20 tbody tr:hover {
+.c26 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c12 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1676,21 +1719,21 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   background: #222C59;
 }
 
-.c5 {
+.c11 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c17 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c17 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c11 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -1701,7 +1744,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   border-radius: 200px;
 }
 
-.c10 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -1712,7 +1755,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   border-radius: 200px;
 }
 
-.c8 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -1722,14 +1765,14 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   background: transparent;
 }
 
-.c7 {
+.c13 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c9 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1744,72 +1787,72 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
   padding-right: 184px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c15:hover,
+.c15:focus,
+.c15:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c9::placeholder {
+.c15::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Trusted Devices
     </div>
   </div>
   <div
-    class="c3"
+    class="c8 c9"
   >
     <div
-      class="c4"
+      class="c10"
       width="100%"
     >
       <div
-        class="c5"
+        class="c11"
       >
         <nav
-          class="c6"
+          class="c12"
         >
           <div
-            class="c7"
+            class="c13"
           >
             <div
-              class="c8"
+              class="c14"
             >
               <input
-                class="c9"
+                class="c15"
                 placeholder="SEARCH..."
                 value=""
               />
               <div
-                class="c10"
+                class="c16"
               >
                 <div
-                  class="c11"
+                  class="c17"
                 />
               </div>
             </div>
           </div>
           <div
-            class="c12"
+            class="c18 c19"
             width="100%"
           >
             <div
-              class="c13"
+              class="c20 c4"
             >
               <div
-                class="c14"
+                class="c21"
                 color="text.main"
                 style="white-space: nowrap; text-transform: uppercase;"
               >
@@ -1829,15 +1872,15 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
               </div>
             </div>
             <div
-              class="c15"
+              class="c8 c1"
             >
               <button
-                class="c16 c17"
+                class="c22 c23"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c18 icon icon-circlearrowleft"
+                  class="c24 icon icon-circlearrowleft"
                 >
                   <svg
                     fill="currentColor"
@@ -1857,12 +1900,12 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
                 </span>
               </button>
               <button
-                class="c19 c17"
+                class="c25 c23"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c18 icon icon-circlearrowright"
+                  class="c24 icon icon-circlearrowright"
                 >
                   <svg
                     fill="currentColor"
@@ -1882,7 +1925,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
           </div>
         </nav>
         <table
-          class="c20"
+          class="c26"
         >
           <thead>
             <tr>
@@ -1910,7 +1953,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
                 style="display: flex;"
               >
                 <span
-                  class="c21 icon icon-apple"
+                  class="c27 icon icon-apple"
                 >
                   <svg
                     fill="currentColor"
@@ -1942,10 +1985,10 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
         </table>
       </div>
       <div
-        class="c22"
+        class="c28 c29"
       >
         <div
-          class="c23"
+          class="c30"
           color="text.slightlyMuted"
         >
           <i>
@@ -1953,12 +1996,12 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
           </i>
         </div>
         <div
-          class="c24"
+          class="c31"
         >
           Want additional devices?
         </div>
         <a
-          class="c25"
+          class="c32"
           href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           kind="primary"
           rel="noreferrer"
@@ -1967,7 +2010,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
           width="176px"
         >
           <div
-            class="c26"
+            class="c8 c4"
           >
             Contact Sales
           </div>
@@ -1975,23 +2018,23 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
       </div>
     </div>
     <div
-      class="c27"
+      class="c33"
       color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
       <div
-        class="c28"
+        class="c34"
       >
         Register Trusted Device
       </div>
       <div
-        class="c29"
+        class="c35"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c30"
+          class="c36"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -2003,7 +2046,7 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c30"
+          class="c36"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"
@@ -2019,21 +2062,46 @@ exports[`test DeviceTrust.tsx loaded EUB without IGS renders CTA 1`] = `
 `;
 
 exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
   margin-right: 40px;
   width: 100%;
 }
 
-.c22 {
+.c18 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c20 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c28 {
   box-sizing: border-box;
   margin-left: auto;
   width: 240px;
   color: #FFFFFF;
 }
 
-.c16 {
+.c22 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -2055,25 +2123,25 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   margin-right: 0px;
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c16:hover:enabled,
-.c16:focus:enabled {
+.c22:hover:enabled,
+.c22:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active:enabled {
+.c22:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c19 {
+.c25 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -2094,46 +2162,34 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   margin-left: 0px;
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c19:hover:enabled,
-.c19:focus:enabled {
+.c25:hover:enabled,
+.c25:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active:enabled {
+.c25:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c23 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
   margin: 0px;
-  margin-bottom: 16px;
 }
 
-.c24 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -2144,20 +2200,41 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   color: #FFFFFF;
 }
 
-.c18 {
+.c29 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c30 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c21 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-right: 4px;
 }
 
-.c25 {
+.c31 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2166,36 +2243,26 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
   display: flex;
   align-items: start;
 }
 
-.c12 {
-  box-sizing: border-box;
-  width: 100%;
+.c19 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c13 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.c15 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -2205,32 +2272,22 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
-.c20 {
+.c26 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -2243,39 +2300,39 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c20 > thead > tr > th,
-.c20 > tbody > tr > th,
-.c20 > tfoot > tr > th,
-.c20 > thead > tr > td,
-.c20 > tbody > tr > td,
-.c20 > tfoot > tr > td {
+.c26 > thead > tr > th,
+.c26 > tbody > tr > th,
+.c26 > tfoot > tr > th,
+.c26 > thead > tr > td,
+.c26 > tbody > tr > td,
+.c26 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th:first-child,
-.c20 > tbody > tr > th:first-child,
-.c20 > tfoot > tr > th:first-child,
-.c20 > thead > tr > td:first-child,
-.c20 > tbody > tr > td:first-child,
-.c20 > tfoot > tr > td:first-child {
+.c26 > thead > tr > th:first-child,
+.c26 > tbody > tr > th:first-child,
+.c26 > tfoot > tr > th:first-child,
+.c26 > thead > tr > td:first-child,
+.c26 > tbody > tr > td:first-child,
+.c26 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c20 > thead > tr > th:last-child,
-.c20 > tbody > tr > th:last-child,
-.c20 > tfoot > tr > th:last-child,
-.c20 > thead > tr > td:last-child,
-.c20 > tbody > tr > td:last-child,
-.c20 > tfoot > tr > td:last-child {
+.c26 > thead > tr > th:last-child,
+.c26 > tbody > tr > th:last-child,
+.c26 > tfoot > tr > th:last-child,
+.c26 > thead > tr > td:last-child,
+.c26 > tbody > tr > td:last-child,
+.c26 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th {
+.c26 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -2289,24 +2346,24 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   white-space: nowrap;
 }
 
-.c20 > thead > tr > th svg {
+.c26 > thead > tr > th svg {
   height: 12px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c20 tbody tr {
+.c26 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c20 tbody tr:hover {
+.c26 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c12 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -2316,21 +2373,21 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   background: #222C59;
 }
 
-.c5 {
+.c11 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c17 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c17 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c11 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -2341,7 +2398,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   border-radius: 200px;
 }
 
-.c10 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -2352,7 +2409,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   border-radius: 200px;
 }
 
-.c8 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -2362,14 +2419,14 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   background: transparent;
 }
 
-.c7 {
+.c13 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c9 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -2384,72 +2441,72 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
   padding-right: 184px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c15:hover,
+.c15:focus,
+.c15:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c9::placeholder {
+.c15::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Trusted Devices
     </div>
   </div>
   <div
-    class="c3"
+    class="c8 c9"
   >
     <div
-      class="c4"
+      class="c10"
       width="100%"
     >
       <div
-        class="c5"
+        class="c11"
       >
         <nav
-          class="c6"
+          class="c12"
         >
           <div
-            class="c7"
+            class="c13"
           >
             <div
-              class="c8"
+              class="c14"
             >
               <input
-                class="c9"
+                class="c15"
                 placeholder="SEARCH..."
                 value=""
               />
               <div
-                class="c10"
+                class="c16"
               >
                 <div
-                  class="c11"
+                  class="c17"
                 />
               </div>
             </div>
           </div>
           <div
-            class="c12"
+            class="c18 c19"
             width="100%"
           >
             <div
-              class="c13"
+              class="c20 c4"
             >
               <div
-                class="c14"
+                class="c21"
                 color="text.main"
                 style="white-space: nowrap; text-transform: uppercase;"
               >
@@ -2469,15 +2526,15 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
               </div>
             </div>
             <div
-              class="c15"
+              class="c8 c1"
             >
               <button
-                class="c16 c17"
+                class="c22 c23"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c18 icon icon-circlearrowleft"
+                  class="c24 icon icon-circlearrowleft"
                 >
                   <svg
                     fill="currentColor"
@@ -2497,12 +2554,12 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
                 </span>
               </button>
               <button
-                class="c19 c17"
+                class="c25 c23"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c18 icon icon-circlearrowright"
+                  class="c24 icon icon-circlearrowright"
                 >
                   <svg
                     fill="currentColor"
@@ -2522,7 +2579,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
           </div>
         </nav>
         <table
-          class="c20"
+          class="c26"
         >
           <thead>
             <tr>
@@ -2550,7 +2607,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
                 style="display: flex;"
               >
                 <span
-                  class="c21 icon icon-apple"
+                  class="c27 icon icon-apple"
                 >
                   <svg
                     fill="currentColor"
@@ -2583,23 +2640,23 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
       </div>
     </div>
     <div
-      class="c22"
+      class="c28"
       color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
       <div
-        class="c23"
+        class="c29"
       >
         Register Trusted Device
       </div>
       <div
-        class="c24"
+        class="c30"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c25"
+          class="c31"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -2611,7 +2668,7 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c25"
+          class="c31"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"
@@ -2627,21 +2684,51 @@ exports[`test DeviceTrust.tsx loaded legacy (no CTA) 1`] = `
 `;
 
 exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c10 {
   box-sizing: border-box;
   margin-bottom: 24px;
   margin-right: 40px;
   width: 100%;
 }
 
-.c27 {
+.c18 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c20 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c28 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c33 {
   box-sizing: border-box;
   margin-left: auto;
   width: 240px;
   color: #FFFFFF;
 }
 
-.c25 {
+.c32 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2670,22 +2757,22 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   width: 176px;
 }
 
-.c25:hover,
-.c25:focus {
+.c32:hover,
+.c32:focus {
   background: #B29DFF;
 }
 
-.c25:active {
+.c32:active {
   background: #C5B6FF;
 }
 
-.c25:disabled {
+.c32:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c16 {
+.c22 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -2707,25 +2794,25 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   margin-right: 0px;
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c16:disabled {
+.c22:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c16:hover:enabled,
-.c16:focus:enabled {
+.c22:hover:enabled,
+.c22:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active:enabled {
+.c22:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c19 {
+.c25 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -2746,63 +2833,34 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   margin-left: 0px;
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c19:disabled {
+.c25:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c19:hover:enabled,
-.c19:focus:enabled {
+.c25:hover:enabled,
+.c25:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:active:enabled {
+.c25:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c28 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 24px;
-  text-transform: uppercase;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c29 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 24px;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c23 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.72);
-}
-
-.c24 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 16px;
+  font-size: 22px;
   line-height: 32px;
   margin: 0px;
-  margin-bottom: 8px;
 }
 
-.c14 {
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -2813,20 +2871,58 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   color: #FFFFFF;
 }
 
-.c18 {
+.c30 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c31 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c34 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c35 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c24 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c21 {
+.c27 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-right: 4px;
 }
 
-.c30 {
+.c36 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -2835,51 +2931,33 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
   display: flex;
   align-items: start;
 }
 
-.c26 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  width: 100%;
+.c19 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c13 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.c15 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c22 {
-  box-sizing: border-box;
-  margin-top: 16px;
+.c29 {
   display: flex;
   align-items: end;
   justify-content: end;
   flex-direction: column;
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -2889,32 +2967,22 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
-.c20 {
+.c26 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -2927,39 +2995,39 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c20 > thead > tr > th,
-.c20 > tbody > tr > th,
-.c20 > tfoot > tr > th,
-.c20 > thead > tr > td,
-.c20 > tbody > tr > td,
-.c20 > tfoot > tr > td {
+.c26 > thead > tr > th,
+.c26 > tbody > tr > th,
+.c26 > tfoot > tr > th,
+.c26 > thead > tr > td,
+.c26 > tbody > tr > td,
+.c26 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th:first-child,
-.c20 > tbody > tr > th:first-child,
-.c20 > tfoot > tr > th:first-child,
-.c20 > thead > tr > td:first-child,
-.c20 > tbody > tr > td:first-child,
-.c20 > tfoot > tr > td:first-child {
+.c26 > thead > tr > th:first-child,
+.c26 > tbody > tr > th:first-child,
+.c26 > tfoot > tr > th:first-child,
+.c26 > thead > tr > td:first-child,
+.c26 > tbody > tr > td:first-child,
+.c26 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c20 > thead > tr > th:last-child,
-.c20 > tbody > tr > th:last-child,
-.c20 > tfoot > tr > th:last-child,
-.c20 > thead > tr > td:last-child,
-.c20 > tbody > tr > td:last-child,
-.c20 > tfoot > tr > td:last-child {
+.c26 > thead > tr > th:last-child,
+.c26 > tbody > tr > th:last-child,
+.c26 > tfoot > tr > th:last-child,
+.c26 > thead > tr > td:last-child,
+.c26 > tbody > tr > td:last-child,
+.c26 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th {
+.c26 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -2973,24 +3041,24 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   white-space: nowrap;
 }
 
-.c20 > thead > tr > th svg {
+.c26 > thead > tr > th svg {
   height: 12px;
 }
 
-.c20 > tbody > tr > td {
+.c26 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c20 tbody tr {
+.c26 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c20 tbody tr:hover {
+.c26 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c12 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -3000,21 +3068,21 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   background: #222C59;
 }
 
-.c5 {
+.c11 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c17 svg {
+.c23 svg {
   font-size: 20px;
 }
 
-.c17 svg:before {
+.c23 svg:before {
   padding-left: 1px;
 }
 
-.c11 {
+.c17 {
   position: relative;
   height: 100%;
   right: 0;
@@ -3025,7 +3093,7 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   border-radius: 200px;
 }
 
-.c10 {
+.c16 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -3036,7 +3104,7 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   border-radius: 200px;
 }
 
-.c8 {
+.c14 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -3046,14 +3114,14 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   background: transparent;
 }
 
-.c7 {
+.c13 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c9 {
+.c15 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -3068,72 +3136,72 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
   padding-right: 184px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
+.c15:hover,
+.c15:focus,
+.c15:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c9::placeholder {
+.c15::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Trusted Devices
     </div>
   </div>
   <div
-    class="c3"
+    class="c8 c9"
   >
     <div
-      class="c4"
+      class="c10"
       width="100%"
     >
       <div
-        class="c5"
+        class="c11"
       >
         <nav
-          class="c6"
+          class="c12"
         >
           <div
-            class="c7"
+            class="c13"
           >
             <div
-              class="c8"
+              class="c14"
             >
               <input
-                class="c9"
+                class="c15"
                 placeholder="SEARCH..."
                 value=""
               />
               <div
-                class="c10"
+                class="c16"
               >
                 <div
-                  class="c11"
+                  class="c17"
                 />
               </div>
             </div>
           </div>
           <div
-            class="c12"
+            class="c18 c19"
             width="100%"
           >
             <div
-              class="c13"
+              class="c20 c4"
             >
               <div
-                class="c14"
+                class="c21"
                 color="text.main"
                 style="white-space: nowrap; text-transform: uppercase;"
               >
@@ -3153,15 +3221,15 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
               </div>
             </div>
             <div
-              class="c15"
+              class="c8 c1"
             >
               <button
-                class="c16 c17"
+                class="c22 c23"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c18 icon icon-circlearrowleft"
+                  class="c24 icon icon-circlearrowleft"
                 >
                   <svg
                     fill="currentColor"
@@ -3181,12 +3249,12 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
                 </span>
               </button>
               <button
-                class="c19 c17"
+                class="c25 c23"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c18 icon icon-circlearrowright"
+                  class="c24 icon icon-circlearrowright"
                 >
                   <svg
                     fill="currentColor"
@@ -3206,7 +3274,7 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
           </div>
         </nav>
         <table
-          class="c20"
+          class="c26"
         >
           <thead>
             <tr>
@@ -3234,7 +3302,7 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
                 style="display: flex;"
               >
                 <span
-                  class="c21 icon icon-apple"
+                  class="c27 icon icon-apple"
                 >
                   <svg
                     fill="currentColor"
@@ -3266,10 +3334,10 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
         </table>
       </div>
       <div
-        class="c22"
+        class="c28 c29"
       >
         <div
-          class="c23"
+          class="c30"
           color="text.slightlyMuted"
         >
           <i>
@@ -3277,12 +3345,12 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
           </i>
         </div>
         <div
-          class="c24"
+          class="c31"
         >
           Want additional devices?
         </div>
         <a
-          class="c25"
+          class="c32"
           href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           kind="primary"
           rel="noreferrer"
@@ -3291,7 +3359,7 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
           width="176px"
         >
           <div
-            class="c26"
+            class="c8 c4"
           >
             Contact Sales
           </div>
@@ -3299,23 +3367,23 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
       </div>
     </div>
     <div
-      class="c27"
+      class="c33"
       color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
       <div
-        class="c28"
+        class="c34"
       >
         Register Trusted Device
       </div>
       <div
-        class="c29"
+        class="c35"
       >
         Trusted Devices can be registered manually using
          
         <a
-          class="c30"
+          class="c36"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
           rel="noreferrer"
@@ -3327,7 +3395,7 @@ exports[`test DeviceTrust.tsx loaded team renders CTA 1`] = `
         or synced automatically from MDM services like
          
         <a
-          class="c30"
+          class="c36"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
           rel="noreferrer"

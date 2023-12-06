@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render failed 1`] = `
-.c11 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -28,22 +28,22 @@ exports[`render failed 1`] = `
   margin-right: 16px;
 }
 
-.c11:hover,
-.c11:focus {
+.c13:hover,
+.c13:focus {
   background: #B29DFF;
 }
 
-.c11:active {
+.c13:active {
   background: #C5B6FF;
 }
 
-.c11:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c12 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -69,16 +69,16 @@ exports[`render failed 1`] = `
   padding: 0px 24px;
 }
 
-.c12:hover,
-.c12:focus {
+.c14:hover,
+.c14:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c12:active {
+.c14:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c12:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -132,7 +132,7 @@ exports[`render failed 1`] = `
   max-width: 600px;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -143,7 +143,7 @@ exports[`render failed 1`] = `
   color: #FFFFFF;
 }
 
-.c8 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -154,11 +154,30 @@ exports[`render failed 1`] = `
   box-sizing: border-box;
   margin-bottom: 16px;
   min-height: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  min-width: 500px;
+  margin-bottom: 32px;
+  flex: 0 0 auto;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c5 {
   display: flex;
   align-items: center;
 }
 
-.c6 {
+.c9 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c7 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -175,24 +194,11 @@ exports[`render failed 1`] = `
   color: #000000;
 }
 
-.c6 a {
+.c7 a {
   color: #FFFFFF;
 }
 
-.c7 {
-  box-sizing: border-box;
-  min-width: 500px;
-  margin-bottom: 32px;
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.c10 {
-  box-sizing: border-box;
-}
-
-.c9 .react-select-container {
+.c11 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -204,7 +210,7 @@ exports[`render failed 1`] = `
   border-radius: 4px;
 }
 
-.c9 .react-select__control {
+.c11 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -214,145 +220,145 @@ exports[`render failed 1`] = `
   box-shadow: none;
 }
 
-.c9 .react-select__control .react-select__dropdown-indicator {
+.c11 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c9 .react-select__control:hover,
-.c9 .react-select__control:focus,
-.c9 .react-select__control:active {
+.c11 .react-select__control:hover,
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c9 .react-select__control:hover .react-select__dropdown-indicator,
-.c9 .react-select__control:focus .react-select__dropdown-indicator,
-.c9 .react-select__control:active .react-select__dropdown-indicator {
+.c11 .react-select__control:hover .react-select__dropdown-indicator,
+.c11 .react-select__control:focus .react-select__dropdown-indicator,
+.c11 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c9 .react-select__control .react-select__indicator:hover,
-.c9 .react-select__control .react-select__dropdown-indicator:hover,
-.c9 .react-select__control .react-select__indicator:focus,
-.c9 .react-select__control .react-select__dropdown-indicator:focus,
-.c9 .react-select__control .react-select__indicator:active,
-.c9 .react-select__control .react-select__dropdown-indicator:active {
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover,
+.c11 .react-select__control .react-select__indicator:focus,
+.c11 .react-select__control .react-select__dropdown-indicator:focus,
+.c11 .react-select__control .react-select__indicator:active,
+.c11 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c9 .react-select__control--is-focused {
+.c11 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c9 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c9 .react-select__single-value {
+.c11 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c9 .react-select__placeholder {
+.c11 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c9 .react-select__multi-value {
+.c11 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c9 .react-select__multi-value .react-select__multi-value__label {
+.c11 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c9 .react-select__multi-value .react-select__multi-value__remove {
+.c11 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c9 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c9 .react-select__option:hover {
+.c11 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c9 .react-select__option--is-focused {
+.c11 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c9 .react-select__option--is-focused:hover {
+.c11 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c9 .react-select__option--is-selected {
+.c11 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c9 .react-select__option--is-selected:hover {
+.c11 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c9 .react-select__clear-indicator {
+.c11 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c9 .react-select__clear-indicator:hover,
-.c9 .react-select__clear-indicator:focus {
+.c11 .react-select__clear-indicator:hover,
+.c11 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c9 .react-select__clear-indicator:hover svg,
-.c9 .react-select__clear-indicator:focus svg {
+.c11 .react-select__clear-indicator:hover svg,
+.c11 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c9 .react-select__menu {
+.c11 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c9 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c9 .react-select__indicator-separator {
+.c11 .react-select__indicator-separator {
   display: none;
 }
 
-.c9 .react-select__loading-indicator {
+.c11 .react-select__loading-indicator {
   display: none;
 }
 
-.c9 .react-select--is-disabled,
-.c9 .react-select__control--is-disabled {
+.c11 .react-select--is-disabled,
+.c11 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c9 .react-select--is-disabled .react-select__single-value,
-.c9 .react-select__control--is-disabled .react-select__single-value,
-.c9 .react-select--is-disabled .react-select__placeholder,
-.c9 .react-select__control--is-disabled .react-select__placeholder {
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select__control--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c9 .react-select--is-disabled .react-select__indicator,
-.c9 .react-select__control--is-disabled .react-select__indicator {
+.c11 .react-select--is-disabled .react-select__indicator,
+.c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c9 .react-select__input {
+.c11 .react-select__input {
   color: #FFFFFF;
 }
 
@@ -373,31 +379,31 @@ exports[`render failed 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Select a maintenance start window
         </div>
       </div>
       <div
-        class="c6"
+        class="c7"
         kind="danger"
       >
         there was an error processing the request
       </div>
       <div
-        class="c7"
+        class="c8 c9"
       >
         <div
-          class="c8"
+          class="c10"
         >
           Teleport provides different cluster maintenance windows to minimize downtime during upgrades, patches, etc.
         </div>
         <div
-          class="c9"
+          class="c11"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -433,7 +439,7 @@ exports[`render failed 1`] = `
                       value=""
                     />
                     <div
-                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,\\"Segoe UI\\",Helvetica,Arial,sans-serif,\\"Apple Color Emoji\\",\\"Segoe UI Emoji\\",\\"Segoe UI Symbol\\"; letter-spacing: normal; text-transform: none;"
+                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
                     />
                   </div>
                 </div>
@@ -467,16 +473,16 @@ exports[`render failed 1`] = `
         </div>
       </div>
       <div
-        class="c10"
+        class="c12"
       >
         <button
-          class="c11"
+          class="c13"
           kind="primary"
         >
           Save
         </button>
         <button
-          class="c12"
+          class="c14"
           kind="secondary"
         >
           Cancel
@@ -488,7 +494,7 @@ exports[`render failed 1`] = `
 `;
 
 exports[`render loaded 1`] = `
-.c10 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -515,22 +521,22 @@ exports[`render loaded 1`] = `
   margin-right: 16px;
 }
 
-.c10:hover,
-.c10:focus {
+.c12:hover,
+.c12:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c12:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -556,16 +562,16 @@ exports[`render loaded 1`] = `
   padding: 0px 24px;
 }
 
-.c11:hover,
-.c11:focus {
+.c13:hover,
+.c13:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c11:active {
+.c13:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c11:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -619,7 +625,7 @@ exports[`render loaded 1`] = `
   max-width: 600px;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -630,7 +636,7 @@ exports[`render loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -641,24 +647,30 @@ exports[`render loaded 1`] = `
   box-sizing: border-box;
   margin-bottom: 16px;
   min-height: 32px;
-  display: flex;
-  align-items: center;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   min-width: 500px;
   margin-bottom: 32px;
   flex: 0 0 auto;
+}
+
+.c11 {
+  box-sizing: border-box;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
   display: flex;
   flex-direction: column;
 }
 
-.c9 {
-  box-sizing: border-box;
-}
-
-.c8 .react-select-container {
+.c10 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -670,7 +682,7 @@ exports[`render loaded 1`] = `
   border-radius: 4px;
 }
 
-.c8 .react-select__control {
+.c10 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -680,145 +692,145 @@ exports[`render loaded 1`] = `
   box-shadow: none;
 }
 
-.c8 .react-select__control .react-select__dropdown-indicator {
+.c10 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c8 .react-select__control:hover,
-.c8 .react-select__control:focus,
-.c8 .react-select__control:active {
+.c10 .react-select__control:hover,
+.c10 .react-select__control:focus,
+.c10 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c8 .react-select__control:hover .react-select__dropdown-indicator,
-.c8 .react-select__control:focus .react-select__dropdown-indicator,
-.c8 .react-select__control:active .react-select__dropdown-indicator {
+.c10 .react-select__control:hover .react-select__dropdown-indicator,
+.c10 .react-select__control:focus .react-select__dropdown-indicator,
+.c10 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c8 .react-select__control .react-select__indicator:hover,
-.c8 .react-select__control .react-select__dropdown-indicator:hover,
-.c8 .react-select__control .react-select__indicator:focus,
-.c8 .react-select__control .react-select__dropdown-indicator:focus,
-.c8 .react-select__control .react-select__indicator:active,
-.c8 .react-select__control .react-select__dropdown-indicator:active {
+.c10 .react-select__control .react-select__indicator:hover,
+.c10 .react-select__control .react-select__dropdown-indicator:hover,
+.c10 .react-select__control .react-select__indicator:focus,
+.c10 .react-select__control .react-select__dropdown-indicator:focus,
+.c10 .react-select__control .react-select__indicator:active,
+.c10 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c8 .react-select__control--is-focused {
+.c10 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c8 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c10 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c8 .react-select__single-value {
+.c10 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c8 .react-select__placeholder {
+.c10 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c8 .react-select__multi-value {
+.c10 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c8 .react-select__multi-value .react-select__multi-value__label {
+.c10 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c8 .react-select__multi-value .react-select__multi-value__remove {
+.c10 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c8 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c10 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c8 .react-select__option:hover {
+.c10 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__option--is-focused {
+.c10 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__option--is-focused:hover {
+.c10 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__option--is-selected {
+.c10 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c8 .react-select__option--is-selected:hover {
+.c10 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c8 .react-select__clear-indicator {
+.c10 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c8 .react-select__clear-indicator:hover,
-.c8 .react-select__clear-indicator:focus {
+.c10 .react-select__clear-indicator:hover,
+.c10 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__clear-indicator:hover svg,
-.c8 .react-select__clear-indicator:focus svg {
+.c10 .react-select__clear-indicator:hover svg,
+.c10 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c8 .react-select__menu {
+.c10 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c8 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c10 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c8 .react-select__indicator-separator {
+.c10 .react-select__indicator-separator {
   display: none;
 }
 
-.c8 .react-select__loading-indicator {
+.c10 .react-select__loading-indicator {
   display: none;
 }
 
-.c8 .react-select--is-disabled,
-.c8 .react-select__control--is-disabled {
+.c10 .react-select--is-disabled,
+.c10 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c8 .react-select--is-disabled .react-select__single-value,
-.c8 .react-select__control--is-disabled .react-select__single-value,
-.c8 .react-select--is-disabled .react-select__placeholder,
-.c8 .react-select__control--is-disabled .react-select__placeholder {
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select__control--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder,
+.c10 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c8 .react-select--is-disabled .react-select__indicator,
-.c8 .react-select__control--is-disabled .react-select__indicator {
+.c10 .react-select--is-disabled .react-select__indicator,
+.c10 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c8 .react-select__input {
+.c10 .react-select__input {
   color: #FFFFFF;
 }
 
@@ -839,25 +851,25 @@ exports[`render loaded 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Select a maintenance start window
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9"
         >
           Teleport provides different cluster maintenance windows to minimize downtime during upgrades, patches, etc.
         </div>
         <div
-          class="c8"
+          class="c10"
         >
           <div
             class="react-select-container css-2b097c-container"
@@ -893,7 +905,7 @@ exports[`render loaded 1`] = `
                       value=""
                     />
                     <div
-                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,\\"Segoe UI\\",Helvetica,Arial,sans-serif,\\"Apple Color Emoji\\",\\"Segoe UI Emoji\\",\\"Segoe UI Symbol\\"; letter-spacing: normal; text-transform: none;"
+                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
                     />
                   </div>
                 </div>
@@ -927,16 +939,16 @@ exports[`render loaded 1`] = `
         </div>
       </div>
       <div
-        class="c9"
+        class="c11"
       >
         <button
-          class="c10"
+          class="c12"
           kind="primary"
         >
           Save
         </button>
         <button
-          class="c11"
+          class="c13"
           kind="secondary"
         >
           Cancel
@@ -948,7 +960,7 @@ exports[`render loaded 1`] = `
 `;
 
 exports[`render processing 1`] = `
-.c10 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -975,22 +987,22 @@ exports[`render processing 1`] = `
   margin-right: 16px;
 }
 
-.c10:hover,
-.c10:focus {
+.c12:hover,
+.c12:focus {
   background: #B29DFF;
 }
 
-.c10:active {
+.c12:active {
   background: #C5B6FF;
 }
 
-.c10:disabled {
+.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1016,16 +1028,16 @@ exports[`render processing 1`] = `
   padding: 0px 24px;
 }
 
-.c11:hover,
-.c11:focus {
+.c13:hover,
+.c13:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c11:active {
+.c13:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c11:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -1079,7 +1091,7 @@ exports[`render processing 1`] = `
   max-width: 600px;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1090,7 +1102,7 @@ exports[`render processing 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -1101,24 +1113,30 @@ exports[`render processing 1`] = `
   box-sizing: border-box;
   margin-bottom: 16px;
   min-height: 32px;
-  display: flex;
-  align-items: center;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   min-width: 500px;
   margin-bottom: 32px;
   flex: 0 0 auto;
+}
+
+.c11 {
+  box-sizing: border-box;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
   display: flex;
   flex-direction: column;
 }
 
-.c9 {
-  box-sizing: border-box;
-}
-
-.c8 .react-select-container {
+.c10 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1130,7 +1148,7 @@ exports[`render processing 1`] = `
   border-radius: 4px;
 }
 
-.c8 .react-select__control {
+.c10 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -1140,145 +1158,145 @@ exports[`render processing 1`] = `
   box-shadow: none;
 }
 
-.c8 .react-select__control .react-select__dropdown-indicator {
+.c10 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c8 .react-select__control:hover,
-.c8 .react-select__control:focus,
-.c8 .react-select__control:active {
+.c10 .react-select__control:hover,
+.c10 .react-select__control:focus,
+.c10 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c8 .react-select__control:hover .react-select__dropdown-indicator,
-.c8 .react-select__control:focus .react-select__dropdown-indicator,
-.c8 .react-select__control:active .react-select__dropdown-indicator {
+.c10 .react-select__control:hover .react-select__dropdown-indicator,
+.c10 .react-select__control:focus .react-select__dropdown-indicator,
+.c10 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c8 .react-select__control .react-select__indicator:hover,
-.c8 .react-select__control .react-select__dropdown-indicator:hover,
-.c8 .react-select__control .react-select__indicator:focus,
-.c8 .react-select__control .react-select__dropdown-indicator:focus,
-.c8 .react-select__control .react-select__indicator:active,
-.c8 .react-select__control .react-select__dropdown-indicator:active {
+.c10 .react-select__control .react-select__indicator:hover,
+.c10 .react-select__control .react-select__dropdown-indicator:hover,
+.c10 .react-select__control .react-select__indicator:focus,
+.c10 .react-select__control .react-select__dropdown-indicator:focus,
+.c10 .react-select__control .react-select__indicator:active,
+.c10 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c8 .react-select__control--is-focused {
+.c10 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c8 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c10 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c8 .react-select__single-value {
+.c10 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c8 .react-select__placeholder {
+.c10 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c8 .react-select__multi-value {
+.c10 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c8 .react-select__multi-value .react-select__multi-value__label {
+.c10 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c8 .react-select__multi-value .react-select__multi-value__remove {
+.c10 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c8 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c10 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c8 .react-select__option:hover {
+.c10 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__option--is-focused {
+.c10 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__option--is-focused:hover {
+.c10 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__option--is-selected {
+.c10 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c8 .react-select__option--is-selected:hover {
+.c10 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c8 .react-select__clear-indicator {
+.c10 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c8 .react-select__clear-indicator:hover,
-.c8 .react-select__clear-indicator:focus {
+.c10 .react-select__clear-indicator:hover,
+.c10 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c8 .react-select__clear-indicator:hover svg,
-.c8 .react-select__clear-indicator:focus svg {
+.c10 .react-select__clear-indicator:hover svg,
+.c10 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c8 .react-select__menu {
+.c10 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c8 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c10 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c8 .react-select__indicator-separator {
+.c10 .react-select__indicator-separator {
   display: none;
 }
 
-.c8 .react-select__loading-indicator {
+.c10 .react-select__loading-indicator {
   display: none;
 }
 
-.c8 .react-select--is-disabled,
-.c8 .react-select__control--is-disabled {
+.c10 .react-select--is-disabled,
+.c10 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c8 .react-select--is-disabled .react-select__single-value,
-.c8 .react-select__control--is-disabled .react-select__single-value,
-.c8 .react-select--is-disabled .react-select__placeholder,
-.c8 .react-select__control--is-disabled .react-select__placeholder {
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select__control--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder,
+.c10 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c8 .react-select--is-disabled .react-select__indicator,
-.c8 .react-select__control--is-disabled .react-select__indicator {
+.c10 .react-select--is-disabled .react-select__indicator,
+.c10 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c8 .react-select__input {
+.c10 .react-select__input {
   color: #FFFFFF;
 }
 
@@ -1299,25 +1317,25 @@ exports[`render processing 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Select a maintenance start window
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9"
         >
           Teleport provides different cluster maintenance windows to minimize downtime during upgrades, patches, etc.
         </div>
         <div
-          class="c8"
+          class="c10"
         >
           <div
             class="react-select-container react-select--is-disabled css-14jk2my-container"
@@ -1354,7 +1372,7 @@ exports[`render processing 1`] = `
                       value=""
                     />
                     <div
-                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: Ubuntu2,-apple-system,BlinkMacSystemFont,\\"Segoe UI\\",Helvetica,Arial,sans-serif,\\"Apple Color Emoji\\",\\"Segoe UI Emoji\\",\\"Segoe UI Symbol\\"; letter-spacing: normal; text-transform: none;"
+                      style="position: absolute; top: 0px; left: 0px; visibility: hidden; height: 0px; overflow: scroll; white-space: pre; font-family: -webkit-small-control; letter-spacing: normal; text-transform: none;"
                     />
                   </div>
                 </div>
@@ -1388,17 +1406,17 @@ exports[`render processing 1`] = `
         </div>
       </div>
       <div
-        class="c9"
+        class="c11"
       >
         <button
-          class="c10"
+          class="c12"
           disabled=""
           kind="primary"
         >
           Save
         </button>
         <button
-          class="c11"
+          class="c13"
           disabled=""
           kind="secondary"
         >

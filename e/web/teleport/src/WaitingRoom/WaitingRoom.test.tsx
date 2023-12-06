@@ -84,7 +84,7 @@ describe('access strategy behavioral testing', () => {
 
     fireEvent.click(screen.getByText(/send request/i));
     await screen.findByText(/send request/i);
-    expect(screen.getByText(/being authorized/i)).toBeInTheDocument();
+    await screen.findByText(/being authorized/i);
     expect(workflowService.createAccessRequest).toHaveBeenCalledTimes(1);
     expect(workflowService.fetchAccessRequest).toHaveBeenCalled();
   });

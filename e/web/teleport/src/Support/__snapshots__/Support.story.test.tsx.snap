@@ -1,22 +1,55 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render support cloud section 1`] = `
-.c3 {
+.c0 {
   box-sizing: border-box;
+  padding-top: 24px;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
-.c1 {
+.c3 {
   box-sizing: border-box;
   padding-bottom: 40px;
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
+}
+
+.c5 {
+  box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border-radius: 8px;
+}
+
+.c16 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c6 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -24,7 +57,7 @@ exports[`render support cloud section 1`] = `
   margin-left: 8px;
 }
 
-.c9 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -33,7 +66,7 @@ exports[`render support cloud section 1`] = `
   font-weight: 600;
 }
 
-.c11 {
+.c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -42,7 +75,7 @@ exports[`render support cloud section 1`] = `
   margin: 0px;
 }
 
-.c12 {
+.c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -51,53 +84,43 @@ exports[`render support cloud section 1`] = `
   margin: 0px;
 }
 
-.c5 {
+.c10 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c2 {
-  box-sizing: border-box;
+.c1 {
+  display: flex;
+}
+
+.c6 {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
 }
 
-.c10 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
+.c8 {
   display: flex;
+  align-items: center;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-top: 24px;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
-.c8 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
+.c14 {
   border: 1px solid rgba(255,255,255,0.13);
 }
 
-.c7 {
+.c12 {
   display: block;
   color: #FFFFFF;
   border-radius: 4px;
@@ -110,40 +133,33 @@ exports[`render support cloud section 1`] = `
   line-height: 16px;
 }
 
-.c7:hover,
-.c7:focus {
+.c12:hover,
+.c12:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
+.c9 {
   border-bottom: 1px solid rgba(255,255,255,0.18);
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4"
   >
     <div
-      class="c2"
+      class="c5 c6"
     >
       <div
-        class="c3"
+        class="c5"
       >
         <div
-          class="c4"
+          class="c7 c8 c9"
           width="210"
         >
           <span
-            class="c5 icon icon-headset"
+            class="c10 icon icon-headset"
           >
             <svg
               fill="currentColor"
@@ -159,13 +175,13 @@ exports[`render support cloud section 1`] = `
             </svg>
           </span>
           <h5
-            class="c6"
+            class="c11"
           >
             Support
           </h5>
         </div>
         <a
-          class="c7"
+          class="c12"
           href="https://github.com/gravitational/teleport/discussions"
           rel="noreferrer"
           target="_blank"
@@ -173,7 +189,7 @@ exports[`render support cloud section 1`] = `
           Ask the Community Questions
         </a>
         <a
-          class="c7"
+          class="c12"
           href="https://github.com/gravitational/teleport/issues/new/choose"
           rel="noreferrer"
           target="_blank"
@@ -181,7 +197,7 @@ exports[`render support cloud section 1`] = `
           Request a New Feature
         </a>
         <a
-          class="c7"
+          class="c12"
           href="mailto:support@goteleport.com"
           rel="noreferrer"
           target="_blank"
@@ -190,14 +206,14 @@ exports[`render support cloud section 1`] = `
         </a>
       </div>
       <div
-        class="c3"
+        class="c5"
       >
         <div
-          class="c4"
+          class="c7 c8 c9"
           width="210"
         >
           <span
-            class="c5 icon icon-bookopentext"
+            class="c10 icon icon-bookopentext"
           >
             <svg
               fill="currentColor"
@@ -222,13 +238,13 @@ exports[`render support cloud section 1`] = `
             </svg>
           </span>
           <h5
-            class="c6"
+            class="c11"
           >
             Resources
           </h5>
         </div>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/docs/ver/13.x/getting-started?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
@@ -236,7 +252,7 @@ exports[`render support cloud section 1`] = `
           Get Started
         </a>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/docs/ver/13.x/server-access/guides/tsh?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
@@ -244,7 +260,7 @@ exports[`render support cloud section 1`] = `
           tsh User Guide
         </a>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/docs/ver/13.x/management/admin/?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
@@ -252,7 +268,7 @@ exports[`render support cloud section 1`] = `
           Admin Guides
         </a>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/docs/cloud/downloads/"
           rel="noreferrer"
           target="_blank"
@@ -260,7 +276,7 @@ exports[`render support cloud section 1`] = `
           Download Page
         </a>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
@@ -269,14 +285,14 @@ exports[`render support cloud section 1`] = `
         </a>
       </div>
       <div
-        class="c3"
+        class="c5"
       >
         <div
-          class="c4"
+          class="c7 c8 c9"
           width="210"
         >
           <span
-            class="c5 icon icon-graph"
+            class="c10 icon icon-graph"
           >
             <svg
               fill="currentColor"
@@ -290,13 +306,13 @@ exports[`render support cloud section 1`] = `
             </svg>
           </span>
           <h5
-            class="c6"
+            class="c11"
           >
             Troubleshooting
           </h5>
         </div>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/docs/ver/13.x/management/admin/troubleshooting/?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
@@ -305,14 +321,14 @@ exports[`render support cloud section 1`] = `
         </a>
       </div>
       <div
-        class="c3"
+        class="c5"
       >
         <div
-          class="c4"
+          class="c7 c8 c9"
           width="210"
         >
           <span
-            class="c5 icon icon-notificationsactive"
+            class="c10 icon icon-notificationsactive"
           >
             <svg
               fill="currentColor"
@@ -334,13 +350,13 @@ exports[`render support cloud section 1`] = `
             </svg>
           </span>
           <h5
-            class="c6"
+            class="c11"
           >
             Updates
           </h5>
         </div>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/docs/changelog?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
@@ -348,7 +364,7 @@ exports[`render support cloud section 1`] = `
           Product Changelog
         </a>
         <a
-          class="c7"
+          class="c12"
           href="https://goteleport.com/blog/"
           rel="noreferrer"
           target="_blank"
@@ -359,58 +375,58 @@ exports[`render support cloud section 1`] = `
     </div>
   </div>
   <div
-    class="c8"
+    class="c13 c14"
   >
     <h5
-      class="c9"
+      class="c15"
       font-weight="bold"
     >
       Cluster Information
     </h5>
     <div
-      class="c10"
+      class="c16 c1"
     >
       <div
-        class="c11"
+        class="c17"
         style="width: 130px;"
       >
         Cluster Name
         :
       </div>
       <div
-        class="c12"
+        class="c18"
       >
         test
       </div>
     </div>
     <div
-      class="c10"
+      class="c16 c1"
     >
       <div
-        class="c11"
+        class="c17"
         style="width: 130px;"
       >
         Teleport Version
         :
       </div>
       <div
-        class="c12"
+        class="c18"
       >
         13.4.0-dev
       </div>
     </div>
     <div
-      class="c10"
+      class="c16 c1"
     >
       <div
-        class="c11"
+        class="c17"
         style="width: 130px;"
       >
         Public Address
         :
       </div>
       <div
-        class="c12"
+        class="c18"
       >
         localhost:3080
       </div>

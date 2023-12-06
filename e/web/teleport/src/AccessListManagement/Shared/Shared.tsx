@@ -52,10 +52,12 @@ export function FieldSelectAndCreatableWrapper<T>({
 
 // TODO(lisa): move this to 'shared/ToolTip' package
 // and refactor ToolTipInfo with this.
-export const ToolTipText: React.FC<{
-  tipContent: React.ReactElement;
-  fontSize?: number;
-}> = ({ tipContent, fontSize = 10, children }) => {
+export const ToolTipText: React.FC<
+  PropsWithChildren<{
+    tipContent: React.ReactElement;
+    fontSize?: number;
+  }>
+> = ({ tipContent, fontSize = 10, children }) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 

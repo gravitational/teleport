@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded with denied reason 1`] = `
-.c7 {
+.c9 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,11 +18,27 @@ exports[`loaded with denied reason 1`] = `
   color: #000000;
 }
 
-.c7 a {
+.c9 a {
   color: #FFFFFF;
 }
 
-.c10 {
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c11 {
+  box-sizing: border-box;
+}
+
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -48,22 +64,22 @@ exports[`loaded with denied reason 1`] = `
   padding: 0px 24px;
 }
 
-.c10:hover,
-.c10:focus {
+.c12:hover,
+.c12:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c10:active {
+.c12:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c10:disabled {
+.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -74,11 +90,21 @@ exports[`loaded with denied reason 1`] = `
   color: #FFFFFF;
 }
 
-.c8 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
 }
 
 .c1 {
@@ -130,26 +156,6 @@ exports[`loaded with denied reason 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c9 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -167,35 +173,35 @@ exports[`loaded with denied reason 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Access Request Denied
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9"
           kind="danger"
         >
           some reason for denying request
         </div>
         <div
-          class="c8"
+          class="c10"
         >
           Your request has been denied. Please contact your administrator for more information.
         </div>
       </div>
       <div
-        class="c9"
+        class="c11"
       >
         <button
-          class="c10"
+          class="c12"
           kind="secondary"
         >
           Logout
@@ -207,7 +213,23 @@ exports[`loaded with denied reason 1`] = `
 `;
 
 exports[`loaded without denied reason 1`] = `
-.c9 {
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c10 {
+  box-sizing: border-box;
+}
+
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -233,22 +255,22 @@ exports[`loaded without denied reason 1`] = `
   padding: 0px 24px;
 }
 
-.c9:hover,
-.c9:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c9:active {
+.c11:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c9:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -259,11 +281,21 @@ exports[`loaded without denied reason 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
 }
 
 .c1 {
@@ -315,26 +347,6 @@ exports[`loaded without denied reason 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c8 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -352,30 +364,29 @@ exports[`loaded without denied reason 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Access Request Denied
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
-        
         <div
-          class="c7"
+          class="c9"
         >
           Your request has been denied. Please contact your administrator for more information.
         </div>
       </div>
       <div
-        class="c8"
+        class="c10"
       >
         <button
-          class="c9"
+          class="c11"
           kind="secondary"
         >
           Logout

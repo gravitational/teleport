@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { Indicator } from 'design';
 import { useStore } from 'shared/libs/stores';
 import { AppVerticalSplit } from 'teleport/components/Layout';
@@ -12,7 +12,7 @@ import RequestDenied from './RequestDenied';
 import RequestError from './RequestError';
 import useWaitingRoom, { State } from './useWaitingRoom';
 
-const Container: React.FC<Props> = props => {
+const Container: React.FC<PropsWithChildren<Props>> = props => {
   const ctx = useTeleportE();
   useStore(ctx.storeAccessRequests);
 
@@ -22,7 +22,9 @@ const Container: React.FC<Props> = props => {
 
 export default Container;
 
-export const WaitingRoom: React.FC<State & Partial<Props>> = props => {
+export const WaitingRoom: React.FC<
+  PropsWithChildren<State & Partial<Props>>
+> = props => {
   const {
     children,
     attempt,

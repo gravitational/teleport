@@ -1,7 +1,26 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded state 1`] = `
-.c21 {
+.c7 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c22 {
+  box-sizing: border-box;
+  width: 184px;
+}
+
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -29,22 +48,22 @@ exports[`loaded state 1`] = `
   margin-left: 16px;
 }
 
-.c21:hover,
-.c21:focus {
+.c24:hover,
+.c24:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c21:active {
+.c24:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c21:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c27 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -71,59 +90,19 @@ exports[`loaded state 1`] = `
   width: 108px;
 }
 
-.c27:hover,
-.c27:focus {
+.c30:hover,
+.c30:focus {
   background: #B29DFF;
 }
 
-.c27:active {
+.c30:active {
   background: #C5B6FF;
 }
 
-.c27:disabled {
+.c30:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c11 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c11:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c11:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c11:hover:enabled,
-.c11:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c11:active:enabled {
-  background: rgba(255,255,255,0.18);
 }
 
 .c14 {
@@ -145,6 +124,7 @@ exports[`loaded state 1`] = `
   height: 32px;
   width: 32px;
   margin-left: 0px;
+  margin-right: 0px;
 }
 
 .c14:disabled {
@@ -165,7 +145,46 @@ exports[`loaded state 1`] = `
   background: rgba(255,255,255,0.18);
 }
 
-.c25 {
+.c17 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c17:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c17:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c17:hover:enabled,
+.c17:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c17:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c28 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -185,25 +204,25 @@ exports[`loaded state 1`] = `
   width: 32px;
 }
 
-.c25:disabled {
+.c28:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c25:disabled {
+.c28:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c25:hover:enabled,
-.c25:focus:enabled {
+.c28:hover:enabled,
+.c28:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c25:active:enabled {
+.c28:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c9 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -214,7 +233,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c18 {
+.c20 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -223,13 +242,13 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c13 {
+.c16 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c23 {
+.c26 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -238,7 +257,7 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c19 {
+.c21 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -254,7 +273,7 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c17 {
+.c19 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -274,7 +293,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c22 {
+.c25 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -294,7 +313,7 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c26 {
+.c29 {
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -314,40 +333,27 @@ exports[`loaded state 1`] = `
   font-size: 10px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  width: 100%;
+.c8 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c8 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
 .c10 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c16 {
-  box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c20 {
-  box-sizing: border-box;
-  width: 184px;
+.c13 {
+  display: flex;
+}
+
+.c23 {
   display: flex;
   align-items: center;
   justify-content: right;
 }
 
-.c15 {
+.c18 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -360,39 +366,39 @@ exports[`loaded state 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c15 > thead > tr > th,
-.c15 > tbody > tr > th,
-.c15 > tfoot > tr > th,
-.c15 > thead > tr > td,
-.c15 > tbody > tr > td,
-.c15 > tfoot > tr > td {
+.c18 > thead > tr > th,
+.c18 > tbody > tr > th,
+.c18 > tfoot > tr > th,
+.c18 > thead > tr > td,
+.c18 > tbody > tr > td,
+.c18 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c15 > thead > tr > th:first-child,
-.c15 > tbody > tr > th:first-child,
-.c15 > tfoot > tr > th:first-child,
-.c15 > thead > tr > td:first-child,
-.c15 > tbody > tr > td:first-child,
-.c15 > tfoot > tr > td:first-child {
+.c18 > thead > tr > th:first-child,
+.c18 > tbody > tr > th:first-child,
+.c18 > tfoot > tr > th:first-child,
+.c18 > thead > tr > td:first-child,
+.c18 > tbody > tr > td:first-child,
+.c18 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c15 > thead > tr > th:last-child,
-.c15 > tbody > tr > th:last-child,
-.c15 > tfoot > tr > th:last-child,
-.c15 > thead > tr > td:last-child,
-.c15 > tbody > tr > td:last-child,
-.c15 > tfoot > tr > td:last-child {
+.c18 > thead > tr > th:last-child,
+.c18 > tbody > tr > th:last-child,
+.c18 > tfoot > tr > th:last-child,
+.c18 > thead > tr > td:last-child,
+.c18 > tbody > tr > td:last-child,
+.c18 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c15 > tbody > tr > td {
+.c18 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c15 > thead > tr > th {
+.c18 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -406,20 +412,20 @@ exports[`loaded state 1`] = `
   white-space: nowrap;
 }
 
-.c15 > thead > tr > th svg {
+.c18 > thead > tr > th svg {
   height: 12px;
 }
 
-.c15 > tbody > tr > td {
+.c18 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c15 tbody tr {
+.c18 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c15 tbody tr:hover {
+.c18 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -439,11 +445,11 @@ exports[`loaded state 1`] = `
   border-radius: 8px;
 }
 
-.c12 svg {
+.c15 svg {
   font-size: 20px;
 }
 
-.c12 svg:before {
+.c15 svg:before {
   padding-left: 1px;
 }
 
@@ -513,8 +519,7 @@ exports[`loaded state 1`] = `
   font-size: 12px;
 }
 
-.c24 {
-  box-sizing: border-box;
+.c27 {
   margin: 0 auto;
 }
 
@@ -546,14 +551,14 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="c7"
+        class="c7 c8"
         width="100%"
       >
         <div
-          class="c8"
+          class="c9 c10"
         >
           <div
-            class="c9"
+            class="c11"
             color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
@@ -573,15 +578,15 @@ exports[`loaded state 1`] = `
           </div>
         </div>
         <div
-          class="c10"
+          class="c12 c13"
         >
           <button
-            class="c11 c12"
+            class="c14 c15"
             disabled=""
             title="Previous page"
           >
             <span
-              class="c13 icon icon-circlearrowleft"
+              class="c16 icon icon-circlearrowleft"
             >
               <svg
                 fill="currentColor"
@@ -601,12 +606,12 @@ exports[`loaded state 1`] = `
             </span>
           </button>
           <button
-            class="c14 c12"
+            class="c17 c15"
             disabled=""
             title="Next page"
           >
             <span
-              class="c13 icon icon-circlearrowright"
+              class="c16 icon icon-circlearrowright"
             >
               <svg
                 fill="currentColor"
@@ -626,7 +631,7 @@ exports[`loaded state 1`] = `
       </div>
     </nav>
     <table
-      class="c15"
+      class="c18"
     >
       <thead>
         <tr>
@@ -636,7 +641,7 @@ exports[`loaded state 1`] = `
             >
               Id
               <span
-                class="c13 icon icon-chevronsvertical"
+                class="c16 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -661,7 +666,7 @@ exports[`loaded state 1`] = `
             >
               Status
               <span
-                class="c13 icon icon-chevronsvertical"
+                class="c16 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -686,7 +691,7 @@ exports[`loaded state 1`] = `
             >
               User
               <span
-                class="c13 icon icon-chevronsvertical"
+                class="c16 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -716,7 +721,7 @@ exports[`loaded state 1`] = `
             >
               Request Reason
               <span
-                class="c13 icon icon-chevronsvertical"
+                class="c16 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -741,7 +746,7 @@ exports[`loaded state 1`] = `
             >
               Created
               <span
-                class="c13 icon icon-chevrondown"
+                class="c16 icon icon-chevrondown"
                 title="sort items desc"
               >
                 <svg
@@ -765,7 +770,7 @@ exports[`loaded state 1`] = `
             >
               Expires
               <span
-                class="c13 icon icon-chevronsvertical"
+                class="c16 icon icon-chevronsvertical"
                 title="sort items"
               >
                 <svg
@@ -799,10 +804,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c17"
+                class="c19"
                 font-size="0"
                 font-weight="bold"
                 kind="warning"
@@ -810,7 +815,7 @@ exports[`loaded state 1`] = `
                 width="10px"
               />
               <div
-                class="c18"
+                class="c20"
               >
                 PENDING
               </div>
@@ -824,7 +829,7 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
@@ -847,11 +852,11 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
                 kind="border"
                 ml="3"
@@ -870,10 +875,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c17"
+                class="c19"
                 font-size="0"
                 font-weight="bold"
                 kind="warning"
@@ -881,7 +886,7 @@ exports[`loaded state 1`] = `
                 width="10px"
               />
               <div
-                class="c18"
+                class="c20"
               >
                 PENDING
               </div>
@@ -895,7 +900,7 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               app
@@ -904,7 +909,7 @@ exports[`loaded state 1`] = `
               app-name
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               db
@@ -913,7 +918,7 @@ exports[`loaded state 1`] = `
               db-name
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               node
@@ -922,7 +927,7 @@ exports[`loaded state 1`] = `
               node-name
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               user_group
@@ -931,7 +936,7 @@ exports[`loaded state 1`] = `
               user-group-name
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               kube_cluster
@@ -940,7 +945,7 @@ exports[`loaded state 1`] = `
               kube-cluster-name
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               windows_desktop
@@ -949,7 +954,7 @@ exports[`loaded state 1`] = `
               windows-desktop-name
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               app
@@ -974,11 +979,11 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/461ff4bb-62f1-53b5-84ae-731022261a12"
                 kind="border"
                 ml="3"
@@ -997,10 +1002,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c22"
+                class="c25"
                 font-size="0"
                 font-weight="bold"
                 kind="danger"
@@ -1008,7 +1013,7 @@ exports[`loaded state 1`] = `
                 width="10px"
               />
               <div
-                class="c18"
+                class="c20"
               >
                 DENIED
               </div>
@@ -1022,14 +1027,14 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               admin
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
@@ -1052,11 +1057,11 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/3ce23da9-6b85-5fce-9bf3-5fb826120cb2"
                 kind="border"
                 ml="3"
@@ -1075,10 +1080,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c23 icon icon-arrowfatlinesup"
+                class="c26 icon icon-arrowfatlinesup"
                 color="success"
               >
                 <svg
@@ -1101,7 +1106,7 @@ exports[`loaded state 1`] = `
                 </svg>
               </span>
               <div
-                class="c18"
+                class="c20"
               >
                 PROMOTED
               </div>
@@ -1115,21 +1120,21 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               admin
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               kaco
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
@@ -1150,17 +1155,17 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <div
-                class="c24"
+                class="c12 c27"
               >
                 <button
-                  class="c25"
+                  class="c28"
                 >
                   <span
-                    class="c13 icon icon-info"
+                    class="c16 icon icon-info"
                   >
                     <svg
                       fill="currentColor"
@@ -1184,7 +1189,7 @@ exports[`loaded state 1`] = `
                 </button>
               </div>
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
                 kind="border"
                 ml="3"
@@ -1203,10 +1208,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c23 icon icon-arrowfatlinesup"
+                class="c26 icon icon-arrowfatlinesup"
                 color="success"
               >
                 <svg
@@ -1229,7 +1234,7 @@ exports[`loaded state 1`] = `
                 </svg>
               </span>
               <div
-                class="c18"
+                class="c20"
               >
                 PROMOTED
               </div>
@@ -1243,21 +1248,21 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               admin
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               kaco
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
@@ -1276,17 +1281,17 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <div
-                class="c24"
+                class="c12 c27"
               >
                 <button
-                  class="c25"
+                  class="c28"
                 >
                   <span
-                    class="c13 icon icon-info"
+                    class="c16 icon icon-info"
                   >
                     <svg
                       fill="currentColor"
@@ -1310,7 +1315,7 @@ exports[`loaded state 1`] = `
                 </button>
               </div>
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
                 kind="border"
                 ml="3"
@@ -1329,10 +1334,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c26"
+                class="c29"
                 font-size="0"
                 font-weight="bold"
                 kind="success"
@@ -1340,7 +1345,7 @@ exports[`loaded state 1`] = `
                 width="10px"
               />
               <div
-                class="c18"
+                class="c20"
               >
                 APPROVED
               </div>
@@ -1354,21 +1359,21 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               admin
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               kaco
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
@@ -1389,11 +1394,11 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <button
-                class="c27"
+                class="c30"
                 disabled=""
                 kind="primary"
                 width="108px"
@@ -1401,7 +1406,7 @@ exports[`loaded state 1`] = `
                 assumed
               </button>
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
                 kind="border"
                 ml="3"
@@ -1420,10 +1425,10 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c16"
+              class="c12 c10"
             >
               <span
-                class="c26"
+                class="c29"
                 font-size="0"
                 font-weight="bold"
                 kind="success"
@@ -1431,7 +1436,7 @@ exports[`loaded state 1`] = `
                 width="10px"
               />
               <div
-                class="c18"
+                class="c20"
               >
                 APPROVED
               </div>
@@ -1445,21 +1450,21 @@ exports[`loaded state 1`] = `
           </td>
           <td>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               admin
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
               kaco
             </div>
             <div
-              class="c19"
+              class="c21"
               kind="secondary"
             >
               role: 
@@ -1480,18 +1485,18 @@ exports[`loaded state 1`] = `
             align="right"
           >
             <div
-              class="c20"
+              class="c22 c23"
               width="184px"
             >
               <button
-                class="c27"
+                class="c30"
                 kind="primary"
                 width="108px"
               >
                 assume roles
               </button>
               <a
-                class="c21"
+                class="c24"
                 href="/web/requests/72de9b90-04fd-5621-a55d-432d9fe56ef2"
                 kind="border"
                 ml="3"

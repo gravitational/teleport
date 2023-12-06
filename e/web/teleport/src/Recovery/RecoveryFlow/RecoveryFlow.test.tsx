@@ -5,6 +5,8 @@ import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 import history from 'teleport/services/history';
 import MfaService from 'teleport/services/mfa';
 
+import { act } from '@testing-library/react';
+
 import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
 
@@ -108,7 +110,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: true,
     });
 
-    mockHistory.replace(route1VerifyWithStartToken);
+    act(() => mockHistory.replace(route1VerifyWithStartToken));
 
     await waitFor(() => {
       expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
@@ -126,7 +128,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
     fireEvent.click(screen.getByText('Continue'));
-    mockHistory.push(route2NewPasswordWithApprovedToken);
+    act(() => mockHistory.push(route2NewPasswordWithApprovedToken));
     await waitFor(() => {
       expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
         tokenId: startToken.id,
@@ -149,7 +151,7 @@ describe('all recovery flows should show correct screens', () => {
     });
 
     fireEvent.click(screen.getByText('Continue'));
-    mockHistory.push(routeNewCodesWithApprovedToken);
+    act(() => mockHistory.push(routeNewCodesWithApprovedToken));
 
     await waitFor(() => {
       expect(
@@ -192,7 +194,7 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: false,
     });
 
-    mockHistory.replace(route1VerifyWithStartToken);
+    act(() => mockHistory.replace(route1VerifyWithStartToken));
 
     await waitFor(() => {
       expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
@@ -210,7 +212,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(passwordField, { target: { value: 'password123' } });
 
     fireEvent.click(screen.getByText('Continue'));
-    mockHistory.push(route2NewDeviceWithApprovedToken);
+    act(() => mockHistory.push(route2NewDeviceWithApprovedToken));
 
     expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
       tokenId: startToken.id,
@@ -231,7 +233,7 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(deviceNameField, { target: { value: 'backup' } });
 
     fireEvent.click(screen.getByText('Continue'));
-    mockHistory.push(route3DevicesWithApprovedToken);
+    act(() => mockHistory.push(route3DevicesWithApprovedToken));
 
     expect(
       RecoveryService.prototype.setNewTotpDeviceOrPassword
@@ -258,7 +260,7 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/solokey/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Continue'));
-    mockHistory.push(routeNewCodesWithApprovedToken);
+    act(() => mockHistory.push(routeNewCodesWithApprovedToken));
 
     expect(history.push).toHaveBeenLastCalledWith(
       routeNewCodesWithApprovedToken

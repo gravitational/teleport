@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 import { Flex, ButtonSecondary, ButtonIcon, Box } from 'design';
 import { Cell } from 'design/DataTable';
@@ -19,7 +19,7 @@ import {
   TruncatingLabel,
 } from '../Shared/Shared';
 
-export const CustomCell: React.FC<{ disabled: boolean }> = ({
+export const CustomCell: React.FC<PropsWithChildren<{ disabled: boolean }>> = ({
   disabled,
   children,
 }) => {

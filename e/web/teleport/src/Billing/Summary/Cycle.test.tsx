@@ -69,7 +69,7 @@ describe('cycle', () => {
     renderWithElementsAndContext(<Cycle {...props} />);
 
     const mau = screen.getByTestId(/Active Users/i);
-    const mauIcon = within(mau).getByRole(/icon/i);
+    const mauIcon = within(mau).getByRole('icon');
     await userEvent.hover(mauIcon);
     await waitFor(() => {
       expect(
@@ -81,7 +81,7 @@ describe('cycle', () => {
     await userEvent.unhover;
 
     const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
-    const tiaIcon = within(tia).getByRole(/icon/i);
+    const tiaIcon = within(tia).getByRole('icon');
     await userEvent.hover(tiaIcon);
     await waitFor(() => {
       expect(
@@ -93,7 +93,7 @@ describe('cycle', () => {
     await userEvent.unhover;
 
     const tpr = screen.getByTestId(/Teleport Protected Resources/i);
-    const tprIcon = within(tpr).getByRole(/icon/i);
+    const tprIcon = within(tpr).getByRole('icon');
     await userEvent.hover(tprIcon);
     await waitFor(() => {
       expect(
@@ -105,7 +105,7 @@ describe('cycle', () => {
     await userEvent.unhover;
 
     const mad = screen.getByTestId(/Trusted Devices/i);
-    const madIcon = within(mad).getByRole(/icon/i);
+    const madIcon = within(mad).getByRole('icon');
     await userEvent.hover(madIcon);
     await waitFor(() => {
       expect(
@@ -117,7 +117,7 @@ describe('cycle', () => {
     await userEvent.unhover;
 
     const updated = screen.getByTestId('updated-at-display');
-    const updatedIcon = within(updated).getByRole(/icon/i);
+    const updatedIcon = within(updated).getByRole('icon');
     await userEvent.hover(updatedIcon);
     await waitFor(() => {
       expect(screen.getByText('Updated every 12 hours.')).not.toBe(0);

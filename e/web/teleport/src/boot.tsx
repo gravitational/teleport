@@ -1,5 +1,7 @@
-import ReactDOM from 'react-dom';
 import React from 'react';
+
+import { createRoot } from 'react-dom/client';
+
 import history from 'teleport/services/history';
 
 import 'teleport/lib/polyfillRandomUuid';
@@ -21,7 +23,6 @@ if (localStorage.getItem('enable-telemetry') === 'true') {
 
 const teleportContextE = new TeleportContextE();
 
-ReactDOM.render(
-  <TeleportE history={history.original()} ctx={teleportContextE} />,
-  document.getElementById('app')
+createRoot(document.getElementById('app')).render(
+  <TeleportE history={history.original()} ctx={teleportContextE} />
 );

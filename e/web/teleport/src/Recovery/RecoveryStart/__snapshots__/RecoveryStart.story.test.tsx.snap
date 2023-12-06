@@ -1,18 +1,25 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render correct form for clicking forgot mfa device 1`] = `
-.c2 {
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 704px;
+}
+
+.c3 {
   box-sizing: border-box;
   padding: 32px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   margin-bottom: 24px;
   width: 100%;
 }
 
-.c7 {
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -40,32 +47,28 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   width: 100%;
 }
 
-.c7:hover,
-.c7:focus {
+.c8:hover,
+.c8:focus {
   background: #B29DFF;
 }
 
-.c7:active {
+.c8:active {
   background: #C5B6FF;
 }
 
-.c7:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  width: 704px;
+.c1 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c1 {
+.c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -77,7 +80,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   text-align: center;
 }
 
-.c3 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -85,7 +88,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   color: rgba(255,255,255,0.72);
 }
 
-.c6 {
+.c7 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -101,31 +104,31 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   margin-top: 4px;
 }
 
-.c6:hover,
-.c6:focus,
-.c6:active {
+.c7:hover,
+.c7:focus,
+.c7:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c6::-ms-clear {
+.c7::-ms-clear {
   display: none;
 }
 
-.c6::placeholder {
+.c7::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c6:read-only {
+.c7:read-only {
   cursor: not-allowed;
 }
 
-.c6:disabled {
+.c7:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c5 {
+.c6 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -134,36 +137,36 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 }
 
 <form
-  class="c0"
+  class="c0 c1"
   width="704px"
 >
   <div
-    class="c1"
+    class="c2"
     color="text.main"
   >
     Two-Factor Device Recovery
   </div>
   <div
-    class="c2"
+    class="c3"
   >
     <div
-      class="c3"
+      class="c4"
       color="text.slightlyMuted"
     >
       Please enter the username for your account and one of your recovery codes. We'll send you an email with a link to the recovery process for your account.
     </div>
     <div
-      class="c4"
+      class="c5"
       width="100%"
     >
       <label
-        class="c5"
+        class="c6"
         font-size="0"
       >
         Username
         <input
           autocomplete="off"
-          class="c6"
+          class="c7"
           inputmode="text"
           type="text"
           value=""
@@ -171,17 +174,17 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
       </label>
     </div>
     <div
-      class="c4"
+      class="c5"
       width="100%"
     >
       <label
-        class="c5"
+        class="c6"
         font-size="0"
       >
         Recovery Code (Use 1 Recovery Code)
         <input
           autocomplete="off"
-          class="c6"
+          class="c7"
           inputmode="text"
           type="text"
           value=""
@@ -189,7 +192,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
       </label>
     </div>
     <button
-      class="c7"
+      class="c8"
       kind="primary"
       type="submit"
       width="100%"
@@ -201,18 +204,25 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 `;
 
 exports[`render correct form for clicking forgot password 1`] = `
-.c2 {
+.c0 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  width: 704px;
+}
+
+.c3 {
   box-sizing: border-box;
   padding: 32px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   margin-bottom: 24px;
   width: 100%;
 }
 
-.c7 {
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -240,32 +250,28 @@ exports[`render correct form for clicking forgot password 1`] = `
   width: 100%;
 }
 
-.c7:hover,
-.c7:focus {
+.c8:hover,
+.c8:focus {
   background: #B29DFF;
 }
 
-.c7:active {
+.c8:active {
   background: #C5B6FF;
 }
 
-.c7:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  width: 704px;
+.c1 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c1 {
+.c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -277,7 +283,7 @@ exports[`render correct form for clicking forgot password 1`] = `
   text-align: center;
 }
 
-.c3 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -285,7 +291,7 @@ exports[`render correct form for clicking forgot password 1`] = `
   color: rgba(255,255,255,0.72);
 }
 
-.c6 {
+.c7 {
   appearance: none;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -301,31 +307,31 @@ exports[`render correct form for clicking forgot password 1`] = `
   margin-top: 4px;
 }
 
-.c6:hover,
-.c6:focus,
-.c6:active {
+.c7:hover,
+.c7:focus,
+.c7:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
-.c6::-ms-clear {
+.c7::-ms-clear {
   display: none;
 }
 
-.c6::placeholder {
+.c7::placeholder {
   color: rgba(255,255,255,0.54);
   opacity: 1;
 }
 
-.c6:read-only {
+.c7:read-only {
   cursor: not-allowed;
 }
 
-.c6:disabled {
+.c7:disabled {
   color: rgba(255,255,255,0.36);
   border-color: rgba(255,255,255,0.36);
 }
 
-.c5 {
+.c6 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -334,36 +340,36 @@ exports[`render correct form for clicking forgot password 1`] = `
 }
 
 <form
-  class="c0"
+  class="c0 c1"
   width="704px"
 >
   <div
-    class="c1"
+    class="c2"
     color="text.main"
   >
     Password Recovery
   </div>
   <div
-    class="c2"
+    class="c3"
   >
     <div
-      class="c3"
+      class="c4"
       color="text.slightlyMuted"
     >
       Please enter the username for your account and one of your recovery codes. We'll send you an email with a link to the recovery process for your account.
     </div>
     <div
-      class="c4"
+      class="c5"
       width="100%"
     >
       <label
-        class="c5"
+        class="c6"
         font-size="0"
       >
         Username
         <input
           autocomplete="off"
-          class="c6"
+          class="c7"
           inputmode="text"
           type="text"
           value=""
@@ -371,17 +377,17 @@ exports[`render correct form for clicking forgot password 1`] = `
       </label>
     </div>
     <div
-      class="c4"
+      class="c5"
       width="100%"
     >
       <label
-        class="c5"
+        class="c6"
         font-size="0"
       >
         Recovery Code (Use 1 Recovery Code)
         <input
           autocomplete="off"
-          class="c6"
+          class="c7"
           inputmode="text"
           type="text"
           value=""
@@ -389,7 +395,7 @@ exports[`render correct form for clicking forgot password 1`] = `
       </label>
     </div>
     <button
-      class="c7"
+      class="c8"
       kind="primary"
       type="submit"
       width="100%"

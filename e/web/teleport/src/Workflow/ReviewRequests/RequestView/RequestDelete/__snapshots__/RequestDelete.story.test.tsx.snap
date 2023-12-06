@@ -1,16 +1,47 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`approved role escalation 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
 .c11 {
   box-sizing: border-box;
 }
 
-.c16 {
+.c17 {
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 8px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
+.c19 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c21 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c17 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -36,22 +67,22 @@ exports[`approved role escalation 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c22:hover,
+.c22:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c22:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c19 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -78,22 +109,22 @@ exports[`approved role escalation 1`] = `
   margin-right: 16px;
 }
 
-.c19:hover,
-.c19:focus {
+.c23:hover,
+.c23:focus {
   background: #FF8179;
 }
 
-.c19:active {
+.c23:active {
   background: #FFA19A;
 }
 
-.c19:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c20 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -119,22 +150,22 @@ exports[`approved role escalation 1`] = `
   padding: 0px 24px;
 }
 
-.c20:hover,
-.c20:focus {
+.c24:hover,
+.c24:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c20:active {
+.c24:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c20:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -145,7 +176,7 @@ exports[`approved role escalation 1`] = `
   color: #FFFFFF;
 }
 
-.c9 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -155,7 +186,7 @@ exports[`approved role escalation 1`] = `
   margin-right: 4px;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -165,7 +196,7 @@ exports[`approved role escalation 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -176,7 +207,7 @@ exports[`approved role escalation 1`] = `
   margin-top: 8px;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -191,34 +222,33 @@ exports[`approved role escalation 1`] = `
   margin-right: 4px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c10 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c8 {
-  box-sizing: border-box;
+.c12 {
   display: flex;
   align-items: baseline;
 }
 
-.c14 {
-  box-sizing: border-box;
-  margin-top: 8px;
-  padding: 8px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c18 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c15 {
-  box-sizing: border-box;
-  margin-right: 8px;
+.c20 {
   display: flex;
 }
 
@@ -271,26 +301,6 @@ exports[`approved role escalation 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c18 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -308,38 +318,38 @@ exports[`approved role escalation 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Delete Request?
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9 c10"
         >
           <div
-            class="c8"
+            class="c11 c12"
           >
             <div
-              class="c9"
+              class="c13"
             >
               You are about to delete a request from
             </div>
             <div
-              class="c10"
+              class="c14"
               title="admin"
             >
               admin
             </div>
              
             <div
-              class="c9"
+              class="c13"
             >
               for the following roles:
             </div>
@@ -347,7 +357,7 @@ exports[`approved role escalation 1`] = `
               class="c11"
             >
               <div
-                class="c12"
+                class="c15"
                 kind="secondary"
               >
                 dba
@@ -356,20 +366,20 @@ exports[`approved role escalation 1`] = `
           </div>
         </div>
         <div
-          class="c13"
+          class="c16"
         >
           Since this access request has already been approved, deleting the request now will NOT remove the user's access to these roles. If you would like to lock the user's access to the requested roles, you can run:
         </div>
         <div
-          class="c14"
+          class="c17 c18"
           color="light"
         >
           <div
-            class="c15"
+            class="c19 c20"
             style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div
-              class="c16"
+              class="c21"
               style="user-select: none;"
             >
               $
@@ -379,7 +389,7 @@ exports[`approved role escalation 1`] = `
             </div>
           </div>
           <button
-            class="c17"
+            class="c22"
             kind="primary"
             style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
           >
@@ -388,16 +398,16 @@ exports[`approved role escalation 1`] = `
         </div>
       </div>
       <div
-        class="c18"
+        class="c11"
       >
         <button
-          class="c19"
+          class="c23"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c20"
+          class="c24"
           kind="secondary"
         >
           Cancel
@@ -409,7 +419,7 @@ exports[`approved role escalation 1`] = `
 `;
 
 exports[`failed state 1`] = `
-.c7 {
+.c9 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -426,15 +436,32 @@ exports[`failed state 1`] = `
   color: #000000;
 }
 
-.c7 a {
+.c9 a {
   color: #FFFFFF;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
 }
 
 .c12 {
   box-sizing: border-box;
 }
 
-.c15 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -461,19 +488,289 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c15:hover,
-.c15:focus {
+.c17:hover,
+.c17:focus {
   background: #FF8179;
 }
 
-.c15:active {
+.c17:active {
   background: #FFA19A;
 }
 
-.c15:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
+}
+
+.c18 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c18:hover,
+.c18:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c18:active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c18:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+}
+
+.c16 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c11 {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c13 {
+  display: flex;
+  align-items: baseline;
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #222C59;
+  color: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  max-width: 550px;
+  width: 100%;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4 c5"
+      >
+        <div
+          class="c6"
+          color="text.main"
+        >
+          Delete Request?
+        </div>
+      </div>
+      <div
+        class="c7 c8"
+      >
+        <div
+          class="c9"
+          kind="danger"
+        >
+          server error
+        </div>
+        <div
+          class="c10 c11"
+        >
+          <div
+            class="c12 c13"
+          >
+            <div
+              class="c14"
+            >
+              You are about to delete a request from
+            </div>
+            <div
+              class="c15"
+              title="admin"
+            >
+              admin
+            </div>
+             
+            <div
+              class="c14"
+            >
+              for the following roles:
+            </div>
+            <div
+              class="c12"
+            >
+              <div
+                class="c16"
+                kind="secondary"
+              >
+                dba
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c12"
+      >
+        <button
+          class="c17"
+          kind="warning"
+        >
+          Delete Request
+        </button>
+        <button
+          class="c18"
+          kind="secondary"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`loaded state 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
+.c11 {
+  box-sizing: border-box;
 }
 
 .c16 {
@@ -495,272 +792,6 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c16:hover,
-.c16:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c16:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c16:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: #FFFFFF;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c13 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
-}
-
-.c8 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.c9 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: baseline;
-}
-
-.c1 {
-  z-index: -1;
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-  background-color: rgba(0,0,0,0.5);
-  opacity: 1;
-  touch-action: none;
-}
-
-.c0 {
-  position: fixed;
-  z-index: 1200;
-  right: 0;
-  bottom: 0;
-  top: 0;
-  left: 0;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  max-width: 550px;
-  width: 100%;
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c14 {
-  box-sizing: border-box;
-}
-
-<div
-  class="c0"
-  data-testid="Modal"
->
-  <div
-    aria-hidden="true"
-    class="c1"
-    data-testid="backdrop"
-  />
-  <div
-    class="c2"
-  >
-    <div
-      class="c3"
-      data-testid="dialogbox"
-    >
-      <div
-        class="c4"
-      >
-        <div
-          class="c5"
-          color="text.main"
-        >
-          Delete Request?
-        </div>
-      </div>
-      <div
-        class="c6"
-      >
-        <div
-          class="c7"
-          kind="danger"
-        >
-          server error
-        </div>
-        <div
-          class="c8"
-        >
-          <div
-            class="c9"
-          >
-            <div
-              class="c10"
-            >
-              You are about to delete a request from
-            </div>
-            <div
-              class="c11"
-              title="admin"
-            >
-              admin
-            </div>
-             
-            <div
-              class="c10"
-            >
-              for the following roles:
-            </div>
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-                kind="secondary"
-              >
-                dba
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div
-        class="c14"
-      >
-        <button
-          class="c15"
-          kind="warning"
-        >
-          Delete Request
-        </button>
-        <button
-          class="c16"
-          kind="secondary"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-`;
-
-exports[`loaded state 1`] = `
-.c11 {
-  box-sizing: border-box;
-}
-
-.c14 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
   color: #000000;
   background: #FF6257;
   min-height: 32px;
@@ -769,22 +800,22 @@ exports[`loaded state 1`] = `
   margin-right: 16px;
 }
 
-.c14:hover,
-.c14:focus {
+.c16:hover,
+.c16:focus {
   background: #FF8179;
 }
 
-.c14:active {
+.c16:active {
   background: #FFA19A;
 }
 
-.c14:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -810,22 +841,22 @@ exports[`loaded state 1`] = `
   padding: 0px 24px;
 }
 
-.c15:hover,
-.c15:focus {
+.c17:hover,
+.c17:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active {
+.c17:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c15:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -836,7 +867,7 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c9 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -846,7 +877,7 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -856,7 +887,7 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -871,15 +902,22 @@ exports[`loaded state 1`] = `
   margin-right: 4px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c10 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c8 {
-  box-sizing: border-box;
+.c12 {
   display: flex;
   align-items: baseline;
 }
@@ -933,26 +971,6 @@ exports[`loaded state 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c13 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -970,38 +988,38 @@ exports[`loaded state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Delete Request?
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9 c10"
         >
           <div
-            class="c8"
+            class="c11 c12"
           >
             <div
-              class="c9"
+              class="c13"
             >
               You are about to delete a request from
             </div>
             <div
-              class="c10"
+              class="c14"
               title="admin"
             >
               admin
             </div>
              
             <div
-              class="c9"
+              class="c13"
             >
               for the following roles:
             </div>
@@ -1009,7 +1027,7 @@ exports[`loaded state 1`] = `
               class="c11"
             >
               <div
-                class="c12"
+                class="c15"
                 kind="secondary"
               >
                 dba
@@ -1019,16 +1037,16 @@ exports[`loaded state 1`] = `
         </div>
       </div>
       <div
-        class="c13"
+        class="c11"
       >
         <button
-          class="c14"
+          class="c16"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c15"
+          class="c17"
           kind="secondary"
         >
           Cancel
@@ -1040,11 +1058,28 @@ exports[`loaded state 1`] = `
 `;
 
 exports[`processing state 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+
 .c11 {
   box-sizing: border-box;
 }
 
-.c14 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1071,22 +1106,22 @@ exports[`processing state 1`] = `
   margin-right: 16px;
 }
 
-.c14:hover,
-.c14:focus {
+.c16:hover,
+.c16:focus {
   background: #FF8179;
 }
 
-.c14:active {
+.c16:active {
   background: #FFA19A;
 }
 
-.c14:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1112,22 +1147,22 @@ exports[`processing state 1`] = `
   padding: 0px 24px;
 }
 
-.c15:hover,
-.c15:focus {
+.c17:hover,
+.c17:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active {
+.c17:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c15:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1138,7 +1173,7 @@ exports[`processing state 1`] = `
   color: #FFFFFF;
 }
 
-.c9 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1148,7 +1183,7 @@ exports[`processing state 1`] = `
   margin-right: 4px;
 }
 
-.c10 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1158,7 +1193,7 @@ exports[`processing state 1`] = `
   margin-right: 4px;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1173,15 +1208,22 @@ exports[`processing state 1`] = `
   margin-right: 4px;
 }
 
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 4px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c10 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c8 {
-  box-sizing: border-box;
+.c12 {
   display: flex;
   align-items: baseline;
 }
@@ -1235,26 +1277,6 @@ exports[`processing state 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c13 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -1272,38 +1294,38 @@ exports[`processing state 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Delete Request?
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9 c10"
         >
           <div
-            class="c8"
+            class="c11 c12"
           >
             <div
-              class="c9"
+              class="c13"
             >
               You are about to delete a request from
             </div>
             <div
-              class="c10"
+              class="c14"
               title="admin"
             >
               admin
             </div>
              
             <div
-              class="c9"
+              class="c13"
             >
               for the following roles:
             </div>
@@ -1311,7 +1333,7 @@ exports[`processing state 1`] = `
               class="c11"
             >
               <div
-                class="c12"
+                class="c15"
                 kind="secondary"
               >
                 dba
@@ -1321,17 +1343,17 @@ exports[`processing state 1`] = `
         </div>
       </div>
       <div
-        class="c13"
+        class="c11"
       >
         <button
-          class="c14"
+          class="c16"
           disabled=""
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c15"
+          class="c17"
           disabled=""
           kind="secondary"
         >

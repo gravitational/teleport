@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render failed state of recovery codes dialog 1`] = `
-.c6 {
+.c7 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,11 +18,22 @@ exports[`render failed state of recovery codes dialog 1`] = `
   color: #000000;
 }
 
-.c6 a {
+.c7 a {
   color: #FFFFFF;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
 .c8 {
+  box-sizing: border-box;
+  margin-top: 16px;
+}
+
+.c9 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -49,22 +60,22 @@ exports[`render failed state of recovery codes dialog 1`] = `
   margin-right: 8px;
 }
 
-.c8:hover,
-.c8:focus {
+.c9:hover,
+.c9:focus {
   background: #B29DFF;
 }
 
-.c8:active {
+.c9:active {
   background: #C5B6FF;
 }
 
-.c8:disabled {
+.c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c9 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -90,22 +101,22 @@ exports[`render failed state of recovery codes dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c9:hover,
-.c9:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c9:active {
+.c10:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c9:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -114,6 +125,11 @@ exports[`render failed state of recovery codes dialog 1`] = `
   text-transform: uppercase;
   margin: 0px;
   color: #FFFFFF;
+}
+
+.c5 {
+  display: flex;
+  align-items: center;
 }
 
 .c1 {
@@ -165,19 +181,6 @@ exports[`render failed state of recovery codes dialog 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c7 {
-  box-sizing: border-box;
-  margin-top: 16px;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -195,32 +198,32 @@ exports[`render failed state of recovery codes dialog 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           An error has occurred
         </div>
       </div>
       <div
-        class="c6"
+        class="c7"
         kind="danger"
       >
         failed to generate recovery codes
       </div>
       <div
-        class="c7"
+        class="c8"
       >
         <button
-          class="c8"
+          class="c9"
           kind="primary"
         >
           Try again
         </button>
         <button
-          class="c9"
+          class="c10"
           kind="secondary"
         >
           Close
@@ -232,21 +235,60 @@ exports[`render failed state of recovery codes dialog 1`] = `
 `;
 
 exports[`render successful first timer recovery codes dialog 1`] = `
-.c8 {
+.c4 {
+  box-sizing: border-box;
+}
+
+.c6 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.c9 {
+  box-sizing: border-box;
+  min-width: 584px;
+  padding: 32px;
+  background-color: #222C59;
+  flex: 4;
+}
+
+.c11 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c16 {
   box-sizing: border-box;
+  padding: 8px;
+  padding-bottom: 24px;
+  padding-left: 16px;
+  background-color: #0C143D;
+  border-radius: 8px;
 }
 
-.c22 {
+.c19 {
+  box-sizing: border-box;
+  margin-left: 8px;
+}
+
+.c24 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  flex: 2;
+}
+
+.c26 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c17 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -272,22 +314,22 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c20:hover,
+.c20:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c20:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c19 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -314,22 +356,22 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   margin-top: 8px;
 }
 
-.c19:hover,
-.c19:focus {
+.c22:hover,
+.c22:focus {
   background: #B29DFF;
 }
 
-.c19:active {
+.c22:active {
   background: #C5B6FF;
 }
 
-.c19:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c20 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -357,35 +399,28 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   width: 100%;
 }
 
-.c20:hover,
-.c20:focus {
+.c23:hover,
+.c23:focus {
   background: #B29DFF;
 }
 
-.c20:active {
+.c23:active {
   background: #C5B6FF;
 }
 
-.c20:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c6 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  border-radius: 8px;
-  overflow: hidden;
+.c8 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c9 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -396,20 +431,20 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 4px;
 }
 
-.c11 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c13 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -418,14 +453,14 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   margin-bottom: 8px;
 }
 
-.c15 {
+.c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-top: 8px;
 }
 
-.c23 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -435,51 +470,26 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   margin-bottom: 8px;
 }
 
-.c24 {
+.c28 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
 
-.c5 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  border-radius: 8px;
-  overflow: hidden;
+.c7 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c7 {
-  box-sizing: border-box;
-  min-width: 584px;
-  padding: 32px;
-  background-color: #222C59;
-  flex: 4;
+.c10 {
   display: flex;
   flex-direction: column;
 }
 
-.c14 {
-  box-sizing: border-box;
-  padding: 8px;
-  padding-bottom: 24px;
-  padding-left: 16px;
-  background-color: #0C143D;
-  border-radius: 8px;
+.c17 {
   display: flex;
   justify-content: space-between;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -531,15 +541,11 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   background: none;
 }
 
-.c4 {
-  box-sizing: border-box;
-}
-
-.c4 .print-only {
+.c5 .print-only {
   visibility: hidden;
 }
 
-.c18 {
+.c21 {
   max-width: 48px;
   width: 100%;
   padding: 4px 8px;
@@ -547,31 +553,25 @@ exports[`render successful first timer recovery codes dialog 1`] = `
   font-size: 10px;
 }
 
-.c21 {
-  box-sizing: border-box;
-  min-width: 384px;
-  padding: 32px;
-  flex: 2;
-  display: flex;
-  flex-direction: column;
+.c25 {
   background: rgba(255,255,255,0.07);
 }
 
 @media print {
-  .c4 {
+  .c5 {
     overflow: hidden;
   }
 
-  .c4 .print,
-  .c4 .print-only {
+  .c5 .print,
+  .c5 .print-only {
     visibility: visible;
   }
 
-  .c4 .no-print {
+  .c5 .no-print {
     visibility: hidden;
   }
 
-  .c4 .codes {
+  .c5 .codes {
     font-size: 16px;
   }
 }
@@ -593,50 +593,50 @@ exports[`render successful first timer recovery codes dialog 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5 sc-AxirZ c6 no-print"
+          class="c6 c7 sc-gEvEer c6 c8 no-print"
           overflow="hidden"
         >
           <div
-            class="c7 print"
+            class="c9 c10 print"
           >
             <div
-              class="c8"
+              class="c11"
             >
               <div
-                class="c9"
+                class="c12"
                 color="text.main"
               >
                 Backup & Recovery Codes
               </div>
               <div
-                class="c10"
+                class="c13"
               >
                 Please save these account recovery codes in a safe offline place.
               </div>
               <div
-                class="c11"
+                class="c14"
               >
                 You can use each code once if you lose your second factor authenticator or password.
               </div>
             </div>
             <div
-              class="c12"
+              class="c4"
             >
               <div
-                class="c13"
+                class="c15"
               >
                 Recovery Codes (
                 3
                  Total)
               </div>
               <div
-                class="c14"
+                class="c16 c17"
               >
                 <div
-                  class="c15 codes"
+                  class="c18 codes"
                   style="white-space: pre-wrap;"
                 >
                   tele-testword-testword-testword-testword-testword-testword-testword
@@ -646,16 +646,16 @@ tele-testword-testword-testword-testword-testword-testword-testword
 tele-testword-testword-testword-testword-testword-testword-testword
                 </div>
                 <div
-                  class="c16 no-print"
+                  class="c19 c10 no-print"
                 >
                   <button
-                    class="c17 c18"
+                    class="c20 c21"
                     kind="primary"
                   >
                     COPY
                   </button>
                   <button
-                    class="c19 c18"
+                    class="c22 c21"
                     kind="primary"
                   >
                     PRINT
@@ -663,12 +663,12 @@ tele-testword-testword-testword-testword-testword-testword-testword
                 </div>
               </div>
               <div
-                class="c11 print-only"
+                class="c14 print-only"
               >
                 Created: Fri Aug 30 2019 11:00:00 GMT+0000 (Coordinated Universal Time)
               </div>
               <button
-                class="c20 no-print"
+                class="c23 no-print"
                 kind="primary"
                 width="100%"
               >
@@ -677,33 +677,33 @@ tele-testword-testword-testword-testword-testword-testword-testword
             </div>
           </div>
           <div
-            class="c21"
+            class="c24 c10 c25"
           >
             <div
-              class="c22"
+              class="c26"
             >
               <div
-                class="c23"
+                class="c27"
               >
                 Why do I need these codes?
               </div>
               <div
-                class="c24"
+                class="c28"
                 color="text.slightlyMuted"
               >
                 Use them in the event of losing your password or two-factor device.
               </div>
             </div>
             <div
-              class="c22"
+              class="c26"
             >
               <div
-                class="c23"
+                class="c27"
               >
                 How long do the codes last for?
               </div>
               <div
-                class="c24"
+                class="c28"
                 color="text.slightlyMuted"
               >
                 Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
@@ -718,21 +718,60 @@ tele-testword-testword-testword-testword-testword-testword-testword
 `;
 
 exports[`render successful recovery codes dialog 1`] = `
-.c8 {
+.c4 {
+  box-sizing: border-box;
+}
+
+.c6 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.c9 {
+  box-sizing: border-box;
+  min-width: 584px;
+  padding: 32px;
+  background-color: #222C59;
+  flex: 4;
+}
+
+.c11 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c12 {
+.c16 {
   box-sizing: border-box;
+  padding: 8px;
+  padding-bottom: 24px;
+  padding-left: 16px;
+  background-color: #0C143D;
+  border-radius: 8px;
 }
 
-.c22 {
+.c19 {
+  box-sizing: border-box;
+  margin-left: 8px;
+}
+
+.c24 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  flex: 2;
+}
+
+.c26 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c17 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -758,22 +797,22 @@ exports[`render successful recovery codes dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c20:hover,
+.c20:focus {
   background: #B29DFF;
 }
 
-.c17:active {
+.c20:active {
   background: #C5B6FF;
 }
 
-.c17:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c19 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -800,22 +839,22 @@ exports[`render successful recovery codes dialog 1`] = `
   margin-top: 8px;
 }
 
-.c19:hover,
-.c19:focus {
+.c22:hover,
+.c22:focus {
   background: #B29DFF;
 }
 
-.c19:active {
+.c22:active {
   background: #C5B6FF;
 }
 
-.c19:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c20 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -843,35 +882,28 @@ exports[`render successful recovery codes dialog 1`] = `
   width: 100%;
 }
 
-.c20:hover,
-.c20:focus {
+.c23:hover,
+.c23:focus {
   background: #B29DFF;
 }
 
-.c20:active {
+.c23:active {
   background: #C5B6FF;
 }
 
-.c20:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c6 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  border-radius: 8px;
-  overflow: hidden;
+.c8 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c9 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -882,20 +914,20 @@ exports[`render successful recovery codes dialog 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 4px;
 }
 
-.c11 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c13 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -904,14 +936,14 @@ exports[`render successful recovery codes dialog 1`] = `
   margin-bottom: 8px;
 }
 
-.c15 {
+.c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-top: 8px;
 }
 
-.c23 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -921,51 +953,26 @@ exports[`render successful recovery codes dialog 1`] = `
   margin-bottom: 8px;
 }
 
-.c24 {
+.c28 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
 
-.c5 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  border-radius: 8px;
-  overflow: hidden;
+.c7 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c7 {
-  box-sizing: border-box;
-  min-width: 584px;
-  padding: 32px;
-  background-color: #222C59;
-  flex: 4;
+.c10 {
   display: flex;
   flex-direction: column;
 }
 
-.c14 {
-  box-sizing: border-box;
-  padding: 8px;
-  padding-bottom: 24px;
-  padding-left: 16px;
-  background-color: #0C143D;
-  border-radius: 8px;
+.c17 {
   display: flex;
   justify-content: space-between;
-}
-
-.c16 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  display: flex;
-  flex-direction: column;
 }
 
 .c1 {
@@ -1017,15 +1024,11 @@ exports[`render successful recovery codes dialog 1`] = `
   background: none;
 }
 
-.c4 {
-  box-sizing: border-box;
-}
-
-.c4 .print-only {
+.c5 .print-only {
   visibility: hidden;
 }
 
-.c18 {
+.c21 {
   max-width: 48px;
   width: 100%;
   padding: 4px 8px;
@@ -1033,31 +1036,25 @@ exports[`render successful recovery codes dialog 1`] = `
   font-size: 10px;
 }
 
-.c21 {
-  box-sizing: border-box;
-  min-width: 384px;
-  padding: 32px;
-  flex: 2;
-  display: flex;
-  flex-direction: column;
+.c25 {
   background: rgba(255,255,255,0.07);
 }
 
 @media print {
-  .c4 {
+  .c5 {
     overflow: hidden;
   }
 
-  .c4 .print,
-  .c4 .print-only {
+  .c5 .print,
+  .c5 .print-only {
     visibility: visible;
   }
 
-  .c4 .no-print {
+  .c5 .no-print {
     visibility: hidden;
   }
 
-  .c4 .codes {
+  .c5 .codes {
     font-size: 16px;
   }
 }
@@ -1079,50 +1076,50 @@ exports[`render successful recovery codes dialog 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5 sc-AxirZ c6 no-print"
+          class="c6 c7 sc-gEvEer c6 c8 no-print"
           overflow="hidden"
         >
           <div
-            class="c7 print"
+            class="c9 c10 print"
           >
             <div
-              class="c8"
+              class="c11"
             >
               <div
-                class="c9"
+                class="c12"
                 color="text.main"
               >
                 New Backup & Recovery Codes
               </div>
               <div
-                class="c10"
+                class="c13"
               >
                 Please save these account recovery codes in a safe offline place.
               </div>
               <div
-                class="c11"
+                class="c14"
               >
                 You can use each code once if you lose your second factor authenticator or password.
               </div>
             </div>
             <div
-              class="c12"
+              class="c4"
             >
               <div
-                class="c13"
+                class="c15"
               >
                 Recovery Codes (
                 3
                  Total)
               </div>
               <div
-                class="c14"
+                class="c16 c17"
               >
                 <div
-                  class="c15 codes"
+                  class="c18 codes"
                   style="white-space: pre-wrap;"
                 >
                   tele-testword-testword-testword-testword-testword-testword-testword
@@ -1132,16 +1129,16 @@ tele-testword-testword-testword-testword-testword-testword-testword
 tele-testword-testword-testword-testword-testword-testword-testword
                 </div>
                 <div
-                  class="c16 no-print"
+                  class="c19 c10 no-print"
                 >
                   <button
-                    class="c17 c18"
+                    class="c20 c21"
                     kind="primary"
                   >
                     COPY
                   </button>
                   <button
-                    class="c19 c18"
+                    class="c22 c21"
                     kind="primary"
                   >
                     PRINT
@@ -1149,12 +1146,12 @@ tele-testword-testword-testword-testword-testword-testword-testword
                 </div>
               </div>
               <div
-                class="c11 print-only"
+                class="c14 print-only"
               >
                 Created: Fri Aug 30 2019 11:00:00 GMT+0000 (Coordinated Universal Time)
               </div>
               <button
-                class="c20 no-print"
+                class="c23 no-print"
                 kind="primary"
                 width="100%"
               >
@@ -1163,48 +1160,48 @@ tele-testword-testword-testword-testword-testword-testword-testword
             </div>
           </div>
           <div
-            class="c21"
+            class="c24 c10 c25"
           >
             <div
-              class="c22"
+              class="c26"
             >
               <div
-                class="c23"
+                class="c27"
               >
                 Why do I need these codes?
               </div>
               <div
-                class="c24"
+                class="c28"
                 color="text.slightlyMuted"
               >
                 Use them in the event of losing your password or two-factor device.
               </div>
             </div>
             <div
-              class="c22"
+              class="c26"
             >
               <div
-                class="c23"
+                class="c27"
               >
                 How long do the codes last for?
               </div>
               <div
-                class="c24"
+                class="c28"
                 color="text.slightlyMuted"
               >
                 Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
               </div>
             </div>
             <div
-              class="c12"
+              class="c4"
             >
               <div
-                class="c23"
+                class="c27"
               >
                 What about my old codes?
               </div>
               <div
-                class="c24"
+                class="c28"
                 color="text.slightlyMuted"
               >
                 Your old recovery codes are no longer valid, please replace them with these new ones.
