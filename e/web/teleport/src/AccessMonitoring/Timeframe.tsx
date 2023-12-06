@@ -1,9 +1,13 @@
 import React from 'react';
 import styled from 'styled-components';
-
+import { components } from 'react-select';
 import Select, { Option } from 'shared/components/Select';
+import cfg from 'teleport/config';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
+import Box from 'design/Box';
 
-export type Days = 7 | 30 | 90;
+export type Days = 0 | 7 | 30 | 90 | 120;
 
 interface TimeframeProps {
   days: Days;
@@ -11,11 +15,35 @@ interface TimeframeProps {
 }
 
 const StyledSelect = styled.div`
-  flex: 0 0 150px;
+  flex: 0 0 250px;
+  .react-select__option--is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    &:hover {
+      background-color: none;
+    }
+  }
+
+  .react-select__option__btn {
+    background: none;
+    &:hover {
+      cursor: auto;
+      background: none;
+    }
+  }
 `;
 
+type DurationOption = Option<Days> & {
+  isDisabled?: boolean;
+};
+
+function isIgsDisabled() {
+  return cfg.isUsageBasedBilling && !cfg.isIgsEnabled;
+}
+
 export function Timeframe(props: TimeframeProps) {
-  const timeframes: Option<Days>[] = [
+  const disabled = isIgsDisabled();
+  const timeframes: DurationOption[] = [
     {
       label: 'Last 7 days',
       value: 7,
@@ -27,6 +55,12 @@ export function Timeframe(props: TimeframeProps) {
     {
       label: 'Last 90 days',
       value: 90,
+      isDisabled: disabled,
+    },
+    {
+      label: 'Last 120 days',
+      value: 120,
+      isDisabled: disabled,
     },
   ];
 
@@ -39,12 +73,53 @@ export function Timeframe(props: TimeframeProps) {
   }
 
   return (
-    <StyledSelect>
+    <StyledSelect disabled={!cfg.isIgsEnabled}>
       <Select
         onChange={handleChange}
         value={selectedTimeframe}
         options={timeframes}
+        components={{
+          Option: OptionComponent,
+          MenuList: MenuListComponent,
+        }}
       />
     </StyledSelect>
   );
 }
+
+const OptionComponent = props => {
+  return (
+    <components.Option
+      {...props}
+      className={`react-select__option${!props.value ? '__btn' : ''}`}
+    >
+      {props.label}
+    </components.Option>
+  );
+};
+
+const MenuListComponent = props => {
+  let plan = cfg.isTeam
+    ? 'Teleport Enterprise'
+    : 'Identity Governance & Security';
+  return (
+    <>
+      <components.MenuList {...props}>{props.children}</components.MenuList>
+      {isIgsDisabled() && (
+        <Box
+          p={2}
+          css={`
+            background-color: transparent;
+          `}
+        >
+          <ButtonLockedFeature
+            event={CtaEvent.CTA_ACCESS_MONITORING}
+            noIcon={true}
+          >
+            Unlock higher range with {plan}
+          </ButtonLockedFeature>
+        </Box>
+      )}
+    </>
+  );
+};

@@ -31,15 +31,14 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 	// https://github.com/gravitational/teleport.e/blob/9b826916ba7d79b1b649286607c358252061f5c5/tool/modules/modules.go#L184
 	if isLegacyEnterpiseCloud := !resp.IsUsageBased; isLegacyEnterpiseCloud {
 		return &modules.Features{
-			Kubernetes:     true,
-			App:            true,
-			DB:             true,
-			Desktop:        true,
-			Cloud:          true,
-			OIDC:           true,
-			SAML:           true,
-			AccessControls: true,
-			// Legacy flag.
+			Kubernetes:              true,
+			App:                     true,
+			DB:                      true,
+			Desktop:                 true,
+			Cloud:                   true,
+			OIDC:                    true,
+			SAML:                    true,
+			AccessControls:          true,
 			AdvancedAccessWorkflows: true,
 			HSM:                     true,
 			RecoveryCodes:           true,
@@ -48,7 +47,6 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			// Assist is disabled by default.
 			Assist: false,
 			DeviceTrust: modules.DeviceTrustFeature{
-				// Legacy flag.
 				Enabled: true,
 			},
 		}, nil
@@ -93,6 +91,8 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 		f.AccessList = GetUsageBasedAccessListFeatureLimits()
 		f.AccessRequests = GetUsageBasedAccessRequestFeatureLimits()
 		f.DeviceTrust = GetUsageBasedDeviceTrustFeatureLimits()
+		// access monitoring enabling will be determined outside of feature reading.
+		f.AccessMonitoring = GetUsageBasedAccessMonitoringFeatureLimits(false)
 	}
 
 	return f, nil
@@ -140,11 +140,20 @@ func GetUsageBasedAccessRequestFeatureLimits() modules.AccessRequestsFeature {
 	}
 }
 
-// GetUsageBasedAccessRequestFeatureLimits defines limits for device trust
+// GetUsageBasedDeviceTrustFeatureLimits defines limits for device trust
 // feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
 func GetUsageBasedDeviceTrustFeatureLimits() modules.DeviceTrustFeature {
 	return modules.DeviceTrustFeature{
 		Enabled:           true, // always enabled currently
 		DevicesUsageLimit: 5,
+	}
+}
+
+// GetUsageBasedAccessRequestFeatureLimits defines limits for device trust
+// feature for usage based plans eg: Team or EUB (Enterprise Usage Based).
+func GetUsageBasedAccessMonitoringFeatureLimits(enabled bool) modules.AccessMonitoringFeature {
+	return modules.AccessMonitoringFeature{
+		Enabled:             enabled,
+		MaxReportRangeLimit: 30,
 	}
 }

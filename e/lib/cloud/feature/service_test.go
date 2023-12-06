@@ -181,6 +181,7 @@ func TestRun_UsageBased(t *testing.T) {
 		DeviceTrust:         GetUsageBasedDeviceTrustFeatureLimits(),
 		AccessRequests:      GetUsageBasedAccessRequestFeatureLimits(),
 		AccessList:          GetUsageBasedAccessListFeatureLimits(),
+		AccessMonitoring:    GetUsageBasedAccessMonitoringFeatureLimits(false),
 		IsUsageBasedBilling: true,
 		ProductType:         modules.ProductTypeTeam,
 	})
@@ -203,6 +204,7 @@ func TestRun_UsageBased(t *testing.T) {
 		DeviceTrust:         GetUsageBasedDeviceTrustFeatureLimits(),
 		AccessRequests:      GetUsageBasedAccessRequestFeatureLimits(),
 		AccessList:          GetUsageBasedAccessListFeatureLimits(),
+		AccessMonitoring:    GetUsageBasedAccessMonitoringFeatureLimits(false),
 		IsUsageBasedBilling: true,
 		ProductType:         modules.ProductTypeTeam,
 	}
@@ -231,6 +233,7 @@ func TestRun_UsageBased(t *testing.T) {
 		DeviceTrust:             GetUsageBasedDeviceTrustFeatureLimits(),
 		AccessRequests:          GetUsageBasedAccessRequestFeatureLimits(),
 		AccessList:              GetUsageBasedAccessListFeatureLimits(),
+		AccessMonitoring:        GetUsageBasedAccessMonitoringFeatureLimits(false),
 		IsUsageBasedBilling:     true,
 		ProductType:             modules.ProductTypeEUB,
 		AdvancedAccessWorkflows: true,
@@ -261,6 +264,10 @@ func TestRun_UsageBased(t *testing.T) {
 		},
 		AccessList: modules.AccessListFeature{
 			CreateLimit: 0,
+		},
+		AccessMonitoring: modules.AccessMonitoringFeature{
+			Enabled:             false,
+			MaxReportRangeLimit: 0,
 		},
 		IsUsageBasedBilling:        true,
 		IdentityGovernanceSecurity: true,

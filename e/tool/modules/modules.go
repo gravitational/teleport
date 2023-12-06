@@ -230,6 +230,8 @@ func getLicenseFeatures(license types.License) modules.Features {
 			f.AccessList = feature.GetUsageBasedAccessListFeatureLimits()
 			f.AccessRequests = feature.GetUsageBasedAccessRequestFeatureLimits()
 			f.DeviceTrust = feature.GetUsageBasedDeviceTrustFeatureLimits()
+			// access monitoring enabling will be determined outside of license reading.
+			f.AccessMonitoring = feature.GetUsageBasedAccessMonitoringFeatureLimits(false)
 		}
 	}
 

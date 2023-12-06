@@ -61,6 +61,7 @@ func TestGetLicenseFeatures(t *testing.T) {
 				DeviceTrust:             feature.GetUsageBasedDeviceTrustFeatureLimits(),
 				AccessRequests:          feature.GetUsageBasedAccessRequestFeatureLimits(),
 				AccessList:              feature.GetUsageBasedAccessListFeatureLimits(),
+				AccessMonitoring:        feature.GetUsageBasedAccessMonitoringFeatureLimits(false),
 				ProductType:             modules.ProductTypeEUB,
 			},
 		},
@@ -92,6 +93,10 @@ func TestGetLicenseFeatures(t *testing.T) {
 				},
 				AccessList: modules.AccessListFeature{
 					CreateLimit: 0,
+				},
+				AccessMonitoring: modules.AccessMonitoringFeature{
+					Enabled:             false,
+					MaxReportRangeLimit: 0,
 				},
 				ProductType:                modules.ProductTypeEUB,
 				IdentityGovernanceSecurity: true,

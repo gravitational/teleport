@@ -5,6 +5,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func validateRequest(req any) error {
@@ -15,6 +16,9 @@ func validateRequest(req any) error {
 		}
 		if ok := slices.Contains(reportValidDaysRange, t.Days); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
+		}
+		if err := verifyAccessMonitoringMaxReportRangeLimit(t.Days); err != nil {
+			return trace.Wrap(err)
 		}
 
 	case *pb.GetAuditQueryResultRequest:
@@ -28,6 +32,9 @@ func validateRequest(req any) error {
 		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days)); err != nil {
+			return trace.Wrap(err)
+		}
 	case *pb.GetReportResultRequest:
 		if t.Name == "" {
 			return trace.BadParameter("missing name")
@@ -38,12 +45,18 @@ func validateRequest(req any) error {
 		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days)); err != nil {
+			return trace.Wrap(err)
+		}
 	case *pb.RunReportRequest:
 		if t.Name == "" {
 			return trace.BadParameter("missing name")
 		}
 		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
+		}
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days)); err != nil {
+			return trace.Wrap(err)
 		}
 	case *pb.DeleteReportRequest:
 		if t.Name == "" {
@@ -57,5 +70,19 @@ func validateRequest(req any) error {
 	default:
 		return trace.BadParameter("unknown request type: %T", req)
 	}
+	return nil
+}
+
+func verifyAccessMonitoringMaxReportRangeLimit(days int32) error {
+	f := modules.GetModules().Features()
+	// TODO(lisa): checking for legacy is temporary until nearing v15.
+	if f.IsLegacy() || f.IGSEnabled() {
+		return nil // any range supported
+	}
+
+	if days > int32(f.AccessMonitoring.MaxReportRangeLimit) {
+		return trace.AccessDenied("day range is not supported, please contact the cluster administrator")
+	}
+
 	return nil
 }

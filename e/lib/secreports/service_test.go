@@ -20,12 +20,23 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/reports"
 	"github.com/gravitational/teleport/e/lib/secreports/scheduler"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestService(t *testing.T) {
-	t.Parallel()
+	maxLimit := 7
+	overLimit := 120
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling: true,
+			AccessMonitoring: modules.AccessMonitoringFeature{
+				MaxReportRangeLimit: maxLimit,
+			},
+		},
+	})
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -124,6 +135,54 @@ func TestService(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, string(secreports.Failed), statusResp.Spec.State)
+		}, time.Second*2, time.Millisecond*100)
+	})
+
+	t.Run("run security report with error from max range limit", func(t *testing.T) {
+		clock.Advance(time.Hour)
+		queryFunc := func(ctx context.Context, queryText string, days int) (*query.RunQueryResponse, error) {
+			return &query.RunQueryResponse{
+				ResultID: "1234",
+			}, nil
+		}
+		mustRunReportAndWaitForAllQueries(t, mockAthena, &svc, queryFunc)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+				Name: reports.PrivilegeAccessReport.Name,
+				Days: uint32(overLimit),
+			})
+			assert.Error(t, err)
+			assert.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+		}, time.Second*2, time.Millisecond*100)
+	})
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling:        true,
+			IdentityGovernanceSecurity: true,
+			AccessMonitoring: modules.AccessMonitoringFeature{
+				MaxReportRangeLimit: maxLimit,
+			},
+		},
+	})
+
+	t.Run("run security report without max limit error", func(t *testing.T) {
+		clock.Advance(time.Hour)
+		_, err = svc.RunReport(ctx, &pb.RunReportRequest{
+			Name: reports.PrivilegeAccessReport.Name,
+			Days: uint32(overLimit),
+		})
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+				Name: reports.PrivilegeAccessReport.Name,
+				Days: uint32(overLimit),
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, string(secreports.Ready), statusResp.Spec.State)
+			assert.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -284,7 +343,7 @@ func TestScheduleReportUpdate(t *testing.T) {
 		require.Equal(t, perReportRunQueryCount, s.runQueryCallCount.Load())
 
 		details := s.mustGetDetails(t)
-		wantCurrent := 300
+		wantCurrent := 400
 		require.Equal(t, uint64(wantCurrent), details.Current)
 	})
 
@@ -301,7 +360,7 @@ func TestScheduleReportUpdate(t *testing.T) {
 
 		err = s.svc.schedulesReportsUpdate(ctx)
 		require.NoError(t, err)
-		require.Equal(t, before+3, s.runQueryCallCount.Load())
+		require.Equal(t, before+4, s.runQueryCallCount.Load())
 	})
 
 	t.Run("second run 100% capacity", func(t *testing.T) {
@@ -452,7 +511,6 @@ func mustRunReportAndWaitForAllQueries(t *testing.T, mockAthena *athenaMock, svc
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.Len(t, reports.PrivilegeAccessReport.Queries, int(runQueryCount.Load()))
 	}, time.Second*3, time.Millisecond*100)
-
 }
 
 func mustUpsertReport(t *testing.T, store services.SecReports) {

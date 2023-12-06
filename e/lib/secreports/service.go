@@ -233,8 +233,8 @@ func (s *Service) initPrebuiltReports(ctx context.Context) error {
 }
 
 // reportValidDaysRange is a valid days range for the report time rage.
-// Right now we support only 7, 30, 90 days range.
-var reportValidDaysRange = []int32{7, 30, 90}
+// Right now we support only 7, 30, 90, 120 days range.
+var reportValidDaysRange = []int32{7, 30, 90, 120}
 
 func (s *Service) maybeUpdateSecurityReports(ctx context.Context, threshold time.Duration) error {
 	reports, err := s.storage.GetSecurityReports(ctx)
