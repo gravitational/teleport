@@ -340,8 +340,7 @@ To add smart card authentication to your group policy object:
 
 ### Allow remote desktop connections
 
-To finish configuring the `Teleport Access Policy` group policy object, you need to configure
-policies that allow remote connections to domain computers.
+Next you need to configure policies that allow remote connections to domain computers.
 
 1. Verify that you have the `Teleport Access Policy` group policy object open in the
    group policy editor.
@@ -380,6 +379,29 @@ policies that allow remote connections to domain computers.
    <Figure align="left" bordered caption="Open the Firewall">
    ![Open the Firewall](../../img/desktop-access/firewall.png)
    </Figure>
+
+### Enable RemoteFX
+
+To finish configuring the `Teleport Access Policy` group policy object, you must
+enable RemoteFX. RemoteFX is a compression technology that significantly improves
+the performance of remote desktop connections.
+
+1. Verify that you have the `Teleport Access Policy` group policy object open in the
+   group policy editor.
+
+1. Expand **`Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Remote Session Environment > RemoteFX for Windows Server 2008 R2`**
+
+1. Right-click **Configure RemoteFX**, select **Edit**, select **Enabled**, then click **OK**.
+
+1. Now left-click **Remote Session Environment**
+   (**`Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Remote Session Environment`** in the left pane)
+   and from the items in the right pane, right-click **Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1**, select **Edit**, select **Enabled**, then click **OK**.
+
+   <Figure align="left" bordered caption="Enable RemoteFX">
+   ![Enable RemoteFX](../../img/desktop-access/enable-remotefx.png)
+   </Figure>
+
+1. Again left-click **Remote Session Environment** in the left pane, and from the items in the right pane, right-click **Limit maximum color depth**, select **Edit**, select **Enabled**, then click **OK**.
 
 1. Open PowerShell and run the following command to update your Teleport
    group policy object:
