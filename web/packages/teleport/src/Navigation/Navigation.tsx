@@ -74,20 +74,14 @@ function getFeatureForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
 ) {
-  const feature = features
-    .filter(feature => Boolean(feature.route))
-    .find(feature =>
+  return features.find(
+    feature =>
+      feature.route &&
       matchPath(route.pathname, {
         path: feature.route.path,
         exact: feature.route.exact,
       })
-    );
-
-  if (!feature) {
-    return;
-  }
-
-  return feature;
+  );
 }
 
 function getCategoryForRoute(
