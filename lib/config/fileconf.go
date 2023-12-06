@@ -2204,12 +2204,12 @@ type WindowsDesktopService struct {
 	PKIDomain string `yaml:"pki_domain"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// Hosts is a list of static, AD-connected Windows hosts. This gives users
+	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
 	//
 	// Deprecated: prefer StaticHosts instead.
-	Hosts []string `yaml:"hosts,omitempty"`
+	ADHosts []string `yaml:"hosts,omitempty"`
 	// NonADHosts is a list of standalone Windows hosts that are not
 	// jointed to an Active Directory domain.
 	//
@@ -2226,7 +2226,7 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	hasAD := len(wds.Hosts) > 0 || slices.ContainsFunc(wds.StaticHosts, func(host WindowsHost) bool {
+	hasAD := len(wds.ADHosts) > 0 || slices.ContainsFunc(wds.StaticHosts, func(host WindowsHost) bool {
 		return host.AD
 	})
 
