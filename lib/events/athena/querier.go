@@ -748,7 +748,7 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 				"event_id":   event.GetID(),
 				"event_size": len(eventData),
 			}).Error("Failed to query event exceeding maximum response size.")
-			return true, trace.Wrap(fmt.Errorf(
+			return true, trace.Errorf(
 				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
 				event.GetType(), event.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse)))
 		}
