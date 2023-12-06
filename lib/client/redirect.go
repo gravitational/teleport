@@ -169,6 +169,13 @@ func (rd *Redirector) Start() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if rd.CallbackAddr != "" {
+		callbackURL, err := url.Parse(rd.CallbackAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		u.Host = callbackURL.Host
+	}
 	query := u.Query()
 	query.Set("secret_key", rd.key.String())
 	u.RawQuery = query.Encode()
@@ -220,15 +227,18 @@ func (rd *Redirector) Done() <-chan struct{} {
 }
 
 // ClickableURL returns a short clickable redirect URL
-func (rd *Redirector) ClickableURL() string {
+func (rd *Redirector) ClickableURL() (string, error) {
 	if rd.server == nil {
-		return "<undefined - server is not started>"
+		return "", trace.Errorf("server is not started")
 	}
-	url := rd.server.URL
+	serverURL, err := url.Parse(rd.server.URL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	if rd.CallbackAddr != "" {
-		url = rd.CallbackAddr
+		serverURL.Host = rd.CallbackAddr
 	}
-	return utils.ClickableURL(url + rd.shortPath)
+	return utils.ClickableURL(serverURL.String() + rd.shortPath), nil
 }
 
 // ResponseC returns a channel with response

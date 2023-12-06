@@ -387,7 +387,10 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	}
 	defer rd.Close()
 
-	clickableURL := rd.ClickableURL()
+	clickableURL, err := rd.ClickableURL()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// If a command was found to launch the browser, create and start it.
 	var execCmd *exec.Cmd
