@@ -195,8 +195,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	defer cancelFunc()
 
 	if err := tc.SSH(ctxWithTimeout, []string{"whoami"}, false); err != nil {
-		isConnectMyComputerNode := req.ResourceTile == ResourceTileConnectMyComputer
-		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout, currentUser, isConnectMyComputerNode)
+		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout, currentUser, req)
 	}
 
 	connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
@@ -219,7 +218,9 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 }
 
 func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string,
-	sshPrincipal string, sshError error, processStdout *bytes.Buffer, currentUser types.User, isConnectMyComputerNode bool) (types.ConnectionDiagnostic, error) {
+	sshPrincipal string, sshError error, processStdout *bytes.Buffer, currentUser types.User, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
+	isConnectMyComputerNode := req.ResourceTile == ResourceTileConnectMyComputer
+
 	if trace.IsConnectionProblem(sshError) {
 		message := `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`
 		if isConnectMyComputerNode {
@@ -256,20 +257,23 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 			sshPrincipal, processStdoutString)
 		if isConnectMyComputerNode {
 			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(currentUser.GetName())
-			// Picking a wrong username is more probable than the role being outdated, hence why we first
-			// address the case where the actual test gets executed in step 2.
 			message = "Invalid user."
-			detailedMessage := fmt.Sprintf(
-				"If this is step 2 of the connection test, you probably picked a login which does not match "+
-					"the system user that is running Teleport Connect with the Connect My Computer agent. "+
-					"Pick the correct login and try again.\n"+
-					"If this is step 1 of the connection test and the login was picked automatically, "+
-					"it means that the role %q includes only the login %q and %q is not a valid principal for this node. "+
-					"To fix this problem, reload this page, pick Connect My Computer again, then in Teleport Connect "+
-					"remove the Connect My Computer agent and start Connect My Computer setup again.\n"+
-					"Output from the Connect My Computer agent: %v",
-				connectMyComputerRoleName, sshPrincipal, sshPrincipal, processStdoutString,
-			)
+			outputFromAgent := fmt.Sprintf("Output from the Connect My Computer agent: %v", processStdoutString)
+			retrySetupInstructions := "reload this page, pick Connect My Computer again, then in Teleport Connect " +
+				"remove the Connect My Computer agent and start Connect My Computer setup again."
+
+			var detailedMessage string
+			if req.SSHPrincipalSelectionMode == SSHPrincipalSelectionModeManual {
+				detailedMessage = "You probably picked a login which does not match the system user " +
+					"that is running Teleport Connect. Pick the correct login and try again.\n\n" +
+					"If the list of logins does not include the correct login for this node, " +
+					retrySetupInstructions + "\n\n" + outputFromAgent
+			} else {
+				detailedMessage = fmt.Sprintf("The role %q includes only the login %q and %q is not a valid principal for this node. ",
+					connectMyComputerRoleName, sshPrincipal, sshPrincipal) +
+					"To fix this problem, " + retrySetupInstructions + "\n\n" + outputFromAgent
+			}
+
 			// The wrapping here is done so that the detailed message will be shown under "Show details"
 			// and not as one of the main points of the connection test.
 			sshError = trace.Wrap(sshError, detailedMessage)

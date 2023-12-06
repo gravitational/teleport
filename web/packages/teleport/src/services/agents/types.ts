@@ -119,7 +119,13 @@ export type ConnectionDiagnosticRequest = {
    */
   resourceTile?: ResourceTile; //`json:"resource_tile"`
   sshPrincipal?: string; //`json:"ssh_principal"`
-  kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
+  /**
+   * An optional field which describes whether the SSH principal was chosen manually by the user or
+   * automatically. Used in Connect My Computer which automatically picks the principal if there's
+   * only a single login available in the Connect My Computer role.
+   */
+  sshPrincipalSelectionMode?: 'manual' | 'auto'; //`json:"ssh_principal_selection_mode"`
+  kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation"`
   dbTester?: DatabaseTester;
   mfaAuthnResponse?: MfaAuthnResponse;
 };

@@ -56,6 +56,14 @@ type TestConnectionRequest struct {
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
+	// SSHPrincipalSelectionMode is an optional field which describes whether the user has chosen the
+	// principal manually or if it was automatically chosen.
+	//
+	// Used in Connect My Computer where the principal is picked automatically if the Connect My
+	// Computer role contains only a single login.
+	//
+	// Supported values: "manual", "auto".
+	SSHPrincipalSelectionMode string `json:"ssh_principal_selection_mode,omitempty"`
 
 	// KubernetesNamespace is the Kubernetes Namespace to List the Pods in.
 	// Specific to KubernetesTester.
@@ -94,6 +102,13 @@ type KubernetesImpersonation struct {
 
 const (
 	ResourceTileConnectMyComputer = "connect_my_computer"
+)
+
+// consts for the SSHPrincipalSelectionMode field of TestConnectionRequest.
+
+const (
+	SSHPrincipalSelectionModeManual = "manual"
+	SSHPrincipalSelectionModeAuto   = "auto"
 )
 
 // CheckAndSetDefaults validates the Request has the required fields.

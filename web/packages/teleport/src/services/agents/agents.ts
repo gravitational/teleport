@@ -36,6 +36,7 @@ export const agentService = {
         resource_name: req.resourceName,
         resource_tile: req.resourceTile,
         ssh_principal: req.sshPrincipal,
+        ssh_principal_selection_mode: req.sshPrincipalSelectionMode,
         kubernetes_namespace: req.kubeImpersonation?.namespace,
         kubernetes_impersonation: {
           kubernetes_user: req.kubeImpersonation?.user,
