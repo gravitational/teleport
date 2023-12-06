@@ -2516,7 +2516,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if cf.AssumeTimeRaw != "" {
 		assumeTime, err := time.Parse(time.RFC3339, cf.AssumeTimeRaw)
 		if err != nil {
-			return nil, trace.BadParameter("parsing assum-time: %v", err)
+			return nil, trace.BadParameter("parsing assume-time: %v", err)
 		}
 		req.SetAssumeTime(assumeTime)
 	}
