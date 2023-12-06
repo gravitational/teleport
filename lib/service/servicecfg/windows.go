@@ -50,12 +50,10 @@ type WindowsDesktopConfig struct {
 	// Discovery configures automatic desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig
 
-	// Hosts is an optional list of static Windows hosts to expose through this
-	// service.
-	// Hosts is an optional list of static, AD-connected Windows hosts. This gives users
+	// ADHosts is an optional list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in Discovery (or if Discovery is omitted).
-	Hosts []utils.NetAddr
+	ADHosts []utils.NetAddr
 
 	// NonADHosts is an optional list of static Windows hosts to expose through this
 	// service. These hosts are not part of Active Directory.
@@ -75,7 +73,7 @@ type WindowsDesktopConfig struct {
 func (w *WindowsDesktopConfig) AllStaticHosts() []WindowsHost {
 	var hosts []WindowsHost
 	hosts = append(hosts, w.StaticHosts...)
-	for _, host := range w.Hosts {
+	for _, host := range w.ADHosts {
 		hosts = append(hosts, WindowsHost{
 			Address: host,
 			AD:      true,
