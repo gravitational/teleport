@@ -227,9 +227,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
-			ADHosts:     cfg.WindowsDesktop.Hosts,
-			NonADHosts:  cfg.WindowsDesktop.NonADHosts,
-			StaticHosts: cfg.WindowsDesktop.StaticHosts,
+			StaticHosts: cfg.WindowsDesktop.AllStaticHosts(),
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,

@@ -208,10 +208,6 @@ type HeartbeatConfig struct {
 	PublicAddr string
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
-	// ADHosts is an optional list of AD-connected static Windows hosts to register.
-	ADHosts []utils.NetAddr
-	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
-	NonADHosts []utils.NetAddr
 	// StaticHosts is an optional list of static Windows hosts to register
 	StaticHosts []servicecfg.WindowsHost
 }
@@ -403,7 +399,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(s.cfg.Heartbeat.ADHosts)+len(s.cfg.Heartbeat.NonADHosts)+len(s.cfg.Heartbeat.StaticHosts) == 0 {
+	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
 		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
@@ -602,37 +598,10 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 			return err
 		}
 	}
-	for _, host := range s.cfg.Heartbeat.ADHosts {
-		if err := s.startOldStaticHostHeartbeat(host, true); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	for _, host := range s.cfg.Heartbeat.NonADHosts {
-		if err := s.startOldStaticHostHeartbeat(host, false); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
-// startOldStaticHostHeartbeat starts heartbeating for a Windows host.
-// This is a legacy method that applies to hosts where only the address
-// was specified. See [startStaticHostHeartbeat] for the newer, more
-// flexible option.
-func (s *WindowsService) startOldStaticHostHeartbeat(addr utils.NetAddr, ad bool) error {
-	name, err := s.nameForStaticHost(addr.String())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return s.startStaticHostHeartbeat(servicecfg.WindowsHost{
-		Name:    name,
-		Address: addr,
-		AD:      ad,
-	})
-}
-
-// startStaticHostHeartbeats spawns heartbeat goroutines for the hosts
-// defined in the static_hosts section of this service's configuration.
+// startStaticHostHeartbeats spawns heartbeat goroutine for single host
 func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeCtx,
@@ -1134,10 +1103,18 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 		for k, v := range host.Labels {
 			labels[k] = v
 		}
+		name := host.Name
+		if name == "" {
+			var err error
+			name, err = s.nameForStaticHost(addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 		labels[types.OriginLabel] = types.OriginConfigFile
 		labels[types.ADLabel] = strconv.FormatBool(host.AD)
 		desktop, err := types.NewWindowsDesktopV3(
-			host.Name,
+			name,
 			labels,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
