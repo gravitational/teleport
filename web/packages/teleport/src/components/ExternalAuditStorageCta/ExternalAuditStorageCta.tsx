@@ -131,7 +131,7 @@ function CtaButton(props: { featureEnabled: boolean; userHasAccess: boolean }) {
         >
           <StyledOnHover>
             <Text fontSize="1">
-              Insuficient permissions. Reach out to your Teleport administrator
+              Insufficient permissions. Reach out to your Teleport administrator
               to request External Audit Storage permissions.
             </Text>
           </StyledOnHover>
