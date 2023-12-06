@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { useStore } from 'shared/libs/stores';
 
 import ConsoleContext from './consoleContext';
 
 export const ConsoleReactContext = React.createContext<ConsoleContext>(null);
 
-const ConsoleContextProvider: React.FC<{
-  value: ConsoleContext;
-}> = props => {
+const ConsoleContextProvider: React.FC<
+  PropsWithChildren<{
+    value: ConsoleContext;
+  }>
+> = props => {
   return <ConsoleReactContext.Provider {...props} />;
 };
 

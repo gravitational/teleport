@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { Cell } from 'design/DataTable';
 
-export const DisableableCell: React.FC<{
-  disabledText: string;
-  disabled: boolean;
-  width?: string;
-}> = ({ disabledText, disabled, width, children }) => {
+export const DisableableCell: React.FC<
+  PropsWithChildren<{
+    disabledText: string;
+    disabled: boolean;
+    width?: string;
+  }>
+> = ({ disabledText, disabled, width, children }) => {
   return (
     <Cell
       width={width}

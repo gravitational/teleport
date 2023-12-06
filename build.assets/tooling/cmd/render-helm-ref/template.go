@@ -37,8 +37,11 @@ const referenceTemplate = `
 | ` + "`" + `{{.Kind}}` + "`" + ` | ` + "`" + `{{.Default}}` + "`" + ` |
 {{- end }}
 
+{{- if .Description }}
+
 ` + "`" + `{{.Name}}` + "`" + ` {{ .Description }}
-{{- end -}}`
+{{- end }}
+{{ end -}}`
 
 func renderTemplate(values []*Value) ([]byte, error) {
 	t := template.Must(template.New("reference").Funcs(sprig.FuncMap()).Parse(referenceTemplate))
