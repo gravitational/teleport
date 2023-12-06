@@ -1940,11 +1940,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
-	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.ADHosts, defaults.RDPListenPort)
+	cfg.WindowsDesktop.ADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.ADHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(cfg.WindowsDesktop.Hosts) > 0 {
+	if len(cfg.WindowsDesktop.ADHosts) > 0 {
 		log.Warnln("hosts field is deprecated, prefer static_hosts instead")
 	}
 	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
