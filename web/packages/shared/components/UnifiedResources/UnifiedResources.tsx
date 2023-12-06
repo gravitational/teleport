@@ -32,7 +32,7 @@ import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse } from 'teleport/services/agents';
+import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
 
 import {
   DefaultTab,
@@ -135,6 +135,8 @@ interface UnifiedResourcesProps {
   pinning: UnifiedResourcesPinning;
   availableKinds: FilterKind[];
   setParams(params: UnifiedResourcesQueryParams): void;
+  //TODO(gzdunek): Remove, label clicking should be handled by setParams
+  onLabelClick?(label: ResourceLabel): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   unifiedResourcePreferences: UnifiedResourcePreferences;
@@ -150,6 +152,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     resourcesFetchAttempt,
     resources,
     fetchResources,
+    onLabelClick,
     availableKinds,
     pinning,
     unifiedResourcePreferences,
@@ -442,11 +445,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       ) : (
         <ViewComponent
           onLabelClick={label =>
-            setParams({
-              ...params,
-              search: '',
-              query: makeAdvancedSearchQueryForLabel(label, params),
-            })
+            onLabelClick
+              ? onLabelClick(label)
+              : setParams({
+                  ...params,
+                  search: '',
+                  query: makeAdvancedSearchQueryForLabel(label, params),
+                })
           }
           pinnedResources={pinnedResources}
           selectedResources={selectedResources}
