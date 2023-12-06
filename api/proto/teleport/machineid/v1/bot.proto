@@ -64,7 +64,7 @@ message BotSpec {
 // be modified by users.
 message BotStatus {
   // The name of the user associated with the bot.
-  string user = 1;
+  string user_name = 1;
   // The name of the role associated with the bot.
-  string role = 2;
+  string role_role = 2;
 }

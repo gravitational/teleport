@@ -49,7 +49,7 @@ type BotServiceClient interface {
 	// GetBot is used to query a Bot resource by its name.
 	//
 	// This will return a NotFound error if the specified Bot does not exist.
-	GetBot(ctx context.Context, in *GetBotRequest, opts ...grpc.CallOption) (*GetBotResponse, error)
+	GetBot(ctx context.Context, in *GetBotRequest, opts ...grpc.CallOption) (*Bot, error)
 	// ListBots is used to query Bots.
 	//
 	// Follows the pagination semantics of
@@ -58,13 +58,13 @@ type BotServiceClient interface {
 	// CreateBot is used to create a Bot.
 	//
 	// This will return an error if a Bot by that name already exists.
-	CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error)
+	CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*Bot, error)
 	// UpdateBot is used to modify an existing Bot.
-	UpdateBot(ctx context.Context, in *UpdateBotRequest, opts ...grpc.CallOption) (*UpdateBotResponse, error)
+	UpdateBot(ctx context.Context, in *UpdateBotRequest, opts ...grpc.CallOption) (*Bot, error)
 	// UpsertBot is used to create or replace an existing Bot.
 	//
 	// Prefer using CreateBot and UpdateBot.
-	UpsertBot(ctx context.Context, in *UpsertBotRequest, opts ...grpc.CallOption) (*UpsertBotResponse, error)
+	UpsertBot(ctx context.Context, in *UpsertBotRequest, opts ...grpc.CallOption) (*Bot, error)
 	// DeleteBot is used to delete a specific Bot.
 	//
 	// This will return a NotFound error if the specified Bot does not exist.
@@ -79,8 +79,8 @@ func NewBotServiceClient(cc grpc.ClientConnInterface) BotServiceClient {
 	return &botServiceClient{cc}
 }
 
-func (c *botServiceClient) GetBot(ctx context.Context, in *GetBotRequest, opts ...grpc.CallOption) (*GetBotResponse, error) {
-	out := new(GetBotResponse)
+func (c *botServiceClient) GetBot(ctx context.Context, in *GetBotRequest, opts ...grpc.CallOption) (*Bot, error) {
+	out := new(Bot)
 	err := c.cc.Invoke(ctx, BotService_GetBot_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -97,8 +97,8 @@ func (c *botServiceClient) ListBots(ctx context.Context, in *ListBotsRequest, op
 	return out, nil
 }
 
-func (c *botServiceClient) CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*CreateBotResponse, error) {
-	out := new(CreateBotResponse)
+func (c *botServiceClient) CreateBot(ctx context.Context, in *CreateBotRequest, opts ...grpc.CallOption) (*Bot, error) {
+	out := new(Bot)
 	err := c.cc.Invoke(ctx, BotService_CreateBot_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -106,8 +106,8 @@ func (c *botServiceClient) CreateBot(ctx context.Context, in *CreateBotRequest, 
 	return out, nil
 }
 
-func (c *botServiceClient) UpdateBot(ctx context.Context, in *UpdateBotRequest, opts ...grpc.CallOption) (*UpdateBotResponse, error) {
-	out := new(UpdateBotResponse)
+func (c *botServiceClient) UpdateBot(ctx context.Context, in *UpdateBotRequest, opts ...grpc.CallOption) (*Bot, error) {
+	out := new(Bot)
 	err := c.cc.Invoke(ctx, BotService_UpdateBot_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -115,8 +115,8 @@ func (c *botServiceClient) UpdateBot(ctx context.Context, in *UpdateBotRequest, 
 	return out, nil
 }
 
-func (c *botServiceClient) UpsertBot(ctx context.Context, in *UpsertBotRequest, opts ...grpc.CallOption) (*UpsertBotResponse, error) {
-	out := new(UpsertBotResponse)
+func (c *botServiceClient) UpsertBot(ctx context.Context, in *UpsertBotRequest, opts ...grpc.CallOption) (*Bot, error) {
+	out := new(Bot)
 	err := c.cc.Invoke(ctx, BotService_UpsertBot_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ type BotServiceServer interface {
 	// GetBot is used to query a Bot resource by its name.
 	//
 	// This will return a NotFound error if the specified Bot does not exist.
-	GetBot(context.Context, *GetBotRequest) (*GetBotResponse, error)
+	GetBot(context.Context, *GetBotRequest) (*Bot, error)
 	// ListBots is used to query Bots.
 	//
 	// Follows the pagination semantics of
@@ -149,13 +149,13 @@ type BotServiceServer interface {
 	// CreateBot is used to create a Bot.
 	//
 	// This will return an error if a Bot by that name already exists.
-	CreateBot(context.Context, *CreateBotRequest) (*CreateBotResponse, error)
+	CreateBot(context.Context, *CreateBotRequest) (*Bot, error)
 	// UpdateBot is used to modify an existing Bot.
-	UpdateBot(context.Context, *UpdateBotRequest) (*UpdateBotResponse, error)
+	UpdateBot(context.Context, *UpdateBotRequest) (*Bot, error)
 	// UpsertBot is used to create or replace an existing Bot.
 	//
 	// Prefer using CreateBot and UpdateBot.
-	UpsertBot(context.Context, *UpsertBotRequest) (*UpsertBotResponse, error)
+	UpsertBot(context.Context, *UpsertBotRequest) (*Bot, error)
 	// DeleteBot is used to delete a specific Bot.
 	//
 	// This will return a NotFound error if the specified Bot does not exist.
@@ -167,19 +167,19 @@ type BotServiceServer interface {
 type UnimplementedBotServiceServer struct {
 }
 
-func (UnimplementedBotServiceServer) GetBot(context.Context, *GetBotRequest) (*GetBotResponse, error) {
+func (UnimplementedBotServiceServer) GetBot(context.Context, *GetBotRequest) (*Bot, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBot not implemented")
 }
 func (UnimplementedBotServiceServer) ListBots(context.Context, *ListBotsRequest) (*ListBotsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListBots not implemented")
 }
-func (UnimplementedBotServiceServer) CreateBot(context.Context, *CreateBotRequest) (*CreateBotResponse, error) {
+func (UnimplementedBotServiceServer) CreateBot(context.Context, *CreateBotRequest) (*Bot, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateBot not implemented")
 }
-func (UnimplementedBotServiceServer) UpdateBot(context.Context, *UpdateBotRequest) (*UpdateBotResponse, error) {
+func (UnimplementedBotServiceServer) UpdateBot(context.Context, *UpdateBotRequest) (*Bot, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateBot not implemented")
 }
-func (UnimplementedBotServiceServer) UpsertBot(context.Context, *UpsertBotRequest) (*UpsertBotResponse, error) {
+func (UnimplementedBotServiceServer) UpsertBot(context.Context, *UpsertBotRequest) (*Bot, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertBot not implemented")
 }
 func (UnimplementedBotServiceServer) DeleteBot(context.Context, *DeleteBotRequest) (*emptypb.Empty, error) {
