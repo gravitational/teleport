@@ -196,6 +196,10 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 	}
 }
 
+// Processes events incoming from r.ingest, keeping statistics of
+// users activity and resource usage per users, also collects cluster resource counts.
+// Every granularity time period, it sends accumulated stats to the prehog.
+// Runs perpetually in a goroutine until the context is canceled or reporter is closed.
 func (r *Reporter) run(ctx context.Context) {
 	defer r.baseCancel()
 	defer close(r.done)
