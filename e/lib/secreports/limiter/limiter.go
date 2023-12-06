@@ -311,12 +311,11 @@ const (
 //
 // TODO(smallinksy): Ideally this limits should be managed by Sales Center.
 func cloudLimits(resp *cloudapi.GetBillingInformationResponse) uint64 {
+	f := modules.GetModules().Features()
 	switch {
 	case resp.Trial:
 		return trialProductLimit
-	// UsageBasedBilling right equal Team Cloud product.
-	// https://github.com/gravitational/cloud/blob/master/pkg/tenants/billinginfo.go#L52
-	case resp.UsageBasedBilling:
+	case f.IsTeam():
 		return teamProductLimit
 	default:
 		return enterpriseProductLimit

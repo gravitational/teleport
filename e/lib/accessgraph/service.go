@@ -117,7 +117,7 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		// Need to check this here inside the service function, rather than on process creation,
 		// since Cloud features are loaded dynamically. More detailed explanation in:
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
-		if !modules.GetModules().Features().IsUsageBasedBilling {
+		if !modules.GetModules().Features().IsTeam() {
 			cfg.Log.Info("Access Graph specified in config, but license is not for the Team plan. Access Graph sync will not be enabled")
 			return nil
 		}

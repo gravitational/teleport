@@ -123,7 +123,6 @@ func (p *enterpriseModules) SetFeatures(f modules.Features) {
 	// since these fields are directly set based on config features and shouldn't be set automatically
 	f.RecoveryCodes = p.features.RecoveryCodes
 	f.Plugins = p.features.Plugins
-	f.IsTrialProduct = p.features.IsTrialProduct
 	f.AccessGraph = p.features.AccessGraph
 	f.AccessMonitoring = p.features.AccessMonitoring
 
@@ -216,7 +215,6 @@ func getLicenseFeatures(license types.License) modules.Features {
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},
-		IsTrialProduct:             license.GetTrial().Value(),
 		IdentityGovernanceSecurity: license.GetSupportsIdentityGovernanceSecurity().Value(),
 	}
 

@@ -1082,7 +1082,7 @@ func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
 	env := testenv.NewUsingT(t)
 
 	m := modules.GetModules().(*modules.TestModules)
-	m.TestFeatures.IsUsageBasedBilling = true
+	m.TestFeatures.ProductType = modules.ProductTypeTeam
 
 	devices := env.DevicesClient
 	ctx := context.Background()
