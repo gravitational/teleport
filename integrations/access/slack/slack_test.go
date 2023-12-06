@@ -870,11 +870,6 @@ func (s *SlackSuite) checkNewMessageUpdateByAPI(t *testing.T, matchMessages []Me
 	return s.matchAndCallFn(t, matchMessages, matchBy, testFns, s.fakeSlack.CheckMessageUpdateByAPI)
 }
 
-func (s *SlackSuite) checkNewMessageUpdateByResponding(t *testing.T, matchMessages []Message, matchBy matchFn, testFns ...checkMsgTestFn) []Message {
-	t.Helper()
-	return s.matchAndCallFn(t, matchMessages, matchBy, testFns, s.fakeSlack.CheckMessageUpdateByResponding)
-}
-
 func channelsToMessages(channels ...string) (messages []Message) {
 	for _, channel := range channels {
 		messages = append(messages, Message{BaseMessage: BaseMessage{Channel: channel}})
@@ -896,27 +891,22 @@ func (s *SlackSuite) matchAndCallFn(t *testing.T, matchMessages []Message, match
 	var notMatchingMessages []Message
 
 	// Try for 5 seconds to get the expected messages
-	endTime := time.Now().Add(2 * time.Second)
-	for {
-		if time.Now().After(endTime) {
-			break
-		}
+	require.Eventually(t, func() bool {
 		msg, err := slackCall(s.Context())
-		require.NoError(t, err, "matching messages: %d, not matching messages: %d", len(messages), len(notMatchingMessages))
+		if err != nil {
+			return false
+		}
 
 		if matchMsg, ok := matchingTimestamps[msg.Channel]; ok {
-			if !matchBy(matchMsg, msg) {
-				break
+			if matchBy(matchMsg, msg) {
+				messages = append(messages, msg)
 			}
-			messages = append(messages, msg)
 		} else {
 			notMatchingMessages = append(notMatchingMessages, msg)
 		}
 
-		if len(messages) == len(matchMessages) {
-			break
-		}
-	}
+		return len(messages) == len(matchMessages)
+	}, 2*time.Second, 100*time.Millisecond)
 
 	require.Len(t, messages, len(matchMessages), "missing required messages, found %v", notMatchingMessages)
 
