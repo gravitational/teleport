@@ -2033,7 +2033,7 @@ func staticHostsWithAddress(hosts []WindowsHost, defaultPort int) ([]servicecfg.
 	for _, host := range hosts {
 		addr, err := utils.ParseHostPortAddr(host.Address, defaultPort)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.BadParameter("invalid addr %q", host.Address)
 		}
 		hostsWithAddress = append(hostsWithAddress, servicecfg.WindowsHost{
 			Name:    host.Name,
