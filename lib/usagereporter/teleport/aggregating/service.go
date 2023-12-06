@@ -108,7 +108,7 @@ func prepareResourcePresenceReports(
 		// We're over the size limit, so we need to split the report and try again.
 		report.ResourceKindReports = make([]*prehogv1.ResourceKindPresenceReport, 0, len(kindReports))
 
-		// First pass: try to fit as many resource kind reports as possible, skipping big ones.
+		// Try to fit as many resource kind reports as possible, skipping big ones.
 		unfitRecords := make([]*prehogv1.ResourceKindPresenceReport, 0, len(kindReports))
 		for _, kindReport := range kindReports {
 			report.ResourceKindReports = append(report.ResourceKindReports, kindReport)
@@ -119,7 +119,14 @@ func prepareResourcePresenceReports(
 		}
 		kindReports = unfitRecords
 
-		// Second pass: try to split the last oversized resource by two until it fits
+		// To reduce kind reports fragmentation between resource reports
+		// don't try to split unfit kind reports if some already fit into report as a whole
+		if len(report.ResourceKindReports) > 0 {
+			reports = append(reports, report)
+			continue
+		}
+
+		// Try to split the last oversized resource by two until it fits
 		resourceIds := kindReports[0].GetResourceIds()
 		kindReportHead := &prehogv1.ResourceKindPresenceReport{
 			ResourceKind: kindReports[0].GetResourceKind(),
