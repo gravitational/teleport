@@ -22,14 +22,14 @@ const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIgsFlag = cfg.isIgsEnabled;
 const defaultCreateLimit = cfg.featureLimits.accessListCreateLimit;
-const defaultIsCloud = cfg.isCloud;
+const defaultIsUsageBased = cfg.isUsageBasedBilling;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
 
   beforeEach(() => {
     cfg.isEnterprise = true;
-    cfg.isCloud = true;
+    cfg.isUsageBasedBilling = true;
 
     // Response doesn't matter, just that we have one element in array.
     jest
@@ -47,7 +47,7 @@ describe('upsell links', () => {
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
     cfg.featureLimits.accessListCreateLimit = defaultCreateLimit;
-    cfg.isCloud = defaultIsCloud;
+    cfg.isUsageBasedBilling = defaultIsUsageBased;
   });
 
   test('no access should not render cta', async () => {
@@ -66,8 +66,8 @@ describe('upsell links', () => {
     expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
   });
 
-  test('render limited preview for non-cloud', async () => {
-    ecfg.oss.isCloud = false;
+  test('render limited preview for non-usage based', async () => {
+    ecfg.oss.isUsageBasedBilling = false;
 
     const ctx = createTeleportContextE({
       customAcl: getAcl({ noAccess: true }),

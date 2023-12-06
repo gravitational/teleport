@@ -103,8 +103,8 @@ export function CreateAccessList() {
   });
 
   useEffect(() => {
-    // TODO(lisa): temporary cloud check
-    if (cfg.oss.isIgsEnabled || !cfg.oss.isCloud) {
+    // TODO(lisa): temporary isUsageBased check until nearing v15.
+    if (cfg.oss.isIgsEnabled || !cfg.oss.isUsageBasedBilling) {
       fetchUsersAndRoles();
       return;
     }

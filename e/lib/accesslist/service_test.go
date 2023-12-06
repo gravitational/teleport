@@ -559,8 +559,7 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
-			Cloud:                      true,
+			Cloud: true,
 		},
 	})
 

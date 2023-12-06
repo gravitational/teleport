@@ -32,14 +32,14 @@ import { AccessLists } from './AccessLists';
 const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIgsFlag = cfg.isIgsEnabled;
-const defaultIsCloud = cfg.isCloud;
+const defaultIsUsageBased = cfg.isUsageBasedBilling;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
 
   beforeEach(() => {
     cfg.isEnterprise = true;
-    cfg.isCloud = true;
+    cfg.isUsageBasedBilling = true;
 
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
@@ -52,7 +52,7 @@ describe('upsell links', () => {
     cfg.isTeam = defaultIsTeamFlag;
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
-    cfg.isCloud = defaultIsCloud;
+    cfg.isUsageBasedBilling = defaultIsUsageBased;
   });
 
   test('no access should not render cta', async () => {
@@ -80,8 +80,8 @@ describe('upsell links', () => {
     );
   });
 
-  test('render limited preview for non-cloud', async () => {
-    ecfg.oss.isCloud = false;
+  test('render limited preview for non-usage based', async () => {
+    ecfg.oss.isUsageBasedBilling = false;
 
     renderComponent(ctx);
 

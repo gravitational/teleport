@@ -13,7 +13,7 @@ const defaultIsTeamFlag = cfg.oss.isTeam;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
 const defaultCreateLimit = cfg.oss.featureLimits.accessListCreateLimit;
-const defaultIsCloud = cfg.oss.isCloud;
+const defaultIsUsageBased = cfg.oss.isUsageBasedBilling;
 
 export default {
   title: 'Teleport/AccessLists/Create',
@@ -29,7 +29,7 @@ export default {
           cfg.oss.isEnterprise = defaultIsEnterprise;
           cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
           cfg.oss.featureLimits.accessListCreateLimit = defaultCreateLimit;
-          cfg.oss.isCloud = defaultIsCloud;
+          cfg.oss.isUsageBasedBilling = defaultIsUsageBased;
         };
       }, []);
       return <Story />;
@@ -87,7 +87,7 @@ export const Loaded = () => {
 
 export const LoadedWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
-  cfg.oss.isCloud = true;
+  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
       return res.once(ctx.json([]));
@@ -108,7 +108,7 @@ export const LoadedWithIgs = () => {
 
 export const LoadedReachedLimit = () => {
   cfg.oss.featureLimits.accessListCreateLimit = 1;
-  cfg.oss.isCloud = true;
+  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
       return res.once(ctx.json([]));

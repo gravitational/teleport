@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 var userMonitorCmpOpts = []cmp.Option{
@@ -167,12 +166,6 @@ func TestReconcile(t *testing.T) {
 }
 
 func TestProcessEvent(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: true,
-		},
-	})
-
 	const userName = "test"
 
 	type updateFn func(*testing.T, *auth.Server) types.Event

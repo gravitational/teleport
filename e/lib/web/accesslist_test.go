@@ -17,7 +17,6 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/e/lib/web/ui"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 var (
@@ -27,10 +26,6 @@ var (
 )
 
 func TestGetAccessLists(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{IdentityGovernanceSecurity: true},
-	})
-
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)

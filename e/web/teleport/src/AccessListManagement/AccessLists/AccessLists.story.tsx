@@ -15,7 +15,7 @@ const { worker, rest } = window.msw;
 const defaultIsTeamFlag = cfg.oss.isTeam;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
-const defaultIsCloud = cfg.oss.isCloud;
+const defaultIsUsageBased = cfg.oss.isUsageBasedBilling;
 
 export default {
   title: 'Teleport/AccessLists/List',
@@ -30,7 +30,7 @@ export default {
           cfg.oss.isTeam = defaultIsTeamFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
           cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
-          cfg.oss.isCloud = defaultIsCloud;
+          cfg.oss.isUsageBasedBilling = defaultIsUsageBased;
         };
       }, []);
       return <Story />;
@@ -79,7 +79,7 @@ export const Empty = () => {
 
 export const EmptyWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
-  cfg.oss.isCloud = true;
+  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -94,7 +94,7 @@ export const EmptyWithIgs = () => {
 
 export const EmptyWithCta = () => {
   cfg.oss.isTeam = true;
-  cfg.oss.isCloud = true;
+  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -122,7 +122,7 @@ export const List = () => {
 
 export const ListWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
-  cfg.oss.isCloud = true;
+  cfg.oss.isUsageBasedBilling = true;
 
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
@@ -138,7 +138,7 @@ export const ListWithIgs = () => {
 
 export const ListWithCta = () => {
   cfg.oss.isTeam = true;
-  cfg.oss.isCloud = true;
+  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: mockAccessLists }));

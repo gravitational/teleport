@@ -3,7 +3,7 @@ import { Info } from 'design/Alert';
 import cfg from 'teleport/config';
 
 export function LimitedPreviewNotice() {
-  if (cfg.isCloud) {
+  if (cfg.isUsageBasedBilling) {
     return null;
   }
 

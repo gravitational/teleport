@@ -48,8 +48,8 @@ export const featureLimitReachedBlurCss = {
 };
 
 export function FeatureLimitBlurb() {
-  // TODO(lisa): temporary cloud check
-  if (!cfg.isCloud) {
+  // TODO(lisa): temporary check until nearing v15.
+  if (!cfg.isUsageBasedBilling) {
     return null;
   }
 
