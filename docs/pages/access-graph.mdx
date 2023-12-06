@@ -5,7 +5,7 @@ description: A reference for Teleport Access Graph.
 
 <Admonition type="tip" title="Preview">
   Teleport Access Graph is currently in Preview. Currently, it is only available
-  to the Teleport Cloud Team users. Currently, only SSH server are supported.
+  to Teleport Team users, and only visualizes access to SSH servers enrolled with your Teleport clusters.
 </Admonition>
 
 Teleport Access Graph is a new way to visualize and understand access to your
@@ -86,9 +86,13 @@ Teleport Access Graph divides your infrastructure into five main components:
 
 Teleport Access Graph shows the relationships between users, roles, and
 resources. It does this by showing paths between nodes. Paths are the
-relationships between nodes. Paths always go from:
+relationships between nodes. Paths always connect nodes in the following order:
 
-  Users to User Groups to Actions to Resource Groups to Resources
+1. Users
+1. User Groups
+1. Actions
+1. Resource Groups
+1. Resources
 
 Paths can be divided into two categories:
 
@@ -137,17 +141,17 @@ got the access through the accepted access request.
 
 #### Actions
 
-Actions are created from Teleport Roles. Actions can be divided into three
+Actions are created from Teleport roles. Actions can be divided into three
 categories:
 
 1. Allow Actions
 
-    Allow Actions are created from Teleport Roles. Allow Actions are the things
+    Allow Actions are created from Teleport roles. Allow Actions are the things
     that users can do. For example, a user can SSH into a node.
 
 2. Deny Actions
 
-    Deny Actions are created from Teleport Roles. Deny Actions are the things
+    Deny Actions are created from Teleport roles. Deny Actions are the things
     that users cannot do. For example, a user cannot SSH into a node. Deny
     Actions take precedence over Allow Actions.
 
@@ -158,9 +162,9 @@ categories:
 
 #### Resource Groups
 
-Resource Groups are created from Teleport Roles.
+Resource Groups are created from Teleport roles.
 
 #### Resources
 
 Resources are created from Teleport resources like nodes, databases, and
-Kubernetes clusters.
+Kubernetes clusters. Currently, only SSH nodes are supported.
