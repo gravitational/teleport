@@ -404,7 +404,7 @@ test('fetch() calculates new state from the fresh state', async () => {
     initialProps: props,
   });
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['rabbit0']);
+  expect(resourceNames(result.current)).toEqual(['rabbit0']);
   await act(async () => {
     // Because `fetch` calculates the new state based on a fresh state,
     // we can safely call these two functions one after another,
@@ -412,5 +412,5 @@ test('fetch() calculates new state from the fresh state', async () => {
     result.current.clear();
     await result.current.fetch({ force: true });
   });
-  expect(resourceNames(result)).toEqual(['rabbit0']);
+  expect(resourceNames(result.current)).toEqual(['rabbit0']);
 });
