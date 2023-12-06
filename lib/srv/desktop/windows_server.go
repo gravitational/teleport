@@ -615,6 +615,10 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 	return nil
 }
 
+// startOldStaticHostHeartbeat starts heartbeating for a Windows host.
+// This is a legacy method that applies to hosts where only the address
+// was specified. See [startStaticHostHeartbeat] for the newer, more
+// flexible option.
 func (s *WindowsService) startOldStaticHostHeartbeat(addr utils.NetAddr, ad bool) error {
 	name, err := s.nameForStaticHost(addr.String())
 	if err != nil {
