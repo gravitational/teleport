@@ -1117,6 +1117,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			IdentityGovernanceSecurity: true,
+			IsUsageBasedBilling:        true,
 		},
 	})
 
