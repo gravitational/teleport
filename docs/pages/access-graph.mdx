@@ -8,7 +8,7 @@ description: A reference for Teleport Access Graph.
   to Teleport Team users, and only visualizes access to SSH servers enrolled with your Teleport clusters.
 </Admonition>
 
-Teleport Access Graph is a new way to visualize and understand access to your
+Teleport Access Graph visualizes and helps you understand access to your
 infrastructure. It provides a visual representation of the relationships between
 users, roles, and resources in your organization. It can help you answer
 questions like:
@@ -24,14 +24,14 @@ under the Permission Management section.
 
 ## Graph nodes
 
-Teleport Access Graph divides your infrastructure into five main components:
+Teleport Access Graph divides your infrastructure into eight main components:
 
 1. Users
 
     ![User Node](../img/access-graph/user-node.png)
 
     Users are the people who access your infrastructure. They can be employees,
-    contractors, or even bots.
+    contractors, or bots.
 
 2. User Groups
 
@@ -137,7 +137,7 @@ External users (created from GitHub connector, SAML, etc.) are imported when the
 
 #### User Groups
 
-User Groups are created from Teleport Roles and access requests. Roles create a User Groups where the members
+User Groups are created from Teleport Roles and access requests. Roles create User Groups where the members
 are the users that have that role. Access requests create a temporary User Group where the members are the users that
 got the access through the accepted access request.
 
