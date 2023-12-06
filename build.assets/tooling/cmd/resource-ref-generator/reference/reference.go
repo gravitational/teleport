@@ -104,6 +104,23 @@ type GeneratorConfig struct {
 	FieldAssignmentMethodName string `yaml:"field_assignment_method"`
 }
 
+// Validate checks that the GeneratorConfig includes all required fields and, if
+// not, returns the first error it encounters.
+func (c GeneratorConfig) Validate() error {
+	switch {
+	case c.DestinationPath == "":
+		return errors.New("no destination path provided")
+	case c.FieldAssignmentMethodName == "":
+		return errors.New("must provide a field assignment method name")
+	case c.RequiredFieldTypes == nil || len(c.RequiredFieldTypes) == 0:
+		return errors.New("must provide a list of required field types")
+	case c.SourcePath == "":
+		return errors.New("must provide a source path")
+	default:
+		return nil
+	}
+}
+
 // shouldProcess indicates whether we should generate reference entries from d,
 // that is, whether s has any field types in
 func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources []TypeInfo) bool {
