@@ -78,7 +78,7 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 			rootPreferences.ClusterPreferences = newPreferences.ClusterPreferences
 		}
 
-		err = rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
+		err := rootClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
 			Preferences: rootPreferences,
 		})
 		if err != nil {
@@ -90,7 +90,7 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 	if hasClusterPreferencesForLeaf {
 		leafPreferences.ClusterPreferences = newPreferences.ClusterPreferences
 
-		err = leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
+		err := leafClient.UpsertUserPreferences(ctx, &userpreferencesv1.UpsertUserPreferencesRequest{
 			Preferences: leafPreferences,
 		})
 		if err != nil {
