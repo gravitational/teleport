@@ -74,23 +74,8 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		}
 		defer conn.Close()
 
-		errC := make(chan error, 2)
-		go func() {
-			_, err := io.Copy(os.Stdout, conn)
-			if err != nil && utils.IsOKNetworkError(err) {
-				err = nil
-			}
-			errC <- err
-		}()
-		go func() {
-			_, err := io.Copy(conn, os.Stdin)
-			if err != nil && utils.IsOKNetworkError(err) {
-				err = nil
-			}
-			errC <- err
-		}()
-
-		return trace.NewAggregate(<-errC, <-errC)
+		stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))
+		return trace.Wrap(utils.ProxyConn(cf.Context, stdio, conn))
 	}))
 }
 
