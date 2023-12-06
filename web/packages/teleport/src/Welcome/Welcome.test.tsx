@@ -22,6 +22,8 @@ import { createMemoryHistory } from 'history';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
+import { act } from '@testing-library/react';
+
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
@@ -76,7 +78,7 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/get started/i));
-    mockHistory.push(inviteContinuePath);
+    act(() => mockHistory.push(inviteContinuePath));
 
     expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
     await waitFor(() => {
@@ -110,7 +112,7 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/Continue/i));
-    mockHistory.push(resetContinuePath);
+    act(() => mockHistory.push(resetContinuePath));
 
     await waitFor(() => {
       expect(history.push).toHaveBeenCalledWith(resetContinuePath);

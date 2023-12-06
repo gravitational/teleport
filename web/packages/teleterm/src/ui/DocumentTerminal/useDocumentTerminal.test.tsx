@@ -17,9 +17,8 @@
  */
 
 import React from 'react';
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, waitFor } from '@testing-library/react';
 import 'jest-canvas-mock';
-import * as useAsync from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
@@ -109,14 +108,9 @@ test('useDocumentTerminal calls TerminalsService during init', async () => {
   const doc = getDocTshNodeWithServerId();
   const { wrapper, appContext } = testSetup(doc);
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -139,14 +133,11 @@ test('useDocumentTerminal calls TerminalsService only once', async () => {
   const doc = getDocTshNodeWithServerId();
   const { wrapper, appContext } = testSetup(doc);
 
-  const { result, waitForValueToChange, rerender } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result, rerender } = renderHook(() => useDocumentTerminal(doc), {
+    wrapper,
+  });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
   expect(result.current.attempt.statusText).toBeFalsy();
   expect(result.current.attempt.status).toBe('success');
   rerender();
@@ -160,14 +151,9 @@ test('useDocumentTerminal gets leaf cluster ID from ClustersService when the lea
   doc.serverUri = `${leafClusterUri}/servers/${doc.serverId}`;
   const { wrapper, appContext } = testSetup(doc, leafClusterUri);
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -195,14 +181,9 @@ test('useDocumentTerminal gets leaf cluster ID from doc.leafClusterId if the lea
     draft.clusters.delete(leafClusterUri);
   });
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -235,14 +216,9 @@ test('useDocumentTerminal returns a failed attempt if the call to TerminalsServi
     .spyOn(terminalsService, 'createPtyProcess')
     .mockRejectedValue(new Error('whoops'));
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('error'));
   const { attempt } = result.current;
   expect(attempt.statusText).toBe('whoops');
   expect(attempt.status).toBe('error');
@@ -264,14 +240,9 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
   });
   jest.spyOn(notificationsService, 'notifyWarning');
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
   expect(result.current.attempt.statusText).toBeFalsy();
   expect(result.current.attempt.status).toBe('success');
 
@@ -537,13 +508,14 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
           .mockResolvedValueOnce(mockGetServerByHostname);
       }
 
-      const { result, waitForValueToChange } = renderHook(
-        () => useDocumentTerminal(doc),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDocumentTerminal(doc), {
+        wrapper,
+      });
 
-      await waitForValueToChange(() =>
-        useAsync.hasFinished(result.current.attempt)
+      await waitFor(() =>
+        expect(result.current.attempt.status).toBe(
+          expectedError ? 'error' : 'success'
+        )
       );
 
       const { attempt } = result.current;
