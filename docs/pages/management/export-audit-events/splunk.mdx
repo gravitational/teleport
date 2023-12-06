@@ -286,13 +286,13 @@ Teleport cluster, then run the Teleport Event Handler.
 ### Configure the Teleport Event Handler
 
 In this section, you will configure the Teleport Event Handler for your
-environment.
+environment. 
 
-(!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
+Earlier, we generated a file called `teleport-event-handler.toml` 
+to configure the Fluentd event handler. Make the following changes to the 
+`teleport-event-handler.toml` file:
 
-Update the configuration file as follows.
-
-Change `forward.fluentd.url` to the following:
+1. Change `forward.fluentd.url` to the following:
 
 ```text
 url = "https://localhost:9061/services/collector/raw?token=MYTOKEN"
@@ -307,7 +307,7 @@ Forwarder. If you are running the Universal Forwarder and Event Handler on
 separate hosts, replace `localhost` with your Universal Forwarder's IP address
 or domain name.
 
-Change `forward.fluentd.session-url` to the same value as `forward.fluentd.url`,
+2. Change `forward.fluentd.session-url` to the same value as `forward.fluentd.url`,
 but with the query parameter key `&noop=` appended to the end:
 
 ```text
@@ -320,7 +320,7 @@ Adding the `noop` query parameter causes the Teleport Event Handler to append
 the routing information as the parameter's value so the Universal Forwarder can
 discard it.
 
-Next, edit the `teleport` section of the configuration as follows:
+3. Next, edit the `teleport` section of the configuration as follows:
 
 (!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
@@ -329,6 +329,10 @@ Ensure that the Teleport Event Handler can read the identity file:
 ```code
 $ chmod +r auth.pem
 ```
+The following is an example `teleport-event-handler.toml` to review before 
+you start the Teleport Event Handler.
+
+(!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
 
 ### Start the Teleport Event Handler
 
