@@ -67,6 +67,24 @@ type WindowsDesktopConfig struct {
 	Labels     map[string]string
 }
 
+func (w *WindowsDesktopConfig) AllStaticHosts() []WindowsHost {
+	var hosts []WindowsHost
+	hosts = append(hosts, w.StaticHosts...)
+	for _, host := range w.Hosts {
+		hosts = append(hosts, WindowsHost{
+			Address: host,
+			AD:      true,
+		})
+	}
+	for _, host := range w.NonADHosts {
+		hosts = append(hosts, WindowsHost{
+			Address: host,
+			AD:      false,
+		})
+	}
+	return hosts
+}
+
 // WindowsHost is configuration for single Windows desktop host
 type WindowsHost struct {
 	// Name that will be used in the Teleport UI
