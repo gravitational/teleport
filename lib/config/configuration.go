@@ -1940,7 +1940,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
-	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
+	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.ADHosts, defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1954,7 +1954,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if len(cfg.WindowsDesktop.NonADHosts) > 0 {
 		log.Warnln("non_ad_hosts field is deprecated, prefer static_hosts instead")
 	}
-	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop.StaticHosts, defaults.RDPListenPort)
+	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop.StaticHosts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2028,10 +2028,10 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	return nil
 }
 
-func staticHostsWithAddress(hosts []WindowsHost, defaultPort int) ([]servicecfg.WindowsHost, error) {
+func staticHostsWithAddress(hosts []WindowsHost) ([]servicecfg.WindowsHost, error) {
 	var hostsWithAddress []servicecfg.WindowsHost
 	for _, host := range hosts {
-		addr, err := utils.ParseHostPortAddr(host.Address, defaultPort)
+		addr, err := utils.ParseHostPortAddr(host.Address, defaults.RDPListenPort)
 		if err != nil {
 			return nil, trace.BadParameter("invalid addr %q", host.Address)
 		}
