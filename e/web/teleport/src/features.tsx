@@ -420,6 +420,8 @@ class FeatureAccessGraph implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Permissions;
 
+  hideNavigation = true;
+
   route = {
     title: 'Access Graph',
     path: cfg.routes.accessGraph,
