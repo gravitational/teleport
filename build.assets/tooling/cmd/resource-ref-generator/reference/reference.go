@@ -98,6 +98,10 @@ type GeneratorConfig struct {
 	DestinationPath string `yaml:"destination"`
 	// Struct types to exclude from the reference
 	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
+	// The name of the method that assigns values to the required fields
+	// within a dynamic resource. The generator determines that a type is a
+	// dynamic resource if it has this method.
+	FieldAssignmentMethodName string `yaml:"field_assignment_method"`
 }
 
 // shouldProcess indicates whether we should generate reference entries from d,
@@ -303,8 +307,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			}
 			var foundMethods bool
 			for _, method := range entryMethods {
-				// TODO: make this a constant or configurable value
-				if method.Name != "setStaticFields" {
+				if method.Name != conf.FieldAssignmentMethodName {
 					continue
 				}
 
