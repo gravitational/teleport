@@ -31,7 +31,7 @@ export const SpecSection = ({ spec, setSpec, isDisabled }: Props) => {
         label="Title"
         rule={requiredField('Title is required')}
         placeholder="Tile"
-        autoFocus
+        autoFocus={!isDisabled}
         value={spec.title}
         onChange={e => setSpec({ ...spec, title: e.target.value })}
       />

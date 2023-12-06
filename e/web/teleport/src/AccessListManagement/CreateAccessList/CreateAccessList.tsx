@@ -41,6 +41,10 @@ import { reviewFrequencyOpts, reviewDayOfMonthOpts } from '../Shared/Audit';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
 import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
+import {
+  FeatureLimitReached,
+  featureLimitReachedBlurCss,
+} from '../Shared/FeatureLimitReached';
 
 import { Spec, SpecSection } from './SpecSection';
 import { Members, MembersSection } from './MemberSection';
@@ -54,8 +58,10 @@ export function CreateAccessList() {
   const canCreate = perm.create;
   const accessListCreater = ctx.storeUser.getUsername();
 
+  const [featureLimitReached, setFeatureLimitReached] = useState(false);
+
   const initAttemptObj = useAttempt('processing');
-  const { attempt: initAttempt } = initAttemptObj;
+  const { attempt: initAttempt, setAttempt: setInitAttempt } = initAttemptObj;
   const { userOptions, roleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(initAttemptObj);
   const { attempt: createAttempt, setAttempt: setCreateAttempt } =
@@ -97,7 +103,29 @@ export function CreateAccessList() {
   });
 
   useEffect(() => {
-    fetchUsersAndRoles();
+    // TODO(lisa): temporary cloud check
+    if (cfg.oss.isIgsEnabled || !cfg.oss.isCloud) {
+      fetchUsersAndRoles();
+      return;
+    }
+
+    // Check if user has reached limit.
+    accessManagementService
+      .fetchAccessLists()
+      .then(resp => {
+        if (
+          resp.length &&
+          resp.length >= cfg.oss.featureLimits.accessListCreateLimit
+        ) {
+          setFeatureLimitReached(true);
+          setInitAttempt({ status: 'success' });
+        } else {
+          fetchUsersAndRoles();
+        }
+      })
+      .catch((err: Error) => {
+        setInitAttempt({ status: 'failed', statusText: err.message });
+      });
   }, []);
 
   // Update owners.
@@ -228,18 +256,24 @@ export function CreateAccessList() {
   } else if (initAttempt.status === 'success') {
     MainContent = (
       <>
+        {featureLimitReached && <FeatureLimitReached />}
         {createAttempt.status !== 'failed' && <LimitedPreviewNotice />}
         {createAttempt.status === 'failed' && (
           <Alert children={createAttempt.statusText} />
         )}
         <Validation>
           {({ validator }) => (
-            <Box width="540px">
+            <Box
+              width="540px"
+              style={featureLimitReached ? featureLimitReachedBlurCss : null}
+            >
               <Box mb={6}>
                 <SpecSection
                   spec={spec}
                   setSpec={setSpec}
-                  isDisabled={createAttempt.status === 'processing'}
+                  isDisabled={
+                    createAttempt.status === 'processing' || featureLimitReached
+                  }
                 />
               </Box>
               <Box mb={8}>

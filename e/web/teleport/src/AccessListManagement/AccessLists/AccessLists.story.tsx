@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { addWeeks } from 'date-fns';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
@@ -12,12 +12,27 @@ import { AccessLists } from './AccessLists';
 
 const { worker, rest } = window.msw;
 
+const defaultIsTeamFlag = cfg.oss.isTeam;
+const defaultIsEnterprise = cfg.oss.isEnterprise;
+const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
+const defaultIsCloud = cfg.oss.isCloud;
+
 export default {
   title: 'Teleport/AccessLists/List',
   decorators: [
     Story => {
+      cfg.oss.isEnterprise = true;
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
+      useEffect(() => {
+        // Clean up
+        return () => {
+          cfg.oss.isTeam = defaultIsTeamFlag;
+          cfg.oss.isEnterprise = defaultIsEnterprise;
+          cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
+          cfg.oss.isCloud = defaultIsCloud;
+        };
+      }, []);
       return <Story />;
     },
   ],
@@ -62,10 +77,71 @@ export const Empty = () => {
   );
 };
 
+export const EmptyWithIgs = () => {
+  cfg.oss.isIgsEnabled = true;
+  cfg.oss.isCloud = true;
+  worker.use(
+    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ accessLists: [] }));
+    })
+  );
+  return (
+    <Provider>
+      <AccessLists />
+    </Provider>
+  );
+};
+
+export const EmptyWithCta = () => {
+  cfg.oss.isTeam = true;
+  cfg.oss.isCloud = true;
+  worker.use(
+    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ accessLists: [] }));
+    })
+  );
+  return (
+    <Provider>
+      <AccessLists />
+    </Provider>
+  );
+};
+
 export const List = () => {
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: mock }));
+      return res.once(ctx.json({ accessLists: mockAccessLists }));
+    })
+  );
+  return (
+    <Provider>
+      <AccessLists />
+    </Provider>
+  );
+};
+
+export const ListWithIgs = () => {
+  cfg.oss.isIgsEnabled = true;
+  cfg.oss.isCloud = true;
+
+  worker.use(
+    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ accessLists: mockAccessLists }));
+    })
+  );
+  return (
+    <Provider>
+      <AccessLists />
+    </Provider>
+  );
+};
+
+export const ListWithCta = () => {
+  cfg.oss.isTeam = true;
+  cfg.oss.isCloud = true;
+  worker.use(
+    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
+      return res.once(ctx.json({ accessLists: mockAccessLists }));
     })
   );
   return (
@@ -85,7 +161,7 @@ const Provider = props => {
   );
 };
 
-const mock = [
+const mockAccessLists = [
   {
     metadata: { name: 'aaa' },
     spec: {

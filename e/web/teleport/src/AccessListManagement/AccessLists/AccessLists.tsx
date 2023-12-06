@@ -20,8 +20,9 @@ import {
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
-import { makeTraitLabel } from '../Traits';
 import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
+import { FeatureLimitBlurb } from '../Shared/FeatureLimitReached';
+import { makeTraitLabel } from '../Traits';
 
 import { EmptyState } from './EmptyState/EmptyState';
 import { AccessCard } from './AccessCard';
@@ -147,7 +148,12 @@ export function AccessLists() {
   } else if (attempt.status === 'failed') {
     MainContent = <Alert children={attempt.statusText} />;
   } else if (attempt.status === 'success' && accesses.length === 0) {
-    MainContent = <EmptyState />;
+    MainContent = (
+      <>
+        <EmptyState />
+        {!cfg.oss.isIgsEnabled && <FeatureLimitBlurb />}
+      </>
+    );
     showCreateBtn = false;
     showFeatureHeader = false;
   } else {
@@ -169,6 +175,7 @@ export function AccessLists() {
             <AccessCard accessList={a} key={a.id} />
           ))}
         </AccessListContainer>
+        {!cfg.oss.isIgsEnabled && <FeatureLimitBlurb />}
       </>
     );
   }
@@ -199,7 +206,7 @@ export function AccessLists() {
           {attempt.status !== 'failed' && <LimitedPreviewNotice />}
         </>
       )}
-      {MainContent}
+      <Box>{MainContent}</Box>
     </FeatureBox>
   );
 }

@@ -11,6 +11,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { PluginEnroll } from './PluginEnroll';
 
 const defaultIsTeamFlag = cfg.isTeam;
+const defaultIsEnterprise = cfg.isEnterprise;
 
 export default {
   title: 'TeleportE/Integrations/Enroll',
@@ -20,6 +21,7 @@ export default {
         // Clean up
         return () => {
           cfg.isTeam = defaultIsTeamFlag;
+          cfg.isEnterprise = defaultIsEnterprise;
         };
       }, []);
       return <Story />;
@@ -40,6 +42,7 @@ export const EnrollJamf = () => {
 
 export const EnrollJamfDisableInTeam = () => {
   cfg.isTeam = true;
+  cfg.isEnterprise = true;
   const ctx = createTeleportContextE();
   return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
 };

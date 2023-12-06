@@ -54,8 +54,6 @@ var cmpOpts = []cmp.Option{
 }
 
 func TestService_GetAccessLists(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -100,8 +98,6 @@ func TestService_GetAccessLists(t *testing.T) {
 }
 
 func TestService_ListAccessLists(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	accessLists := listAccessLists(ctx, t, svc, 1)
@@ -176,13 +172,6 @@ func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize i
 }
 
 func TestService_UpsertAccessList(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -257,8 +246,6 @@ func TestService_UpsertAccessList(t *testing.T) {
 }
 
 func TestService_GetAccessList(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -347,8 +334,6 @@ func TestService_GetAccessList(t *testing.T) {
 }
 
 func TestService_GetAccessListsToReview(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -399,8 +384,6 @@ func TestService_GetAccessListsToReview(t *testing.T) {
 }
 
 func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
-	t.Parallel()
-
 	ctx, _, svc, clock, _, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -445,8 +428,6 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 }
 
 func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
-	t.Parallel()
-
 	ctx, _, svc, clock, _, _ := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -503,13 +484,6 @@ func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 }
 
 func TestService_DeleteAccessList(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	ctx, _, svc, clock, emitter, usageEvents := initSvc(t)
 
 	getResp, err := svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
@@ -581,6 +555,14 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 		Clock: clock,
 	})
 	require.NoError(t, err)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			IdentityGovernanceSecurity: true,
+			Cloud:                      true,
+		},
+	})
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
@@ -732,8 +714,6 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 }
 
 func TestService_ListAccessListMembers(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -771,8 +751,6 @@ func TestService_ListAccessListMembers(t *testing.T) {
 }
 
 func TestService_GetAccessListMember(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -795,13 +773,6 @@ func TestService_GetAccessListMember(t *testing.T) {
 }
 
 func TestService_UpsertAccessListMember(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -858,13 +829,6 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 }
 
 func TestService_DeleteAccessListMember(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -902,13 +866,6 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 }
 
 func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -944,13 +901,6 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 }
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
 	ctx, _, svc, clock, emitter, usageEvents := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -1069,8 +1019,6 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 }
 
 func TestService_AuthOrIsOwner(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
@@ -1132,8 +1080,6 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 }
 
 func TestBatchAccessListMemberMetadata(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name            string
 		numberOfEvents  int
@@ -1190,8 +1136,6 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 }
 
 func TestService_ListAccessListReviews(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -1226,8 +1170,6 @@ func TestService_ListAccessListReviews(t *testing.T) {
 }
 
 func TestService_DeleteAccessListReviews(t *testing.T) {
-	t.Parallel()
-
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
