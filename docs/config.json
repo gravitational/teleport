@@ -539,17 +539,25 @@
 	  "slug": "/management/dynamic-resources/",
 	  "entries": [
 	    {
-              "title": "Kubernetes Operator",
-              "slug": "/management/dynamic-resources/teleport-operator/",
-              "forScopes": ["oss","enterprise"]
-            },
-            {
-              "title": "Terraform Provider",
-              "slug": "/management/dynamic-resources/terraform-provider/"
-            },
+          "title": "Kubernetes Operator",
+          "slug": "/management/dynamic-resources/teleport-operator/"
+        },
+        {
+          "title": "Kubernetes Operator in teleport-cluster Helm chart",
+          "slug": "/management/dynamic-resources/teleport-operator-helm/",
+          "forScopes": ["oss","enterprise"]
+        },
+        {
+          "title": "Standalone Kubernetes Operator",
+          "slug": "/management/dynamic-resources/teleport-operator-standalone/"
+        },
+        {
+          "title": "Terraform Provider",
+          "slug": "/management/dynamic-resources/terraform-provider/"
+        },
 	    {
-              "title": "Spacelift",
-              "slug": "/management/dynamic-resources/spacelift/"
+          "title": "Spacelift",
+          "slug": "/management/dynamic-resources/spacelift/"
 	    }
 	  ]
 	},
@@ -1263,6 +1271,10 @@
               "slug": "/database-access/auto-user-provisioning/mariadb/"
             },
             {
+              "title": "MongoDB",
+              "slug": "/database-access/auto-user-provisioning/mongodb/"
+            },
+            {
               "title": "MySQL",
               "slug": "/database-access/auto-user-provisioning/mysql/"
             },
@@ -1619,6 +1631,10 @@
               "slug": "/reference/helm-reference/teleport-kube-agent/"
             },
             {
+              "title": "teleport-operator",
+              "slug": "/reference/helm-reference/teleport-operator/"
+            },
+            {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
@@ -1737,7 +1753,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.1.3",
+      "version": "14.2.1",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",

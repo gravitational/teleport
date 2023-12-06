@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mongodb
 
@@ -92,15 +94,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
 func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
-	clientCfg := options.Client()
-	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
-	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
-		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
-		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
-	} else {
-		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
-	}
-	err := clientCfg.Validate()
+	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -183,8 +177,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 	default:
 		e.Log.Debug("Authenticating to database using certificates.")
 		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
-			// MongoDB uses full certificate Subject field as a username.
-			Username: "CN=" + sessionCtx.DatabaseUser,
+			Username: x509Username(sessionCtx),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -219,6 +212,21 @@ func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Ses
 	return authenticator, nil
 }
 
+func makeClientOptionsFromDatabaseURI(sessionCtx *common.Session) (*options.ClientOptions, error) {
+	clientCfg := options.Client()
+	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
+	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
+		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
+		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
+	} else {
+		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
+	}
+	if err := clientCfg.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clientCfg, nil
+}
+
 // getServerSelector returns selector for picking the server to connect to,
 // which is mostly useful when connecting to a MongoDB replica set.
 //
@@ -249,4 +257,9 @@ func (h *handshaker) GetHandshakeInformation(context.Context, address.Address, d
 // default auth handshaker.
 func (h *handshaker) FinishHandshake(context.Context, driver.Connection) error {
 	return nil
+}
+
+func x509Username(sessionCtx *common.Session) string {
+	// MongoDB uses full certificate Subject field as a username.
+	return "CN=" + sessionCtx.DatabaseUser
 }

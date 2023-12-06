@@ -467,6 +467,10 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 9807
 
+# Pod security context to add to the agent pod
+podSecurityContext:
+  fsGroup: 9807
+
 # Priority class name to add to the deployment
 priorityClassName: ""
 

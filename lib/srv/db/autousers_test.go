@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -26,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 )
 
 // TestAutoUsersPostgres verifies automatic database user creation for Postgres.
@@ -275,6 +278,89 @@ func TestAutoUsersMySQL(t *testing.T) {
 				require.Equal(t, tc.teleportUser, e.TeleportUser)
 				require.Equal(t, tc.expectDatabaseUser, e.DatabaseUser)
 				require.False(t, e.Active)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not deactivated after 5s")
+			}
+		})
+	}
+}
+
+func TestAutoUsersMongoDB(t *testing.T) {
+	t.Setenv("TELEPORT_DISABLE_MONGODB_ADMIN_CLIENT_CACHE", "true")
+	ctx := context.Background()
+	username := "alice"
+
+	tests := []struct {
+		name             string
+		mode             types.CreateDatabaseUserMode
+		wantTeardownType mongodb.UserEventType
+	}{
+		{
+			name:             "keep",
+			mode:             types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			wantTeardownType: mongodb.UserEventDeactivate,
+		},
+		{
+			name:             "best_effort_drop",
+			mode:             types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			wantTeardownType: mongodb.UserEventDelete,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			testCtx := setupTestContext(ctx, t, withSelfHostedMongoWithAdminUser("mongo-server", "teleport-admin"))
+			go testCtx.startHandlingConnections()
+
+			// Create user with role that allows user provisioning.
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), username, []string{"auto"}, nil)
+			require.NoError(t, err)
+			options := role.GetOptions()
+			options.CreateDatabaseUserMode = test.mode
+			role.SetOptions(options)
+			role.SetDatabaseRoles(types.Allow, []string{"readWrite@db1", "readAnyDatabase@admin"})
+			role.SetDatabaseNames(types.Allow, []string{"db1", "db2", "admin"})
+			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			// DatabaseUser must match identity.
+			_, err = testCtx.mongoClient(ctx, username, "mongo-server", "some-other-username")
+			require.Error(t, err)
+
+			// Try to connect to the database as this user.
+			mongoClient, err := testCtx.mongoClient(ctx, username, "mongo-server", username)
+			t.Cleanup(func() {
+				if mongoClient != nil {
+					err := mongoClient.Disconnect(ctx)
+					if !strings.Contains(err.Error(), "client is disconnected") {
+						require.NoError(t, err)
+					}
+				}
+			})
+			require.NoError(t, err)
+
+			// Verify user was activated.
+			select {
+			case e := <-testCtx.mongo["mongo-server"].db.UserEventsCh():
+				require.Equal(t, "CN=alice", e.DatabaseUser)
+				require.Equal(t, []string{"readAnyDatabase@admin", "readWrite@db1"}, e.Roles)
+				require.Equal(t, mongodb.UserEventActivate, e.Type)
+			case <-time.After(5 * time.Second):
+				t.Fatal("user not activated after 5s")
+			}
+
+			// Disconnect.
+			err = mongoClient.Disconnect(ctx)
+			require.NoError(t, err)
+
+			// Verify user was teared down.
+			select {
+			case e := <-testCtx.mongo["mongo-server"].db.UserEventsCh():
+				require.Equal(t, "CN=alice", e.DatabaseUser)
+				require.Equal(t, test.wantTeardownType, e.Type)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not deactivated after 5s")
 			}

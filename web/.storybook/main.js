@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 const path = require('path');
 const fs = require('fs');
@@ -23,8 +25,12 @@ const stories = ['../packages/**/*.story.@(js|jsx|ts|tsx)'];
 
 const tsconfigPath = path.join(__dirname, '../../tsconfig.json');
 
+const enterpriseTeleportExists = fs.existsSync(
+  path.join(__dirname, '/../../e/web')
+);
+
 // include enterprise stories if available (**/* pattern ignores dot dir names)
-if (fs.existsSync(path.join(__dirname, '/../../e/'))) {
+if (enterpriseTeleportExists) {
   stories.unshift('../../e/web/**/*.story.@(js|jsx|ts|tsx)');
 }
 
@@ -49,6 +55,33 @@ module.exports = {
       ...storybookConfig.resolve,
       ...configFactory.createDefaultConfig().resolve,
     };
+
+    // Access Graph requires a separate repo to be cloned. At the moment, only the Vite config is
+    // configured to resolve access-graph. However, Storybook uses Webpack and since our usual
+    // Webpack config doesn't need to know about access-graph, we manually to manually configure
+    // Storybook's Webpack here to resolve access-graph to the special mock.
+    //
+    // See https://github.com/gravitational/teleport.e/issues/2675.
+    storybookConfig.resolve.alias['access-graph'] = path.join(
+      __dirname,
+      'mocks',
+      'AccessGraph.tsx'
+    );
+
+    if (!enterpriseTeleportExists) {
+      delete storybookConfig.resolve.alias['e-teleport'];
+      // Unlike e-teleport, e-teleterm cannot be removed from aliases because code in OSS teleterm
+      // depends directly on e-teleterm, see https://github.com/gravitational/teleport/issues/17706.
+      //
+      // Instead of removing e-teleterm, we have to mock individual files on a case-by-case basis.
+      //
+      // TODO(ravicious): Remove e-teleterm alias once #17706 gets addressed.
+      storybookConfig.resolve.alias['e-teleterm'] = path.join(
+        __dirname,
+        'mocks',
+        'e-teleterm'
+      );
+    }
 
     storybookConfig.optimization = {
       splitChunks: {

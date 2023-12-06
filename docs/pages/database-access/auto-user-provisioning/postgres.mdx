@@ -65,13 +65,13 @@ the database, which will be created automatically if it doesn't exist.
 (!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
 </Admonition>
 
-## Step 2/3. Configure Teleport role
+## Step 2/3. Configure a Teleport role
 
 (!docs/pages/includes/database-access/auto-user-provisioning/common-teleport-role.mdx!)
 
 Users created within the database will:
 
-- Have the same name as Teleport username.
+- Have the same username as the authenticated Teleport user.
 - Be a part of the `teleport-auto-user` role.
 - Be assigned all roles from the Teleport user's role set that match the database.
   The role names must be valid and exist in the database. See PostgreSQL

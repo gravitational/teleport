@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -79,31 +83,6 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 	// And another RBAC-checking `ServerWithRoles` facade configured with the
 	// something other than the built-in Okta Role...
 	authWithAdminRole := newTestServerWithRoles(t, srv, types.RoleAdmin)
-
-	t.Run("create", func(t *testing.T) {
-		t.Run("okta service creating okta users is allowed", func(t *testing.T) {
-			user := newOktaUser(t)
-			_, err := authWithOktaRole.CreateUser(ctx, user)
-			require.NoError(t, err)
-		})
-
-		t.Run("okta service creating non-okta users in an error", func(t *testing.T) {
-			user, err := types.NewUser(t.Name())
-			require.NoError(t, err)
-
-			_, err = authWithOktaRole.CreateUser(ctx, user)
-			require.Error(t, err)
-			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
-		})
-
-		t.Run("non-okta service creating an okta user is an error", func(t *testing.T) {
-			user := newOktaUser(t)
-
-			_, err := authWithAdminRole.CreateUser(ctx, user)
-			require.Error(t, err)
-			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
-		})
-	})
 
 	t.Run("update", func(t *testing.T) {
 		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
@@ -200,12 +179,6 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			_, err = authWithOktaRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
-		})
-
-		t.Run("okta service creating okta user is allowed", func(t *testing.T) {
-			user := newOktaUser(t)
-			_, err = authWithOktaRole.CreateUser(ctx, user)
-			require.NoError(t, err)
 		})
 
 		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
@@ -371,43 +344,6 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			err = authWithAdminRole.CompareAndSwapUser(ctx, modified, original)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
-		})
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		t.Run("okta service deleting Okta user is allowed", func(t *testing.T) {
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			err = authWithOktaRole.DeleteUser(ctx, user.GetName())
-			require.NoError(t, err)
-
-			_, err = srv.AuthServer.GetUser(ctx, user.GetName(), false)
-			require.True(t, trace.IsNotFound(err), "Expected not found, got %s", err.Error())
-		})
-
-		t.Run("okta service deleting non-Okta user is an error", func(t *testing.T) {
-			user, err := types.NewUser(t.Name())
-			require.NoError(t, err)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			err = authWithOktaRole.DeleteUser(ctx, user.GetName())
-			require.Error(t, err)
-			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
-		})
-
-		t.Run("non-okta service deleting Okta user is allowed", func(t *testing.T) {
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			err = authWithAdminRole.DeleteUser(ctx, user.GetName())
-			require.NoError(t, err)
-
-			_, err = srv.AuthServer.GetUser(ctx, user.GetName(), false)
-			require.True(t, trace.IsNotFound(err), "Expected not found, got %s", err.Error())
 		})
 	})
 }

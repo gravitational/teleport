@@ -1,53 +1,71 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useCallback, useRef } from 'react';
-
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ButtonPrimary,
   ButtonSecondary,
-  Flex,
-  Indicator,
   Text,
+  Box,
+  LabelInput,
+  Indicator,
   Link,
 } from 'design';
-import * as Icons from 'design/Icon';
+import Select from 'shared/components/Select';
 import { useAsync } from 'shared/hooks/useAsync';
-import { MenuLogin } from 'shared/components/MenuLogin';
+import * as Icons from 'design/Icon';
 import * as connectMyComputer from 'shared/connectMyComputer';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
+import { openNewTab } from 'teleport/lib/util';
 import {
-  ActionButtons,
-  StyledBox,
+  useConnectionDiagnostic,
   Header,
+  ActionButtons,
+  HeaderSubtitle,
+  ConnectionDiagnosticResult,
+  StyledBox,
   TextIcon,
 } from 'teleport/Discover/Shared';
-import { openNewTab } from 'teleport/lib/util';
-import { Node, sortNodeLogins } from 'teleport/services/nodes';
+import { sortNodeLogins } from 'teleport/services/nodes';
 import { ApiError } from 'teleport/services/api/parseError';
 
 import { NodeMeta } from '../../useDiscover';
 
+import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
-export const TestConnection = (props: AgentStepProps) => {
+export function TestConnection(props: AgentStepProps) {
   const { userService, storeUser } = useTeleport();
-  const meta = props.agentMeta as NodeMeta;
+  const {
+    runConnectionDiagnostic,
+    attempt: connectionDiagAttempt,
+    diagnosis,
+    nextStep,
+    canTestConnection,
+    showMfaDialog,
+    cancelMfaDialog,
+  } = useConnectionDiagnostic();
+  const node = (props.agentMeta as NodeMeta).node;
+  const [selectedLoginOpt, setSelectedLoginOpt] = useState<Option>();
 
   const abortController = useRef<AbortController>();
   // When the user sets up Connect My Computer in Teleport Connect, a new role gets added to the
@@ -68,11 +86,34 @@ export const TestConnection = (props: AgentStepProps) => {
     )
   );
 
+  const fetchLoginsAndUpdateLoginSelection = async (signal: AbortSignal) => {
+    // fetchLogins is from useAsync which always resolves the underlying promise and uses a Go-style
+    // API for error handling.
+    const [logins, err] = await fetchLogins(signal);
+    if (err) {
+      return;
+    }
+
+    if (logins.length > 0) {
+      setSelectedLoginOpt(mapLoginToSelectOption(logins[0]));
+
+      // Start the test automatically if there are no logins to choose from.
+      if (logins.length == 1) {
+        const { mfaRequired } = await testConnection(logins[0]);
+
+        // If MFA is required, let's just wait for the user to start the connection themselves.
+        if (mfaRequired) {
+          cancelMfaDialog();
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     abortController.current = new AbortController();
 
     if (fetchLoginsAttempt.status === '') {
-      fetchLogins(abortController.current.signal);
+      fetchLoginsAndUpdateLoginSelection(abortController.current.signal);
     }
 
     return () => {
@@ -80,96 +121,161 @@ export const TestConnection = (props: AgentStepProps) => {
     };
   }, []);
 
+  function startSshSession(login: string) {
+    const url = cfg.getSshConnectRoute({
+      clusterId: node.clusterId,
+      serverId: node.id,
+      login,
+    });
+
+    openNewTab(url);
+  }
+
+  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
+    return runConnectionDiagnostic(
+      {
+        resourceKind: 'node',
+        resourceName: props.agentMeta.resourceName,
+        sshPrincipal: login,
+      },
+      mfaResponse
+    );
+  }
+
+  const hasMultipleLogins =
+    fetchLoginsAttempt.status === 'success' &&
+    fetchLoginsAttempt.data.length > 1;
+  // If there are multiple logins available, we show an extra step at the beginning, so we have to
+  // account for that when numbering the steps.
+  const stepOffset = hasMultipleLogins ? 1 : 0;
+
   return (
-    <Flex flexDirection="column" alignItems="flex-start" mb={2} gap={4}>
-      <div>
-        <Header>Start a Session</Header>
-      </div>
+    <Box>
+      {showMfaDialog && (
+        <ReAuthenticate
+          onMfaResponse={res => testConnection(selectedLoginOpt.value, res)}
+          onClose={cancelMfaDialog}
+        />
+      )}
+      <Header>
+        Test Connection to &ldquo;{props.agentMeta.resourceName}&rdquo;
+      </Header>
+      <HeaderSubtitle>
+        Optionally verify that you can connect to the computer you just added.
+      </HeaderSubtitle>
 
-      <StyledBox>
-        <Text bold>Step 1: Connect to Your Computer</Text>
-        <Text typography="subtitle1" mb={2}>
-          Optionally verify that you can connect to &ldquo;
-          {meta.resourceName}
-          &rdquo; by starting a session.
-        </Text>
-        {(fetchLoginsAttempt.status === '' ||
-          fetchLoginsAttempt.status === 'processing') && <Indicator />}
+      {(fetchLoginsAttempt.status === '' ||
+        fetchLoginsAttempt.status === 'processing') && <Indicator />}
 
-        {fetchLoginsAttempt.status === 'error' &&
-          (fetchLoginsAttempt.error instanceof ApiError &&
-          fetchLoginsAttempt.error.response.status === 404 ? (
-            <ErrorWithinStep
-              buttonText="Refresh"
-              buttonOnClick={() => window.location.reload()}
-            >
-              <>
-                For Connect My Computer to work, the role{' '}
-                {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
-                must be assigned to you. Refresh this page to repeat the process
-                of enrolling a new resource and then{' '}
-                <Link
-                  href="https://goteleport.com/docs/connect-your-client/teleport-connect/#restarting-the-setup"
-                  target="_blank"
-                >
-                  restart the Connect My Computer setup
-                </Link>{' '}
-                in Teleport Connect.
-              </>
-            </ErrorWithinStep>
-          ) : (
-            <ErrorWithinStep
-              buttonText="Retry"
-              buttonOnClick={() => fetchLogins(abortController.current.signal)}
-            >
-              <>Encountered Error: {fetchLoginsAttempt.statusText}</>
-            </ErrorWithinStep>
-          ))}
+      {fetchLoginsAttempt.status === 'error' &&
+        (fetchLoginsAttempt.error instanceof ApiError &&
+        fetchLoginsAttempt.error.response.status === 404 ? (
+          <FetchLoginsAttemptError
+            buttonText="Refresh"
+            buttonOnClick={() => window.location.reload()}
+          >
+            For Connect My Computer to work, the role{' '}
+            {connectMyComputer.getRoleNameForUser(storeUser.getUsername())} must
+            be assigned to you.
+            <br />
+            {$restartSetupInstructions}
+          </FetchLoginsAttemptError>
+        ) : (
+          <FetchLoginsAttemptError
+            buttonText="Retry"
+            buttonOnClick={() =>
+              fetchLoginsAndUpdateLoginSelection(abortController.current.signal)
+            }
+          >
+            Encountered Error: {fetchLoginsAttempt.statusText}
+          </FetchLoginsAttemptError>
+        ))}
 
-        {fetchLoginsAttempt.status === 'success' &&
-          (fetchLoginsAttempt.data.length > 0 ? (
-            <ConnectButton logins={fetchLoginsAttempt.data} node={meta.node} />
-          ) : (
-            <ErrorWithinStep
-              buttonText="Refresh"
-              buttonOnClick={() => window.location.reload()}
-            >
-              <>
-                The role{' '}
-                {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
-                does not contain any logins. It has likely been manually edited.
-                Refresh this page to repeat the process of enrolling a new
-                resource and then{' '}
-                <Link
-                  href="https://goteleport.com/docs/connect-your-client/teleport-connect/#restarting-the-setup"
-                  target="_blank"
-                >
-                  restart the Connect My Computer setup
-                </Link>{' '}
-                in Teleport Connect.
-              </>
-            </ErrorWithinStep>
-          ))}
-      </StyledBox>
-
+      {fetchLoginsAttempt.status === 'success' &&
+        (fetchLoginsAttempt.data.length === 0 ? (
+          <FetchLoginsAttemptError
+            buttonText="Refresh"
+            buttonOnClick={() => window.location.reload()}
+          >
+            The role{' '}
+            {connectMyComputer.getRoleNameForUser(storeUser.getUsername())} does
+            not contain any logins. It has likely been manually edited.
+            <br />
+            {$restartSetupInstructions}
+          </FetchLoginsAttemptError>
+        ) : (
+          <>
+            {hasMultipleLogins && (
+              <StepSkeletonPickUser>
+                <Box width="320px">
+                  <LabelInput>Select Login</LabelInput>
+                  <Select
+                    value={selectedLoginOpt}
+                    options={sortNodeLogins(fetchLoginsAttempt.data).map(
+                      mapLoginToSelectOption
+                    )}
+                    onChange={(o: Option) => setSelectedLoginOpt(o)}
+                    isDisabled={connectionDiagAttempt.status === 'processing'}
+                  />
+                </Box>
+              </StepSkeletonPickUser>
+            )}
+            <ConnectionDiagnosticResult
+              attempt={connectionDiagAttempt}
+              diagnosis={diagnosis}
+              canTestConnection={canTestConnection}
+              testConnection={() => testConnection(selectedLoginOpt.value)}
+              stepNumber={1 + stepOffset}
+              stepDescription="Verify that your computer is accessible"
+              numberAndDescriptionOnSameLine
+            />
+            <StyledBox>
+              <Text bold mb={3}>
+                Step {2 + stepOffset}: Connect to Your Computer
+              </Text>
+              <ButtonSecondary
+                width="200px"
+                onClick={() => startSshSession(selectedLoginOpt.value)}
+              >
+                Start Session
+              </ButtonSecondary>
+            </StyledBox>
+          </>
+        ))}
       <ActionButtons
-        onProceed={props.nextStep}
-        disableProceed={fetchLoginsAttempt.status !== 'success'}
+        disableProceed={
+          fetchLoginsAttempt.status !== 'success' ||
+          fetchLoginsAttempt.data.length === 0
+        }
+        onProceed={nextStep}
         lastStep={true}
         // onPrev is not passed on purpose to disable the back button. The flow would go back to
         // polling which wouldn't make sense as the user has already connected their computer so the
         // step would poll forever, unless the user removed the agent and configured it again.
       />
-    </Flex>
+    </Box>
   );
-};
+}
 
-const ErrorWithinStep = (props: {
+const StepSkeletonPickUser = (props: { children: React.ReactNode }) => (
+  <StyledBox mb={5}>
+    <Text bold mb={3}>
+      Step 1: Pick the OS user to test
+    </Text>
+    {props.children}
+  </StyledBox>
+);
+
+/**
+ * To display the first step, fetchLoginsAttempt must be successful, hence why we show errors from
+ * fetchLoginsAttempt within the first step.
+ */
+const FetchLoginsAttemptError = (props: {
+  children: React.ReactNode;
   buttonText: string;
   buttonOnClick: () => void;
-  children: React.ReactNode;
 }) => (
-  <>
+  <StepSkeletonPickUser>
     <TextIcon mt={2} mb={3}>
       <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
       <Text>{props.children}</Text>
@@ -178,58 +284,23 @@ const ErrorWithinStep = (props: {
     <ButtonPrimary type="button" onClick={props.buttonOnClick}>
       {props.buttonText}
     </ButtonPrimary>
-  </>
+  </StepSkeletonPickUser>
 );
 
-const ConnectButton = ({ logins, node }: { logins: string[]; node: Node }) => {
-  if (logins.length === 1) {
-    return (
-      <ButtonSecondary
-        as="a"
-        target="_blank"
-        href={cfg.getSshConnectRoute({
-          clusterId: node.clusterId,
-          serverId: node.id,
-          login: logins[0],
-        })}
-      >
-        Connect
-      </ButtonSecondary>
-    );
-  }
+const mapLoginToSelectOption = (login: string) => ({
+  value: login,
+  label: login,
+});
 
-  return (
-    <MenuLogin
-      textTransform="uppercase"
-      alignButtonWidthToMenu
-      getLoginItems={() => {
-        return sortNodeLogins(logins).map(login => ({
-          login,
-          url: cfg.getSshConnectRoute({
-            clusterId: node.clusterId,
-            serverId: node.id,
-            login,
-          }),
-        }));
-      }}
-      onSelect={(event, login) => {
-        event.preventDefault();
-        openNewTab(
-          cfg.getSshConnectRoute({
-            clusterId: node.clusterId,
-            serverId: node.id,
-            login,
-          })
-        );
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'center',
-        horizontal: 'right',
-      }}
-    />
-  );
-};
+const $restartSetupInstructions = (
+  <>
+    Refresh this page to repeat the process of enrolling a new resource and then{' '}
+    <Link
+      href="https://goteleport.com/docs/connect-your-client/teleport-connect/#restarting-the-setup"
+      target="_blank"
+    >
+      restart the Connect My Computer setup
+    </Link>{' '}
+    in Teleport Connect.
+  </>
+);

@@ -1,0 +1,29 @@
+Next, configure the database admin user in the Teleport database configuration:
+
+<Tabs>
+<TabItem label="Static config">
+```yaml
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "example"
+    protocol: "{{ protocol }}"
+    uri: "{{ uri }}"
+    admin_user:
+      name: "teleport-admin"
+```
+</TabItem>
+<TabItem label="Dynamic resource">
+```yaml
+kind: db
+version: v3
+metadata:
+  name: example
+spec:
+  protocol: "{{ protocol }}"
+  uri: "{{ uri }}"
+  admin_user:
+    name: "teleport-admin"
+```
+</TabItem>
+</Tabs>
