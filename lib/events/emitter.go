@@ -168,6 +168,7 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
 	auditEmitEvent.Inc()
+	auditEmitEventSizes.Observe(float64(event.Size()))
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
