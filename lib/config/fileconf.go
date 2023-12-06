@@ -2230,7 +2230,7 @@ func (wds *WindowsDesktopService) Check() error {
 
 	if hasAD && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
-			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
+			"the ldap configuration must also be specified")
 	}
 
 	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
