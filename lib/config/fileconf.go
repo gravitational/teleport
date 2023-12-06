@@ -2257,7 +2257,8 @@ type WindowsHostLabelRule struct {
 type WindowsHost struct {
 	// Name of the host
 	Name string `yaml:"name"`
-	// Address of the host
+	// Address of the host, with an optional port.
+	// 10.1.103.4 or 10.1.103.4:3389, for example.
 	Address string `yaml:"addr"`
 	// Labels is the set of labels to apply to this host
 	Labels map[string]string `yaml:"labels"`
