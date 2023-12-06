@@ -108,16 +108,15 @@ function ClusterResources({
   } = useUser();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
 
-  const { params, setParams, replaceHistory, pathname, onLabelClick } =
-    useUrlFiltering({
-      sort: {
-        fieldName: 'name',
-        dir: 'ASC',
-      },
-      pinnedOnly:
-        preferences.unifiedResourcePreferences.defaultTab ===
-        DefaultTab.DEFAULT_TAB_PINNED,
-    });
+  const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
+    sort: {
+      fieldName: 'name',
+      dir: 'ASC',
+    },
+    pinnedOnly:
+      preferences.unifiedResourcePreferences.defaultTab ===
+      DefaultTab.DEFAULT_TAB_PINNED,
+  });
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
@@ -210,7 +209,6 @@ function ClusterResources({
         }}
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
-        onLabelClick={onLabelClick}
         NoResources={
           <Empty
             clusterId={clusterId}
@@ -226,13 +224,14 @@ function ClusterResources({
         }))}
         setParams={newParams => {
           setParams(newParams);
+          const isAdvancedSearch = !!newParams.query;
           replaceHistory(
             encodeUrlQueryParams(
               pathname,
-              newParams.search,
+              isAdvancedSearch ? newParams.query : newParams.search,
               newParams.sort,
               newParams.kinds,
-              !!newParams.query /* isAdvancedSearch */,
+              isAdvancedSearch,
               newParams.pinnedOnly
             )
           );
