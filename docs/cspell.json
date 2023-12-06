@@ -722,6 +722,7 @@
     "sandboxbd",
     "scrollback",
     "seccomp",
+    "secretless",
     "secretname",
     "selectnongalleryapp",
     "selectsaml",
