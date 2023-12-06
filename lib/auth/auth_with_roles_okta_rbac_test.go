@@ -199,7 +199,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 
-			err = authWithOktaRole.UpsertUser(user)
+			err = authWithOktaRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
@@ -218,7 +218,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			user.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
 
-			err = authWithOktaRole.UpsertUser(user)
+			err = authWithOktaRole.UpsertUser(ctx, user)
 			require.NoError(t, err)
 		})
 
@@ -231,7 +231,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			user.SetOrigin(types.OriginOkta)
 
-			err = authWithOktaRole.UpsertUser(user)
+			err = authWithOktaRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsAccessDenied(err), "Expected access denied, got %T: %s", err, err.Error())
 		})
@@ -244,14 +244,14 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			user.SetOrigin(types.OriginDynamic)
 
-			err = authWithOktaRole.UpsertUser(user)
+			err = authWithOktaRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
 
 		t.Run("non-okta service creating okta user is an error", func(t *testing.T) {
 			user := newOktaUser(t)
-			err := authWithAdminRole.UpsertUser(user)
+			err := authWithAdminRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
@@ -264,7 +264,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			user.SetOrigin(types.OriginDynamic)
 
-			err = authWithAdminRole.UpsertUser(user)
+			err = authWithAdminRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
@@ -277,7 +277,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 			user.AddRole(teleport.PresetAccessRoleName)
 
-			err = authWithAdminRole.UpsertUser(user)
+			err = authWithAdminRole.UpsertUser(ctx, user)
 			require.Error(t, err)
 			require.Truef(t, trace.IsBadParameter(err), "Expected bad parameter, got %T: %s", err, err.Error())
 		})
