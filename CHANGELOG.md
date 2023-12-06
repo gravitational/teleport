@@ -19,6 +19,55 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
+#### Container images
+
+Teleport 15 contains several breaking changes to improve the default
+security and usability of container images.
+
+##### "Heavy" container images are discontinued
+
+In order to increase default security in 15+, Teleport will no longer publish
+[container images containing a shell and rich command line environment](https://github.com/gravitational/teleport/blob/branch/v14/build.assets/charts/Dockerfile)
+to Elastic Container Registry's [gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
+image repo. Instead, all users should use the [distroless images](https://github.com/gravitational/teleport/blob/branch/v15/build.assets/charts/Dockerfile-distroless)
+introduced in Teleport 12. These images can be found at:
+
+* https://gallery.ecr.aws/gravitational/teleport-distroless
+* https://gallery.ecr.aws/gravitational/teleport-ent-distroless
+
+For users who need a shell in a Teleport container, a "debug" image is
+available which contains BusyBox, including a shell and many CLI tools. Find the debug images at:
+
+* https://gallery.ecr.aws/gravitational/teleport-distroless-debug
+* https://gallery.ecr.aws/gravitational/teleport-ent-distroless-debug
+
+Do not run debug container images in production environments.
+
+Heavy container images will continue to be published for Telport 13 and 14
+throughout the remainder of these releases' lifecycle.
+
+##### Multi-architecture Teleport Operator images
+
+Teleport Operator container images will no longer be published with architecture
+suffixes in their tags (for example: `14.2.1-amd64` and `14.2.1-arm`). Instead,
+only a single tag will be published with multi-platform support (e.g., `15.0.0`).
+If you use Teleport Operator images with an architecture suffix, remove the suffix
+and your client should automatically pull the platform-appropriate image.
+Individual architectures may be pulled with `docker pull --platform <arch>`.
+
+##### Quay.io registry
+
+The quay.io container registry was deprecated and Teleport 12 is the last
+version to publish images to quay.io. With Teleport 15's release, v12 is no
+longer supported and no new container images will be published to quay.io.
+
+For Teleport 8+, replacement container images can be found in [Teleport's public ECR registry](https://gallery.ecr.aws/gravitational).
+
+Users who wish to continue to use unsupported container images prior to Teleport 8
+will need to download any quay.io images they depend on and mirror them elsewhere
+before July 2024. Following brownouts in May and June, Teleport will disable pulls from
+all Teleport quay.io repositories on Wednesday, 2024-07-03.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:
