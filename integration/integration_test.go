@@ -4207,6 +4207,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
+	waitForNodesToRegister(t, main, "cluster-remote")
+
 	// execute the connection via first proxy
 	cfg := helpers.ClientConfig{
 		Login:   username,
