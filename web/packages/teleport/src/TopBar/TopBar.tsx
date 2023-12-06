@@ -53,6 +53,7 @@ import {
 import ClusterSelector from './ClusterSelector';
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
+import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 const Assist = lazy(() => import('teleport/Assist'));
 
@@ -155,7 +156,12 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
     );
 
   function handleBack() {
-    history.goBack();
+    const firstRouteForCategory = getFirstRouteForCategory(
+      features,
+      feature.category
+    );
+
+    history.push(firstRouteForCategory);
   }
 
   const title = feature?.route?.title || '';
