@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ReactDOM from 'react-dom';
 import React from 'react';
+
+import { createRoot } from 'react-dom/client';
 
 import history from 'teleport/services/history';
 
@@ -39,7 +40,6 @@ if (localStorage.getItem('enable-telemetry') === 'true') {
 
 const teleportContext = new TeleportContext();
 
-ReactDOM.render(
-  <Teleport history={history.original()} ctx={teleportContext} />,
-  document.getElementById('app')
+createRoot(document.getElementById('app')).render(
+  <Teleport history={history.original()} ctx={teleportContext} />
 );
