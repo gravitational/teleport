@@ -842,7 +842,7 @@ test-rust:
 endif
 endif
 
-# Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
+# Run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
 test-sh:
 	@if ! type bats 2>&1 >/dev/null; then \
@@ -850,7 +850,7 @@ test-sh:
 		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+	bats $(BATSFLAGS) ./assets/aws/files/tests
 
 
 .PHONY: run-etcd
