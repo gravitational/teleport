@@ -40,9 +40,7 @@ enum KeyboardArrowNavigationKeys {
   Enter = 'Enter',
 }
 
-export const KeyboardArrowsNavigation: FC<
-  PropsWithChildren
-> = props => {
+export const KeyboardArrowsNavigation: FC<PropsWithChildren> = props => {
   const [items, setItems] = useState<RunActiveItemHandler[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
