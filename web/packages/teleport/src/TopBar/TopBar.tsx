@@ -36,8 +36,8 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import cfg from 'teleport/config';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
-
 import { KeysEnum } from 'teleport/services/storageService';
+import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import {
   Popup,
@@ -53,7 +53,6 @@ import {
 import ClusterSelector from './ClusterSelector';
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 const Assist = lazy(() => import('teleport/Assist'));
 
