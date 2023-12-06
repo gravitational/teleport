@@ -101,6 +101,40 @@ The policy will look like the following:
 }
 ```
 
+## Get started
+
+External Audit Storage is available as an integration in the management panel of
+the Teleport web UI.
+
+![Screenshot of External Audit Storage integration tile](../../../img/externalauditstorage/integration.png)
+
+The UI will walk you through the steps to set up an AWS OIDC integration (if
+you don't have one already), configure the IAM policy, create the infrastructure
+in your AWS account, test the connection to your S3 buckets and Athena
+workgroup, and enable the feature.
+
+To configure the integration you will need the following allow rules in one of
+your Teleport roles.
+These are available by default in the preset `editor` role.
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example
+spec:
+  allow:
+    rules:
+    - resources:
+      - integration
+      - external_audit_storage
+      verbs:
+      - create
+      - update
+      - list
+      - read
+```
+
 ## Regional storage
 
 Currently it is a requirement that the AWS infrastructure is hosted in the same
