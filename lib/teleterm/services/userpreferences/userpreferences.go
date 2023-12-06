@@ -29,19 +29,14 @@ func Get(ctx context.Context, rootClient Client, leafClient Client) (*api.UserPr
 		return nil, trace.Wrap(err)
 	}
 	rootPreferences := rootPreferencesResponse.GetPreferences()
+	clusterPreferences := rootPreferences.GetClusterPreferences()
 
-	var leafPreferences *userpreferencesv1.UserPreferences
 	if leafClient != nil {
 		preferences, err := leafClient.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		leafPreferences = preferences.GetPreferences()
-	}
-
-	clusterPreferences := rootPreferences.GetClusterPreferences()
-	if leafPreferences != nil {
-		clusterPreferences = leafPreferences.GetClusterPreferences()
+		clusterPreferences = preferences.GetPreferences().GetClusterPreferences()
 	}
 
 	return &api.UserPreferences{
