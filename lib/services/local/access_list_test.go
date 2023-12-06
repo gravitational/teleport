@@ -1021,21 +1021,3 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 
 	return review
 }
-
-func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
-	t.Helper()
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: igsEnabled,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
-
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	return service
-}
