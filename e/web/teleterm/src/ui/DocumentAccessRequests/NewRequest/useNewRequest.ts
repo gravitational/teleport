@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   makeDatabase,
@@ -128,28 +129,8 @@ export default function useNewRequest() {
     fetch();
   }, [fetch]);
 
-  function addAgentLabelToQuery(filter: AgentFilter, label: ResourceLabel) {
-    const queryParts = [];
-
-    // Add existing query
-    if (filter.query) {
-      queryParts.push(filter.query);
-    }
-
-    // If there is an existing simple search,
-    // convert it to predicate language and add it
-    if (filter.search) {
-      queryParts.push(`search("${filter.search}")`);
-    }
-
-    // Create the label query.
-    queryParts.push(`labels["${label.name}"] == "${label.value}"`);
-
-    return queryParts.join(' && ');
-  }
-
   function onAgentLabelClick(label: ResourceLabel) {
-    const query = addAgentLabelToQuery(agentFilter, label);
+    const query = makeAdvancedSearchQueryForLabel(label, agentFilter);
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 

@@ -4,6 +4,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types';
 import { useUnifiedResourcesFetch } from 'shared/components/UnifiedResources';
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { App } from 'teleport/services/apps';
@@ -435,7 +436,7 @@ export function useNewRequest(ctx: Ctx) {
   };
 
   function onAgentLabelClick(label: ResourceLabel) {
-    const query = addAgentLabelToQuery(agentFilter, label);
+    const query = makeAdvancedSearchQueryForLabel(label, agentFilter);
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 
@@ -764,26 +765,6 @@ function getEmptyFetchedDataState() {
     startKey: '',
     totalCount: 0,
   };
-}
-
-function addAgentLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
-  const queryParts = [];
-
-  // Add existing query
-  if (filter.query) {
-    queryParts.push(filter.query);
-  }
-
-  // If there is an existing simple search,
-  // convert it to predicate language and add it
-  if (filter.search) {
-    queryParts.push(`search("${filter.search}")`);
-  }
-
-  // Create the label query.
-  queryParts.push(`labels["${label.name}"] == "${label.value}"`);
-
-  return queryParts.join(' && ');
 }
 
 function getDefaultSort(kind: ResourceKind): SortType {

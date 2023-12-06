@@ -388,7 +388,6 @@ export function NewRequest(props: State) {
             </Flex>
           }
           key={clusterId}
-          onLabelClick={onAgentLabelClick}
           NoResources={
             <NoResults query={agentFilter?.query || agentFilter?.search} />
           }
