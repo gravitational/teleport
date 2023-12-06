@@ -32,7 +32,7 @@ import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
   DefaultTab,
@@ -51,6 +51,7 @@ import {
   useInfiniteScroll,
 } from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 import {
   SharedUnifiedResource,
@@ -134,7 +135,6 @@ interface UnifiedResourcesProps {
   pinning: UnifiedResourcesPinning;
   availableKinds: FilterKind[];
   setParams(params: UnifiedResourcesQueryParams): void;
-  onLabelClick(label: ResourceLabel): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   unifiedResourcePreferences: UnifiedResourcePreferences;
@@ -150,7 +150,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     resourcesFetchAttempt,
     resources,
     fetchResources,
-    onLabelClick,
     availableKinds,
     pinning,
     unifiedResourcePreferences,
@@ -442,7 +441,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         <PinningNotSupported />
       ) : (
         <ViewComponent
-          onLabelClick={onLabelClick}
+          onLabelClick={label =>
+            setParams({
+              ...params,
+              search: '',
+              query: makeAdvancedSearchQueryForLabel(label, params),
+            })
+          }
           pinnedResources={pinnedResources}
           selectedResources={selectedResources}
           onSelectResource={handleSelectResource}
