@@ -223,7 +223,7 @@ func TestAccessRequestSearch(t *testing.T) {
 func TestShowRequestTable(t *testing.T) {
 	createdAtTime := time.Now()
 	expiresTime := time.Now().Add(time.Hour)
-	assumeTime := createdAtTime.Add(30 * time.Minute)
+	assumeStartTime := createdAtTime.Add(30 * time.Minute)
 	tests := []struct {
 		name      string
 		reqs      []types.AccessRequest
@@ -263,12 +263,12 @@ func TestShowRequestTable(t *testing.T) {
 
 						Expires:    expiresTime,
 						SessionTTL: expiresTime,
-						AssumeTime: &assumeTime,
+						AssumeStartTime: &assumeStartTime,
 						Created:    createdAtTime,
 					},
 				},
 			},
-			wantPresent: []string{"someName", "someUser", "role1,role2", assumeTime.UTC().Format(time.RFC822)},
+			wantPresent: []string{"someName", "someUser", "role1,role2", assumeStartTime.UTC().Format(time.RFC822)},
 		},
 	}
 

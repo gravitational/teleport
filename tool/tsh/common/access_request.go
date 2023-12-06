@@ -221,8 +221,8 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		// Display the expiry time in the local timezone. UTC is confusing.
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
 	}
-	if req.GetAssumeTime() != nil {
-		table.AddRow([]string{"Assume Time (UTC):", req.GetAssumeTime().UTC().Format(time.RFC822)})
+	if req.GetAssumeStartTime() != nil {
+		table.AddRow([]string{"Assume Start Time (UTC):", req.GetAssumeStartTime().UTC().Format(time.RFC822)})
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
@@ -309,13 +309,13 @@ func onRequestReview(cf *CLIConf) error {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
 	}
 
-	var parsedAssumeTime *time.Time
-	if cf.AssumeTimeRaw != "" {
-		assumeTime, err := time.Parse(time.RFC3339, cf.AssumeTimeRaw)
+	var parsedAssumeStartTime *time.Time
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
 		if err != nil {
-			return trace.BadParameter("parsing assum-time: %v", err)
+			return trace.BadParameter("parsing assume-start-time: %v", err)
 		}
-		parsedAssumeTime = &assumeTime
+		parsedAssumeStartTime = &assumeStartTime
 	}
 
 	var state types.RequestState
@@ -331,10 +331,10 @@ func onRequestReview(cf *CLIConf) error {
 		req, err = clt.SubmitAccessReview(cf.Context, types.AccessReviewSubmission{
 			RequestID: cf.RequestID,
 			Review: types.AccessReview{
-				Author:        cf.Username,
-				ProposedState: state,
-				Reason:        cf.ReviewReason,
-				AssumeTime:    parsedAssumeTime,
+				Author:          cf.Username,
+				ProposedState:   state,
+				Reason:          cf.ReviewReason,
+				AssumeStartTime: parsedAssumeStartTime,
 			},
 		})
 		return trace.Wrap(err)
@@ -378,9 +378,9 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		assumeTime := ""
-		if req.GetAssumeTime() != nil {
-			assumeTime = req.GetAssumeTime().UTC().Format(time.RFC822)
+		assumeStartTime := ""
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime = req.GetAssumeStartTime().UTC().Format(time.RFC822)
 		}
 		table.AddRow([]string{
 			req.GetName(),
@@ -390,7 +390,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 			req.GetCreationTime().UTC().Format(time.RFC822),
 			time.Until(req.Expiry()).Round(time.Minute).String(),
 			time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
-			assumeTime,
+			assumeStartTime,
 			req.GetState().String(),
 		})
 	}

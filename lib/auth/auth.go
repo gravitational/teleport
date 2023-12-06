@@ -3656,8 +3656,8 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 	}
 
-	if req.GetAssumeTime() != nil && req.GetAssumeTime().After(a.GetClock().Now()) {
-		return nil, trace.BadParameter("access request %q has future assumeTime", accessRequestID)
+	if req.GetAssumeStartTime() != nil && req.GetAssumeStartTime().After(a.GetClock().Now()) {
+		return nil, trace.BadParameter("access request %q has future assumeStartTime", accessRequestID)
 	}
 
 	return req, nil
@@ -4491,11 +4491,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			UpdatedBy: authz.ClientUsername(ctx),
 			Expires:   req.GetAccessExpiry(),
 		},
-		RequestID:    params.RequestID,
-		RequestState: params.State.String(),
-		Reason:       params.Reason,
-		Roles:        params.Roles,
-		AssumeTime:   params.AssumeTime,
+		RequestID:       params.RequestID,
+		RequestState:    params.State.String(),
+		Reason:          params.Reason,
+		Roles:           params.Roles,
+		AssumeStartTime: params.AssumeStartTime,
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {

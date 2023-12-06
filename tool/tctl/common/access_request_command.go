@@ -60,8 +60,8 @@ type AccessRequestCommand struct {
 	force  bool
 
 	approve, deny bool
-	// assumeTimeRaw format is RFC3339
-	assumeTimeRaw string
+	// assumeStartTimeRaw format is RFC3339
+	assumeStartTimeRaw string
 
 	requestList    *kingpin.CmdClause
 	requestGet     *kingpin.CmdClause
@@ -91,7 +91,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
-	c.requestApprove.Flag("assume-time", "Sets time roles can be assumed by requestor (RFC3339)").StringVar(&c.assumeTimeRaw)
+	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339)").StringVar(&c.assumeStartTimeRaw)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request.")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -231,18 +231,18 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	assumeTime, err := time.Parse(time.RFC3339, c.assumeTimeRaw)
+	assumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
 	if err != nil {
-		return trace.BadParameter("parsing assume-time: %v", err)
+		return trace.BadParameter("parsing assume-start-time: %v", err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-			RequestID:   reqID,
-			State:       types.RequestState_APPROVED,
-			Reason:      c.reason,
-			Annotations: annotations,
-			Roles:       c.splitRoles(),
-			AssumeTime:  &assumeTime,
+			RequestID:       reqID,
+			State:           types.RequestState_APPROVED,
+			Reason:          c.reason,
+			Annotations:     annotations,
+			Roles:           c.splitRoles(),
+			AssumeStartTime: &assumeStartTime,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

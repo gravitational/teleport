@@ -1408,11 +1408,11 @@ message AccessRequestCreate {
   // This field is only populated when the request is in the PROMOTED state.
   string PromotedAccessListName = 15 [(gogoproto.jsontag) = "promoted_access_list_name,omitempty"];
 
-  // AssumeTime is the time the requested roles can be assumed.
-  google.protobuf.Timestamp AssumeTime = 16 [
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 16 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_time"
+    (gogoproto.jsontag) = "assume_start_time"
   ];
 }
 

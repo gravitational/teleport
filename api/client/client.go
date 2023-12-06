@@ -1221,12 +1221,12 @@ func (c *Client) GetAccessRequestAllowedPromotions(ctx context.Context, req type
 // SetAccessRequestState updates the state of an existing access request.
 func (c *Client) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	setter := proto.RequestStateSetter{
-		ID:          params.RequestID,
-		State:       params.State,
-		Reason:      params.Reason,
-		Annotations: params.Annotations,
-		Roles:       params.Roles,
-		AssumeTime:  params.AssumeTime,
+		ID:              params.RequestID,
+		State:           params.State,
+		Reason:          params.Reason,
+		Annotations:     params.Annotations,
+		Roles:           params.Roles,
+		AssumeStartTime: params.AssumeStartTime,
 	}
 	if d := utils.GetDelegator(ctx); d != "" {
 		setter.Delegator = d

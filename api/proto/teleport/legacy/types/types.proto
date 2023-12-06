@@ -2182,11 +2182,11 @@ message AccessReview {
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
 
-  // AssumeTime is the time the requested roles can be assumed.
-  google.protobuf.Timestamp AssumeTime = 10 [
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 10 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_time"
+    (gogoproto.jsontag) = "assume_start_time"
   ];
 }
 
@@ -2355,11 +2355,11 @@ message AccessRequestSpecV3 {
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
 
-  // AssumeTime is the time the requested roles can be assumed.
-  google.protobuf.Timestamp AssumeTime = 21 [
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 21 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_time"
+    (gogoproto.jsontag) = "assume_start_time"
   ];
 }
 
