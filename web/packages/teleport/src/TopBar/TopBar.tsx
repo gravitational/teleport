@@ -172,8 +172,8 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
   };
 
   return (
-    <TopBarContainer navigationHidden={feature.hideNavigation}>
-      {feature.hideNavigation && (
+    <TopBarContainer navigationHidden={feature?.hideNavigation}>
+      {feature?.hideNavigation && (
         <ButtonIconContainer onClick={handleBack}>
           <ArrowLeft size="medium" />
         </ButtonIconContainer>

@@ -73,7 +73,7 @@ export function getFirstRouteForCategory(
 function getFeatureForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
-) {
+): TeleportFeature | undefined {
   return features.find(
     feature =>
       feature.route &&
@@ -183,7 +183,7 @@ export function Navigation({
 
   const feature = getFeatureForRoute(features, location);
 
-  if (feature.hideNavigation) {
+  if (feature?.hideNavigation) {
     return null;
   }
 
