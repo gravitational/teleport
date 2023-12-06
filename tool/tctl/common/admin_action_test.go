@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -52,6 +53,7 @@ func TestAdminActionMFA(t *testing.T) {
 	s := newAdminActionTestSuite(t)
 
 	t.Run("Users", s.testAdminActionMFA_Users)
+	t.Run("Roles", s.testAdminActionMFA_Roles)
 }
 
 func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
@@ -100,6 +102,39 @@ func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
 	})
 }
 
+func (s *adminActionTestSuite) testAdminActionMFA_Roles(t *testing.T) {
+	ctx := context.Background()
+
+	role, err := types.NewRole("telerole", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	createRole := func() error {
+		_, err := s.authServer.CreateRole(ctx, role)
+		return trace.Wrap(err)
+	}
+
+	getRole := func() (types.Resource, error) {
+		return s.authServer.GetRole(ctx, role.GetName())
+	}
+
+	deleteRole := func() error {
+		return s.authServer.DeleteRole(ctx, role.GetName())
+	}
+
+	s.testAdminActionMFA_ResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:       role,
+		resourceCreate: createRole,
+		resourceDelete: deleteRole,
+	})
+
+	s.testAdminActionMFA_EditCommand(t, ctx, editCommandTestCase{
+		resourceRef:    getResourceRef(role),
+		resourceCreate: createRole,
+		resourceGet:    getRole,
+		resourceDelete: deleteRole,
+	})
+}
+
 type resourceCommandTestCase struct {
 	resource       types.Resource
 	resourceCreate func() error
@@ -136,6 +171,38 @@ func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, 
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
 			cleanup:    tc.resourceDelete,
+		})
+	})
+}
+
+type editCommandTestCase struct {
+	resourceRef    string
+	resourceCreate func() error
+	resourceGet    func() (types.Resource, error)
+	resourceDelete func() error
+}
+
+func (s *adminActionTestSuite) testAdminActionMFA_EditCommand(t *testing.T, ctx context.Context, tc editCommandTestCase) {
+	t.Run("tctl edit", func(t *testing.T) {
+		s.runTestCase(t, ctx, adminActionTestCase{
+			command: fmt.Sprintf("edit %v", tc.resourceRef),
+			setup:   tc.resourceCreate,
+			cliCommand: &tctl.EditCommand{
+				Editor: func(filename string) error {
+					// Get the latest version of the resource with the correct revision ID.
+					resource, err := tc.resourceGet()
+					require.NoError(t, err)
+
+					// Update the expiry so that the edit goes through.
+					resource.SetExpiry(time.Now())
+
+					f, err := os.Create(filename)
+					require.NoError(t, err)
+					require.NoError(t, utils.WriteYAML(f, resource))
+					return nil
+				},
+			},
+			cleanup: tc.resourceDelete,
 		})
 	})
 }
