@@ -25,6 +25,7 @@ import { Desktop } from 'teleport/services/desktops';
 import { UserGroup } from '../userGroups';
 
 import type { MfaAuthnResponse } from '../mfa';
+import type { Platform } from 'design/platform';
 
 export type UnifiedResource =
   | App
@@ -125,6 +126,10 @@ export type ConnectionDiagnosticRequest = {
    * only a single login available in the Connect My Computer role.
    */
   sshPrincipalSelectionMode?: 'manual' | 'auto'; //`json:"ssh_principal_selection_mode"`
+  /**
+   * An optional field which describes the platform the SSH agent runs on.
+   */
+  sshNodeOS?: Platform; // `json:"ssh_node_os"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation"`
   dbTester?: DatabaseTester;
   mfaAuthnResponse?: MfaAuthnResponse;

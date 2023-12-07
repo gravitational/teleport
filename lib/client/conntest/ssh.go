@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -222,7 +223,14 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	isConnectMyComputerNode := req.ResourceTile == ResourceTileConnectMyComputer
 
 	if trace.IsConnectionProblem(sshError) {
-		message := `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`
+		var statusCommand string
+		if req.SSHNodeOS == constants.DarwinOS {
+			statusCommand = "launchctl print 'system/Teleport Service'"
+		} else {
+			statusCommand = "systemctl status teleport"
+		}
+
+		message := fmt.Sprintf(`Failed to connect to the Node. Ensure teleport service is running using "%s".`, statusCommand)
 		if isConnectMyComputerNode {
 			message = "Failed to connect to the Node. Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running."
 		}
@@ -253,7 +261,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	isInvalidNodePrincipal := isUsernameLookupFail || (isConnectMyComputerNode && isForkExecOperationNotPermitted)
 
 	if isInvalidNodePrincipal {
-		message := fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %v",
+		message := fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid login in the target node. Output from Node: %v",
 			sshPrincipal, processStdoutString)
 		if isConnectMyComputerNode {
 			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(currentUser.GetName())
