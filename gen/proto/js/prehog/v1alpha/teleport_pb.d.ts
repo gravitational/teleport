@@ -1999,6 +1999,9 @@ export class AccessListReviewCreateEvent extends jspb.Message {
     getDaysPastNextAuditDate(): number;
     setDaysPastNextAuditDate(value: number): AccessListReviewCreateEvent;
 
+    getMembershipRequirementsChanged(): boolean;
+    setMembershipRequirementsChanged(value: boolean): AccessListReviewCreateEvent;
+
     getReviewFrequencyChanged(): boolean;
     setReviewFrequencyChanged(value: boolean): AccessListReviewCreateEvent;
 
@@ -2024,6 +2027,7 @@ export namespace AccessListReviewCreateEvent {
         userName: string,
         metadata?: AccessListMetadata.AsObject,
         daysPastNextAuditDate: number,
+        membershipRequirementsChanged: boolean,
         reviewFrequencyChanged: boolean,
         reviewDayOfMonthChanged: boolean,
         numberOfRemovedMembers: number,

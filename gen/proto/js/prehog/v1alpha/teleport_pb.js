@@ -14915,9 +14915,10 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.toObject = function(includeInst
     userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
     metadata: (f = msg.getMetadata()) && proto.prehog.v1alpha.AccessListMetadata.toObject(includeInstance, f),
     daysPastNextAuditDate: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    reviewFrequencyChanged: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-    reviewDayOfMonthChanged: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
-    numberOfRemovedMembers: jspb.Message.getFieldWithDefault(msg, 6, 0)
+    membershipRequirementsChanged: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+    reviewFrequencyChanged: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+    reviewDayOfMonthChanged: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+    numberOfRemovedMembers: jspb.Message.getFieldWithDefault(msg, 7, 0)
   };
 
   if (includeInstance) {
@@ -14969,13 +14970,17 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.deserializeBinaryFromReader = f
       break;
     case 4:
       var value = /** @type {boolean} */ (reader.readBool());
-      msg.setReviewFrequencyChanged(value);
+      msg.setMembershipRequirementsChanged(value);
       break;
     case 5:
       var value = /** @type {boolean} */ (reader.readBool());
-      msg.setReviewDayOfMonthChanged(value);
+      msg.setReviewFrequencyChanged(value);
       break;
     case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setReviewDayOfMonthChanged(value);
+      break;
+    case 7:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setNumberOfRemovedMembers(value);
       break;
@@ -15030,24 +15035,31 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.serializeBinaryToWriter = funct
       f
     );
   }
-  f = message.getReviewFrequencyChanged();
+  f = message.getMembershipRequirementsChanged();
   if (f) {
     writer.writeBool(
       4,
       f
     );
   }
-  f = message.getReviewDayOfMonthChanged();
+  f = message.getReviewFrequencyChanged();
   if (f) {
     writer.writeBool(
       5,
       f
     );
   }
+  f = message.getReviewDayOfMonthChanged();
+  if (f) {
+    writer.writeBool(
+      6,
+      f
+    );
+  }
   f = message.getNumberOfRemovedMembers();
   if (f !== 0) {
     writer.writeInt32(
-      6,
+      7,
       f
     );
   }
@@ -15128,10 +15140,10 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setDaysPastNextAuditD
 
 
 /**
- * optional bool review_frequency_changed = 4;
+ * optional bool membership_requirements_changed = 4;
  * @return {boolean}
  */
-proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getReviewFrequencyChanged = function() {
+proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getMembershipRequirementsChanged = function() {
   return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 4, false));
 };
 
@@ -15140,16 +15152,16 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getReviewFrequencyCha
  * @param {boolean} value
  * @return {!proto.prehog.v1alpha.AccessListReviewCreateEvent} returns this
  */
-proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setReviewFrequencyChanged = function(value) {
+proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setMembershipRequirementsChanged = function(value) {
   return jspb.Message.setProto3BooleanField(this, 4, value);
 };
 
 
 /**
- * optional bool review_day_of_month_changed = 5;
+ * optional bool review_frequency_changed = 5;
  * @return {boolean}
  */
-proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getReviewDayOfMonthChanged = function() {
+proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getReviewFrequencyChanged = function() {
   return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 5, false));
 };
 
@@ -15158,17 +15170,35 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getReviewDayOfMonthCh
  * @param {boolean} value
  * @return {!proto.prehog.v1alpha.AccessListReviewCreateEvent} returns this
  */
-proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setReviewDayOfMonthChanged = function(value) {
+proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setReviewFrequencyChanged = function(value) {
   return jspb.Message.setProto3BooleanField(this, 5, value);
 };
 
 
 /**
- * optional int32 number_of_removed_members = 6;
+ * optional bool review_day_of_month_changed = 6;
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getReviewDayOfMonthChanged = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.prehog.v1alpha.AccessListReviewCreateEvent} returns this
+ */
+proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setReviewDayOfMonthChanged = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
+/**
+ * optional int32 number_of_removed_members = 7;
  * @return {number}
  */
 proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getNumberOfRemovedMembers = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
 };
 
 
@@ -15177,7 +15207,7 @@ proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.getNumberOfRemovedMem
  * @return {!proto.prehog.v1alpha.AccessListReviewCreateEvent} returns this
  */
 proto.prehog.v1alpha.AccessListReviewCreateEvent.prototype.setNumberOfRemovedMembers = function(value) {
-  return jspb.Message.setProto3IntField(this, 6, value);
+  return jspb.Message.setProto3IntField(this, 7, value);
 };
 
 
