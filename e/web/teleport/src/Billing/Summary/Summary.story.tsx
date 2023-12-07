@@ -6,8 +6,10 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { MemoryRouter } from 'react-router';
 
-import { SummaryProps } from 'e-teleport/Billing/types';
-import { SummaryPage } from 'e-teleport/Billing/Summary/SummaryPage';
+import {
+  SummaryPage,
+  SummaryProps,
+} from 'e-teleport/Billing/Summary/SummaryPage';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 import { StripeUsage } from 'e-teleport/services/cloud';
 

@@ -45,6 +45,7 @@ const cfg = {
 
     // billing
     billingSummary: '/web/cluster/:clusterId/billing-summary',
+    eubpBillingSummary: '/web/cluster/:clusterId/eubp-billing-summary',
     paymentsInvoices: '/web/cluster/:clusterId/payments-invoices',
     invoiceSettings: '/web/cluster/:clusterId/invoice-settings',
   },
@@ -138,6 +139,10 @@ const cfg = {
 
   getBillingSummaryRoute(clusterId: string) {
     return generatePath(cfg.routes.billingSummary, { clusterId });
+  },
+
+  getEubpBillingSummaryRoute(clusterId: string) {
+    return generatePath(cfg.routes.eubpBillingSummary, { clusterId });
   },
 
   getPaymentsInvoicesRoute(clusterId: string) {

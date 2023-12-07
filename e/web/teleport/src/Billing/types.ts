@@ -1,22 +1,13 @@
 import { Dispatch, SetStateAction } from 'react';
 
 import {
-  BillingSummaryInformation,
   InvoiceSettingsInformation,
   PaymentsInvoicesInformation,
   StripeCard,
   StripeCardList,
   StripeInvoiceBillingAddress,
   StripeInvoiceList,
-  StripeUsage,
-  NonBillableSummaryInformation,
 } from 'e-teleport/services/cloud';
-
-export interface SummaryProps {
-  data: BillingSummaryInformation;
-  nonBillableUsage: NonBillableSummaryInformation;
-  reload: () => void;
-}
 
 export interface InvoiceSettingsProps {
   data: InvoiceSettingsInformation;
@@ -36,15 +27,6 @@ export interface PaymentsAndInvoicesProps {
 
 export interface ErrorPageProps {
   message: string;
-}
-
-export interface CycleProps {
-  currentUsage: StripeUsage;
-  productName: string;
-  stripeMissingPaymentMethod: boolean;
-  stripeTrialEnd: number;
-  usageUpdatedAt: number;
-  nonBillableUsage: NonBillableSummaryInformation;
 }
 
 export interface CardsListProps {

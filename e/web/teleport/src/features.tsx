@@ -49,6 +49,9 @@ const NewLock = lazy(() => import('e-teleport/NewLockV2'));
 const DeviceTrust = lazy(() => import('e-teleport/DeviceTrust'));
 
 const BillingSummaryE = lazy(() => import('e-teleport/Billing/Summary'));
+const EubpBillingSummaryE = lazy(
+  () => import('e-teleport/Billing/EubpSummary')
+);
 
 const PaymentsInvoicesE = lazy(
   () => import('e-teleport/Billing/PaymentsAndInvoices')
@@ -158,7 +161,7 @@ export class FeatureDiscoverE extends OSS.FeatureDiscover {
 //  Billing Features
 // ****************************
 
-export class FeatureSummary implements TeleportFeature {
+export class FeatureTeamSummary implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Billing;
 
@@ -177,6 +180,29 @@ export class FeatureSummary implements TeleportFeature {
     icon: <Chart />,
     getLink(clusterId: string) {
       return cfg.getBillingSummaryRoute(clusterId);
+    },
+  };
+}
+
+export class FeatureEubpSummary implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Billing;
+
+  route = {
+    title: 'Summary',
+    path: cfg.routes.eubpBillingSummary,
+    component: EubpBillingSummaryE,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.billing && cfg.oss.isUsageBasedBilling && !cfg.oss.isTeam;
+  }
+
+  navigationItem = {
+    title: NavTitle.BillingSummary,
+    icon: <Chart />,
+    getLink(clusterId: string) {
+      return cfg.getEubpBillingSummaryRoute(clusterId);
     },
   };
 }
@@ -485,7 +511,8 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureAudit(),
 
     // - Billing
-    new FeatureSummary(),
+    new FeatureTeamSummary(),
+    new FeatureEubpSummary(),
     new FeaturePaymentsAndInvoices(),
     new FeatureInvoiceSettings(),
 

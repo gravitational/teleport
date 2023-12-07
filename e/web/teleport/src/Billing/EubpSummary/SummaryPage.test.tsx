@@ -6,7 +6,7 @@ import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/te
 import {
   SummaryPage,
   SummaryProps,
-} from 'e-teleport/Billing/Summary/SummaryPage';
+} from 'e-teleport/Billing/EubpSummary/SummaryPage';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 jest.mock('teleport/useStickyClusterId', () =>
@@ -40,33 +40,16 @@ describe('summaryPage', () => {
         stripeSubscriptionCancelAt: 0,
         stripeSubscriptionCanceledAt: 0,
         usageUpdatedAt: 0,
-      },
-      nonBillableUsage: {
-        trustedDeviceUsage: {
-          devicesInUse: 0,
-          devicesUsageLimit: 0,
-        },
-        accessRequestUsage: {
-          monthlyLimit: 0,
-          monthlyUsed: 0,
+        usageQuota: {
+          mauMax: 2,
+          tprMax: 20,
+          tiaMax: 20000,
+          mauInc: 2,
+          tprInc: 20,
+          tiaInc: 20000,
         },
       },
-      reload: jest.fn(),
     };
-  });
-
-  test('renders payment CTA if missing payment method', () => {
-    props.data.stripeMissingPaymentMethod = true;
-    renderWithElementsAndContext(<SummaryPage {...props} />);
-
-    expect(screen.getByText('Payment Method')).toBeInTheDocument();
-  });
-
-  test('does not render payment CTA if payment method has been added', () => {
-    props.data.stripeMissingPaymentMethod = false;
-    renderWithElementsAndContext(<SummaryPage {...props} />);
-
-    expect(screen.queryByText('Payment Method')).not.toBeInTheDocument();
   });
 
   test('renders cycle if cycle usage is present', () => {
@@ -80,13 +63,8 @@ describe('summaryPage', () => {
     renderWithElementsAndContext(<SummaryPage {...props} />);
 
     expect(screen.queryByText(/Current Cycle/i)).not.toBeInTheDocument();
-  });
-
-  test('renders cancel banner', () => {
-    renderWithElementsAndContext(<SummaryPage {...props} />);
-
     expect(
-      screen.getByRole('button', { name: 'Cancel Plan' })
+      screen.getByText(/Usage data is being gathered./i)
     ).toBeInTheDocument();
   });
 });

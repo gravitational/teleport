@@ -2,8 +2,6 @@ import React from 'react';
 import { Box, Flex, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 
-import { format } from 'date-fns';
-
 import cfg from 'shared/config';
 
 import Link from 'design/Link';
@@ -13,13 +11,19 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
-
 import { getSalesURL } from 'teleport/services/sales';
 
 import { displayUnixShortDate } from 'shared/services/loc/loc';
 
-import { CycleProps, CycleUsage } from 'e-teleport/Billing/types';
+import { CycleUsage } from 'e-teleport/Billing/types';
+
+import {
+  StripeUsage,
+  NonBillableSummaryInformation,
+} from 'e-teleport/services/cloud';
+
+import { Usage } from '../common/Usage';
+import { UpdatedAtDisplay } from '../common/UpdatedAtDisplay';
 
 // todo (michellescripts) pull usage max/included values from the subscription as part of https://github.com/gravitational/cloud/issues/3536
 const incTIA = 50000;
@@ -30,6 +34,15 @@ const maxTPR = 1000;
 
 const maxMAU = 30;
 const mauRate = 15;
+
+export interface CycleProps {
+  currentUsage: StripeUsage;
+  productName: string;
+  stripeMissingPaymentMethod: boolean;
+  stripeTrialEnd: number;
+  usageUpdatedAt: number;
+  nonBillableUsage: NonBillableSummaryInformation;
+}
 
 export const Cycle = ({
   currentUsage: { periodStart, periodEnd, usageMau, usagePr, usageTia },
@@ -192,98 +205,9 @@ export const Cycle = ({
   );
 };
 
-function Usage({ usage }: { usage: CycleUsage }) {
-  const theme = useTheme();
-  const getColor = (total, hasFreeTier, freeTierMax, hardMax): string => {
-    // if a product has hit its hard max
-    if (total >= hardMax) {
-      return theme.colors.error.main;
-    }
-
-    // if a product does not contain a free tier, or it has exceeded its free tier
-    // then they are being charged for usage
-    if (!hasFreeTier || total > freeTierMax) {
-      return theme.colors.link;
-    }
-
-    // the default behavior is for free tier products within their free tier limits
-    return theme.colors.success;
-  };
-
-  return (
-    <Box key={usage.name} width="30%" flex="40% 0" data-testid={usage.name}>
-      <Flex flexDirection="row" alignItems="center" gap={2}>
-        <h3>{usage.name}</h3>
-        <ToolTipInfo children={<Text>{usage.info}</Text>} />
-      </Flex>
-      {usage.total} of {usage.percentageMax}
-      {usage.hasFreeTier && ' Included'} ({usage.percentage}%)
-      <StyledBar
-        percent={Math.min(usage.percentage, 100)}
-        color={getColor(
-          usage.total,
-          usage.hasFreeTier,
-          usage.percentageMax,
-          usage.hardMax
-        )}
-      />
-    </Box>
-  );
-}
-
-const StyledBar = styled.div<{
-  percent: number;
-  color: string;
-}>`
-  background: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 13px;
-  height: 20px;
-  width: 80%;
-  padding: 3px;
-
-  &:after {
-    content: '';
-    display: block;
-    background: ${props => props.color};
-    width: ${p => p.percent}%;
-    height: 100%;
-    border-radius: 9px;
-  }
-`;
-
 const UsageGroup = styled(Box)`
   background: ${({ theme }) => theme.colors.levels.surface};
   border-radius: 8px;
   margin: 20px 0 0;
   padding: 20px 0 20px 40px;
 `;
-
-const UpdatedAtDisplay = ({
-  theme,
-  usageUpdatedAt,
-}: {
-  theme: any;
-  usageUpdatedAt: number;
-}) => {
-  return (
-    <Text
-      color={theme.colors.text.slightlyMuted}
-      style={{ fontStyle: 'italic' }}
-      data-testid="updated-at-display"
-    >
-      {usageUpdatedAt > 0 ? (
-        <Flex alignItems="center">
-          <Box mr="2">Last updated: {displayUnixDateTime(usageUpdatedAt)}</Box>
-          <ToolTipInfo children="Updated every 12 hours." />
-        </Flex>
-      ) : (
-        'Updated every 12 hours'
-      )}
-    </Text>
-  );
-};
-
-export function displayUnixDateTime(seconds: number) {
-  // Multiply by 1000 b/c date constructor expects milliseconds.
-  return format(new Date(seconds * 1000), cfg.dateTimeFormat);
-}

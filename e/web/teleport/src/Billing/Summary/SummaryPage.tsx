@@ -1,9 +1,17 @@
 import React from 'react';
 
 import { Cycle } from 'e-teleport/Billing/Summary/Cycle';
-import { SummaryProps } from 'e-teleport/Billing/types';
 import { PaymentBanner } from 'e-teleport/Billing/Payment/PaymentBanner';
 import { StatusBanner } from 'e-teleport/Billing/common/StatusBanner';
+import {
+  BillingSummaryInformation,
+  NonBillableSummaryInformation,
+} from 'e-teleport/services/cloud';
+export interface SummaryProps {
+  data: BillingSummaryInformation;
+  nonBillableUsage: NonBillableSummaryInformation;
+  reload: () => void;
+}
 
 export const SummaryPage = ({
   data: {

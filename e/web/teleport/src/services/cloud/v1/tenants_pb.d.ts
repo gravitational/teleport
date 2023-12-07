@@ -782,6 +782,11 @@ export class GetBillingSummaryInformationResponse extends jspb.Message {
   getUsageUpdatedAt(): number;
   setUsageUpdatedAt(value: number): void;
 
+  hasUsageQuota(): boolean;
+  clearUsageQuota(): void;
+  getUsageQuota(): UsageQuota | undefined;
+  setUsageQuota(value?: UsageQuota): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetBillingSummaryInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetBillingSummaryInformationResponse): GetBillingSummaryInformationResponse.AsObject;
@@ -806,6 +811,47 @@ export namespace GetBillingSummaryInformationResponse {
     stripeSubscriptionCancelAt: number,
     stripeSubscriptionCanceledAt: number,
     usageUpdatedAt: number,
+    usageQuota?: UsageQuota.AsObject,
+  }
+}
+
+export class UsageQuota extends jspb.Message {
+  getMauMax(): number;
+  setMauMax(value: number): void;
+
+  getTprMax(): number;
+  setTprMax(value: number): void;
+
+  getTiaMax(): number;
+  setTiaMax(value: number): void;
+
+  getMauInc(): number;
+  setMauInc(value: number): void;
+
+  getTprInc(): number;
+  setTprInc(value: number): void;
+
+  getTiaInc(): number;
+  setTiaInc(value: number): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): UsageQuota.AsObject;
+  static toObject(includeInstance: boolean, msg: UsageQuota): UsageQuota.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: UsageQuota, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): UsageQuota;
+  static deserializeBinaryFromReader(message: UsageQuota, reader: jspb.BinaryReader): UsageQuota;
+}
+
+export namespace UsageQuota {
+  export type AsObject = {
+    mauMax: number,
+    tprMax: number,
+    tiaMax: number,
+    mauInc: number,
+    tprInc: number,
+    tiaInc: number,
   }
 }
 
