@@ -719,6 +719,7 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			// do is try to trim it.
 			if t, ok := event.(trimmableEvent); ok {
 				event = t.TrimToMaxSize(events.MaxEventBytesInResponse)
+				events.MetricQueriedTrimmedEvents.Inc()
 				// Exact rb.totalSize doesn't really matter since the response is
 				// already size limited.
 				rb.totalSize += events.MaxEventBytesInResponse
