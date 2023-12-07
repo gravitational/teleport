@@ -378,7 +378,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             topPadding={pinning.kind === 'hidden' ? '60px' : '0px'}
           >
             <Danger>
-              {resourcesFetchAttempt.statusText}
+              Could not fetch resources: {resourcesFetchAttempt.statusText}
               {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
               {resourcesFetchAttempt.statusCode !== 400 &&
                 resourcesFetchAttempt.statusCode !== 403 && (
@@ -392,22 +392,34 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       )}
       {getPinnedResourcesAttempt.status === 'error' && (
         <ErrorBox>
-          <Danger>{getPinnedResourcesAttempt.statusText}</Danger>
+          <Danger>
+            Could not fetch pinned resources:{' '}
+            {getPinnedResourcesAttempt.statusText}
+          </Danger>
         </ErrorBox>
       )}
       {updatePinnedResourcesAttempt.status === 'error' && (
         <ErrorBox>
-          <Danger>{updatePinnedResourcesAttempt.statusText}</Danger>
+          <Danger>
+            Could not update pinned resources:{' '}
+            {updatePinnedResourcesAttempt.statusText}
+          </Danger>
         </ErrorBox>
       )}
       {unifiedResourcePreferencesAttempt.status === 'error' && (
         <ErrorBox>
-          <Danger>{unifiedResourcePreferencesAttempt.statusText}</Danger>
+          <Danger>
+            Could not fetch unified view preferences:{' '}
+            {unifiedResourcePreferencesAttempt.statusText}
+          </Danger>
         </ErrorBox>
       )}
       {updateUnifiedResourcesPreferencesAttempt?.status === 'error' && (
         <ErrorBox>
-          <Danger>{updateUnifiedResourcesPreferencesAttempt.statusText}</Danger>
+          <Danger>
+            Could not update unified view preferences:{' '}
+            {updateUnifiedResourcesPreferencesAttempt.statusText}
+          </Danger>
         </ErrorBox>
       )}
       {props.Header}
