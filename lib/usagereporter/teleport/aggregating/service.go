@@ -137,26 +137,18 @@ func prepareResourcePresenceReports(
 			ResourceIds:  resourceIds[len(resourceIds)/2:],
 		}
 
-		report.ResourceKindReports = append(report.ResourceKindReports, kindReportHead)
+		report.ResourceKindReports = []*prehogv1.ResourceKindPresenceReport{kindReportHead}
 
-		for proto.Size(report) > maxItemSize && len(kindReportHead.ResourceIds) > 1 {
+		for proto.Size(report) > maxItemSize {
+			if len(kindReportHead.ResourceIds) < 1 {
+				return nil, trace.LimitExceeded("failed to marshal resource presence report within size limit (this is a bug)")
+			}
 			resourceIds = kindReportHead.GetResourceIds()
 			kindReportHead.ResourceIds = resourceIds[:len(resourceIds)/2]
 			kindReportTail.ResourceIds = append(resourceIds[len(resourceIds)/2:], kindReportTail.ResourceIds...)
 		}
 
-		if proto.Size(report) <= maxItemSize {
-			kindReports = append([]*prehogv1.ResourceKindPresenceReport{kindReportTail}, kindReports[1:]...)
-		} else {
-			// Exclude it from the report and try to fit it to the next one
-			report.ResourceKindReports = report.ResourceKindReports[:len(report.ResourceKindReports)-1]
-		}
-
-		// Sanity check that report is still fits
-		if proto.Size(report) > maxItemSize {
-			return nil, trace.LimitExceeded("failed to marshal resource presence report of %d within size limit of %d bytes (this is a bug)", proto.Size(report), maxItemSize)
-		}
-
+		kindReports[0] = kindReportTail
 		reports = append(reports, report)
 	}
 
