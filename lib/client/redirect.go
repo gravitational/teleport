@@ -165,16 +165,9 @@ func (rd *Redirector) Start() error {
 	log.Infof("Waiting for response at: %v.", rd.server.URL)
 
 	// communicate callback redirect URL to the Teleport Proxy
-	u, err := url.Parse(rd.server.URL + "/callback")
+	u, err := url.Parse(rd.baseURL() + "/callback")
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if rd.CallbackAddr != "" {
-		callbackURL, err := url.Parse(rd.CallbackAddr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		u.Host = callbackURL.Host
 	}
 	query := u.Query()
 	query.Set("secret_key", rd.key.String())
@@ -227,23 +220,18 @@ func (rd *Redirector) Done() <-chan struct{} {
 }
 
 // ClickableURL returns a short clickable redirect URL
-func (rd *Redirector) ClickableURL() (string, error) {
+func (rd *Redirector) ClickableURL() string {
 	if rd.server == nil {
-		return "", trace.Errorf("server is not started")
+		return "<undefined - server is not started>"
 	}
-	serverURL, err := url.Parse(rd.server.URL)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	return utils.ClickableURL(rd.baseURL() + rd.shortPath)
+}
+
+func (rd *Redirector) baseURL() string {
 	if rd.CallbackAddr != "" {
-		callback, err := url.Parse(rd.CallbackAddr)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		serverURL = callback
+		return rd.CallbackAddr
 	}
-	serverURL.Path = rd.shortPath
-	return utils.ClickableURL(serverURL.String()), nil
+	return rd.server.URL
 }
 
 // ResponseC returns a channel with response
