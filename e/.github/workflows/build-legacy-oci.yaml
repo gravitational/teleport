@@ -34,10 +34,36 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     env:
+      ARCHITECTURES: 'amd64 arm64 arm'
+      FIPS_ARCHITECTURES: 'amd64'
       OSS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport:${{ inputs.teleport-version }}
       ENT_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:${{ inputs.teleport-version }}
       FIPS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:${{ inputs.teleport-version }}-fips
     steps:
+      - name: Parameterize build
+        id: params
+        run: |
+          # Convert architectures into docker platform args using multiline outputs to
+          # be used as the `platform` arg to docker build:
+          # platforms<<EOF
+          # linux/amd64
+          # linux/arm64
+          # linux/arm
+          # EOF
+          # fips-platforms<<EOF
+          # linux/amd64
+          # EOF
+          read -ra arches <<<"${ARCHITECTURES}"
+          read -ra fips_arches <<<"${FIPS_ARCHITECTURES}"
+          {
+            echo 'platforms<<EOF'
+            printf 'linux/%s\n' "${arches[@]}"
+            echo 'EOF'
+            echo 'fips-platforms<<EOF'
+            printf 'linux/%s\n' "${fips_arches[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
@@ -61,11 +87,17 @@ jobs:
           VERSION: ${{ inputs.teleport-version }}
         run: |
           mkdir ./build
-          for arch in amd64 arm64 arm; do
+
+          read -ra arches <<<"${ARCHITECTURES}"
+          for arch in "${arches[@]}"; do
             aws s3 cp "${S3_PATH}/teleport_${VERSION}_${arch}.deb" ./build
             aws s3 cp "${S3_PATH}/teleport-ent_${VERSION}_${arch}.deb" ./build
           done
-          aws s3 cp "${S3_PATH}/teleport-ent_${VERSION}-fips_amd64.deb" ./build
+
+          read -ra fips_arches <<<"${FIPS_ARCHITECTURES}"
+          for arch in "${fips_arches[@]}"; do
+            aws s3 cp "${S3_PATH}/teleport-ent_${VERSION}-fips_${arch}.deb" ./build
+          done
 
       # Log into Docker Hub to increase rate limits
       - name: Login to Docker Hub
@@ -88,48 +120,71 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
-      - name: Build OSS OCI Image
+      - name: Build OSS OCI Multi-arch Image
         uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
           push: true
           context: ./build
           file: ./build.assets/charts/Dockerfile
           target: teleport
-          platforms: linux/amd64,linux/arm64,linux/arm
-          tags: |
-            ${{ env.OSS_TAG }}
-            ${{ env.OSS_TAG }}-amd64
-            ${{ env.OSS_TAG }}-arm64
-            ${{ env.OSS_TAG }}-arm
+          platforms: ${{ steps.params.outputs.platforms }}
+          tags: ${{ env.OSS_TAG }}
           build-args: |
             DEB_BASE=teleport_${{ inputs.teleport-version }}
 
-      - name: Build Enterprise OCI Image
+      - name: Push OSS OCI Single-arch Images
+        env:
+          IMAGE: ${{ env.OSS_TAG }}
+        run: |
+          read -ra arches <<<"${ARCHITECTURES}"
+          for arch in "${arches[@]}"; do
+            docker pull --platform "linux/${arch}" "${IMAGE}"
+            docker tag "${IMAGE}" "${IMAGE}-${arch}"
+            docker push "${IMAGE}-${arch}"
+          done
+
+      - name: Build Enterprise OCI Multi-arch Image
         uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
           push: true
           context: ./build
           file: ./build.assets/charts/Dockerfile
           target: teleport
-          platforms: linux/amd64,linux/arm64,linux/arm
-          tags: |
-            ${{ env.ENT_TAG }}
-            ${{ env.ENT_TAG }}-amd64
-            ${{ env.ENT_TAG }}-arm64
-            ${{ env.ENT_TAG }}-arm
+          platforms: ${{ steps.params.outputs.platforms }}
+          tags: ${{ env.ENT_TAG }}
           build-args: |
             DEB_BASE=teleport-ent_${{ inputs.teleport-version }}
 
-      - name: Build Enterprise FIPS OCI Image
+      - name: Push Enterprise OCI Single-arch Images
+        env:
+          IMAGE: ${{ env.ENT_TAG }}
+        run: |
+          read -ra arches <<<"${ARCHITECTURES}"
+          for arch in "${arches[@]}"; do
+            docker pull --platform "linux/${arch}" "${IMAGE}"
+            docker tag "${IMAGE}" "${IMAGE}-${arch}"
+            docker push "${IMAGE}-${arch}"
+          done
+
+      - name: Build Enterprise FIPS OCI Multi-arch Image
         uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
           push: true
           context: ./build
           file: ./build.assets/charts/Dockerfile
           target: teleport-fips
-          platforms: linux/amd64 # Only arm64 for FIPS
-          tags: |
-            ${{ env.FIPS_TAG }}
-            ${{ env.FIPS_TAG }}-amd64
+          platforms: ${{ steps.params.outputs.fips-platforms }}
+          tags: ${{ env.FIPS_TAG }}
           build-args: |
             DEB_BASE=teleport-ent_${{ inputs.teleport-version }}-fips
+
+      - name: Push Enterprise FIPS OCI Single-arch Images
+        env:
+          IMAGE: ${{ env.FIPS_TAG }}
+        run: |
+          read -ra fips_arches <<<"${FIPS_ARCHITECTURES}"
+          for arch in "${fips_arches[@]}"; do
+            docker pull --platform "linux/${arch}" "${IMAGE}"
+            docker tag "${IMAGE}" "${IMAGE}-${arch}"
+            docker push "${IMAGE}-${arch}"
+          done

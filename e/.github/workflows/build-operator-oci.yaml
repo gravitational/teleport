@@ -57,19 +57,16 @@ jobs:
       - name: Parameterize build
         id: params
         env:
-          ARCHS: ${{ inputs.architectures }}
+          ARCHITECTURES: ${{ inputs.architectures }}
           VERSION: ${{ inputs.teleport-version }}
           IMAGE_PREFIX: ${{ inputs.dest-image-prefix }}
         run: |
-          read -ra architectures <<<"${ARCHS}" # safely read into array to prevent globbing
-          base_tag="${IMAGE_PREFIX}/teleport-operator:${VERSION}"
-          printf -v platforms ',linux/%s' "${architectures[@]}"
-          printf -v tags "${base_tag}-%s," "${architectures[@]}"
-          tags+="${base_tag}"
-
+          # Convert architectures into docker platform args
+          read -ra arches <<<"${ARCHITECTURES}" # safely read into array to prevent globbing
           {
-            echo "platforms=${platforms:1}"
-            echo "tags=${tags}"
+            echo 'platforms<<EOF'
+            printf 'linux/%s\n' "${arches[@]}"
+            echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
       # Log into Docker Hub to increase rate limits
@@ -100,4 +97,19 @@ jobs:
           context: .
           file: ./integrations/operator/Dockerfile.gha
           platforms: ${{ steps.params.outputs.platforms }}
-          tags: ${{ steps.params.outputs.tags }}
+          tags: ${{ inputs.dest-image-prefix }}/teleport-operator:${{ inputs.teleport-version }}
+
+      # TODO(camh): Drop this step in v15
+      # A single multi-arch image should be sufficient. An architecture-specific image can
+      # be pulled from that with `docker pull --platform linux/<arch> <image>`
+      - name: Push OCI Single-arch Images
+        env:
+          ARCHITECTURES: ${{ inputs.architectures }}
+          IMAGE: ${{ inputs.dest-image-prefix }}/teleport-operator:${{ inputs.teleport-version }}
+        run: |
+          read -ra arches <<<"${ARCHITECTURES}"
+          for arch in "${arches[@]}"; do
+            docker pull --platform "linux/${arch}" "${IMAGE}"
+            docker tag "${IMAGE}" "${IMAGE}-${arch}"
+            docker push "${IMAGE}-${arch}"
+          done
