@@ -113,12 +113,6 @@ export type ConnectionDiagnosticTrace = {
 export type ConnectionDiagnosticRequest = {
   resourceKind: ResourceIdKind; //`json:"resource_kind"`
   resourceName: string; //`json:"resource_name"`
-  /**
-   * An optional field which identifies the Discover tile that wants to perform a connection test.
-   * Useful in situations in which the test for the same kind of resource needs to behave
-   * differently depending on the tile which sent the request.
-   */
-  resourceTile?: ResourceTile; //`json:"resource_tile"`
   sshPrincipal?: string; //`json:"ssh_principal"`
   /**
    * An optional field which describes whether the SSH principal was chosen manually by the user or
@@ -130,17 +124,15 @@ export type ConnectionDiagnosticRequest = {
    * An optional field which describes the platform the SSH agent runs on.
    */
   sshNodeOS?: Platform; // `json:"ssh_node_os"`
+  /**
+   * An optional field which which describes how an SSH agent was installed.
+   * The value must match one of the consts defined in lib/client/conntest/connection_tester.go.
+   */
+  sshNodeSetupMethod?: 'script' | 'connect_my_computer'; // `json:"ssh_node_setup_method"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation"`
   dbTester?: DatabaseTester;
   mfaAuthnResponse?: MfaAuthnResponse;
 };
-
-/**
- * ResourceTile describes the Discover tile that wants to perform a connection test.
- *
- * It must match one of the ResourceTile* consts defined in lib/client/conntest/connection_tester.go.
- */
-export type ResourceTile = 'connect_my_computer';
 
 export type KubeImpersonation = {
   namespace: string; // `json:"kubernetes_namespace"`

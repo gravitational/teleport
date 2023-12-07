@@ -41,11 +41,6 @@ type TestConnectionRequest struct {
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
-	// ResourceTile is an optional field which identifies the Discover tile that wants to perform a
-	// connection test.
-	// Useful in situations in which the test for the same kind of resource needs to behave
-	// differently depending on the tile which sent the request.
-	ResourceTile string `json:"resource_tile"`
 
 	// DialTimeout when trying to connect to the destination host
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
@@ -67,6 +62,8 @@ type TestConnectionRequest struct {
 	// SSHNodeOS is an optional field which describes the OS the agent runs on.
 	// Valid values: windows, darwin, linux.
 	SSHNodeOS string `json:"ssh_node_os,omitempty"`
+	// SSHNodeSetupMethod is an optional field which describes how an SSH agent was installed.
+	SSHNodeSetupMethod string `json:"ssh_node_setup_method,omitempty"`
 
 	// KubernetesNamespace is the Kubernetes Namespace to List the Pods in.
 	// Specific to KubernetesTester.
@@ -101,10 +98,11 @@ type KubernetesImpersonation struct {
 	KubernetesGroups []string `json:"kubernetes_groups,omitempty"`
 }
 
-// consts for the ResourceTile field of TestConnectionRequest.
+// consts for the SSHNodeSetupMethod field of TestConnectionRequest.
 
 const (
-	ResourceTileConnectMyComputer = "connect_my_computer"
+	SSHNodeSetupMethodScript            = "script"
+	SSHNodeSetupMethodConnectMyComputer = "connect_my_computer"
 )
 
 // consts for the SSHPrincipalSelectionMode field of TestConnectionRequest.

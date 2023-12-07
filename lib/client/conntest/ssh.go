@@ -220,7 +220,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string,
 	sshPrincipal string, sshError error, processStdout *bytes.Buffer, currentUser types.User, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
-	isConnectMyComputerNode := req.ResourceTile == ResourceTileConnectMyComputer
+	isConnectMyComputerNode := req.SSHNodeSetupMethod == SSHNodeSetupMethodConnectMyComputer
 
 	if trace.IsConnectionProblem(sshError) {
 		var statusCommand string

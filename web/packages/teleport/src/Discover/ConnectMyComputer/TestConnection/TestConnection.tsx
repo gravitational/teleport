@@ -144,7 +144,7 @@ export function TestConnection(props: AgentStepProps) {
       {
         resourceKind: 'node',
         resourceName: props.agentMeta.resourceName,
-        resourceTile: 'connect_my_computer',
+        sshNodeSetupMethod: 'connect_my_computer',
         sshPrincipal: args.login,
         sshPrincipalSelectionMode: args.sshPrincipalSelectionMode,
       },

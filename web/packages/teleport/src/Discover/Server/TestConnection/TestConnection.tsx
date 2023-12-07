@@ -70,6 +70,7 @@ export function TestConnection(props: AgentStepProps) {
         resourceName: props.agentMeta.resourceName,
         sshPrincipal: login,
         sshNodeOS: props.resourceSpec.platform,
+        sshNodeSetupMethod: 'script',
       },
       mfaResponse
     );
