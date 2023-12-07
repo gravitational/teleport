@@ -231,9 +231,13 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	assumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
-	if err != nil {
-		return trace.BadParameter("parsing assume-start-time: %v", err)
+	var assumeStartTime *time.Time
+	if c.assumeStartTimeRaw != "" {
+		parsedAssumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
+		if err != nil {
+			return trace.BadParameter("parsing assume-start-time: %v", err)
+		}
+		assumeStartTime = &parsedAssumeStartTime
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
@@ -242,7 +246,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 			Reason:          c.reason,
 			Annotations:     annotations,
 			Roles:           c.splitRoles(),
-			AssumeStartTime: &assumeStartTime,
+			AssumeStartTime: assumeStartTime,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
