@@ -756,16 +756,7 @@ func GetPresetRoles() []types.Role {
 	// Certain `New$FooRole()` functions will return a nil role if the
 	// corresponding feature is disabled. They should be filtered out as they
 	// are not actually made available on the cluster.
-	filtered := make([]types.Role, 0, len(presets))
-	for _, role := range presets {
-		if role == nil {
-			continue
-		}
-
-		filtered = append(filtered, role)
-	}
-
-	return filtered
+	return slices.DeleteFunc(presets, func(r types.Role) bool { return r == nil })
 }
 
 // createPresetRoles creates preset role resources
