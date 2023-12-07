@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
   createContext,
   FC,
   PropsWithChildren,
@@ -37,11 +37,9 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Server, TshAbortSignal } from 'teleterm/services/tshd/types';
 import createAbortController from 'teleterm/services/tshd/createAbortController';
-import {
-  isAccessDeniedError,
-  isNotFoundError,
-} from 'teleterm/services/tshd/errors';
+import { isNotFoundError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
@@ -121,6 +119,7 @@ export const ConnectMyComputerContextProvider: FC<
     rootClusterUri: RootClusterUri;
   }>
 > = ({ rootClusterUri, children }) => {
+  const logger = useLogger('connectMyComputerContext');
   const ctx = useAppContext();
   const {
     mainProcessClient,
@@ -301,29 +300,35 @@ export const ConnectMyComputerContextProvider: FC<
 
       setCurrentActionKind('remove');
 
-      let hasAccessDeniedError = false;
+      let hasNodeRemovalSucceeded = true;
       try {
         await retryWithRelogin(ctx, rootClusterUri, () =>
           ctx.connectMyComputerService.removeConnectMyComputerNode(
             rootClusterUri
           )
         );
-        requestResourcesRefresh();
-      } catch (e) {
-        if (isAccessDeniedError(e)) {
-          hasAccessDeniedError = true;
-        } else {
-          throw e;
-        }
+      } catch (error) {
+        // Swallow all errors. Even if the cluster does not respond or responds with an error, it
+        // should be possible to remove the agent.
+        logger.warn(
+          'Could not remove the Connect My Computer node in the cluster',
+          error
+        );
+        hasNodeRemovalSucceeded = false;
       }
+
+      if (hasNodeRemovalSucceeded) {
+        requestResourcesRefresh();
+      }
+
       ctx.notificationsService.notifyInfo(
-        hasAccessDeniedError
-          ? {
+        hasNodeRemovalSucceeded
+          ? 'The agent has been removed.'
+          : {
               title: 'The agent has been removed.',
               description:
                 'The corresponding server may still be visible in the cluster for a few more minutes until it gets purged from the cache.',
             }
-          : 'The agent has been removed.'
       );
 
       // We have to remove connections before removing the agent directory, because
@@ -352,6 +357,7 @@ export const ConnectMyComputerContextProvider: FC<
       removeConnections,
       rootClusterUri,
       requestResourcesRefresh,
+      logger,
     ])
   );
 

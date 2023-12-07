@@ -32,6 +32,7 @@ export const MessageTypeEnum = {
   FILE_TRANSFER_REQUEST: 'f',
   FILE_TRANSFER_DECISION: 't',
   WEBAUTHN_CHALLENGE: 'n',
+  LATENCY: 'l',
 };
 
 export const messageFields = {
