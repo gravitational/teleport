@@ -2518,6 +2518,11 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		if err != nil {
 			return nil, trace.BadParameter("parsing assume-start-time: %v", err)
 		}
+
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartTime {
+			return nil, trace.BadParameter("assume-start-time too far in future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartTime).Format(time.RFC3339))
+		}
 		req.SetAssumeStartTime(assumeStartTime)
 	}
 

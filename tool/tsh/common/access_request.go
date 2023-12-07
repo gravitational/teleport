@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -316,6 +317,10 @@ func onRequestReview(cf *CLIConf) error {
 			return trace.BadParameter("parsing assume-start-time: %v", err)
 		}
 		parsedAssumeStartTime = &assumeStartTime
+		if time.Until(*parsedAssumeStartTime) > constants.MaxAssumeStartTime {
+			return trace.BadParameter("assume-start-time too far in future: latest date %q",
+				parsedAssumeStartTime.Add(constants.MaxAssumeStartTime).Format(time.RFC3339))
+		}
 	}
 
 	var state types.RequestState
