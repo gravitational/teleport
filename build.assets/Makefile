@@ -396,7 +396,7 @@ release-arm64:
 
 .PHONY: release-arm
 release-arm:
-	$(MAKE) release ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
+	$(MAKE) release ARCH=arm RELEASE_BUILDBOX=$(BUILDBOX_ARM)
 
 # Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
 # TODO(camscale): Remove these when drone no longer calls them.
@@ -462,13 +462,19 @@ release-enterprise:
 # Don't use these targets directly; call named Makefile targets such as `release-amd64`.
 # #############################################################################
 
+# RELEASE_BUILDBOX is the default buildbox that the `release` target uses. It
+# can be overridden when invoked. If a different buildbox is specified, it
+# should have a BUILDBOX_TARGET_$(...) variable defined to specify the makefile
+# target that builds that buildbox.
+RELEASE_BUILDBOX = $(BUILDBOX)
+
 # Define buildbox makefile targets for building various buildboxes, parameterizing
 # the `release` target`.
 BUILDBOX_TARGET_$(BUILDBOX_ARM) = buildbox-arm
 
 # Select the correct makefile target for building a buildbox based on $(BUILDBOX)
 # with a default fallback of "buildbox".
-BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
+BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(RELEASE_BUILDBOX)),buildbox)
 
 #
 # Create a Teleport package using the build container.
@@ -476,7 +482,7 @@ BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
 .PHONY:release
 release: $(BUILDBOX_TARGET)
 	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(RELEASE_BUILDBOX) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 #
