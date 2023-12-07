@@ -1986,6 +1986,107 @@ export namespace AccessListGrantsToUserEvent {
     }
 }
 
+export class AccessListReviewCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListReviewCreateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListReviewCreateEvent;
+
+    getDaysPastNextAuditDate(): number;
+    setDaysPastNextAuditDate(value: number): AccessListReviewCreateEvent;
+
+    getReviewFrequencyChanged(): boolean;
+    setReviewFrequencyChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getReviewDayOfMonthChanged(): boolean;
+    setReviewDayOfMonthChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getNumberOfRemovedMembers(): number;
+    setNumberOfRemovedMembers(value: number): AccessListReviewCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewCreateEvent): AccessListReviewCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewCreateEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewCreateEvent, reader: jspb.BinaryReader): AccessListReviewCreateEvent;
+}
+
+export namespace AccessListReviewCreateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+        daysPastNextAuditDate: number,
+        reviewFrequencyChanged: boolean,
+        reviewDayOfMonthChanged: boolean,
+        numberOfRemovedMembers: number,
+    }
+}
+
+export class AccessListReviewDeleteEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListReviewDeleteEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListReviewDeleteEvent;
+
+    getAccessListReviewId(): string;
+    setAccessListReviewId(value: string): AccessListReviewDeleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewDeleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewDeleteEvent): AccessListReviewDeleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewDeleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewDeleteEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewDeleteEvent, reader: jspb.BinaryReader): AccessListReviewDeleteEvent;
+}
+
+export namespace AccessListReviewDeleteEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+        accessListReviewId: string,
+    }
+}
+
+export class AccessListReviewComplianceEvent extends jspb.Message { 
+    getTotalAccessLists(): number;
+    setTotalAccessLists(value: number): AccessListReviewComplianceEvent;
+
+    getAccessListsNeedReview(): number;
+    setAccessListsNeedReview(value: number): AccessListReviewComplianceEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewComplianceEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewComplianceEvent): AccessListReviewComplianceEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewComplianceEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewComplianceEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewComplianceEvent, reader: jspb.BinaryReader): AccessListReviewComplianceEvent;
+}
+
+export namespace AccessListReviewComplianceEvent {
+    export type AsObject = {
+        totalAccessLists: number,
+        accessListsNeedReview: number,
+    }
+}
+
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
@@ -2793,6 +2894,24 @@ export class SubmitEventRequest extends jspb.Message {
     setAuditQueryRun(value?: AuditQueryRunEvent): SubmitEventRequest;
 
 
+    hasAccessListReviewCreate(): boolean;
+    clearAccessListReviewCreate(): void;
+    getAccessListReviewCreate(): AccessListReviewCreateEvent | undefined;
+    setAccessListReviewCreate(value?: AccessListReviewCreateEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewDelete(): boolean;
+    clearAccessListReviewDelete(): void;
+    getAccessListReviewDelete(): AccessListReviewDeleteEvent | undefined;
+    setAccessListReviewDelete(value?: AccessListReviewDeleteEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewCompliance(): boolean;
+    clearAccessListReviewCompliance(): void;
+    getAccessListReviewCompliance(): AccessListReviewComplianceEvent | undefined;
+    setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2879,6 +2998,9 @@ export namespace SubmitEventRequest {
         externalAuditStorageAuthenticate?: ExternalAuditStorageAuthenticateEvent.AsObject,
         securityReportGetResult?: SecurityReportGetResultEvent.AsObject,
         auditQueryRun?: AuditQueryRunEvent.AsObject,
+        accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
+        accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
+        accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3023,6 +3145,12 @@ export namespace SubmitEventRequest {
     SECURITY_REPORT_GET_RESULT = 72,
 
     AUDIT_QUERY_RUN = 73,
+
+    ACCESS_LIST_REVIEW_CREATE = 75,
+
+    ACCESS_LIST_REVIEW_DELETE = 76,
+
+    ACCESS_LIST_REVIEW_COMPLIANCE = 77,
 
     }
 

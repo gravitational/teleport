@@ -475,6 +475,41 @@ message AccessListGrantsToUser {
   int32 count_traits_granted = 2;
 }
 
+// AccessListReviewCreate is an event that is emitted when an access list review is created.
+message AccessListReviewCreate {
+  AccessListMetadata metadata = 1;
+
+  // days_past_next_audit_date is how many days past the next audit date the review came in. Can be negative.
+  int32 days_past_next_audit_date = 2;
+
+  // review_frequency_changed indicates that the review frequency was changed.
+  bool review_frequency_changed = 3;
+
+  // review_day_of_month_changed indicates that the review day of month was changed.
+  bool review_day_of_month_changed = 4;
+
+  // number_of_removed_members is how many members were removed as part of this review.
+  int32 number_of_removed_members = 5;
+}
+
+// AccessListReviewDelete is an event that is emitted when an access list review is deleted.
+message AccessListReviewDelete {
+  AccessListMetadata metadata = 1;
+
+  // access_list_review_id is the unique identifier for the access list review.
+  string access_list_review_id = 2;
+}
+
+// AccessListReviewCompliance is an event that is emitted periodically to indicate how many access
+// lists are past due for a review.
+message AccessListReviewCompliance {
+  // total_access_lists is the total number of access lists known to Teleport.
+  int32 total_access_lists = 1;
+
+  // access_lists_need_review is the number of access lists that need a review.
+  int32 access_lists_need_review = 2;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -654,6 +689,9 @@ message UsageEventOneOf {
     UIDiscoverCreateNodeEvent ui_discover_create_node = 49;
     TAGExecuteQueryEvent tag_execute_query = 50;
     SecurityReportGetResultEvent security_report_get_result = 51;
+    AccessListReviewCreate access_list_review_create = 52;
+    AccessListReviewDelete access_list_review_delete = 53;
+    AccessListReviewCompliance access_list_review_compliance = 54;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
