@@ -108,7 +108,9 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		return nil, trace.Wrap(err)
 	}
 
-	if err := c.reissueKubeCert(ctx, kube); err != nil {
+	if err := AddMetadataToRetryableError(ctx, func() error {
+		return trace.Wrap(c.reissueKubeCert(ctx, kube))
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
