@@ -189,7 +189,7 @@ export class FeatureEubpSummary implements TeleportFeature {
   section = ManagementSection.Billing;
 
   route = {
-    title: 'Summary',
+    title: 'Usage Tracking',
     path: cfg.routes.eubpBillingSummary,
     component: EubpBillingSummaryE,
   };
