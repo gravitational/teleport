@@ -37,7 +37,12 @@ describe('externalAuditStorageCta', () => {
     jest.clearAllMocks();
   });
 
-  const setup = (isCloud: boolean, losckedFeature: boolean, hasPermission) => {
+  type SetupParams = {
+    isCloud: boolean;
+    lockedFeature: boolean;
+    hasPermission;
+  };
+  const setup = ({ isCloud, lockedFeature, hasPermission }: SetupParams) => {
     const noPermAcl = { customAcl: getAcl({ noAccess: true }) };
     const ctx = createTeleportContext(hasPermission ? null : noPermAcl);
     ctx.storeUser.setState({
@@ -46,7 +51,7 @@ describe('externalAuditStorageCta', () => {
     });
 
     cfg.isCloud = isCloud;
-    ctx.lockedFeatures.externalCloudAudit = losckedFeature;
+    ctx.lockedFeatures.externalCloudAudit = lockedFeature;
 
     jest
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
@@ -64,27 +69,31 @@ describe('externalAuditStorageCta', () => {
   };
 
   test('renders the CTA', () => {
-    setup(true, false, true);
+    setup({ isCloud: true, lockedFeature: false, hasPermission: true });
     expect(screen.getByText(/External Audit Storage/)).toBeInTheDocument();
     expect(screen.getByText(/Connect your AWS storage/)).toBeEnabled();
   });
 
   test('renders nothing on cfg.isCloud=false', () => {
-    const { container } = setup(false, true, true);
+    const { container } = setup({
+      isCloud: false,
+      lockedFeature: true,
+      hasPermission: true,
+    });
     expect(container).toBeEmptyDOMElement();
   });
 
   test('renders button based on lockedFeatures', () => {
-    setup(true, false, true);
+    setup({ isCloud: true, lockedFeature: false, hasPermission: true });
     expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
     expect(screen.getByText(/Connect your AWS storage/)).toBeEnabled();
 
-    setup(true, true, true);
+    setup({ isCloud: true, lockedFeature: true, hasPermission: true });
     expect(screen.getByText(/Contact Sales/)).toBeInTheDocument();
   });
 
   test('renders disabled button if no permissions', () => {
-    setup(true, false, false);
+    setup({ isCloud: true, lockedFeature: false, hasPermission: false });
     expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
     // eslint wants us to use `toBeDisabled` instead of toHaveAttribute
     // but this causes the test to fail, since the button is rendered as an anchor tag
