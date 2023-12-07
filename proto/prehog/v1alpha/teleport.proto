@@ -834,14 +834,17 @@ message AccessListReviewCreateEvent {
   // days_past_next_audit_date is how many days past the next audit date the review came in. Can be negative.
   int32 days_past_next_audit_date = 3;
 
+  // membership_requirements_changed indicates that the membership requirements were changed.
+  bool membership_requirements_changed = 4;
+
   // review_frequency_changed indicates that the review frequency was changed.
-  bool review_frequency_changed = 4;
+  bool review_frequency_changed = 5;
 
   // review_day_of_month_changed indicates that the review day of month was changed.
-  bool review_day_of_month_changed = 5;
+  bool review_day_of_month_changed = 6;
 
   // number_of_removed_members is how many members were removed as part of this review.
-  int32 number_of_removed_members = 6;
+  int32 number_of_removed_members = 7;
 }
 
 // AccessListReviewDeleteEvent is an event that is emitted when an access list review is deleted.

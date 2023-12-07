@@ -787,10 +787,11 @@ func (e *AccessListReviewCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
-				DaysPastNextAuditDate:   e.DaysPastNextAuditDate,
-				ReviewFrequencyChanged:  e.ReviewFrequencyChanged,
-				ReviewDayOfMonthChanged: e.ReviewDayOfMonthChanged,
-				NumberOfRemovedMembers:  e.NumberOfRemovedMembers,
+				DaysPastNextAuditDate:         e.DaysPastNextAuditDate,
+				MembershipRequirementsChanged: e.MembershipRequirementsChanged,
+				ReviewFrequencyChanged:        e.ReviewFrequencyChanged,
+				ReviewDayOfMonthChanged:       e.ReviewDayOfMonthChanged,
+				NumberOfRemovedMembers:        e.NumberOfRemovedMembers,
 			},
 		},
 	}
@@ -1415,10 +1416,11 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListReviewCreate.Metadata.Id,
 			},
-			DaysPastNextAuditDate:   e.AccessListReviewCreate.DaysPastNextAuditDate,
-			ReviewFrequencyChanged:  e.AccessListReviewCreate.ReviewFrequencyChanged,
-			ReviewDayOfMonthChanged: e.AccessListReviewCreate.ReviewDayOfMonthChanged,
-			NumberOfRemovedMembers:  e.AccessListReviewCreate.NumberOfRemovedMembers,
+			DaysPastNextAuditDate:         e.AccessListReviewCreate.DaysPastNextAuditDate,
+			MembershipRequirementsChanged: e.AccessListReviewCreate.MembershipRequirementsChanged,
+			ReviewFrequencyChanged:        e.AccessListReviewCreate.ReviewFrequencyChanged,
+			ReviewDayOfMonthChanged:       e.AccessListReviewCreate.ReviewDayOfMonthChanged,
+			NumberOfRemovedMembers:        e.AccessListReviewCreate.NumberOfRemovedMembers,
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListReviewDelete:
