@@ -255,14 +255,6 @@ export const storageService = {
     return false;
   },
 
-  getAccessGraphSQLEnabled(): boolean {
-    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_SQL_ENABLED);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
-  },
-
   getExternalAuditStorageCtaDisabled(): boolean {
     const item = window.localStorage.getItem(
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED

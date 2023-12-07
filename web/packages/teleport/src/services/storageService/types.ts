@@ -35,7 +35,6 @@ export const KeysEnum = {
   ACCESS_GRAPH_SEARCH_MODE: 'grv_teleport_access_graph_search_mode',
   ACCESS_GRAPH_QUERY: 'grv_teleport_access_graph_query',
   ACCESS_GRAPH_ENABLED: 'grv_teleport_access_graph_enabled',
-  ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   EXTERNAL_AUDIT_STORAGE_CTA_DISABLED:
     'grv_teleport_external_audit_storage_disabled',
   DISCOVER_CONNECT_MY_COMPUTER_NEW_CONNECTION_TEST_ENABABLED:

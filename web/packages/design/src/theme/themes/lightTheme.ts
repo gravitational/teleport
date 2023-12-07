@@ -16,62 +16,52 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { darken, lighten } from '../utils/colorManipulator';
-import {
-  blue,
-  green,
-  grey,
-  indigo,
-  orange,
-  pink,
-  purple,
-  red,
-  yellow,
-} from '../palette';
+import { darken } from '../utils/colorManipulator';
+import { blue } from '../palette';
 
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
 const dataVisualisationColors: DataVisualisationColors = {
   primary: {
-    purple: '#5531D4',
-    wednesdays: '#A70DAF',
-    picton: '#006BB8',
-    sunflower: '#8F5F00',
+    purple: '#5531d4',
+    wednesdays: '#a70daf',
+    picton: '#006bb8',
+    sunflower: '#8f5f00',
     caribbean: '#007562',
-    abbey: '#BF372E',
+    abbey: '#bf372e',
     cyan: '#007282',
   },
   secondary: {
-    purple: '#6F4CED',
-    wednesdays: '#DC37E5',
-    picton: '#0089DE',
-    sunflower: '#B27800',
+    purple: '#6f4ced',
+    wednesdays: '#dc37e5',
+    picton: '#0089de',
+    sunflower: '#b27800',
     caribbean: '#009681',
-    abbey: '#D4635B',
-    cyan: '#1792A3',
+    abbey: '#d4635b',
+    cyan: '#1792a3',
   },
   tertiary: {
-    purple: '#3D1BB2',
+    purple: '#3d1bb2',
     wednesdays: '#690274',
-    picton: '#004B89',
-    sunflower: '#704B00',
+    picton: '#004b89',
+    sunflower: '#704b00',
     caribbean: '#005742',
-    abbey: '#9D0A00',
-    cyan: '#015C6E',
+    abbey: '#9d0a00',
+    cyan: '#015c6e',
   },
 };
 
 const levels = {
-  deep: '#E6E9EA',
+  deep: '#e6e9ea',
 
-  sunken: '#F1F2F4',
+  sunken: '#f1f2f4',
 
-  surface: '#FBFBFC',
+  surface: '#fbfbfc',
 
-  elevated: '#FFFFFF',
+  elevated: '#ffffff',
 
-  popout: '#FFFFFF',
+  popout: '#ffffff',
 };
 
 const colors: ThemeColors = {
@@ -81,7 +71,7 @@ const colors: ThemeColors = {
 
   spotBackground: ['rgba(0,0,0,0.06)', 'rgba(0,0,0,0.13)', 'rgba(0,0,0,0.18)'],
 
-  brand: '#512FC9',
+  brand: '#512fc9',
 
   interactive: {
     tonal: {
@@ -98,7 +88,7 @@ const colors: ThemeColors = {
     slightlyMuted: 'rgba(0,0,0,0.72)',
     muted: 'rgba(0,0,0,0.54)',
     disabled: 'rgba(0,0,0,0.36)',
-    primaryInverse: '#FFFFFF',
+    primaryInverse: '#ffffff',
   },
 
   buttons: {
@@ -107,10 +97,10 @@ const colors: ThemeColors = {
     bgDisabled: 'rgba(0,0,0,0.12)',
 
     primary: {
-      text: '#FFFFFF',
-      default: '#512FC9',
-      hover: '#4126A1',
-      active: '#311C79',
+      text: '#ffffff',
+      default: '#512fc9',
+      hover: '#4126a1',
+      active: '#311c79',
     },
 
     secondary: {
@@ -127,10 +117,10 @@ const colors: ThemeColors = {
     },
 
     warning: {
-      text: '#FFFFFF',
-      default: '#CC372D',
-      hover: '#A32C24',
-      active: '#7A211B',
+      text: '#ffffff',
+      default: '#cc372d',
+      hover: '#a32c24',
+      active: '#7a211b',
     },
 
     trashButton: {
@@ -139,27 +129,27 @@ const colors: ThemeColors = {
     },
 
     link: {
-      default: '#0073BA',
-      hover: '#005C95',
+      default: '#0073ba',
+      hover: '#005c95',
       active: '#004570',
     },
   },
 
   tooltip: {
-    background: '#F0F2F4',
+    background: '#f0f2f4',
   },
 
-  progressBarColor: '#007D6B',
+  progressBarColor: '#007d6b',
 
   error: {
-    main: '#CC372D',
-    hover: '#A32C24',
-    active: '#7A211B',
+    main: '#cc372d',
+    hover: '#a32c24',
+    active: '#7a211b',
   },
 
   warning: {
-    main: '#FFAB00',
-    hover: '#CC8900',
+    main: '#ffab00',
+    hover: '#cc8900',
     active: '#996700',
   },
 
@@ -168,7 +158,7 @@ const colors: ThemeColors = {
   },
 
   action: {
-    active: '#FFFFFF',
+    active: '#ffffff',
     hover: 'rgba(255, 255, 255, 0.1)',
     hoverOpacity: 0.1,
     selected: 'rgba(255, 255, 255, 0.2)',
@@ -177,10 +167,10 @@ const colors: ThemeColors = {
   },
 
   terminal: {
-    foreground: '#000',
+    foreground: '#000000',
     background: levels.sunken,
     selectionBackground: 'rgba(0, 0, 0, 0.18)',
-    cursor: '#000',
+    cursor: '#000000',
     cursorAccent: levels.sunken,
     red: dataVisualisationColors.tertiary.abbey,
     green: dataVisualisationColors.tertiary.caribbean,
@@ -191,229 +181,13 @@ const colors: ThemeColors = {
     brightWhite: darken(levels.sunken, 0.55),
     white: darken(levels.sunken, 0.68),
     brightBlack: darken(levels.sunken, 0.8),
-    black: '#000',
+    black: '#000000',
     brightRed: dataVisualisationColors.primary.abbey,
     brightGreen: dataVisualisationColors.primary.caribbean,
     brightYellow: dataVisualisationColors.primary.sunflower,
     brightBlue: dataVisualisationColors.primary.picton,
     brightMagenta: dataVisualisationColors.primary.purple,
     brightCyan: dataVisualisationColors.primary.cyan,
-  },
-
-  accessGraph: {
-    dotsColor: 'rgba(0, 0, 0, 0.2)',
-    edges: {
-      dynamicMemberOf: {
-        color: purple[700],
-        stroke: purple[500],
-      },
-      memberOf: {
-        color: 'rgba(0, 0, 0, 0.7)',
-        stroke: '#c6c7c9',
-      },
-      reverse: {
-        color: 'rgba(0, 0, 0, 0.7)',
-        stroke: '#c6c7c9',
-      },
-      allowed: {
-        color: green[700],
-        stroke: green[300],
-      },
-      disallowed: {
-        color: red[700],
-        stroke: red[300],
-      },
-      restricted: {
-        color: yellow[700],
-        stroke: yellow[900],
-      },
-      default: {
-        color: 'rgba(0, 0, 0, 0.7)',
-        stroke: '#c6c7c9',
-      },
-      requestedBy: {
-        color: 'rgba(0, 0, 0, 0.7)',
-        stroke: '#c6c7c9',
-      },
-      requestedAction: {
-        color: 'rgba(0, 0, 0, 0.7)',
-        stroke: '#c6c7c9',
-      },
-      requestedResource: {
-        color: 'rgba(0, 0, 0, 0.7)',
-        stroke: '#c6c7c9',
-      },
-    },
-    nodes: {
-      user: {
-        background: lighten(purple[300], 0.9),
-        borderColor: purple[300],
-        typeColor: purple[300],
-        iconBackground: purple[300],
-        handleColor: purple[704],
-        highlightColor: purple[300],
-        label: {
-          background: purple[200],
-          color: purple[700],
-        },
-      },
-      userGroup: {
-        background: lighten(orange[300], 0.9),
-        borderColor: orange[300],
-        typeColor: orange[300],
-        iconBackground: orange[300],
-        handleColor: orange[700],
-        highlightColor: orange[300],
-        label: {
-          background: orange[200],
-          color: orange[700],
-        },
-      },
-      temporaryUserGroup: {
-        background: lighten(orange[200], 0.9),
-        borderColor: orange[200],
-        typeColor: orange[200],
-        iconBackground: orange[200],
-        handleColor: orange[300],
-        highlightColor: orange[200],
-        label: {
-          background: orange[200],
-          color: orange[300],
-        },
-      },
-      resource: {
-        background: lighten(blue[300], 0.9),
-        borderColor: blue[300],
-        typeColor: blue[300],
-        iconBackground: blue[300],
-        handleColor: blue[400],
-        highlightColor: blue[300],
-        label: {
-          background: blue[200],
-          color: blue[700],
-        },
-      },
-      resourceGroup: {
-        background: lighten(pink[300], 0.9),
-        borderColor: pink[300],
-        typeColor: pink[300],
-        iconBackground: pink[300],
-        handleColor: pink[400],
-        highlightColor: pink[300],
-        label: {
-          background: pink[200],
-          color: pink[700],
-        },
-      },
-      temporaryResourceGroup: {
-        background: lighten(pink[200], 0.9),
-        borderColor: pink[200],
-        typeColor: pink[200],
-        iconBackground: pink[200],
-        handleColor: pink[300],
-        highlightColor: pink[200],
-        label: {
-          background: pink[200],
-          color: pink[300],
-        },
-      },
-      allowedAction: {
-        background: lighten(green[300], 0.9),
-        borderColor: green[300],
-        typeColor: green[300],
-        iconBackground: green[300],
-        handleColor: green[400],
-        highlightColor: green[300],
-        label: {
-          background: green[200],
-          color: green[700],
-        },
-      },
-      temporaryAllowedAction: {
-        background: lighten(green[200], 0.9),
-        borderColor: green[200],
-        typeColor: green[200],
-        iconBackground: green[200],
-        handleColor: green[300],
-        highlightColor: green[200],
-        label: {
-          background: green[200],
-          color: green[300],
-        },
-      },
-      disallowedAction: {
-        background: lighten(red[300], 0.9),
-        borderColor: red[300],
-        typeColor: red[300],
-        iconBackground: red[300],
-        handleColor: purple[400],
-        highlightColor: red[300],
-        label: {
-          background: red[200],
-          color: red[700],
-        },
-      },
-      allowedRequest: {
-        background: lighten(indigo[300], 0.9),
-        borderColor: indigo[300],
-        typeColor: indigo[300],
-        iconBackground: indigo[300],
-        handleColor: indigo[400],
-        highlightColor: indigo[300],
-        label: {
-          background: indigo[200],
-          color: indigo[700],
-        },
-      },
-      disallowedRequest: {
-        background: lighten(purple[300], 0.9),
-        borderColor: purple[300],
-        typeColor: purple[300],
-        iconBackground: purple[300],
-        handleColor: purple[400],
-        highlightColor: purple[300],
-        label: {
-          background: purple[200],
-          color: purple[700],
-        },
-      },
-      allowedReview: {
-        background: lighten(indigo[300], 0.9),
-        borderColor: indigo[300],
-        typeColor: indigo[300],
-        iconBackground: indigo[300],
-        handleColor: indigo[400],
-        highlightColor: indigo[300],
-        label: {
-          background: indigo[200],
-          color: indigo[700],
-        },
-      },
-      disallowedReview: {
-        background: lighten(purple[300], 0.9),
-        borderColor: purple[300],
-        typeColor: purple[300],
-        iconBackground: purple[300],
-        handleColor: purple[400],
-        highlightColor: purple[300],
-        label: {
-          background: purple[200],
-          color: purple[700],
-        },
-      },
-      accessRequest: {
-        background: lighten(grey[300], 0.9),
-        borderColor: grey[300],
-        typeColor: grey[700],
-        iconBackground: grey[700],
-        handleColor: grey[400],
-        highlightColor: grey[300],
-        label: {
-          background: grey[200],
-          color: grey[700],
-        },
-      },
-    },
   },
 
   editor: {
@@ -425,8 +199,8 @@ const colors: ThemeColors = {
     caribbean: dataVisualisationColors.primary.caribbean,
   },
 
-  link: '#0073BA',
-  success: '#007D6B',
+  link: '#0073ba',
+  success: '#007d6b',
 
   dataVisualisation: dataVisualisationColors,
 };

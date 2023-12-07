@@ -56,18 +56,6 @@ module.exports = {
       ...configFactory.createDefaultConfig().resolve,
     };
 
-    // Access Graph requires a separate repo to be cloned. At the moment, only the Vite config is
-    // configured to resolve access-graph. However, Storybook uses Webpack and since our usual
-    // Webpack config doesn't need to know about access-graph, we manually to manually configure
-    // Storybook's Webpack here to resolve access-graph to the special mock.
-    //
-    // See https://github.com/gravitational/teleport.e/issues/2675.
-    storybookConfig.resolve.alias['access-graph'] = path.join(
-      __dirname,
-      'mocks',
-      'AccessGraph.tsx'
-    );
-
     if (!enterpriseTeleportExists) {
       delete storybookConfig.resolve.alias['e-teleport'];
       // Unlike e-teleport, e-teleterm cannot be removed from aliases because code in OSS teleterm
