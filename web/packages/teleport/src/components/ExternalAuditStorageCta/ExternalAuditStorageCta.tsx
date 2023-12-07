@@ -74,12 +74,11 @@ export const ExternalAuditStorageCta = () => {
             </Text>
           </Box>
         </Flex>
-        <Flex alignItems="center" minWidth="300px">
+        <Flex alignItems="center" minWidth="300px" gap={2}>
           <CtaButton
             featureEnabled={featureEnabled}
             userHasAccess={userHasAccess}
           />
-
           <ButtonSecondary onClick={handleDismiss}>Dismiss</ButtonSecondary>
         </Flex>
       </Flex>
@@ -94,7 +93,6 @@ function CtaButton(props: { featureEnabled: boolean; userHasAccess: boolean }) {
         height="32px"
         size="medium"
         event={CtaEvent.CTA_EXTERNAL_AUDIT_STORAGE}
-        mr={5}
       >
         Contact Sales
       </ButtonLockedFeature>
@@ -113,7 +111,6 @@ function CtaButton(props: { featureEnabled: boolean; userHasAccess: boolean }) {
       <ButtonPrimary
         as={Link}
         to={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalAuditStorage)}
-        mr="2"
         disabled={!props.userHasAccess}
       >
         Connect your AWS storage
