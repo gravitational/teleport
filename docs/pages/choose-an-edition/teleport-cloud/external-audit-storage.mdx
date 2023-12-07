@@ -3,44 +3,91 @@ title: External Audit Storage
 description: Store audit logs and session recordings on your own infrastructure with Teleport Enterprise Cloud.
 ---
 
-External Audit Storage enables Teleport Enterprise Cloud customers to store
-Teleport audit events and session recordings directly on infrastructure in any
-AWS account.
+External Audit Storage is a feature of Teleport in which the Auth Service stores
+audit events and session recordings directly on infrastructure in any AWS
+account. 
 
-This can be used to satisfy compliance, retention, and privacy policies by
-making sure that the customer owns the audit data where it is stored.
-It also enables direct custom queries of audit data without having to set up a
-process to export events because they can be accessed and efficiently queried
-right where they are stored.
+Because you control the infrastructure that stores audit events and session
+recordings, you can use External Audit Storage to satisfy compliance, retention,
+and privacy policies. 
 
-## Architecture
+With External Audit Storage, you do not need to build an exporter to support
+custom audit event queries, since you can access and efficiently query your
+audit events right where they are stored.
 
 External Audit Storage is based on Teleport's
 [Athena](../../reference/backends.mdx#athena) backend for audit events and the
-[S3](../../reference/backends.mdx#s3) backend for session recordings.
+[S3](../../reference/backends.mdx#s3) backend for session recordings. It is only
+available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
+above.
 
-Four components in an AWS account of your choosing will be used to store and
-query audit events and session recordings:
+## Prerequisites
 
-1. A long-term storage [S3](https://aws.amazon.com/s3/) bucket to hold all audit
-   events and session recordings from your cluster.
-   Audit events are stored as [Parquet](https://parquet.apache.org/) files.
-1. A [Glue](https://aws.amazon.com/glue/) database with a table to represent the
-   schema of the audit events as stored in the Parquet format in S3.
-1. An [Athena](https://aws.amazon.com/athena/) workgroup to power queries of
-   your audit log.
-1. A transient storage S3 bucket that temporarily holds results of Athena
-   queries.
+1. A Teleport Enterprise Cloud account. If you do not have one, [sign
+   up](https://goteleport.com/signup/) for a Teleport Team account and upgrade
+   to Teleport Enterprise Cloud.
+1. To store and query audit events and session recordings, you need to set up
+   the following four components in an AWS account of your choosing. The
+   Teleport Web UI walks you through the infrastructure you need to create, but
+   you should be aware that it includes the following components:
+   - A long-term storage [Amazon S3](https://aws.amazon.com/s3/) bucket to hold
+     all audit events and session recordings from your cluster. Audit events are
+     stored as [Parquet](https://parquet.apache.org/) files.
+   - An [AWS Glue](https://aws.amazon.com/glue/) database with a table to
+     represent the schema of the audit events as stored in the Parquet format in
+     S3.
+   - An [Amazon Athena](https://aws.amazon.com/athena/) workgroup to power
+     queries of your audit log.
+   - A transient storage S3 bucket that temporarily holds the results of Athena
+     queries.
+1. Currently it is a requirement that the AWS infrastructure is hosted in the
+   same AWS region as the Teleport Auth Service for your cluster. Historically
+   this has always been us-west-2, but new clusters may be deployed to other
+   regions in the future.
 
-## Authentication
+## Step 1/2. Configure RBAC
 
-Your Teleport Enterprise Cloud cluster will act as an OpenID Connect (OIDC)
-identity provider to authenticate to your organization's AWS account.
+To configure the integration you will need the following allow rules in one of
+your Teleport roles. These are available by default in the preset `editor` role:
 
-The Teleport UI will walk you through the process of configuring the identity
-provider in your account and attaching an IAM role and policy that will allow
-the necessary access to your AWS resources.
-The policy will look like the following:
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example
+spec:
+  allow:
+    rules:
+    - resources:
+      - integration
+      - external_audit_storage
+      verbs:
+      - create
+      - update
+      - list
+      - read
+```
+
+## Step 2/2. Visit the Web UI
+
+External Audit Storage is available as an integration in the management panel of
+the Teleport Web UI:
+
+![Screenshot of External Audit Storage integration tile](../../../img/externalauditstorage/integration.png)
+
+With External Audit Storage enabled, your Teleport Enterprise Cloud cluster acts
+as an OpenID Connect (OIDC) identity provider to authenticate to your
+organization's AWS account.
+
+The Teleport Web UI walks you through the steps to set up an AWS OIDC
+integration (if you don't have one already), configure the IAM policy, create
+the infrastructure in your AWS account, test the connection to your S3 buckets
+and Athena workgroup, and enable the feature.
+
+<Details title="IAM policy for External Audit Storage">
+
+The IAM policy for External Audit Storage resembles the following, modified to
+support your AWS environment:
 
 ```json
 {
@@ -101,64 +148,28 @@ The policy will look like the following:
 }
 ```
 
-## Get started
+</Details>
 
-External Audit Storage is available as an integration in the management panel of
-the Teleport web UI if your cluster is running Teleport v14.2.1 or above.
-
-![Screenshot of External Audit Storage integration tile](../../../img/externalauditstorage/integration.png)
-
-The UI will walk you through the steps to set up an AWS OIDC integration (if
-you don't have one already), configure the IAM policy, create the infrastructure
-in your AWS account, test the connection to your S3 buckets and Athena
-workgroup, and enable the feature.
-
-To configure the integration you will need the following allow rules in one of
-your Teleport roles.
-These are available by default in the preset `editor` role.
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: example
-spec:
-  allow:
-    rules:
-    - resources:
-      - integration
-      - external_audit_storage
-      verbs:
-      - create
-      - update
-      - list
-      - read
-```
-
-## Regional storage
-
-Currently it is a requirement that the AWS infrastructure is hosted in the same
-AWS region as the Teleport Auth Service for your cluster.
-Historically this has always been us-west-2, but new clusters may be deployed to
-other regions in the future.
-
-## Migration
+## Migrating to External Audit Storage
 
 Once External Audit Storage is enabled, all new audit events and session
 recordings will be stored in your S3 bucket, and they will *not* be stored in
 the Teleport Cloud infrastructure.
+
 If you currently use the
-[event-handler](https://github.com/gravitational/teleport-plugins/tree/master/event-handler)
-plugin to export events, it will follow the switch from the old to new backends
-and new events will continue to be exported.
-Only events emitted after the transition to External Audit Storage will be
-visible in the Teleport UI or accessible to Teleport clients.
+[Event Handler](../../management/export-audit-events.mdx) plugin to export
+events, it will follow the switch from the old to new backends and new events
+will continue to be exported. Only events emitted after the transition to
+External Audit Storage will be visible in the Teleport UI or accessible to
+Teleport clients.
+
+## Disabling External Audit Storage 
 
 If you disable External Audit Storage at any time in the future, your
 infrastructure will not be touched and all audit events and session recordings
 will remain in your S3 bucket.
-If using the event-handler plugin it will continue to export new events.
-All new events will be stored on Teleport Cloud infrastructure.
-While External Audit Storage is disabled, only events stored in the Teleport
-Cloud infrastructure will be visible in the Teleport UI or accessible to
-Teleport clients.
+
+If you use the Event Handler plugin, it will continue to export new events. All
+new events will be stored on Teleport Cloud infrastructure. While External Audit
+Storage is disabled, only events stored in the Teleport Cloud infrastructure
+will be visible in the Teleport UI or accessible to Teleport clients.
