@@ -2037,12 +2037,21 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 		return trace.BadParameter("unexpected token type %T", token)
 	}
 
-	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+	switch v.Spec.JoinMethod {
+	case types.JoinMethodGitHub:
+		if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+			return fmt.Errorf(
+				"github enterprise server joining: %w",
+				ErrRequiresEnterprise,
+			)
+		}
+	case types.JoinMethodSpacelift:
 		return fmt.Errorf(
-			"github enterprise server joining: %w",
+			"spacelift joining: %w",
 			ErrRequiresEnterprise,
 		)
 	}
+
 	return nil
 }
 
