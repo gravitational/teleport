@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -180,6 +181,31 @@ func (s *AdminActionTestSuite) TestRole() {
 	})
 }
 
+func (s *AdminActionTestSuite) TestUserGroup() {
+	t := s.T()
+	ctx := context.Background()
+
+	userGroup, err := types.NewUserGroup(types.Metadata{
+		Name:   "teleusergroup",
+		Labels: map[string]string{"label": "value"},
+	}, types.UserGroupSpecV1{})
+	require.NoError(t, err)
+
+	// Only deletion is permitted through tctl.
+	t.Run("tctl rm", func(t *testing.T) {
+		s.testCommand(t, ctx, adminActionTestCase{
+			command:    fmt.Sprintf("rm %v", getResourceRef(userGroup)),
+			cliCommand: &tctl.ResourceCommand{},
+			setup: func() error {
+				return s.authServer.CreateUserGroup(ctx, userGroup)
+			},
+			cleanup: func() error {
+				return s.authServer.DeleteUserGroup(ctx, userGroup.GetName())
+			},
+		})
+	})
+}
+
 type resourceCommandTestCase struct {
 	resource       types.Resource
 	resourceCreate func() error
@@ -292,6 +318,7 @@ func (s *AdminActionTestSuite) SetupSuite() {
 	username := "admin"
 	adminRole, err := types.NewRole(username, types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			GroupLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.Wildcard},
