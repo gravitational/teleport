@@ -25,7 +25,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 
-import Popover from 'design/Popover';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
@@ -101,64 +101,24 @@ function CtaButton(props: { featureEnabled: boolean; userHasAccess: boolean }) {
     );
   }
 
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  if (!props.userHasAccess) {
-    return (
-      <Box onMouseEnter={handlePopoverOpen} onMouseLeave={handlePopoverClose}>
-        <Popover
-          modalCss={() => `pointer-events: none`}
-          onClose={handlePopoverClose}
-          open={open}
-          anchorEl={anchorEl}
-          anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          transformOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-        >
-          <StyledOnHover>
-            <Text fontSize="1">
-              Insufficient permissions. Reach out to your Teleport administrator
-              to request External Audit Storage permissions.
-            </Text>
-          </StyledOnHover>
-        </Popover>
-
-        <ButtonPrimary
-          as={Link}
-          to={cfg.getIntegrationEnrollRoute(
-            IntegrationKind.ExternalAuditStorage
-          )}
-          mr="2"
-          disabled={true}
-        >
-          Connect your AWS storage
-        </ButtonPrimary>
-      </Box>
-    );
-  }
-
   return (
-    <ButtonPrimary
-      as={Link}
-      to={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalAuditStorage)}
-      mr="2"
+    <HoverTooltip
+      tipContent={
+        props.userHasAccess
+          ? ''
+          : `Insufficient permissions. Reach out to your Teleport administrator
+    to request External Audit Storage permissions.`
+      }
     >
-      Connect your AWS storage
-    </ButtonPrimary>
+      <ButtonPrimary
+        as={Link}
+        to={cfg.getIntegrationEnrollRoute(IntegrationKind.ExternalAuditStorage)}
+        mr="2"
+        disabled={!props.userHasAccess}
+      >
+        Connect your AWS storage
+      </ButtonPrimary>
+    </HoverTooltip>
   );
 }
 
@@ -167,11 +127,4 @@ const CtaContainer = styled(Box)`
   padding: ${props => `${props.theme.space[3]}px`};
   border: 1px solid ${props => props.theme.colors.spotBackground[2]};
   border-radius: ${props => `${props.theme.space[2]}px`};
-`;
-
-const StyledOnHover = styled(Box)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
-  padding: ${p => p.theme.space[2]}px;
 `;
