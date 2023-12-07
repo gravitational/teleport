@@ -329,21 +329,34 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	}
 
 	// Double the lock TTL to account for the time it takes to upsert the members.
-	upsertWithLockFn := func() error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			// Create a map of the members from the request for easier lookup.
-			membersMap := make(map[string]*accesslist.AccessListMember)
+	err := a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		oldAccessList, err := a.service.GetResource(ctx, accessList.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		if oldAccessList != nil {
+			if oldAccessList.Spec.Ownership != accessList.Spec.Ownership {
+				return trace.BadParameter("AccessList ownership cannot be changed")
+			}
+
+			if oldAccessList.Spec.Membership != accessList.Spec.Membership {
+				return trace.BadParameter("AccessList membership cannot be changed")
+			}
+		}
+
+		// Create a map of the members from the request for easier lookup.
+		membersMap := make(map[string]*accesslist.AccessListMember)
 
 		// Convert the members slice to a map for easier lookup.
 		for _, member := range membersIn {
 			membersMap[member.GetName()] = member
 		}
 
-			var (
-				members      []*accesslist.AccessListMember
-				membersToken string
-				err          error
-			)
+		var (
+			members      []*accesslist.AccessListMember
+			membersToken string
+		)
 
 		for {
 			// List all members for the access list.
