@@ -1431,12 +1431,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			},
 		}
 		return ret, nil
-	case *usageeventsv1.UsageEventOneOf_AccessListReviewCompliance:
-		ret := &AccessListReviewComplianceEvent{
-			TotalAccessLists:      e.AccessListReviewCompliance.TotalAccessLists,
-			AccessListsNeedReview: e.AccessListReviewCompliance.AccessListsNeedReview,
-		}
-		return ret, nil
 
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
