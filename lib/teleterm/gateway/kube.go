@@ -131,7 +131,10 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 	certReissuer := newKubeCertReissuer(cert, func(ctx context.Context) error {
 		return trace.Wrap(k.cfg.OnExpiredCert(ctx, k))
 	})
-	k.onNewCertFuncs = append(k.onNewCertFuncs, certReissuer.updateCert)
+	k.onNewCertFuncs = append(k.onNewCertFuncs, func(cert tls.Certificate) error {
+		certReissuer.updateCert(cert)
+		return nil
+	})
 
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, cert)

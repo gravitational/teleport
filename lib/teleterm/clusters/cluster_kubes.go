@@ -112,22 +112,20 @@ type GetKubesResponse struct {
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
 func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) error {
-	return trace.Wrap(AddMetadataToRetryableError(ctx, func() error {
-		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-			RouteToCluster: c.clusterClient.SiteName,
-			AccessRequests: c.status.ActiveRequests.AccessRequests,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
+	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		// Fetch the certs for the kube cluster.
-		return trace.Wrap(c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-			RouteToCluster:    c.clusterClient.SiteName,
-			KubernetesCluster: kubeCluster,
-			AccessRequests:    c.status.ActiveRequests.AccessRequests,
-		}))
+	// Fetch the certs for the kube cluster.
+	return trace.Wrap(c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster:    c.clusterClient.SiteName,
+		KubernetesCluster: kubeCluster,
+		AccessRequests:    c.status.ActiveRequests.AccessRequests,
 	}))
 }
 
