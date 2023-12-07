@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
@@ -23,7 +24,11 @@ import { arrayObjectIsEqual } from 'shared/utils/highbar';
 // @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
-import { UnifiedResourcePreferences } from 'shared/services/unifiedResourcePreferences';
+import {
+  UnifiedResourcePreferences,
+  DefaultTab,
+  ViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -379,8 +384,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
-          unifiedResourcePreferences:
-            persistedWorkspace?.unifiedResourcePreferences,
+          unifiedResourcePreferences: this.parseUnifiedResourcePreferences(
+            persistedWorkspace?.unifiedResourcePreferences
+          ),
         };
         return workspaces;
       }, {});
@@ -391,6 +397,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     if (persistedState.rootClusterUri) {
       await this.setActiveWorkspace(persistedState.rootClusterUri);
+    }
+  }
+
+  // Parsing should be extended to the entire state read from disk.
+  private parseUnifiedResourcePreferences(
+    unifiedResourcePreferences: unknown
+    //TODO(gzdunek): Remove partial in v16. See comment in useUserPreferences.ts.
+  ): Partial<UnifiedResourcePreferences> | undefined {
+    const schema = z.object({
+      defaultTab: z.nativeEnum(DefaultTab),
+      viewMode: z.nativeEnum(ViewMode),
+    });
+    try {
+      return schema.parse(unifiedResourcePreferences);
+    } catch (e) {
+      this.logger.error('Failed to parse unified resource preferences', e);
     }
   }
 
