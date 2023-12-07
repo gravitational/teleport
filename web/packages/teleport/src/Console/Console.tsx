@@ -106,7 +106,17 @@ export default function Console() {
               disableNew={disableNewTab}
               onNew={onTabNew}
             />
-            <ActionBar onLogout={onLogout} />
+            <ActionBar
+              onLogout={onLogout}
+              latencyIndicator={
+                activeDoc?.kind === 'terminal'
+                  ? {
+                      isVisible: true,
+                      latency: activeDoc.latency,
+                    }
+                  : { isVisible: false }
+              }
+            />
           </Flex>
           {$docs}
           {hasSshSessions && (

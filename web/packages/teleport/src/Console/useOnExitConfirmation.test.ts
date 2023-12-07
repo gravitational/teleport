@@ -62,6 +62,10 @@ test('confirmation dialog before terminating an active ssh session', () => {
     login: 'login',
     created: new Date(),
     sid: 'random-123-sid',
+    latency: {
+      client: 0,
+      server: 0,
+    },
   });
   docs = ctx.getDocuments();
 

@@ -15,16 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { NavLink } from 'react-router-dom';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
+import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
+
 import * as Icons from 'design/Icon';
 import { Flex, ButtonPrimary } from 'design';
 
 import cfg from 'teleport/config';
+import { DocumentSsh } from 'teleport/Console/stores';
 
 export default function ActionBar(props: Props) {
   return (
     <Flex alignItems="center">
+      {props.latencyIndicator.isVisible && (
+        <LatencyDiagnostic latency={props.latencyIndicator.latency} />
+      )}
       <MenuIcon
         buttonIconProps={{ mr: 2, ml: 2, size: 0, style: { fontSize: '16px' } }}
         menuProps={menuProps}
@@ -44,6 +51,11 @@ export default function ActionBar(props: Props) {
 }
 
 type Props = {
+  latencyIndicator:
+    | { isVisible: true; latency: DocumentSsh['latency'] }
+    | {
+        isVisible: false;
+      };
   onLogout: VoidFunction;
 };
 

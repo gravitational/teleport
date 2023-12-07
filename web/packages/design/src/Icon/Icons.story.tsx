@@ -199,6 +199,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.VpnKey} text="VpnKey" />
     <IconBox IconCmpt={Icon.Wand} text="Wand" />
     <IconBox IconCmpt={Icon.Warning} text="Warning" />
+    <IconBox IconCmpt={Icon.WarningCircle} text="WarningCircle" />
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
     <IconBox IconCmpt={Icon.Wrench} text="Wrench" />
