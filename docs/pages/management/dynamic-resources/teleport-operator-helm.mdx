@@ -109,6 +109,12 @@ spec:
   roles: ['myrole']
 ```
 
+<Admonition type="note">
+   Kubernetes validates all custom resource names to follow RFC 1123, which includes specifications for hostnames.
+   This requires the `metadata.name` field of Teleport resources controlled by the operator to consist of lowercase alphanumeric
+   characters, `-` or `.`, and to start and end with an alphanumeric character.
+</Admonition>
+
 Apply the manifests to the Kubernetes cluster:
 
 ```code
