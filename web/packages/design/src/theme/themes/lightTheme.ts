@@ -346,7 +346,7 @@ const colors: ThemeColors = {
         borderColor: red[300],
         typeColor: red[300],
         iconBackground: red[300],
-        handleColor: purple[400],
+        handleColor: red[400],
         highlightColor: red[300],
         label: {
           background: red[200],
