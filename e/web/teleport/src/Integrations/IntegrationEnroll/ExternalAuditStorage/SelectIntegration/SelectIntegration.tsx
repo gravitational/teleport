@@ -25,8 +25,7 @@ export function SelectIntegration() {
   } = useExternalAuditStorage();
 
   const integrationAccess = storeUser.getIntegrationsAccess();
-  const hasAccess =
-    integrationAccess.create && integrationAccess.list && integrationAccess.use;
+  const hasAccess = integrationAccess.list && integrationAccess.read;
 
   const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
   const { attempt, run } = useAttempt('');
@@ -75,6 +74,18 @@ export function SelectIntegration() {
   const hasAwsIntegrations = awsIntegrations.length > 0;
   return (
     <>
+      {!hasAccess && (
+        <Alert mt="4">
+          <Text>
+            Insuficient permissions. Reach out to your Teleport administrator to
+            request permissions to list and read{' '}
+            <Text bold style={{ display: 'inline' }}>
+              integrations
+            </Text>
+            .
+          </Text>
+        </Alert>
+      )}
       {hasAwsIntegrations ? (
         <>
           <Text mb={2}>Select the name of the AWS integration to use:</Text>
@@ -113,7 +124,13 @@ export function SelectIntegration() {
             In order to continue, you have to setup an AWS OIDC integration
             first.
           </Text>
-          <ButtonPrimary mt={2} mb={2} as={Link} to={locationState}>
+          <ButtonPrimary
+            mt={2}
+            mb={2}
+            as={Link}
+            to={locationState}
+            disabled={!hasAccess}
+          >
             Set up AWS Account
           </ButtonPrimary>
         </Box>
