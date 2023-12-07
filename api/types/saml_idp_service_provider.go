@@ -18,11 +18,23 @@ package types
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 
-	"github.com/gravitational/trace"
-
+	"github.com/crewjam/saml"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/trace"
+)
+
+var (
+	// ErrMissingEntityDescriptorAndEntityID is returned when both entity descriptor and entity ID is empty.
+	ErrMissingEntityDescriptorAndEntityID = errors.New("either entity descriptor or entity ID should be configured")
+	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and entity ID is empty.
+	ErrMissingEntityDescriptorAndACSURL = errors.New("either entity descriptor or ACS URL should be configured")
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
@@ -82,6 +94,16 @@ func (s *SAMLIdPServiceProviderV1) SetEntityID(entityID string) {
 	s.Spec.EntityID = entityID
 }
 
+// GetACSURL returns the ACS URL.
+func (s *SAMLIdPServiceProviderV1) GetACSURL() string {
+	return s.Spec.ACSURL
+}
+
+// SetEntityID sets the ACS URL.
+func (s *SAMLIdPServiceProviderV1) SetACSURL(acsURL string) {
+	s.Spec.ACSURL = acsURL
+}
+
 // String returns the SAML IdP service provider string representation.
 func (s *SAMLIdPServiceProviderV1) String() string {
 	return fmt.Sprintf("SAMLIdPServiceProviderV1(Name=%v)",
@@ -117,7 +139,37 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if s.Spec.EntityDescriptor == "" {
-		return trace.BadParameter("missing entity descriptor")
+		if s.Spec.EntityID == "" {
+			return trace.BadParameter("either entity descriptor or entity ID must be configured")
+		}
+
+		if s.Spec.ACSURL == "" {
+			return trace.BadParameter("either entity descriptor or ACS URL must be configured")
+		}
+
+		var entityDescriptor []byte
+		entityDescriptor, err := s.fetchEntityDescriptor()
+		switch {
+		case err != nil || len(entityDescriptor) == 0:
+			defaultED, err := s.defaultSPEntityDescriptor()
+			if err != nil {
+				return trace.BadParameter("could not create Service Provider with given entityID.")
+			}
+
+			edstr, err := xml.MarshalIndent(defaultED, "", "    ")
+			if err != nil {
+				return trace.BadParameter("could not create Service Provider with given entityID.")
+			}
+			s.SetEntityDescriptor(string(edstr))
+		case len(entityDescriptor) > 0:
+			// validate if its correct enity Descriptor
+			_, err := samlsp.ParseMetadata(entityDescriptor)
+			if err != nil {
+				return trace.BadParameter("could not create Service Provider with given entityID.")
+			}
+			s.SetEntityDescriptor(string(entityDescriptor))
+		}
+
 	}
 
 	if s.Spec.EntityID == "" {
@@ -134,6 +186,49 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// fetchEntityDescriptor fetches SP entity descriptor (aka SP metadata) from
+// remote SP metadata endpoint (Entity ID)
+func (s *SAMLIdPServiceProviderV1) fetchEntityDescriptor() ([]byte, error) {
+	httpClient := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := httpClient.Get(s.GetEntityID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.NotFound("SP metadata not found at given Entity ID")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return body, nil
+}
+
+// defaultSPEntityDescriptor generates SP metadata with ACS URL, Entity ID
+// and unspecified NameID format
+func (s *SAMLIdPServiceProviderV1) defaultSPEntityDescriptor() (*saml.EntityDescriptor, error) {
+	acsURL, err := url.Parse(s.GetACSURL())
+	if err != nil {
+		return nil, err
+	}
+
+	sp := saml.ServiceProvider{
+		EntityID:          s.GetEntityID(),
+		AcsURL:            *acsURL,
+		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
+	}
+
+	return sp.Metadata(), nil
 }
 
 // SAMLIdPServiceProviders is a list of SAML IdP service provider resources.
