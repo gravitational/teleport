@@ -30,6 +30,7 @@ import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
+import Logger, { NullService } from 'teleterm/logger';
 
 import {
   AgentCompatibilityError,
@@ -40,6 +41,10 @@ import {
 
 import type { IAppContext } from 'teleterm/ui/types';
 import type { Cluster } from 'teleterm/services/tshd/types';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
 
 function getMocks() {
   const rootCluster = makeRootCluster({
@@ -369,7 +374,7 @@ test('removing the agent shows a notification', async () => {
   expect(mockResourcesContext.requestResourcesRefresh).toHaveBeenCalledTimes(1);
 });
 
-test('when the user does not have permissions to remove node a custom notification is shown', async () => {
+test('when the request to remove the node fails a custom notification is shown', async () => {
   const { appContext, rootCluster } = getMocks();
   jest
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')

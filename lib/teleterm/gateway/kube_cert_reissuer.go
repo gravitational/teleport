@@ -49,7 +49,6 @@ func (r *kubeCertReissuer) reissueCert(ctx context.Context, _, _ string) (tls.Ce
 	return r.cert.Load().(tls.Certificate), nil
 }
 
-func (r *kubeCertReissuer) updateCert(cert tls.Certificate) error {
+func (r *kubeCertReissuer) updateCert(cert tls.Certificate) {
 	r.cert.Store(cert)
-	return nil
 }

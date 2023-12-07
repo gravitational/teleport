@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/internal/context121"
 )
 
@@ -42,8 +43,15 @@ const (
 	// maxSNSMessageSize defines maximum size of SNS message. AWS allows 256KB
 	// however it counts also headers. We round it to 250KB, just to be sure.
 	maxSNSMessageSize = 250 * 1024
-	// maxS3BasedSize defines some resonable threshold for S3 based messages (2GB).
-	maxS3BasedSize uint64 = 2 * 1024 * 1024 * 1024
+)
+
+var (
+	// maxS3BasedSize defines some resonable threshold for S3 based messages
+	// (almost 2GiB but fits in an int).
+	//
+	// It's a var instead of const so tests can override it instead of casually
+	// allocating 2GiB.
+	maxS3BasedSize = 2*1024*1024*1024 - 1
 )
 
 // publisher is a SNS based events publisher.
@@ -112,6 +120,24 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 		in.SetTime(time.Now().UTC().Round(time.Millisecond))
 	}
 
+	// Attempt to trim the event to maxS3BasedSize. This is a no-op if the event
+	// is already small enough. If it can not be trimmed or the event is still
+	// too large after marshaling then we may fail to emit the event below.
+	//
+	// This limit is much larger than events.MaxEventBytesInResponse and the
+	// event may need to be trimmed again on the querier side, but this is an
+	// attempt to preserve as much of the event as possible in case we add the
+	// ability to query very large events in the future.
+	if t, ok := in.(trimmableEvent); ok {
+		prevSize := in.Size()
+		// Trim to 3/4 the max size because base64 has 33% overhead.
+		// The TrimToMaxSize implementations have a 10% buffer already.
+		in = t.TrimToMaxSize(maxS3BasedSize - maxS3BasedSize/4)
+		if in.Size() != prevSize {
+			events.MetricStoredTrimmedEvents.Inc()
+		}
+	}
+
 	oneOf, err := apievents.ToOneOf(in)
 	if err != nil {
 		return trace.Wrap(err)
@@ -123,7 +149,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 
 	b64Encoded := base64.StdEncoding.EncodeToString(marshaledProto)
 	if len(b64Encoded) > maxSNSMessageSize {
-		if uint64(len(b64Encoded)) > maxS3BasedSize {
+		if len(b64Encoded) > maxS3BasedSize {
 			return trace.BadParameter("message too large to publish, size %d", len(b64Encoded))
 		}
 		return trace.Wrap(p.emitViaS3(ctx, in.GetID(), marshaledProto))

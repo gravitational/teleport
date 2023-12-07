@@ -148,7 +148,33 @@ var (
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent}
+	auditEmitEventSizes = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_emitted_event_sizes",
+			Help:      "Size of single events emitted",
+			Buckets:   prometheus.ExponentialBucketsRange(64, 2*1024*1024*1024 /*2GiB*/, 16),
+		})
+
+	// MetricStoredTrimmedEvents counts the number of events that were trimmed
+	// before being stored.
+	MetricStoredTrimmedEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_stored_trimmed_events",
+			Help:      "Number of events that were trimmed before being stored",
+		})
+
+	// MetricQueriedTrimmedEvents counts the number of events that were trimmed
+	// before being returned from a query.
+	MetricQueriedTrimmedEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_queried_trimmed_events",
+			Help:      "Number of events that were trimmed before being returned from a query",
+		})
+
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent, auditEmitEventSizes, MetricStoredTrimmedEvents, MetricQueriedTrimmedEvents}
 )
 
 // AuditLog is a new combined facility to record Teleport events and

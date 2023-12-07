@@ -704,6 +704,9 @@ const (
 
 	// WebsocketError is sending an error message.
 	WebsocketError = "e"
+
+	// WebsocketLatency provides latency information for a session.
+	WebsocketLatency = "l"
 )
 
 // The following are cryptographic primitives Teleport does not support in

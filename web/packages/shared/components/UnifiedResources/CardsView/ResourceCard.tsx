@@ -109,7 +109,7 @@ export function ResourceCard({
     return () => {
       observer.disconnect();
     };
-  });
+  }, []);
 
   // Clear the timeout on unmount to prevent changing a state of an unmounted
   // component.
