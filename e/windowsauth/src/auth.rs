@@ -383,9 +383,10 @@ unsafe fn copy_primary_group_to_token(
 ) -> Result<()> {
     let primary_group =
         lookup_primary_group(name, &user.domain).context("Can't lookup primary group")?;
-    token.PrimaryGroup.PrimaryGroup = PSID(allocate_lsa_heap_size(primary_group.sid_length()?)?);
+    let sid_length = primary_group.sid_length()?;
+    token.PrimaryGroup.PrimaryGroup = PSID(allocate_lsa_heap_size(sid_length)?);
     CopySid(
-        user.sid.len() as _,
+        sid_length,
         token.PrimaryGroup.PrimaryGroup,
         primary_group.psid(),
     )
