@@ -26,11 +26,11 @@ import parseError, { ApiError } from './parseError';
 const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url, abortSignal) {
+  get(url, abortSignal?) {
     return api.fetchJson(url, { signal: abortSignal });
   },
 
-  post(url, data, abortSignal) {
+  post(url, data?, abortSignal?) {
     return api.fetchJson(url, {
       body: JSON.stringify(data),
       method: 'POST',
@@ -57,7 +57,7 @@ const api = {
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data) {
+  delete(url, data?) {
     return api.fetchJson(url, {
       body: JSON.stringify(data),
       method: 'DELETE',
@@ -71,8 +71,8 @@ const api = {
     });
   },
 
-  async fetchJson(url, params) {
-    const response = await this.fetch(url, params);
+  async fetchJson(url, params): Promise<any> {
+    const response = await api.fetch(url, params);
 
     let json;
     try {
@@ -106,7 +106,7 @@ const api = {
         }),
       },
     };
-    return this.fetchJson(url, paramsWithMfaHeader);
+    return api.fetchJson(url, paramsWithMfaHeader);
   },
 
   fetch(url, params = {}) {
@@ -127,7 +127,7 @@ const api = {
   },
 };
 
-const requestOptions = {
+const requestOptions: RequestInit = {
   credentials: 'same-origin',
   headers: {
     Accept: 'application/json',
@@ -155,13 +155,14 @@ export function getNoCacheHeaders() {
 }
 
 export const getXCSRFToken = () => {
-  const metaTag = document.querySelector('[name=grv_csrf_token]');
+  const metaTag = document.querySelector(
+    '[name=grv_csrf_token]'
+  ) as HTMLMetaElement;
   return metaTag ? metaTag.content : '';
 };
 
 export function getAccessToken() {
-  const bearerToken = storageService.getBearerToken() || {};
-  return bearerToken.accessToken;
+  return storageService.getBearerToken()?.accessToken;
 }
 
 export function getHostName() {

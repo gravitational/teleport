@@ -240,6 +240,11 @@ type Requires struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
+// IsEmpty returns true when no roles or traits are set
+func (r *Requires) IsEmpty() bool {
+	return len(r.Roles) == 0 && len(r.Traits) == 0
+}
+
 // Grants describes what access is granted by membership to the access list.
 type Grants struct {
 	// Roles are the roles that are granted to users who are members of the access list.
@@ -403,6 +408,30 @@ func (a *AccessList) CloneResource() types.ResourceWithLabels {
 	var copy *AccessList
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
+}
+
+// HasImplicitOwnership returns true if the supplied AccessList uses
+// implicit ownership
+func (a *AccessList) HasImplicitOwnership() bool {
+	return a.Spec.Ownership == InclusionImplicit
+}
+
+// HasExplicitOwnership returns true if the supplied AccessList uses
+// explicit ownership
+func (a *AccessList) HasExplicitOwnership() bool {
+	return a.Spec.Ownership == InclusionExplicit
+}
+
+// HasImplicitMembership returns true if the supplied AccessList uses
+// implicit membership
+func (a *AccessList) HasImplicitMembership() bool {
+	return a.Spec.Membership == InclusionImplicit
+}
+
+// HasExplicitMembership returns true if the supplied AccessList uses
+// explicit membership
+func (a *AccessList) HasExplicitMembership() bool {
+	return a.Spec.Membership == InclusionExplicit
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
