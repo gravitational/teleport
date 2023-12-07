@@ -1,18 +1,20 @@
-/*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /*
 
@@ -35,8 +37,11 @@ export { ArrowBack } from './Icons/ArrowBack';
 export { ArrowDown } from './Icons/ArrowDown';
 export { ArrowFatLinesUp } from './Icons/ArrowFatLinesUp';
 export { ArrowForward } from './Icons/ArrowForward';
+export { ArrowLeft } from './Icons/ArrowLeft';
 export { ArrowRight } from './Icons/ArrowRight';
 export { ArrowUp } from './Icons/ArrowUp';
+export { ArrowsIn } from './Icons/ArrowsIn';
+export { ArrowsOut } from './Icons/ArrowsOut';
 export { BookOpenText } from './Icons/BookOpenText';
 export { Bubble } from './Icons/Bubble';
 export { CCAmex } from './Icons/CCAmex';
@@ -92,6 +97,7 @@ export { EnvelopeOpen } from './Icons/EnvelopeOpen';
 export { EqualizersVertical } from './Icons/EqualizersVertical';
 export { Expand } from './Icons/Expand';
 export { Facebook } from './Icons/Facebook';
+export { Floppy } from './Icons/Floppy';
 export { FlowArrow } from './Icons/FlowArrow';
 export { FolderPlus } from './Icons/FolderPlus';
 export { FolderShared } from './Icons/FolderShared';
@@ -183,6 +189,7 @@ export { VolumeUp } from './Icons/VolumeUp';
 export { VpnKey } from './Icons/VpnKey';
 export { Wand } from './Icons/Wand';
 export { Warning } from './Icons/Warning';
+export { WarningCircle } from './Icons/WarningCircle';
 export { Wifi } from './Icons/Wifi';
 export { Windows } from './Icons/Windows';
 export { Wrench } from './Icons/Wrench';

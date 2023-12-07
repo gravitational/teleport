@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -23,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -32,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -133,6 +137,196 @@ func TestAccessListCRUD(t *testing.T) {
 
 	_, err = service.UpsertAccessList(ctx, accessListDuplicateOwners)
 	require.True(t, trace.IsAlreadyExists(err))
+}
+
+// TestAccessListCreate_UpsertAccessList_WithoutLimit tests creating access list
+// is unlimited if IGS feature is enabled.
+func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList3 := newAccessList(t, "accessList3", clock)
+
+	// No limit to creating access list.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, accessList2)
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, accessList3)
+	require.NoError(t, err)
+
+	// Fetch all access lists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+}
+
+// TestAccessListCreate_UpsertAccessList_WithLimit tests creating access list
+// is limited to the limit defined in feature if IGS is NOT enabled.
+// Also tests "upserting" and deleting is allowed despite "create" limit reached.
+func TestAccessListCreate_UpsertAccessList_WithLimit(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
+		},
+	})
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
+
+	// First create is free.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+
+	// Second create should return an error.
+	_, err = service.UpsertAccessList(ctx, accessList2)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied / license limit error, got %v", err)
+	require.ErrorContains(t, err, "reached its limit")
+
+	// Double check only be one access list exists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+
+	// Updating existing access list should be allowed.
+	accessList1.Spec.Description = "changing description"
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+
+	// Delete the one access list.
+	err = service.DeleteAccessList(ctx, "accessList1")
+	require.NoError(t, err)
+
+	// Create the same list again.
+	_, err = service.UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+}
+
+// TestAccessListCreate_UpsertAccessListWithMembers_WithLimit tests creating access list
+// with members, is limited to the limit defined in feature if IGS is NOT enabled.
+// Also tests "upserting" and deleting is allowed despite "create" limit reached.
+func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
+		},
+	})
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
+
+	accessListMember1 := newAccessListMember(t, accessList1.GetName(), "alice")
+	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
+
+	// First create is free.
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	require.NoError(t, err)
+
+	// Second create should return an error.
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
+	require.True(t, trace.IsAccessDenied(err), "expected access denied / license limit error, got %v", err)
+	require.ErrorContains(t, err, "reached its limit")
+
+	// Double check only be one access list exists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, "accessList1", out[0].Metadata.Name)
+
+	// Double check only one member exists.
+	members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	require.Equal(t, "alice", members[0].Metadata.Name)
+
+	// Updating existing access list should be allowed.
+	accessList1.Spec.Description = "changing description"
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	require.NoError(t, err)
+
+	// Delete the one access list.
+	err = service.DeleteAccessList(ctx, "accessList1")
+	require.NoError(t, err)
+
+	// Create the same list again.
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	require.NoError(t, err)
+}
+
+// TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit tests creating access list
+// with members is unlimited if IGS feature is enabled.
+func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	accessList1 := newAccessList(t, "accessList1", clock)
+	accessList2 := newAccessList(t, "accessList2", clock)
+	accessList3 := newAccessList(t, "accessList3", clock)
+
+	accessListMember1 := newAccessListMember(t, accessList1.GetName(), "alice")
+	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
+
+	// No limit to creating access list.
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessListMember1})
+	require.NoError(t, err)
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList2, []*accesslist.AccessListMember{accessListMember2})
+	require.NoError(t, err)
+	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList3, []*accesslist.AccessListMember{})
+	require.NoError(t, err)
+
+	// Fetch all access lists.
+	out, err := service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 3)
 }
 
 func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
@@ -415,8 +609,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var service services.AccessLists
-	service, err = NewAccessListService(backend.NewSanitizer(mem), clock)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
 	// Create a couple access lists.
@@ -829,4 +1022,365 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	require.NoError(t, err)
 
 	return review
+}
+
+func TestDynamicAccessListOwnersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	t.Run("inserting without set conditions is an error", func(t *testing.T) {
+		// Given an access list with implicit ownership AND no ownership
+		// conditions set
+		list := newAccessList(t, t.Name(), clock)
+		list.Spec.Ownership = accesslist.InclusionImplicit
+		list.Spec.OwnershipRequires = accesslist.Requires{}
+
+		// When I try to insert that access list
+		_, err := service.UpsertAccessList(ctx, list)
+
+		// Expect that the operation fails
+		require.Error(t, err)
+	})
+
+	t.Run("inserting with explicit owners is an error", func(t *testing.T) {
+		// Given an access list with implicit ownership AND a non-empty owner
+		// list
+		list := newAccessList(t, t.Name(), clock)
+		list.Spec.Ownership = accesslist.InclusionImplicit
+		list.Spec.Owners = []accesslist.Owner{
+			{
+				Name:        "some-user",
+				Description: "just coz",
+			},
+		}
+
+		// When I try to insert that access list
+		_, err := service.UpsertAccessList(ctx, list)
+
+		// Expect that the operation fails
+		require.Error(t, err)
+	})
+}
+
+func TestDynamicAccessListMembersCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	t.Run("inserting without set member conditions is an error", func(t *testing.T) {
+		// Given an access list with implicit ownership AND no ownership
+		// conditions set
+		list := newAccessList(t, t.Name(), clock)
+		list.Spec.Membership = accesslist.InclusionImplicit
+		list.Spec.MembershipRequires = accesslist.Requires{}
+
+		// When I try to insert that access list
+		_, err := service.UpsertAccessList(ctx, list)
+
+		// Expect that the operation fails
+		require.Error(t, err)
+	})
+
+	t.Run("listing implicit members returns ImplicitAccessListError", func(t *testing.T) {
+		var err error
+
+		// Given an access list with implicit membership
+		implicitlist := newAccessList(t, t.Name(), clock)
+		implicitlist.Spec.Membership = accesslist.InclusionImplicit
+		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
+		require.NoError(t, err)
+
+		// When I try to list the members of that list
+		_, _, err = service.ListAccessListMembers(ctx, implicitlist.GetName(), 100, "")
+
+		// The AccessList service lets me know that it has implicit membership
+		// and can't compute the result for me
+		require.ErrorIs(t, err, services.ImplicitAccessListError{})
+	})
+
+	t.Run("getting list members returns ImplicitAccessListError", func(t *testing.T) {
+		var err error
+
+		// Given an access list with implicit membership
+		implicitlist := newAccessList(t, t.Name(), clock)
+		implicitlist.Spec.Membership = accesslist.InclusionImplicit
+		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
+		require.NoError(t, err)
+
+		// When I try to query a member of that list
+		_, err = service.GetAccessListMember(ctx, implicitlist.GetName(), "somebody")
+
+		// The AccessList service lets me know that it has implicit membership
+		// and can't compute the result for me
+		require.ErrorIs(t, err, services.ImplicitAccessListError{})
+	})
+
+	t.Run("deleting list members returns ImplicitAccessListError", func(t *testing.T) {
+		var err error
+
+		// Given an access list with implicit membership
+		implicitlist := newAccessList(t, t.Name(), clock)
+		implicitlist.Spec.Membership = accesslist.InclusionImplicit
+		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
+		require.NoError(t, err)
+
+		// When I try to delete a member of that list
+		err = service.DeleteAccessListMember(ctx, implicitlist.GetName(), "somebody")
+
+		// The AccessList service lets me know that the list has implicit
+		// membership and it can't honor the request
+		require.ErrorIs(t, err, services.ImplicitAccessListError{})
+	})
+
+	t.Run("inserting with no members is allowed", func(t *testing.T) {
+		// Given an access list with implicit membership
+		implicitlist := newAccessList(t, t.Name(), clock)
+		implicitlist.Spec.Membership = accesslist.InclusionImplicit
+
+		// When I attempt to upsert the list via UpsertAccessListWithMembers,
+		// but do not supply any members
+		_, _, err = service.UpsertAccessListWithMembers(
+			ctx,
+			implicitlist,
+			[]*accesslist.AccessListMember{})
+
+		// Expect that the overall operation succeeds
+		require.NoError(t, err)
+
+		// ALSO Expect that the AccessList has been inserted
+		_, err = service.GetAccessList(ctx, implicitlist.GetName())
+		require.NoError(t, err)
+	})
+
+	t.Run("inserting list members is an error", func(t *testing.T) {
+		// Given an access list with implicit membership
+		implicitlist := newAccessList(t, t.Name(), clock)
+		implicitlist.Spec.Membership = accesslist.InclusionImplicit
+
+		// And a membership for that list
+		m, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: implicitlist.GetName() + "/" + "some-user",
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList: implicitlist.GetName(),
+				Name:       "some-user",
+				Membership: accesslist.InclusionExplicit,
+				AddedBy:    "system",
+				Joined:     time.Date(2016, time.December, 17, 14, 30, 55, 60, time.UTC),
+			})
+		require.NoError(t, err)
+
+		// When I attempt to upsert the list with members
+		_, _, err = service.UpsertAccessListWithMembers(
+			ctx,
+			implicitlist,
+			[]*accesslist.AccessListMember{m})
+
+		// Expect that the overall operation fails
+		require.Error(t, err)
+
+		// Expect that the AccessList has not been inserted
+		_, err = service.GetAccessList(ctx, implicitlist.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("deleting all list members is allowed", func(t *testing.T) {
+		var err error
+
+		// Given an access list with implicit membership
+		implicitlist := newAccessList(t, t.Name(), clock)
+		implicitlist.Spec.Membership = accesslist.InclusionImplicit
+		implicitlist, err = service.UpsertAccessList(ctx, implicitlist)
+		require.NoError(t, err)
+
+		// AND a membership record fora user in that list (this can happen if an
+		// existing Explicit list is made Implicit)
+		m := newAccessListMember(t, implicitlist.GetName(), "scooby")
+		err = service.memberService.WithPrefix(m.Spec.AccessList).UpsertResource(ctx, m)
+		require.NoError(t, err)
+
+		// When I try to remove all the members of that list
+		err = service.DeleteAllAccessListMembersForAccessList(
+			ctx,
+			implicitlist.GetName())
+
+		// Expect that the operation succeeds
+		require.NoError(t, err)
+
+		// And that the membership record no longer exists
+		_, err = service.memberService.WithPrefix(m.Spec.AccessList).GetResource(ctx, m.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+}
+
+func TestChangingMembershipModeIsAnError(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	upsert := func(l *accesslist.AccessList) error {
+		_, err := service.UpsertAccessList(ctx, l)
+		return err
+	}
+
+	upsertWithMembers := func(l *accesslist.AccessList) error {
+		_, _, err := service.UpsertAccessListWithMembers(ctx, l, []*accesslist.AccessListMember{})
+		return err
+	}
+
+	tests := []struct {
+		name     string
+		oldMode  accesslist.Inclusion
+		newMode  accesslist.Inclusion
+		updateFn func(*accesslist.AccessList) error
+	}{
+		{
+			name:     "explicit to implicit",
+			oldMode:  accesslist.InclusionExplicit,
+			newMode:  accesslist.InclusionImplicit,
+			updateFn: upsert,
+		}, {
+			name:     "implicit to explicit",
+			oldMode:  accesslist.InclusionImplicit,
+			newMode:  accesslist.InclusionExplicit,
+			updateFn: upsert,
+		}, {
+			name:     "explicit to implicit (with members)",
+			oldMode:  accesslist.InclusionExplicit,
+			newMode:  accesslist.InclusionImplicit,
+			updateFn: upsertWithMembers,
+		}, {
+			name:     "implicit to explicit (with members)",
+			oldMode:  accesslist.InclusionImplicit,
+			newMode:  accesslist.InclusionExplicit,
+			updateFn: upsertWithMembers,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given an AccessList with a specific Membership Inclusion type
+			list := newAccessList(t, uuid.New().String(), clock)
+			list.Spec.Membership = test.oldMode
+			_, err := service.UpsertAccessList(ctx, list)
+			require.NoError(t, err)
+
+			// When I try to change the membership type...
+			list.Spec.Membership = test.newMode
+			err = test.updateFn(list)
+
+			// Expect that the operation fails with BadParameter
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err),
+				"Expected BadParameter, got %s", err.Error())
+		})
+	}
+}
+
+func TestChangingOwnershipModeIsAnError(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	upsert := func(l *accesslist.AccessList) error {
+		_, err := service.UpsertAccessList(ctx, l)
+		return err
+	}
+
+	upsertWithMembers := func(l *accesslist.AccessList) error {
+		_, _, err := service.UpsertAccessListWithMembers(ctx, l, []*accesslist.AccessListMember{})
+		return err
+	}
+
+	tests := []struct {
+		name     string
+		oldMode  accesslist.Inclusion
+		newMode  accesslist.Inclusion
+		updateFn func(*accesslist.AccessList) error
+	}{
+		{
+			name:     "explicit to implicit",
+			oldMode:  accesslist.InclusionExplicit,
+			newMode:  accesslist.InclusionImplicit,
+			updateFn: upsert,
+		}, {
+			name:     "implicit to explicit",
+			oldMode:  accesslist.InclusionImplicit,
+			newMode:  accesslist.InclusionExplicit,
+			updateFn: upsert,
+		}, {
+			name:     "explicit to implicit (with members)",
+			oldMode:  accesslist.InclusionExplicit,
+			newMode:  accesslist.InclusionImplicit,
+			updateFn: upsertWithMembers,
+		}, {
+			name:     "implicit to explicit (with members)",
+			oldMode:  accesslist.InclusionImplicit,
+			newMode:  accesslist.InclusionExplicit,
+			updateFn: upsertWithMembers,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given an AccessList with a specific Ownership Inclusion type
+			list := newAccessList(t, uuid.New().String(), clock)
+			list.Spec.Ownership = test.oldMode
+			if test.oldMode == accesslist.InclusionImplicit {
+				list.Spec.Owners = []accesslist.Owner{}
+			}
+
+			_, err := service.UpsertAccessList(ctx, list)
+			require.NoError(t, err)
+
+			// When I try to change the ownership type...
+			list.Spec.Ownership = test.newMode
+			if test.newMode == accesslist.InclusionImplicit {
+				list.Spec.Owners = []accesslist.Owner{}
+			}
+			err = test.updateFn(list)
+
+			// Expect that the operation fails with BadParameter
+			require.Error(t, err)
+			require.Truef(t, trace.IsBadParameter(err),
+				"Expected BadParameter, got %s", err.Error())
+		})
+	}
 }

@@ -106,6 +106,7 @@ install_teleport() {
     if [ "$ID" = "rhel" ]; then
       VERSION_ID=${VERSION_ID//\.*/} # convert version numbers like '7.2' to only include the major version
     fi
+    sudo yum install -y yum-utils
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo yum install -y ${PACKAGE_LIST}

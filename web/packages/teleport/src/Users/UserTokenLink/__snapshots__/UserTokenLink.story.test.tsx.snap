@@ -1,7 +1,36 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`reset link dialog 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
 .c11 {
+  box-sizing: border-box;
+  padding: 8px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c16 {
+  box-sizing: border-box;
+}
+
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -27,22 +56,22 @@ exports[`reset link dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c11:hover,
-.c11:focus {
+.c15:hover,
+.c15:focus {
   background: #B29DFF;
 }
 
-.c11:active {
+.c15:active {
   background: #C5B6FF;
 }
 
-.c11:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c13 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -68,22 +97,22 @@ exports[`reset link dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c13:hover,
-.c13:focus {
+.c17:hover,
+.c17:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c13:active {
+.c17:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c13:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -94,7 +123,7 @@ exports[`reset link dialog 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -102,27 +131,30 @@ exports[`reset link dialog 1`] = `
   margin-top: 4px;
 }
 
-.c8 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  padding: 8px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c12 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c10 {
-  box-sizing: border-box;
-  margin-right: 8px;
+.c14 {
   display: flex;
 }
 
@@ -175,26 +207,6 @@ exports[`reset link dialog 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c12 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -212,24 +224,24 @@ exports[`reset link dialog 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Share Link
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9"
         >
           User
           <span
-            class="c8"
+            class="c10"
           >
              Lester 
           </span>
@@ -238,11 +250,11 @@ exports[`reset link dialog 1`] = `
           .
         </div>
         <div
-          class="c9"
+          class="c11 c12"
           color="light"
         >
           <div
-            class="c10"
+            class="c13 c14"
             style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div>
@@ -250,7 +262,7 @@ exports[`reset link dialog 1`] = `
             </div>
           </div>
           <button
-            class="c11"
+            class="c15"
             kind="primary"
             style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
           >
@@ -259,10 +271,10 @@ exports[`reset link dialog 1`] = `
         </div>
       </div>
       <div
-        class="c12"
+        class="c16"
       >
         <button
-          class="c13"
+          class="c17"
           kind="secondary"
         >
           Close
@@ -274,7 +286,36 @@ exports[`reset link dialog 1`] = `
 `;
 
 exports[`reset link dialog as invite 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
 .c11 {
+  box-sizing: border-box;
+  padding: 8px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c16 {
+  box-sizing: border-box;
+}
+
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -300,22 +341,22 @@ exports[`reset link dialog as invite 1`] = `
   padding: 0px 24px;
 }
 
-.c11:hover,
-.c11:focus {
+.c15:hover,
+.c15:focus {
   background: #B29DFF;
 }
 
-.c11:active {
+.c15:active {
   background: #C5B6FF;
 }
 
-.c11:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c13 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -341,22 +382,22 @@ exports[`reset link dialog as invite 1`] = `
   padding: 0px 24px;
 }
 
-.c13:hover,
-.c13:focus {
+.c17:hover,
+.c17:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c13:active {
+.c17:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c13:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -367,7 +408,7 @@ exports[`reset link dialog as invite 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -375,27 +416,30 @@ exports[`reset link dialog as invite 1`] = `
   margin-top: 4px;
 }
 
-.c8 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  padding: 8px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c8 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c12 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c10 {
-  box-sizing: border-box;
-  margin-right: 8px;
+.c14 {
   display: flex;
 }
 
@@ -448,26 +492,6 @@ exports[`reset link dialog as invite 1`] = `
   width: 100%;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c6 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c12 {
-  box-sizing: border-box;
-}
-
 <div
   class="c0"
   data-testid="Modal"
@@ -485,24 +509,24 @@ exports[`reset link dialog as invite 1`] = `
       data-testid="dialogbox"
     >
       <div
-        class="c4"
+        class="c4 c5"
       >
         <div
-          class="c5"
+          class="c6"
           color="text.main"
         >
           Share Link
         </div>
       </div>
       <div
-        class="c6"
+        class="c7 c8"
       >
         <div
-          class="c7"
+          class="c9"
         >
           User
           <span
-            class="c8"
+            class="c10"
           >
              Lester 
           </span>
@@ -511,11 +535,11 @@ exports[`reset link dialog as invite 1`] = `
           .
         </div>
         <div
-          class="c9"
+          class="c11 c12"
           color="light"
         >
           <div
-            class="c10"
+            class="c13 c14"
             style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div>
@@ -523,7 +547,7 @@ exports[`reset link dialog as invite 1`] = `
             </div>
           </div>
           <button
-            class="c11"
+            class="c15"
             kind="primary"
             style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
           >
@@ -532,10 +556,10 @@ exports[`reset link dialog as invite 1`] = `
         </div>
       </div>
       <div
-        class="c12"
+        class="c16"
       >
         <button
-          class="c13"
+          class="c17"
           kind="secondary"
         >
           Close

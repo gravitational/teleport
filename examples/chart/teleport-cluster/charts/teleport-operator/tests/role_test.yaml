@@ -1,0 +1,43 @@
+suite: Operator Role
+templates:
+  - role.yaml
+tests:
+  - it: creates no role when operator is not enabled
+    values:
+      - ../.lint/disabled.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates no role when rbac.create is false
+    set:
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates a role by default
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-operator
+
+  - it: shortens fullname if .Release.Name == .Chart.Name
+    release:
+      name: teleport-operator
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: teleport-operator
+
+  - it: respects the nameOverride
+    set:
+      nameOverride: operator
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-operator

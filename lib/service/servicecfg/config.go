@@ -1,22 +1,27 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-// package servicecfg contains the runtime configuration for Teleport services
+// Package servicecfg contains the runtime configuration for Teleport services
 package servicecfg
 
 import (
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -210,8 +215,12 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// Log optionally specifies the logger
+	// Log optionally specifies the logger.
+	// Deprecated: use Logger instead.
 	Log utils.Logger
+	// Logger outputs messages using slog. The underlying handler respects
+	// the user supplied logging config.
+	Logger *slog.Logger
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -502,6 +511,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.Log = utils.NewLogger()
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -662,6 +675,10 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 
 	if cfg.PollingPeriod == 0 {

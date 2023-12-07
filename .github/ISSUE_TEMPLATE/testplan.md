@@ -585,7 +585,7 @@ tsh ssh node-that-requires-device-trust
 > ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 # Register the device.
-# Get the serial number from "Apple -> About This Mac".
+# Get the serial number from `tsh device asset-tag`.
 tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
 
 # Enroll the device.
@@ -661,9 +661,10 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authorization applies to Database access (all items above)
   - [ ] Device authorization applies to Kubernetes access (all items above)
 
-  - [ ] Device authorization __does not__ apply to App access
-        (both cluster-wide and role)
-  - [ ] Device authorization __does not__ apply to Windows Desktop access
+  - [ ] Cluster-wide device authorization __does not apply__ to App access
+  - [ ] Role-based device authorization __applies__ to App access
+
+  - [ ] Device authorization __does not apply__ to Windows Desktop access
         (both cluster-wide and role)
 
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])

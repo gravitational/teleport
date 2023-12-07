@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -34,12 +36,11 @@ import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import SearchPanel from 'teleport/UnifiedResources/SearchPanel';
 import {
   UnifiedResourcePreferences,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
+  DefaultTab,
+  ViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -49,6 +50,11 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import {
+  DocumentClusterQueryParams,
+  DocumentCluster,
+  DocumentClusterResourceKind,
+} from 'teleterm/ui/services/workspacesService';
 
 import {
   ConnectServerActionButton,
@@ -57,24 +63,54 @@ import {
 } from './actionButtons';
 import { useResourcesContext } from './resourcesContext';
 
-interface UnifiedResourcesProps {
+export function UnifiedResources(props: {
   clusterUri: uri.ClusterUri;
+  docUri: uri.DocumentUri;
+  queryParams: DocumentClusterQueryParams;
+}) {
+  // TODO: Add user preferences to Connect.
+  // Until we add stored user preferences to Connect, store it in the state.
+  const [userPreferences, setUserPreferences] =
+    useState<UnifiedResourcePreferences>({
+      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
+      viewMode: ViewMode.VIEW_MODE_CARD,
+    });
+
+  return (
+    <Resources
+      queryParams={props.queryParams}
+      docUri={props.docUri}
+      clusterUri={props.clusterUri}
+      userPreferences={userPreferences}
+      setUserPreferences={setUserPreferences}
+      // Reset the component state when query params object change.
+      // JSON.stringify on the same object will always produce the same string.
+      key={JSON.stringify(props.queryParams)}
+    />
+  );
 }
 
-export function UnifiedResources(props: UnifiedResourcesProps) {
+function Resources(props: {
+  clusterUri: uri.ClusterUri;
+  docUri: uri.DocumentUri;
+  queryParams: DocumentClusterQueryParams;
+  userPreferences: UnifiedResourcePreferences;
+  setUserPreferences(u: UnifiedResourcePreferences): void;
+}) {
   const appContext = useAppContext();
   const { onResourcesRefreshRequest } = useResourcesContext();
 
-  // TODO: Add user preferences to Connect.
-  // Until we add stored user preferences to Connect, store it in the state.
-  const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-    defaultTab: UnifiedTabPreference.All,
-    viewMode: UnifiedViewModePreference.Card,
-  });
-
-  const [params, setParams] = useState<UnifiedResourcesQueryParams>({
-    sort: { fieldName: 'name', dir: 'ASC' },
-  });
+  const mergedParams: UnifiedResourcesQueryParams = {
+    kinds: props.queryParams.resourceKinds,
+    sort: props.queryParams.sort,
+    pinnedOnly: false, //TODO: add support for pinning
+    search: props.queryParams.advancedSearchEnabled
+      ? ''
+      : props.queryParams.search,
+    query: props.queryParams.advancedSearchEnabled
+      ? props.queryParams.search
+      : '',
+  };
 
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
@@ -101,13 +137,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 clusterUri: props.clusterUri,
                 searchAsRoles: false,
                 sortBy: {
-                  isDesc: params.sort.dir === 'DESC',
-                  field: params.sort.fieldName,
+                  isDesc: mergedParams.sort.dir === 'DESC',
+                  field: mergedParams.sort.fieldName,
                 },
-                search: params.search,
-                kindsList: params.kinds,
-                query: params.query,
-                pinnedOnly: params.pinnedOnly,
+                search: mergedParams.search,
+                kindsList: mergedParams.kinds,
+                query: mergedParams.query,
+                pinnedOnly: mergedParams.pinnedOnly,
                 startKey: paginationParams.startKey,
                 limit: paginationParams.limit,
               },
@@ -121,7 +157,16 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           totalCount: response.resources.length,
         };
       },
-      [appContext, params, props.clusterUri]
+      [
+        appContext,
+        mergedParams.kinds,
+        mergedParams.pinnedOnly,
+        mergedParams.query,
+        mergedParams.search,
+        mergedParams.sort.dir,
+        mergedParams.sort.fieldName,
+        props.clusterUri,
+      ]
     ),
   });
 
@@ -134,17 +179,26 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   }, [onResourcesRefreshRequest, fetch, clear]);
 
   function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
-    clear();
-    setParams(newParams);
+    const documentService =
+      appContext.workspacesService.getWorkspaceDocumentService(
+        uri.routing.ensureRootClusterUri(props.clusterUri)
+      );
+    documentService.update(props.docUri, (draft: DocumentCluster) => {
+      const { queryParams } = draft;
+      queryParams.sort = newParams.sort;
+      queryParams.resourceKinds =
+        newParams.kinds as DocumentClusterResourceKind[];
+      queryParams.search = newParams.search || newParams.query;
+      queryParams.advancedSearchEnabled = !!newParams.query;
+    });
   }
 
   return (
     <SharedUnifiedResources
-      params={params}
+      params={mergedParams}
       setParams={onParamsChange}
-      unifiedResourcePreferences={userPrefs}
-      updateUnifiedResourcesPreferences={setUserPrefs}
-      onLabelClick={() => alert('Not implemented')}
+      unifiedResourcePreferences={props.userPreferences}
+      updateUnifiedResourcesPreferences={props.setUserPreferences}
       pinning={{ kind: 'hidden' }}
       resources={resources.map(mapToSharedResource)}
       resourcesFetchAttempt={attempt}
@@ -163,17 +217,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           disabled: false,
         },
       ]}
-      Header={
-        <Flex alignItems="center" justifyContent="space-between">
-          {/*temporary search panel*/}
-          <SearchPanel
-            params={params}
-            pathname={''}
-            replaceHistory={() => undefined}
-            setParams={onParamsChange}
-          />
-        </Flex>
-      }
       NoResources={
         <NoResources
           canCreate={canAddResources}

@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -21,6 +23,8 @@ import { StyledPanel } from 'design/DataTable/StyledTable';
 import { SearchPanel } from 'shared/components/Search';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 import { Desktop } from 'teleport/services/desktops';
 import { Node } from 'teleport/services/nodes';
@@ -90,7 +94,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
   }
 
   function onResourceLabelClick(label: ResourceLabel) {
-    const query = addResourceLabelToQuery(resourceFilter, label);
+    const query = makeAdvancedSearchQueryForLabel(label, resourceFilter);
     setResourceFilter({ ...resourceFilter, search: '', query });
   }
 
@@ -188,24 +192,4 @@ function getFetchFuncForServerSidePaginating(
   if (resourceKind === 'windows_desktop') {
     return ctx.desktopService.fetchDesktops;
   }
-}
-
-function addResourceLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
-  const queryParts = [];
-
-  // Add existing query
-  if (filter.query) {
-    queryParts.push(filter.query);
-  }
-
-  // If there is an existing simple search,
-  // convert it to predicate language and add it
-  if (filter.search) {
-    queryParts.push(`search("${filter.search}")`);
-  }
-
-  // Create the label query.
-  queryParts.push(`labels["${label.name}"] == "${label.value}"`);
-
-  return queryParts.join(' && ');
 }

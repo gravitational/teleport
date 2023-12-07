@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
@@ -34,51 +36,18 @@ import {
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { Node } from 'teleport/services/nodes';
 
+import { userEventService } from 'teleport/services/userEvent';
+
 import { EnrollEc2Instance } from './EnrollEc2Instance';
 
 describe('test EnrollEc2Instance.tsx', () => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'node-name',
-      agentMatcherLabels: [],
-      db: {} as any,
-      selectedAwsRdsDb: {} as any,
-      node: {} as any,
-      integration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'test-oidc',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn-123',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
-    },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {} as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   beforeEach(() => {
-    jest.spyOn(ctx.nodeService, 'fetchNodes').mockResolvedValue({ agents: [] });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   test('a cloudshell script should be shown if there is an aws permissions error', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
     jest
       .spyOn(integrationService, 'fetchAwsEc2Instances')
       .mockRejectedValue(
@@ -105,6 +74,8 @@ describe('test EnrollEc2Instance.tsx', () => {
   });
 
   test('an instance that is already enrolled should be disabled', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
     jest
       .spyOn(integrationService, 'fetchAwsEc2Instances')
       .mockResolvedValue({ instances: mockEc2Instances });
@@ -144,8 +115,9 @@ describe('test EnrollEc2Instance.tsx', () => {
     expect(disabledRowElements).toHaveLength(1);
   });
 
-  // TODO: Fix flaky network error failure in this test
-  test.skip('there should be no disabled rows if the fetchNodes response is empty', async () => {
+  test('there should be no disabled rows if the fetchNodes response is empty', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
     jest
       .spyOn(integrationService, 'fetchAwsEc2Instances')
       .mockResolvedValue({ instances: mockEc2Instances });
@@ -172,6 +144,48 @@ describe('test EnrollEc2Instance.tsx', () => {
     ).toBeUndefined();
   });
 });
+
+function getMockedContexts() {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'node-name',
+      agentMatcherLabels: [],
+      db: {} as any,
+      selectedAwsRdsDb: {} as any,
+      node: {} as any,
+      integration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'test-oidc',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn-123',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+    },
+    currentStep: 0,
+    nextStep: () => null,
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {} as any,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
+
+  jest.spyOn(ctx.nodeService, 'fetchNodes').mockResolvedValue({ agents: [] });
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(undefined as never);
+
+  return { ctx, discoverCtx };
+}
 
 function renderEc2Instances(
   ctx: TeleportContext,

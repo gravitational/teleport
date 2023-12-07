@@ -24,8 +24,11 @@ jobs:
       - name: Install Yarn dependencies
         run: yarn --frozen-lockfile
 
+      - name: Run Type Check
+        run: yarn type-check
+
       - name: Run lint
         run: yarn lint
 
-      - name: Run Type Check
-        run: yarn type-check
+      - name: Run Storybook smoke test
+        run: yarn storybook-smoke-test

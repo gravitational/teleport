@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { DeprecatedThemeOption } from 'design/theme/types';
 
@@ -36,6 +38,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.UNIFIED_RESOURCES_DISABLED,
+  KeysEnum.DISCOVER_CONNECT_MY_COMPUTER_NEW_CONNECTION_TEST_ENABABLED,
 ];
 
 export const storageService = {
@@ -258,5 +261,30 @@ export const storageService = {
       return JSON.parse(item);
     }
     return false;
+  },
+
+  getExternalAuditStorageCtaDisabled(): boolean {
+    const item = window.localStorage.getItem(
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED
+    );
+    if (item) {
+      return JSON.parse(item);
+    }
+    return false;
+  },
+
+  disableExternalAuditStorageCta(): void {
+    window.localStorage.setItem(
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
+      JSON.stringify(true)
+    );
+  },
+
+  isDiscoverConnectMyComputerNewConnectionTestEnabled(): boolean {
+    return (
+      window.localStorage.getItem(
+        KeysEnum.DISCOVER_CONNECT_MY_COMPUTER_NEW_CONNECTION_TEST_ENABABLED
+      ) === 'true'
+    );
   },
 };

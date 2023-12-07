@@ -1,18 +1,20 @@
-/*
-Copyright 2019-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { useEffect, useState, useCallback } from 'react';
 
@@ -30,13 +32,13 @@ import { Danger } from 'design/Alert';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse, ResourceLabel } from 'teleport/services/agents';
-import {
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-  UnifiedResourcePreferences,
-} from 'teleport/services/userPreferences/types';
+import { ResourcesResponse } from 'teleport/services/agents';
 
+import {
+  DefaultTab,
+  ViewMode,
+  UnifiedResourcePreferences,
+} from 'shared/services/unifiedResourcePreferences';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
@@ -44,12 +46,12 @@ import {
   useAsync,
   Attempt as AsyncAttempt,
 } from 'shared/hooks/useAsync';
-
 import {
   useKeyBasedPagination,
   useInfiniteScroll,
 } from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 import {
   SharedUnifiedResource,
@@ -72,14 +74,14 @@ export const FETCH_MORE_SIZE = 24;
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
 
-const tabs: { label: string; value: UnifiedTabPreference }[] = [
+const tabs: { label: string; value: DefaultTab }[] = [
   {
     label: 'All Resources',
-    value: UnifiedTabPreference.All,
+    value: DefaultTab.DEFAULT_TAB_ALL,
   },
   {
     label: 'Pinned Resources',
-    value: UnifiedTabPreference.Pinned,
+    value: DefaultTab.DEFAULT_TAB_PINNED,
   },
 ];
 
@@ -133,7 +135,6 @@ interface UnifiedResourcesProps {
   pinning: UnifiedResourcesPinning;
   availableKinds: FilterKind[];
   setParams(params: UnifiedResourcesQueryParams): void;
-  onLabelClick(label: ResourceLabel): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   unifiedResourcePreferences: UnifiedResourcePreferences;
@@ -149,7 +150,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     resourcesFetchAttempt,
     resources,
     fetchResources,
-    onLabelClick,
     availableKinds,
     pinning,
     unifiedResourcePreferences,
@@ -273,8 +273,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     );
   };
 
-  const selectTab = (value: UnifiedTabPreference) => {
-    const pinnedOnly = value === UnifiedTabPreference.Pinned;
+  const selectTab = (value: DefaultTab) => {
+    const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
     setParams({
       ...params,
       pinnedOnly,
@@ -287,7 +287,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
   };
 
-  const selectViewMode = (viewMode: UnifiedViewModePreference) => {
+  const selectViewMode = (viewMode: ViewMode) => {
     updateUnifiedResourcesPreferences({
       ...unifiedResourcePreferences,
       viewMode,
@@ -329,7 +329,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === UnifiedViewModePreference.List
+    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
       ? ListView
       : CardsView;
 
@@ -424,14 +424,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               key={tab.value}
               onClick={() => selectTab(tab.value)}
               disabled={
-                tab.value === UnifiedTabPreference.Pinned &&
+                tab.value === DefaultTab.DEFAULT_TAB_PINNED &&
                 pinning.kind === 'not-supported'
               }
               title={tab.label}
               isSelected={
                 params.pinnedOnly
-                  ? tab.value === UnifiedTabPreference.Pinned
-                  : tab.value === UnifiedTabPreference.All
+                  ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
+                  : tab.value === DefaultTab.DEFAULT_TAB_ALL
               }
             />
           ))}
@@ -441,7 +441,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         <PinningNotSupported />
       ) : (
         <ViewComponent
-          onLabelClick={onLabelClick}
+          onLabelClick={label =>
+            setParams({
+              ...params,
+              search: '',
+              query: makeAdvancedSearchQueryForLabel(label, params),
+            })
+          }
           pinnedResources={pinnedResources}
           selectedResources={selectedResources}
           onSelectResource={handleSelectResource}

@@ -2,10 +2,13 @@ name: Dependency Review
 
 on:
   pull_request:
+  merge_group:
 
 jobs:
   dependency-review:
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     uses: gravitational/shared-workflows/.github/workflows/dependency-review.yaml@main
     permissions:
       contents: read
+      pull-requests: write
+    with:
+      base-ref: ${{ github.event.pull_request.base.sha || 'master' }}

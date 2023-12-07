@@ -10,12 +10,15 @@ exports[`rendering of CardSuccess components 1`] = `
   padding: 48px;
   width: 540px;
   text-align: center;
+}
+
+.c1 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c1 {
+.c2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -24,11 +27,11 @@ exports[`rendering of CardSuccess components 1`] = `
 }
 
 <div
-  class="c0"
+  class="c0 c1"
   width="540px"
 >
   <span
-    class="c1 icon icon-circlecheck"
+    class="c2 icon icon-circlecheck"
     color="success"
   >
     <svg

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package resources
 
@@ -27,9 +29,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 const teleportRoleKind = "TeleportRole"
@@ -47,8 +49,8 @@ var TeleportRoleGVKV5 = schema.GroupVersionKind{
 // RoleReconciler reconciles a TeleportRole object
 type RoleReconciler struct {
 	kclient.Client
-	Scheme                 *runtime.Scheme
-	TeleportClientAccessor sidecar.ClientAccessor
+	Scheme         *runtime.Scheme
+	TeleportClient *client.Client
 }
 
 //+kubebuilder:rbac:groups=resources.teleport.dev,resources=roles,verbs=get;list;watch;create;update;patch;delete
@@ -91,13 +93,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer release()
-
-	return teleportClient.DeleteRole(ctx, obj.GetName())
+	return r.TeleportClient.DeleteRole(ctx, obj.GetName())
 }
 
 func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
@@ -125,21 +121,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	// Converting the Kubernetes resource into a Teleport one, checking potential ownership issues.
 	teleportResource := k8sResource.ToTeleport()
-	teleportClient, release, err := r.TeleportClientAccessor(ctx)
-	if err == nil {
-		defer release()
-	}
-	updateErr = updateStatus(updateStatusConfig{
-		ctx:         ctx,
-		client:      r.Client,
-		k8sResource: k8sResource,
-		condition:   getTeleportClientConditionFromError(err),
-	})
-	if err != nil || updateErr != nil {
-		return trace.NewAggregate(err, updateErr)
-	}
-
-	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
+	existingResource, err := r.TeleportClient.GetRole(ctx, teleportResource.GetName())
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,
@@ -182,7 +164,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	r.AddTeleportResourceOrigin(teleportResource)
 
 	// If an error happens we want to put it in status.conditions before returning.
-	_, err = teleportClient.UpsertRole(ctx, teleportResource)
+	_, err = r.TeleportClient.UpsertRole(ctx, teleportResource)
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,

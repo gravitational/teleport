@@ -1,0 +1,11 @@
+The available provisioning modes are:
+
+* `off`: Disables user provisioning.
+
+* `keep`: Enables user provisioning and disables users at session end. The user
+  will be stripped of all roles and the user account will be locked.
+
+* `best_effort_drop`: Enables user provisioning and, when the session ends,
+  drops the user if no resources depend on it. In cases where any resource
+  depends on the user, it falls back to disabling the user, mirroring the
+  behavior of `keep` mode.
