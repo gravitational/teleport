@@ -33,6 +33,7 @@ type PackageInfo struct {
 	PackageName string
 }
 
+// ReferenceEntry represents a section in the resource reference docs.
 type ReferenceEntry struct {
 	SectionName string
 	Description string
@@ -49,12 +50,16 @@ type DeclarationInfo struct {
 	PackageName string
 }
 
+// Field represents a row in a table that provides information about a field in
+// the resource reference.
 type Field struct {
 	Name        string
 	Description string
 	Type        string
 }
 
+// yamlKind is the type of a field as represented in YAML. Used for determining
+// how to document a field in the resource reference.
 type yamlKind int
 
 const (
@@ -67,27 +72,32 @@ const (
 )
 
 // rawField contains information about a struct field required for downstream
-// processing. The intention is to limit raw AST handling to as small a part of
-// the source as possible.
+// processing to prevent passing around AST nodes and make testing easier.
 type rawField struct {
-	// package that declares the field type
+	// Package that declares the field type
 	packageName string
-	doc         string
-	kind        yamlKindNode
-	// Original name of the field
+	// A declaration's GoDoc, including newline characters but not comment
+	// characters.
+	doc string
+	// The type of the field.
+	kind yamlKindNode
+	// Original name of the field.
 	name string
-	// Name as it appears in YAML, based on the json tag and json
-	// encoding/marshaling rules.
+	// Name as it appears in YAML, based on the "json" struct tag and
+	// marshaling rules in the encoding/json package.
 	jsonName string
-	// struct tag expression for the field
+	// The entire struct tag expression for the field.
 	tags string
 }
 
-// rawType contains information about a struct field required for
-// downstream processing. The intention is to limit raw AST handling to as small
-// a part of the source as possible.
+// rawType contains information about a struct field required for downstream
+// processing. The intention is to limit raw AST handling to as small a part of
+// the source as possible.
 type rawType struct {
-	doc    string
+	// A declaration's GoDoc, including newline characters but not comment
+	// characters.
+	doc string
+	// The name of the type declaration.
 	name   string
 	fields []rawField
 }
@@ -97,7 +107,7 @@ type rawType struct {
 // strings, etc. Used for printing example YAML documents and tables of fields.
 // This is not intended to be a comprehensive YAML AST.
 type yamlKindNode interface {
-	// Generate a string representation to include in a table of fields
+	// Generate a string representation to include in a table of fields.
 	formatForTable() string
 	// Generate an example YAML value for the type with the provided number
 	// of indendations.
@@ -108,8 +118,8 @@ type yamlKindNode interface {
 }
 
 // nonYAMLKind represents a field type that we cannot convert to YAML. Consumers
-// should treat this as unreliable and return an error if there is no way to
-// avoid creating a reference entry for this kind.
+// should return an error if there is no way to avoid creating a reference entry
+// for this kind.
 type nonYAMLKind struct{}
 
 func (n nonYAMLKind) formatForTable() string {
@@ -124,6 +134,7 @@ func (n nonYAMLKind) customFieldData() []PackageInfo {
 	return []PackageInfo{}
 }
 
+// yamlSequence is a list of elements.
 type yamlSequence struct {
 	elementKind yamlKindNode
 }
@@ -152,6 +163,7 @@ func (y yamlSequence) customFieldData() []PackageInfo {
 	return y.elementKind.customFieldData()
 }
 
+// yamlMapping is a mapping of keys to values.
 type yamlMapping struct {
 	keyKind   yamlKindNode
 	valueKind yamlKindNode
@@ -225,7 +237,7 @@ func (y yamlBool) customFieldData() []PackageInfo {
 type yamlCustomType struct {
 	name string
 	// Used to look up more information about the declaration of the custom
-	// type so we can populate additional reference entries
+	// type so we can populate additional reference entries.
 	declarationInfo PackageInfo
 }
 
@@ -258,8 +270,9 @@ func (e NotAGenDeclError) Error() string {
 	return "the declaration is not a GenDecl"
 }
 
-// getRawTypes returns the type spec to use for further processing. Returns an
-// error if there is either no type spec or more than one.
+// getRawTypes returns a representation of the type spec of decl to use for
+// further processing. Returns an error if there is either no type spec or more
+// than one.
 func getRawTypes(decl DeclarationInfo) (rawType, error) {
 	gendecl, ok := decl.Decl.(*ast.GenDecl)
 	if !ok {
@@ -270,21 +283,16 @@ func getRawTypes(decl DeclarationInfo) (rawType, error) {
 		return rawType{}, errors.New("declaration has no specs")
 	}
 
-	// Name the section after the first type declaration found. We expect
-	// there to be one type spec.
-	var t *ast.TypeSpec
-	for _, s := range gendecl.Specs {
-		ts, ok := s.(*ast.TypeSpec)
-		if !ok {
-			continue
-		}
-		if t != nil {
-			return rawType{}, errors.New("declaration contains more than one type spec")
-		}
-		t = ts
+	if len(gendecl.Specs) > 1 {
+		return rawType{}, errors.New("declaration contains more than one type spec")
 	}
 
-	if t == nil {
+	if gendecl.Specs[0] == nil {
+		return rawType{}, errors.New("no spec found")
+	}
+
+	t, ok := gendecl.Specs[0].(*ast.TypeSpec)
+	if !ok {
 		return rawType{}, errors.New("no type spec found")
 	}
 
@@ -293,24 +301,21 @@ func getRawTypes(decl DeclarationInfo) (rawType, error) {
 	// in the reference. Return a rawType with no fields.
 	if !ok {
 		return rawType{
-			name: t.Name.Name,
-			// Preserving newlines for downstream processing
+			name:   t.Name.Name,
 			doc:    gendecl.Doc.Text(),
 			fields: []rawField{},
 		}, nil
 	}
 
+	// We have determined that decl is a struct type, so collect its fields.
 	var rawFields []rawField
-
 	for _, field := range str.Fields.List {
 		f, err := makeRawField(field, decl.PackageName)
-
 		if err != nil {
 			return rawType{}, err
 		}
 
 		jsonName := getJSONTag(f.tags)
-
 		// This field is ignored, so skip it.
 		// See: https://pkg.go.dev/encoding/json#Marshal
 		if jsonName == "-" {
