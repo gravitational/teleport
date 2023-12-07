@@ -28,59 +28,59 @@ Teleport Access Graph divides your infrastructure into eight main components:
 
 1. Users
 
-    ![User Node](../img/access-graph/user-node.png)
+![User Node](../img/access-graph/user-node.png)
 
-    Users are the people who access your infrastructure. They can be employees,
-    contractors, or bots.
+Users are the people who access your infrastructure. They can be employees,
+contractors, or bots.
 
 2. User Groups
 
-    ![User Group Node](../img/access-graph/user-group-node.png)
+![User Group Node](../img/access-graph/user-group-node.png)
 
-    User Groups are collections of users. They can be used to organize users
-    based on their role or team.
+User Groups are collections of users. They can be used to organize users
+based on their role or team.
 
 3. Temporary user groups
 
-    ![Temporary User Group Node](../img/access-graph/temporary-user-group-node.png)
+![Temporary User Group Node](../img/access-graph/temporary-user-group-node.png)
 
-    Temporary User Groups are created when a user is granted temporary access to a
-    resource. They are automatically deleted when the user's access expires.
+Temporary User Groups are created when a user is granted temporary access to a
+resource. They are automatically deleted when the user's access expires.
 
 4. Actions
 
-    ![Action Node](../img/access-graph/allow-action-node.png)
+![Action Node](../img/access-graph/allow-action-node.png)
 
-    Actions are the things that users can or cannot do. Actions are related to
-    resources. For example, a user can SSH into a node.
+Actions are the things that users can or cannot do. Actions are related to
+resources. For example, a user can SSH into a node.
 
 5. Deny Actions
 
-    ![Deny Action Node](../img/access-graph/deny-action-node.png)
+![Deny Action Node](../img/access-graph/deny-action-node.png)
 
-    Deny Actions are the things that users cannot do. Deny Actions are related to
-    resources. For example, a user cannot SSH into a node.
+Deny Actions are the things that users cannot do. Deny Actions are related to
+resources. For example, a user cannot SSH into a node.
 
 6. Temporary Actions
 
-    ![Temporary Action Node](../img/access-graph/temporary-action-node.png)
+![Temporary Action Node](../img/access-graph/temporary-action-node.png)
 
-    Temporary Actions are created when a user is granted temporary access to a
-    resource. They are automatically deleted when the user's access expires.
+Temporary Actions are created when a user is granted temporary access to a
+resource. They are automatically deleted when the user's access expires.
 
 7. Resource Groups
 
-    ![Resource Group Node](../img/access-graph/resource-group-node.png)
+![Resource Group Node](../img/access-graph/resource-group-node.png)
 
-    Resource Groups are collections of resources. They can be used to organize
-    resources based on their role or team.
+Resource Groups are collections of resources. They can be used to organize
+resources based on their role or team.
 
 8. Resources
 
-    ![Resource Node](../img/access-graph/resource-node.png)
+![Resource Node](../img/access-graph/resource-node.png)
 
-    Resources are the things that users can or cannot access. They can be
-    servers, databases, or Kubernetes clusters.
+Resources are the things that users can or cannot access. They can be
+servers, databases, or Kubernetes clusters.
 
 ## Graph paths
 
@@ -98,18 +98,18 @@ Paths can be divided into two categories:
 
 1. Allow paths
 
-    ![Allow Path](../img/access-graph/allow-path.png)
+![Allow Path](../img/access-graph/allow-path.png)
 
-    Allow paths connect users to resources. They show what a user can access
-    and what actions they can perform.
+Allow paths connect users to resources. They show what a user can access
+and what actions they can perform.
 
 2. Deny paths
 
-      ![Deny Path](../img/access-graph/deny-path.png)
+![Deny Path](../img/access-graph/deny-path.png)
 
-      Deny paths connect users to resources. They show what a user cannot access
-      and what actions they cannot perform. Deny paths take precedence over allow
-      paths.
+Deny paths connect users to resources. They show what a user cannot access
+and what actions they cannot perform. Deny paths take precedence over allow
+paths.
 
 ## How to use it
 
@@ -129,38 +129,38 @@ Teleport Access Graph can help you to answer questions like:
 Teleport Access Graph imports all Teleport resources and keeps them up to date, so every time you make a change
 to your Teleport resources, the Access Graph will reflect those changes.
 
-#### Users
+### Users
 
 Users are created from Teleport Users.
 Local users are imported as soon as they are created.
 External users (created from authentication connectors for GitHub, SAML, etc.) are imported when they log in for the first time.
 
-#### User Groups
+### User Groups
 
 User Groups are created from Teleport Roles and access requests. Roles create User Groups where the members
 are the users that have that role. Access requests create a temporary User Group where the members are the users that
 got the access through the accepted access request.
 
-#### Actions
+### Actions
 
 Actions are created from Teleport roles. Actions can be divided into three
 categories:
 
 1. Allow Actions
 
-    Allow Actions are created from Teleport roles. Allow Actions are the things
-    that users can do. For example, a user can SSH into a node.
+Allow Actions are created from Teleport roles. Allow Actions are the things
+that users can do. For example, a user can SSH into a node.
 
 2. Deny Actions
 
-    Deny Actions are created from Teleport roles. Deny Actions are the things
-    that users cannot do. For example, a user cannot SSH into a node. Deny
-    Actions take precedence over Allow Actions.
+Deny Actions are created from Teleport roles. Deny Actions are the things
+that users cannot do. For example, a user cannot SSH into a node. Deny
+Actions take precedence over Allow Actions.
 
 3. Temporary Actions
 
-    Temporary Actions are created when a user is granted temporary access to a
-    resource. They are automatically deleted when the user's access expires.
+Temporary Actions are created when a user is granted temporary access to a
+resource. They are automatically deleted when the user's access expires.
 
 #### Resource Groups
 
