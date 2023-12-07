@@ -117,7 +117,7 @@ export type FilterKind = {
   disabled: boolean;
 };
 
-interface UnifiedResourcesProps {
+export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
   fetchResources(options?: { force?: boolean }): Promise<void>;
