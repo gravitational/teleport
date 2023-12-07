@@ -503,16 +503,6 @@ message AccessListReviewDelete {
   string access_list_review_id = 2;
 }
 
-// AccessListReviewCompliance is an event that is emitted periodically to indicate how many access
-// lists are past due for a review.
-message AccessListReviewCompliance {
-  // total_access_lists is the total number of access lists known to Teleport.
-  int32 total_access_lists = 1;
-
-  // access_lists_need_review is the number of access lists that need a review.
-  int32 access_lists_need_review = 2;
-}
-
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -694,7 +684,6 @@ message UsageEventOneOf {
     SecurityReportGetResultEvent security_report_get_result = 51;
     AccessListReviewCreate access_list_review_create = 52;
     AccessListReviewDelete access_list_review_delete = 53;
-    AccessListReviewCompliance access_list_review_compliance = 54;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
