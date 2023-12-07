@@ -83,8 +83,7 @@ ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt &&  \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers
+    BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers
 
 ## BUILDBOX ###################################################################
 #
