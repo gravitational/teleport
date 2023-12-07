@@ -606,6 +606,11 @@
           ]
         },
         {
+          "title": "Access Graph",
+          "slug": "/access-graph/",
+          "forScopes": ["team"]
+        },
+        {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
           "forScopes": [
