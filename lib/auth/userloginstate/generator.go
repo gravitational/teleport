@@ -131,8 +131,8 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 		}
 	}
 
-	labels := make(map[string]string, len(user.GetAllLabels()))
-	for k, v := range user.GetAllLabels() {
+	labels := make(map[string]string, len(user.GetMetadata().Labels))
+	for k, v := range user.GetMetadata().Labels {
 		labels[k] = v
 	}
 	labels[userloginstate.OriginalRolesAndTraitsSet] = "true"
