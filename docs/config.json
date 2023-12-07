@@ -549,11 +549,7 @@
         {
           "title": "Terraform Provider",
           "slug": "/management/dynamic-resources/terraform-provider/"
-        },
-	    {
-          "title": "Spacelift",
-          "slug": "/management/dynamic-resources/spacelift/"
-	    }
+        }
 	  ]
 	},
         {
@@ -1423,13 +1419,17 @@
               "title": "Jenkins",
               "slug": "/machine-id/deployment/jenkins/"
             },
-	    {
+            {
               "title": "Linux Server",
               "slug": "/machine-id/deployment/linux/"
             },
             {
               "title": "Kubernetes",
               "slug": "/machine-id/deployment/kubernetes/"
+            },
+            {
+              "title": "Spacelift",
+              "slug": "/machine-id/deployment/spacelift/"
             }
           ]
         },
@@ -2998,6 +2998,11 @@
     {
       "source": "/machine-id/guides/github-actions/",
       "destination": "/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/management/dynamic-resources/spacelift/",
+      "destination": "/machine-id/deployment/spacelift/",
       "permanent": true
     }
   ]
