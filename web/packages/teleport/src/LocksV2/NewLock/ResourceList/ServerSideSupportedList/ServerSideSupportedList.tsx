@@ -24,6 +24,8 @@ import { SearchPanel } from 'shared/components/Search';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+
 import { Desktop } from 'teleport/services/desktops';
 import { Node } from 'teleport/services/nodes';
 import { useServerSidePagination } from 'teleport/components/hooks';
@@ -92,7 +94,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
   }
 
   function onResourceLabelClick(label: ResourceLabel) {
-    const query = addResourceLabelToQuery(resourceFilter, label);
+    const query = makeAdvancedSearchQueryForLabel(label, resourceFilter);
     setResourceFilter({ ...resourceFilter, search: '', query });
   }
 
@@ -190,24 +192,4 @@ function getFetchFuncForServerSidePaginating(
   if (resourceKind === 'windows_desktop') {
     return ctx.desktopService.fetchDesktops;
   }
-}
-
-function addResourceLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
-  const queryParts = [];
-
-  // Add existing query
-  if (filter.query) {
-    queryParts.push(filter.query);
-  }
-
-  // If there is an existing simple search,
-  // convert it to predicate language and add it
-  if (filter.search) {
-    queryParts.push(`search("${filter.search}")`);
-  }
-
-  // Create the label query.
-  queryParts.push(`labels["${label.name}"] == "${label.value}"`);
-
-  return queryParts.join(' && ');
 }

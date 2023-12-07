@@ -1,24 +1,43 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render multi bash texts 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c4 {
   box-sizing: border-box;
   padding-bottom: 8px;
   padding-top: 8px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
-  margin-right: 4px;
 }
 
-.c11 {
+.c8 {
+  box-sizing: border-box;
+  padding-right: 16px;
+}
+
+.c14 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c7 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -44,54 +63,53 @@ exports[`render multi bash texts 1`] = `
   padding: 0px 24px;
 }
 
-.c7:hover,
-.c7:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:active {
+.c10:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c7:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c10 {
+.c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c6 {
   display: flex;
 }
 
-.c9 {
+.c12 {
   display: flex;
 }
 
-.c9 .icon-check {
+.c12 .icon-check {
   display: none;
 }
 
-.c9 .icon-copy {
+.c12 .icon-copy {
   display: inline-flex;
 }
 
-.c9.copied .icon-check {
+.c12.copied .icon-check {
   display: inline-flex;
 }
 
-.c9.copied .icon-copy {
+.c12.copied .icon-copy {
   display: none;
 }
 
-.c8 {
+.c11 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -101,14 +119,12 @@ exports[`render multi bash texts 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c8:hover,
-.c8:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 4px;
+.c3 {
   white-space: pre;
   word-break: break-all;
   font-size: 12px;
@@ -118,46 +134,37 @@ exports[`render multi bash texts 1`] = `
   color: #FFFFFF;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 48px;
-  padding-top: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   position: relative;
 }
 
-.c5 {
+.c7 {
   margin: 0;
 }
 
-.c6 {
-  box-sizing: border-box;
-  padding-right: 16px;
+.c9 {
   position: absolute;
   right: 0px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <div
-      class="c1"
+      class="c2 c3"
     >
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c3"
+          class="c5 c6"
         >
           <div
-            class="c3"
+            class="c5 c6"
           >
             <div
-              class="c4"
+              class="c2"
             >
               $
             </div>
@@ -165,24 +172,24 @@ exports[`render multi bash texts 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c5"
+                class="c7"
               >
                 sudo tctl -c cfg-all users add --roles=access,editor george_washington
               </pre>
             </div>
           </div>
           <div
-            class="c6"
+            class="c8 c9"
           >
             <button
-              class="c7 c8"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c9 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c10 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -203,7 +210,7 @@ exports[`render multi bash texts 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c10 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -226,16 +233,16 @@ exports[`render multi bash texts 1`] = `
         </div>
       </div>
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c3"
+          class="c5 c6"
         >
           <div
-            class="c3"
+            class="c5 c6"
           >
             <div
-              class="c4"
+              class="c2"
             >
               $
             </div>
@@ -243,24 +250,24 @@ exports[`render multi bash texts 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c5"
+                class="c7"
               >
                 sudo DEBUG=1 teleport start -c cfg-all -d
               </pre>
             </div>
           </div>
           <div
-            class="c6"
+            class="c8 c9"
           >
             <button
-              class="c7 c8"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c9 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c10 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -281,7 +288,7 @@ exports[`render multi bash texts 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c10 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -304,16 +311,16 @@ exports[`render multi bash texts 1`] = `
         </div>
       </div>
       <div
-        class="c11"
+        class="c14"
       >
         <div
-          class="c3"
+          class="c5 c6"
         >
           <div
-            class="c3"
+            class="c5 c6"
           >
             <div
-              class="c4"
+              class="c2"
             >
               $
             </div>
@@ -321,24 +328,24 @@ exports[`render multi bash texts 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c5"
+                class="c7"
               >
                 yarn start-teleport-e --target=https://localhost:3080/web
               </pre>
             </div>
           </div>
           <div
-            class="c6"
+            class="c8 c9"
           >
             <button
-              class="c7 c8"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c9 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c10 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -359,7 +366,7 @@ exports[`render multi bash texts 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c10 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -387,24 +394,43 @@ exports[`render multi bash texts 1`] = `
 `;
 
 exports[`render multi bash texts with comment 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c4 {
   box-sizing: border-box;
   padding-bottom: 8px;
   padding-top: 8px;
 }
 
-.c5 {
+.c6 {
   box-sizing: border-box;
-  margin-right: 4px;
 }
 
-.c12 {
+.c9 {
+  box-sizing: border-box;
+  padding-right: 16px;
+}
+
+.c15 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c8 {
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -430,58 +456,57 @@ exports[`render multi bash texts with comment 1`] = `
   padding: 0px 24px;
 }
 
-.c8:hover,
-.c8:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c8:active {
+.c11:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c8:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c14 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c4 {
-  box-sizing: border-box;
+.c7 {
   display: flex;
 }
 
-.c10 {
+.c13 {
   display: flex;
 }
 
-.c10 .icon-check {
+.c13 .icon-check {
   display: none;
 }
 
-.c10 .icon-copy {
+.c13 .icon-copy {
   display: inline-flex;
 }
 
-.c10.copied .icon-check {
+.c13.copied .icon-check {
   display: inline-flex;
 }
 
-.c10.copied .icon-copy {
+.c13.copied .icon-copy {
   display: none;
 }
 
-.c3 {
+.c5 {
   color: rgb(117 113 94 / 80%);
 }
 
-.c9 {
+.c12 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -491,14 +516,12 @@ exports[`render multi bash texts with comment 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c9:hover,
-.c9:focus {
+.c12:hover,
+.c12:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 4px;
+.c3 {
   white-space: pre;
   word-break: break-all;
   font-size: 12px;
@@ -508,51 +531,42 @@ exports[`render multi bash texts with comment 1`] = `
   color: #FFFFFF;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 48px;
-  padding-top: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   position: relative;
 }
 
-.c6 {
+.c8 {
   margin: 0;
 }
 
-.c7 {
-  box-sizing: border-box;
-  padding-right: 16px;
+.c10 {
   position: absolute;
   right: 0px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <div
-      class="c1"
+      class="c2 c3"
     >
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c3"
+          class="c5"
         >
           Download Teleport's PGP public key
         </div>
         <div
-          class="c4"
+          class="c6 c7"
         >
           <div
-            class="c4"
+            class="c6 c7"
           >
             <div
-              class="c5"
+              class="c2"
             >
               $
             </div>
@@ -560,7 +574,7 @@ exports[`render multi bash texts with comment 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c6"
+                class="c8"
               >
                 sudo curl https://apt.releases.teleport.dev/gpg \\
 -o /usr/share/keyrings/teleport-archive-keyring.asc
@@ -568,17 +582,17 @@ exports[`render multi bash texts with comment 1`] = `
             </div>
           </div>
           <div
-            class="c7"
+            class="c9 c10"
           >
             <button
-              class="c8 c9"
+              class="c11 c12"
               kind="secondary"
             >
               <div
-                class="c10 icon-container"
+                class="c13 icon-container"
               >
                 <span
-                  class="c11 icon icon-copy"
+                  class="c14 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -599,7 +613,7 @@ exports[`render multi bash texts with comment 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c11 icon icon-check"
+                  class="c14 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -622,16 +636,16 @@ exports[`render multi bash texts with comment 1`] = `
         </div>
       </div>
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c4"
+          class="c6 c7"
         >
           <div
-            class="c4"
+            class="c6 c7"
           >
             <div
-              class="c5"
+              class="c2"
             >
               $
             </div>
@@ -639,24 +653,24 @@ exports[`render multi bash texts with comment 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c6"
+                class="c8"
               >
                 sudo DEBUG=1 teleport start -c cfg-all -d
               </pre>
             </div>
           </div>
           <div
-            class="c7"
+            class="c9 c10"
           >
             <button
-              class="c8 c9"
+              class="c11 c12"
               kind="secondary"
             >
               <div
-                class="c10 icon-container"
+                class="c13 icon-container"
               >
                 <span
-                  class="c11 icon icon-copy"
+                  class="c14 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -677,7 +691,7 @@ exports[`render multi bash texts with comment 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c11 icon icon-check"
+                  class="c14 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -700,10 +714,10 @@ exports[`render multi bash texts with comment 1`] = `
         </div>
       </div>
       <div
-        class="c12"
+        class="c15"
       >
         <div
-          class="c3"
+          class="c5"
         >
           Add the Teleport APT repository for v10. You'll need to update this
 file for each major release of Teleport.
@@ -712,13 +726,13 @@ and the codename your distro was forked from instead of '$ID' and '$VERSION_CODE
 
         </div>
         <div
-          class="c4"
+          class="c6 c7"
         >
           <div
-            class="c4"
+            class="c6 c7"
           >
             <div
-              class="c5"
+              class="c2"
             >
               $
             </div>
@@ -726,7 +740,7 @@ and the codename your distro was forked from instead of '$ID' and '$VERSION_CODE
               class="text-to-copy"
             >
               <pre
-                class="c6"
+                class="c8"
               >
                 echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \\
 https://apt.releases.teleport.dev/stable/v10" \\
@@ -735,17 +749,17 @@ https://apt.releases.teleport.dev/stable/v10" \\
             </div>
           </div>
           <div
-            class="c7"
+            class="c9 c10"
           >
             <button
-              class="c8 c9"
+              class="c11 c12"
               kind="secondary"
             >
               <div
-                class="c10 icon-container"
+                class="c13 icon-container"
               >
                 <span
-                  class="c11 icon icon-copy"
+                  class="c14 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -766,7 +780,7 @@ https://apt.releases.teleport.dev/stable/v10" \\
                   </svg>
                 </span>
                 <span
-                  class="c11 icon icon-check"
+                  class="c14 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -794,13 +808,37 @@ https://apt.releases.teleport.dev/stable/v10" \\
 `;
 
 exports[`render non bash single text 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c4 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c6 {
+.c5 {
+  box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  padding-right: 16px;
+}
+
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -826,54 +864,53 @@ exports[`render non bash single text 1`] = `
   padding: 0px 24px;
 }
 
-.c6:hover,
-.c6:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c6:active {
+.c10:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c6:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c9 {
+.c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c6 {
   display: flex;
 }
 
-.c8 {
+.c12 {
   display: flex;
 }
 
-.c8 .icon-check {
+.c12 .icon-check {
   display: none;
 }
 
-.c8 .icon-copy {
+.c12 .icon-copy {
   display: inline-flex;
 }
 
-.c8.copied .icon-check {
+.c12.copied .icon-check {
   display: inline-flex;
 }
 
-.c8.copied .icon-copy {
+.c12.copied .icon-copy {
   display: none;
 }
 
-.c7 {
+.c11 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -883,14 +920,12 @@ exports[`render non bash single text 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c7:hover,
-.c7:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 4px;
+.c3 {
   white-space: pre;
   word-break: break-all;
   font-size: 12px;
@@ -900,66 +935,57 @@ exports[`render non bash single text 1`] = `
   color: #FFFFFF;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 48px;
-  padding-top: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   position: relative;
 }
 
-.c4 {
+.c7 {
   margin: 0;
 }
 
-.c5 {
-  box-sizing: border-box;
-  padding-right: 16px;
+.c9 {
   position: absolute;
   right: 0px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <div
-      class="c1"
+      class="c2 c3"
     >
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c3"
+          class="c5 c6"
         >
           <div
-            class="c3"
+            class="c5 c6"
           >
             <div
               class="text-to-copy"
             >
               <pre
-                class="c4"
+                class="c7"
               >
                 some -c text to be copied and it is super long to test scrolling
               </pre>
             </div>
           </div>
           <div
-            class="c5"
+            class="c8 c9"
           >
             <button
-              class="c6 c7"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c8 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c9 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -980,7 +1006,7 @@ exports[`render non bash single text 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c9 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -1008,18 +1034,37 @@ exports[`render non bash single text 1`] = `
 `;
 
 exports[`render single bash text 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c4 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
-  margin-right: 4px;
 }
 
-.c7 {
+.c8 {
+  box-sizing: border-box;
+  padding-right: 16px;
+}
+
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1045,54 +1090,53 @@ exports[`render single bash text 1`] = `
   padding: 0px 24px;
 }
 
-.c7:hover,
-.c7:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:active {
+.c10:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c7:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c10 {
+.c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c3 {
-  box-sizing: border-box;
+.c6 {
   display: flex;
 }
 
-.c9 {
+.c12 {
   display: flex;
 }
 
-.c9 .icon-check {
+.c12 .icon-check {
   display: none;
 }
 
-.c9 .icon-copy {
+.c12 .icon-copy {
   display: inline-flex;
 }
 
-.c9.copied .icon-check {
+.c12.copied .icon-check {
   display: inline-flex;
 }
 
-.c9.copied .icon-copy {
+.c12.copied .icon-copy {
   display: none;
 }
 
-.c8 {
+.c11 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -1102,14 +1146,12 @@ exports[`render single bash text 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c8:hover,
-.c8:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 4px;
+.c3 {
   white-space: pre;
   word-break: break-all;
   font-size: 12px;
@@ -1119,46 +1161,37 @@ exports[`render single bash text 1`] = `
   color: #FFFFFF;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 48px;
-  padding-top: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   position: relative;
 }
 
-.c5 {
+.c7 {
   margin: 0;
 }
 
-.c6 {
-  box-sizing: border-box;
-  padding-right: 16px;
+.c9 {
   position: absolute;
   right: 0px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <div
-      class="c1"
+      class="c2 c3"
     >
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c3"
+          class="c5 c6"
         >
           <div
-            class="c3"
+            class="c5 c6"
           >
             <div
-              class="c4"
+              class="c2"
             >
               $
             </div>
@@ -1166,24 +1199,24 @@ exports[`render single bash text 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c5"
+                class="c7"
               >
                 sudo tctl -c cfg-all users add --roles=access,editor george_washington
               </pre>
             </div>
           </div>
           <div
-            class="c6"
+            class="c8 c9"
           >
             <button
-              class="c7 c8"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c9 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c10 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -1204,7 +1237,7 @@ exports[`render single bash text 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c10 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -1232,18 +1265,37 @@ exports[`render single bash text 1`] = `
 `;
 
 exports[`render single bash text with comment 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 48px;
+  padding-top: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c4 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c5 {
+.c6 {
   box-sizing: border-box;
-  margin-right: 4px;
 }
 
-.c8 {
+.c9 {
+  box-sizing: border-box;
+  padding-right: 16px;
+}
+
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1269,58 +1321,57 @@ exports[`render single bash text with comment 1`] = `
   padding: 0px 24px;
 }
 
-.c8:hover,
-.c8:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c8:active {
+.c11:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c8:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c14 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c4 {
-  box-sizing: border-box;
+.c7 {
   display: flex;
 }
 
-.c10 {
+.c13 {
   display: flex;
 }
 
-.c10 .icon-check {
+.c13 .icon-check {
   display: none;
 }
 
-.c10 .icon-copy {
+.c13 .icon-copy {
   display: inline-flex;
 }
 
-.c10.copied .icon-check {
+.c13.copied .icon-check {
   display: inline-flex;
 }
 
-.c10.copied .icon-copy {
+.c13.copied .icon-copy {
   display: none;
 }
 
-.c3 {
+.c5 {
   color: rgb(117 113 94 / 80%);
 }
 
-.c9 {
+.c12 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -1330,14 +1381,12 @@ exports[`render single bash text with comment 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c9:hover,
-.c9:focus {
+.c12:hover,
+.c12:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 4px;
+.c3 {
   white-space: pre;
   word-break: break-all;
   font-size: 12px;
@@ -1347,51 +1396,42 @@ exports[`render single bash text with comment 1`] = `
   color: #FFFFFF;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 48px;
-  padding-top: 8px;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   position: relative;
 }
 
-.c6 {
+.c8 {
   margin: 0;
 }
 
-.c7 {
-  box-sizing: border-box;
-  padding-right: 16px;
+.c10 {
   position: absolute;
   right: 0px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
   >
     <div
-      class="c1"
+      class="c2 c3"
     >
       <div
-        class="c2"
+        class="c4"
       >
         <div
-          class="c3"
+          class="c5"
         >
           Add the Teleport API repository for v10. You'll need to update this.
         </div>
         <div
-          class="c4"
+          class="c6 c7"
         >
           <div
-            class="c4"
+            class="c6 c7"
           >
             <div
-              class="c5"
+              class="c2"
             >
               $
             </div>
@@ -1399,24 +1439,24 @@ exports[`render single bash text with comment 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c6"
+                class="c8"
               >
                 sudo tctl -c cfg-all users add --roles=access,editor george_washington
               </pre>
             </div>
           </div>
           <div
-            class="c7"
+            class="c9 c10"
           >
             <button
-              class="c8 c9"
+              class="c11 c12"
               kind="secondary"
             >
               <div
-                class="c10 icon-container"
+                class="c13 icon-container"
               >
                 <span
-                  class="c11 icon icon-copy"
+                  class="c14 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -1437,7 +1477,7 @@ exports[`render single bash text with comment 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c11 icon icon-check"
+                  class="c14 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >

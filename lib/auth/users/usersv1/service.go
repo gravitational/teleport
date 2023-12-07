@@ -383,7 +383,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: authz.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, upserted.GetCreatedBy().User.Name),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),

@@ -307,6 +307,22 @@ func TestOutput(t *testing.T) {
 				assert.True(t, ok, "caller was missing from slog output")
 				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", slogTestLogLineNumber), slogCaller)
 
+				logrusTimestamp, ok := logrusData["timestamp"].(string)
+				delete(logrusData, "timestamp")
+				assert.True(t, ok, "time was missing from logrus output")
+
+				slogTimestamp, ok := slogData["timestamp"].(string)
+				delete(slogData, "timestamp")
+				assert.True(t, ok, "time was missing from slog output")
+
+				logrusTime, err := time.Parse(time.RFC3339, logrusTimestamp)
+				assert.NoError(t, err, "invalid logrus timestamp %s", logrusTimestamp)
+
+				slogTime, err := time.Parse(time.RFC3339, slogTimestamp)
+				assert.NoError(t, err, "invalid slog timestamp %s", slogTimestamp)
+
+				assert.InDelta(t, logrusTime.UnixNano(), slogTime.UnixNano(), 10)
+
 				require.Empty(t,
 					cmp.Diff(
 						logrusData,

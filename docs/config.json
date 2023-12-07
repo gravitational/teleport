@@ -534,18 +534,22 @@
 	  "slug": "/management/dynamic-resources/",
 	  "entries": [
 	    {
-              "title": "Kubernetes Operator",
-              "slug": "/management/dynamic-resources/teleport-operator/",
-              "forScopes": ["oss","enterprise"]
-            },
-            {
-              "title": "Terraform Provider",
-              "slug": "/management/dynamic-resources/terraform-provider/"
-            },
-	    {
-              "title": "Spacelift",
-              "slug": "/management/dynamic-resources/spacelift/"
-	    }
+          "title": "Kubernetes Operator",
+          "slug": "/management/dynamic-resources/teleport-operator/"
+        },
+        {
+          "title": "Kubernetes Operator in teleport-cluster Helm chart",
+          "slug": "/management/dynamic-resources/teleport-operator-helm/",
+          "forScopes": ["oss","enterprise"]
+        },
+        {
+          "title": "Standalone Kubernetes Operator",
+          "slug": "/management/dynamic-resources/teleport-operator-standalone/"
+        },
+        {
+          "title": "Terraform Provider",
+          "slug": "/management/dynamic-resources/terraform-provider/"
+        }
 	  ]
 	},
         {
@@ -1415,13 +1419,17 @@
               "title": "Jenkins",
               "slug": "/machine-id/deployment/jenkins/"
             },
-	    {
+            {
               "title": "Linux Server",
               "slug": "/machine-id/deployment/linux/"
             },
             {
               "title": "Kubernetes",
               "slug": "/machine-id/deployment/kubernetes/"
+            },
+            {
+              "title": "Spacelift",
+              "slug": "/machine-id/deployment/spacelift/"
             }
           ]
         },
@@ -1616,6 +1624,10 @@
             {
               "title": "teleport-kube-agent",
               "slug": "/reference/helm-reference/teleport-kube-agent/"
+            },
+            {
+              "title": "teleport-operator",
+              "slug": "/reference/helm-reference/teleport-operator/"
             },
             {
               "title": "teleport-plugin-event-handler",
@@ -2986,6 +2998,11 @@
     {
       "source": "/machine-id/guides/github-actions/",
       "destination": "/machine-id/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/management/dynamic-resources/spacelift/",
+      "destination": "/machine-id/deployment/spacelift/",
       "permanent": true
     }
   ]

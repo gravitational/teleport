@@ -130,7 +130,6 @@ const story = ({
         pinning={pinning}
         unifiedResourcePreferences={userPrefs}
         updateUnifiedResourcesPreferences={setUserPrefs}
-        onLabelClick={() => undefined}
         NoResources={undefined}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
