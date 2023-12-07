@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react';
 
 import { ApiError } from 'teleport/services/api/parseError';
 
@@ -57,7 +57,7 @@ test.each`
 
   expect(result.current.resources).toEqual([]);
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(names);
+  expect(resourceNames(result.current)).toEqual(names);
 });
 
 test('fetches multiple data batches', async () => {
@@ -68,15 +68,15 @@ test('fetches multiple data batches', async () => {
 
   await act(result.current.fetch);
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
+  expect(resourceNames(result.current)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
   expect(result.current.finished).toBe(false);
   await act(result.current.fetch);
 
   const allResources = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
-  expect(resourceNames(result)).toEqual(allResources);
+  expect(resourceNames(result.current)).toEqual(allResources);
   expect(result.current.finished).toBe(true);
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(allResources);
+  expect(resourceNames(result.current)).toEqual(allResources);
   expect(result.current.finished).toBe(true);
 });
 
@@ -127,12 +127,12 @@ test('restarts after fetch function change', async () => {
   });
 
   await act(result.current.fetch);
-  expect(resourceClusterIds(result)).toEqual(['cluster1', 'cluster1']);
-  expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
+  expect(resourceClusterIds(result.current)).toEqual(['cluster1', 'cluster1']);
+  expect(resourceNames(result.current)).toEqual(['foo0', 'foo1']);
 
   updateSearch('bar');
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
+  expect(resourceNames(result.current)).toEqual(['bar0', 'bar1']);
 
   // Make sure we reached the end of the data set.
   await act(result.current.fetch);
@@ -142,7 +142,7 @@ test('restarts after fetch function change', async () => {
   expect(result.current.finished).toBe(false);
 
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['xyz0', 'xyz1']);
+  expect(resourceNames(result.current)).toEqual(['xyz0', 'xyz1']);
 });
 
 test('clear() resets the state', async () => {
@@ -151,7 +151,7 @@ test('clear() resets the state', async () => {
     initialProps: props,
   });
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['r0', 'r1']);
+  expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
 
   act(result.current.clear);
   rerender(props);
@@ -181,7 +181,7 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
 
     await act(async () => f1);
     await act(async () => f2);
-    expect(resourceNames(result)).toEqual(['r0', 'r1']);
+    expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
     expect(props.fetchFunc).toHaveBeenCalledTimes(1);
   });
 
@@ -196,7 +196,7 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
     });
     await act(async () => f1);
     await act(async () => f2);
-    expect(resourceNames(result)).toEqual(['r0', 'r1']);
+    expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
@@ -221,11 +221,11 @@ test('abort errors are gracefully handled', async () => {
   await act(async () => fetchPromise);
 
   // the abort error has been handled, data is empty
-  expect(resourceNames(result)).toEqual([]);
+  expect(resourceNames(result.current)).toEqual([]);
 
   // fires another request
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
+  expect(resourceNames(result.current)).toEqual(['bar0', 'bar1']);
 });
 
 describe.each`
@@ -241,18 +241,18 @@ describe.each`
     });
 
     await act(result.current.fetch);
-    expect(resourceNames(result)).toEqual(['r0', 'r1']);
+    expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
 
     fetchSpy.mockImplementationOnce(async () => {
       throw new ErrorType('OMGOMG');
     });
     await act(result.current.fetch);
     expect(result.current.attempt.status).toBe('failed');
-    expect(resourceNames(result)).toEqual(['r0', 'r1']);
+    expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
 
     await act(result.current.fetch);
     expect(result.current.attempt.status).toBe('failed');
-    expect(resourceNames(result)).toEqual(['r0', 'r1']);
+    expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
   });
 
   it('restarts fetching after error if fetch function changes', async () => {
@@ -278,7 +278,7 @@ describe.each`
       initialProps: props,
     });
     await act(result.current.fetch);
-    expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
+    expect(resourceNames(result.current)).toEqual(['foo0', 'foo1']);
 
     fetchSpy.mockImplementationOnce(async () => {
       throw new ErrorType('OMGOMG');
@@ -288,12 +288,12 @@ describe.each`
     // without clearing the params: noting should happen.
     rerender(props);
     await act(result.current.fetch);
-    expect(resourceNames(result)).toEqual(['foo0', 'foo1']);
+    expect(resourceNames(result.current)).toEqual(['foo0', 'foo1']);
 
     // Rerender with different fetch function: expect new data to be fetched.
     updateSearch('bar');
     await act(result.current.fetch);
-    expect(resourceNames(result)).toEqual(['bar0', 'bar1']);
+    expect(resourceNames(result.current)).toEqual(['bar0', 'bar1']);
   });
 
   it('resumes fetching once forceFetch is called after an error', async () => {
@@ -311,7 +311,13 @@ describe.each`
     await act(() => result.current.fetch({ force: true }));
 
     expect(result.current.attempt.status).toBe('success');
-    expect(resourceNames(result)).toEqual(['r0', 'r1', 'r2', 'r3', 'r4']);
+    expect(resourceNames(result.current)).toEqual([
+      'r0',
+      'r1',
+      'r2',
+      'r3',
+      'r4',
+    ]);
   });
 });
 
@@ -346,7 +352,7 @@ test('forceFetch spawns another request, even if there is one pending', async ()
     f2 = result.current.fetch({ force: true });
   });
   await act(async () => Promise.all([f1, f2]));
-  expect(resourceNames(result)).toEqual(['r0', 'r1']);
+  expect(resourceNames(result.current)).toEqual(['r0', 'r1']);
 });
 
 test("doesn't get confused if aborting a request still results in a successful promise", async () => {
@@ -367,7 +373,7 @@ test("doesn't get confused if aborting a request still results in a successful p
     initialProps: props,
   });
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['rabbit0']);
+  expect(resourceNames(result.current)).toEqual(['rabbit0']);
 
   let f1, f2;
   props = { ...props, filter: { search: 'duck' } };
@@ -383,7 +389,7 @@ test("doesn't get confused if aborting a request still results in a successful p
   });
 
   await act(async () => Promise.all([f1, f2]));
-  expect(resourceNames(result)).toEqual(['rabbit0']);
+  expect(resourceNames(result.current)).toEqual(['rabbit0']);
 });
 
 test('fetch() calculates new state from the fresh state', async () => {
@@ -398,7 +404,7 @@ test('fetch() calculates new state from the fresh state', async () => {
     initialProps: props,
   });
   await act(result.current.fetch);
-  expect(resourceNames(result)).toEqual(['rabbit0']);
+  expect(resourceNames(result.current)).toEqual(['rabbit0']);
   await act(async () => {
     // Because `fetch` calculates the new state based on a fresh state,
     // we can safely call these two functions one after another,
@@ -406,5 +412,5 @@ test('fetch() calculates new state from the fresh state', async () => {
     result.current.clear();
     await result.current.fetch({ force: true });
   });
-  expect(resourceNames(result)).toEqual(['rabbit0']);
+  expect(resourceNames(result.current)).toEqual(['rabbit0']);
 });

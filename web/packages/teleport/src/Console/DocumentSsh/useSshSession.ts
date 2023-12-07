@@ -71,6 +71,16 @@ export default function useSshSession(doc: DocumentSsh) {
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
+          tty.on(TermEvent.LATENCY, payload => {
+            const stats = JSON.parse(payload);
+            ctx.updateSshDocument(doc.id, {
+              latency: {
+                client: stats.ws,
+                server: stats.ssh,
+              },
+            });
+          });
+
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
           setSession(session);

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import Menu from 'design/Menu';
 import { ButtonIcon } from 'design';
 import { MoreHoriz } from 'design/Icon';
@@ -24,7 +24,9 @@ import { IconProps } from 'design/Icon/Icon';
 
 import { MenuProps, AnchorProps } from './types';
 
-export default class MenuActionIcon extends React.Component<Props> {
+export default class MenuActionIcon extends React.Component<
+  PropsWithChildren<Props>
+> {
   static defaultProps = {
     Icon: MoreHoriz,
   };

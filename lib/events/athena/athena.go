@@ -635,3 +635,7 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 		m.consumerNumberOfErrorsFromSQSCollect,
 	))
 }
+
+type trimmableEvent interface {
+	TrimToMaxSize(int) apievents.AuditEvent
+}

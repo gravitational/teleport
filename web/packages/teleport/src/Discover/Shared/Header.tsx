@@ -16,25 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { ArrowBack } from 'design/Icon';
 import { Text, ButtonIcon, Flex } from 'design';
 
-export const Header: React.FC = ({ children }) => (
+export const Header: React.FC<PropsWithChildren<unknown>> = ({ children }) => (
   <Text my={1} fontSize="18px" bold>
     {children}
   </Text>
 );
 
-export const HeaderSubtitle: React.FC = ({ children }) => (
+export const HeaderSubtitle: React.FC<PropsWithChildren> = ({ children }) => (
   <Text mb={5}>{children}</Text>
 );
 
-export const HeaderWithBackBtn: React.FC<{ onPrev(): void }> = ({
-  children,
-  onPrev,
-}) => (
+export const HeaderWithBackBtn: React.FC<
+  PropsWithChildren<{ onPrev(): void }>
+> = ({ children, onPrev }) => (
   <Flex alignItems="center">
     <ButtonIcon size={1} title="Go Back" onClick={onPrev} ml={-2}>
       <ArrowBack size="large" />

@@ -33,16 +33,19 @@ test('basic usage', async () => {
   expect(utils.container.firstChild).toHaveTextContent(
     'this field is required'
   );
+});
 
-  // rerender component with proper value and expect no errors
-  utils.rerender(<Component value="123" rule={required} />);
+test('valid component with no errors', () => {
+  const utils = render(<Component value="123" rule={required} />);
+
   expect(utils.container.firstChild).toHaveTextContent('valid');
+});
 
-  // verify that useRule properly unsubscribes from validation context
+test('verify that useRule properly unsubscribes from validation context', () => {
   const cb = jest.fn();
   const rule = () => () => cb();
-  utils.unmount();
-  utils.rerender(<Component value="123" rule={rule} />);
+
+  const utils = render(<Component value="123" rule={rule} />);
   utils.rerender(<Component visible={false} />);
 
   fireEvent.click(screen.getByRole('button'));

@@ -73,6 +73,7 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 
 	// Lift limit with IGS, expect no limit error.
 	s.features.IdentityGovernanceSecurity = true
+	s.features.IsUsageBasedBilling = true
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: s.features,
 	})

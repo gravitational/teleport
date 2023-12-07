@@ -181,10 +181,15 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 	return jsonResp
 }
 
-func clusterPreferencesResponse(resp *userpreferencesv1.ClusterUserPreferences) ClusterUserPreferencesResponse {
-	return ClusterUserPreferencesResponse{
-		PinnedResources: resp.PinnedResources.ResourceIds,
+func clusterPreferencesResponse(prefs *userpreferencesv1.ClusterUserPreferences) ClusterUserPreferencesResponse {
+	resp := ClusterUserPreferencesResponse{}
+
+	if prefs == nil {
+		return resp
 	}
+
+	resp.PinnedResources = append(resp.PinnedResources, prefs.PinnedResources.ResourceIds...)
+	return resp
 }
 
 // assistUserPreferencesResponse creates a JSON response for the assist user preferences.

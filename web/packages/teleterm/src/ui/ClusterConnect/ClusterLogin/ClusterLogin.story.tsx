@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { Box } from 'design';
 import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
@@ -327,7 +327,7 @@ export const SsoPrompt = () => {
   );
 };
 
-const TestContainer: React.FC = ({ children }) => (
+const TestContainer: React.FC<PropsWithChildren> = ({ children }) => (
   <>
     <span>Bordered box is not part of the component</span>
     <Box

@@ -116,7 +116,7 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
   switch (reason.kind) {
     case 'reason.gateway-cert-expired': {
       const { gateway, targetUri } = reason;
-      let $targetDesc: React.ReactFragment;
+      let $targetDesc: React.ReactNode;
       if (gateway) {
         $targetDesc = (
           <>
