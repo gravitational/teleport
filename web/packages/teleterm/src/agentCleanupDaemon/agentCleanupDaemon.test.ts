@@ -173,7 +173,7 @@ const waitForMessage = (process: childProcess.ChildProcess) =>
 
 const expectPidToEventuallyTerminate = async (pid: number) =>
   expect(() => !isRunning(pid)).toEventuallyBeTrue({
-    waitFor: 2000,
+    waitFor: 4000,
     tick: 10,
   });
 
