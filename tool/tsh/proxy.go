@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -33,15 +32,9 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -52,89 +45,38 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// onProxyCommandSSH creates a local ssh proxy.
-// In cases of TLS Routing the connection is established to the WebProxy with teleport-proxy-ssh ALPN protocol.
-// and all ssh traffic is forwarded through the local ssh proxy.
-//
-// If proxy doesn't support TLS Routing the onProxyCommandSSH is used as ProxyCommand to remove proxy/site prefixes
-// from destination node address to support multiple platform where 'cut -d' command is not provided.
-// For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
+// onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
+// data through stdin and stdout, to be used as an OpenSSH and PuTTY proxy
+// command.
 func onProxyCommandSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = libclient.RetryWithRelogin(cf.Context, tc, func() error {
-		proxyParams, err := getSSHProxyParams(cf, tc)
+	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		clt, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if len(tc.JumpHosts) > 0 {
-			err := setupJumpHost(cf, tc, proxyParams.clusterName)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+		if err != nil {
+			targetHost = tc.Host
+			targetPort = strconv.Itoa(tc.HostPort)
 		}
-		return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
-	})
-	return trace.Wrap(err)
-}
+		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
+		target := net.JoinHostPort(targetHost, targetPort)
 
-// sshProxyParams combines parameters for establishing an SSH proxy used
-// as a ProxyCommand for SSH clients.
-type sshProxyParams struct {
-	// proxyHost is the Teleport proxy host name.
-	proxyHost string
-	// proxyPort is the Teleport proxy port.
-	proxyPort string
-	// clusterName is the cluster where the SSH node resides.
-	clusterName string
-	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
-	tlsRouting bool
-}
-
-// getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
-func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
-	// Without jump hosts, we will be connecting to the current Teleport client
-	// proxy the user is logged into.
-	if len(tc.JumpHosts) == 0 {
-		proxyHost, proxyPort := tc.SSHProxyHostPort()
-		if tc.TLSRoutingEnabled {
-			proxyHost, proxyPort = tc.WebProxyHostPort()
+		conn, _, err := clt.ProxyClient.DialHost(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		return &sshProxyParams{
-			proxyHost:   proxyHost,
-			proxyPort:   strconv.Itoa(proxyPort),
-			clusterName: tc.SiteName,
-			tlsRouting:  tc.TLSRoutingEnabled,
-		}, nil
-	}
+		defer conn.Close()
 
-	// When jump host is specified, we will be connecting to the jump host's
-	// proxy directly. Call its ping endpoint to figure out the cluster details
-	// such as cluster name, SSH proxy address, etc.
-	ping, err := webclient.Find(&webclient.Config{
-		Context:   cf.Context,
-		ProxyAddr: tc.JumpHosts[0].Addr.Addr,
-		Insecure:  tc.InsecureSkipVerify,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshProxyHost, sshProxyPort, err := ping.Proxy.SSHProxyHostPort()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sshProxyParams{
-		proxyHost:   sshProxyHost,
-		proxyPort:   sshProxyPort,
-		clusterName: ping.ClusterName,
-		tlsRouting:  ping.Proxy.TLSRoutingEnabled,
-	}, nil
+		stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))
+		return trace.Wrap(utils.ProxyConn(cf.Context, stdio, conn))
+	}))
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -145,188 +87,6 @@ func cleanTargetHost(targetHost, proxyHost, siteName string) string {
 	targetHost = strings.TrimSuffix(targetHost, "."+proxyHost)
 	targetHost = strings.TrimSuffix(targetHost, "."+siteName)
 	return targetHost
-}
-
-// setupJumpHost configures the client for connecting to the jump host's proxy.
-func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, clusterName string) error {
-	return tc.WithoutJumpHosts(func(tc *libclient.TeleportClient) error {
-		// Fetch certificate for the leaf cluster. This allows users to log
-		// in once into the root cluster and let the proxy handle fetching
-		// certificates for leaf clusters automatically.
-		err := tc.LoadKeyForClusterWithReissue(cf.Context, clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// We'll be connecting directly to the leaf cluster so make sure agent
-		// loads correct host CA.
-		tc.LocalAgent().UpdateCluster(clusterName)
-		return nil
-	})
-}
-
-// sshProxy opens up a new SSH session connected to the Teleport Proxy's SSH proxy subsystem,
-// This is the equivalent of `ssh -o 'ForwardAgent yes' -p port %r@host -s proxy:%h:%p`.
-// If tls routing is enabled, the connection to RemoteProxyAddr is wrapped with TLS protocol.
-func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) error {
-	upstreamConn, err := dialSSHProxy(ctx, tc, sp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer upstreamConn.Close()
-
-	signers, err := tc.LocalAgent().Signers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(signers) == 0 {
-		return trace.BadParameter("no SSH auth methods loaded, are you logged in?")
-	}
-
-	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
-	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
-		User:            tc.HostLogin,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		HostKeyCallback: tc.HostKeyCallback,
-	})
-	if err != nil {
-		if utils.IsHandshakeFailedError(err) {
-			// TODO(codingllama): Improve error message below for device trust.
-			//  An alternative we have here is querying the cluster to check if device
-			//  trust is required, a check similar to `IsMFARequired`.
-			log.Infof("Access denied to %v connecting to %v: %v", tc.HostLogin, remoteProxyAddr, err)
-			return trace.AccessDenied(`access denied to %v connecting to %v`, tc.HostLogin, remoteProxyAddr)
-		}
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
-	sess, err := client.NewSession(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer sess.Close()
-
-	err = agent.ForwardToAgent(client.Client, tc.LocalAgent())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = agent.RequestAgentForwarding(sess.Session)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-	if err != nil {
-		targetHost = tc.Host
-		targetPort = strconv.Itoa(tc.HostPort)
-	}
-
-	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
-
-	sshUserHost := fmt.Sprintf("%s:%s", targetHost, targetPort)
-	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := proxySession(ctx, sess); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// dialSSHProxy opens a net.Conn to the proxy on either the ALPN or SSH
-// port, this connection can then be used to initiate a SSH client.
-// If the HTTPS_PROXY is configured, then this is used to open the connection
-// to the proxy.
-func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) (net.Conn, error) {
-	// if sp.tlsRouting is true, remoteProxyAddr is the ALPN listener port.
-	// if it is false, then remoteProxyAddr is the SSH proxy port.
-	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
-
-	var dialer client.ContextDialer
-	switch {
-	case sp.tlsRouting:
-		pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		dialer = client.NewALPNDialer(client.ALPNDialerConfig{
-			TLSConfig: &tls.Config{
-				RootCAs:            pool,
-				NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
-				InsecureSkipVerify: tc.InsecureSkipVerify,
-				ServerName:         sp.proxyHost,
-			},
-			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(ctx, remoteProxyAddr),
-		})
-
-	default:
-		dialer = client.NewDialer(ctx, apidefaults.DefaultIdleTimeout, apidefaults.DefaultIOTimeout, client.WithInsecureSkipVerify(tc.InsecureSkipVerify))
-	}
-
-	conn, err := dialer.DialContext(ctx, "tcp", remoteProxyAddr)
-	return conn, trace.Wrap(err)
-}
-
-func proxySubsystemName(userHost, cluster string) string {
-	subsystem := fmt.Sprintf("proxy:%s", userHost)
-	if cluster != "" {
-		return fmt.Sprintf("%s@%s", subsystem, cluster)
-	}
-	return fmt.Sprintf("proxy:%s", userHost)
-}
-
-func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.ClientConfig) (*tracessh.Client, error) {
-	cc, chs, reqs, err := tracessh.NewClientConn(ctx, conn, addr, cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tracessh.NewClient(cc, chs, reqs), nil
-}
-
-func proxySession(ctx context.Context, sess *tracessh.Session) error {
-	stdout, err := sess.StdoutPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	stdin, err := sess.StdinPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	stderr, err := sess.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	errC := make(chan error, 3)
-	go func() {
-		defer sess.Close()
-		_, err := io.Copy(os.Stdout, stdout)
-		errC <- err
-	}()
-	go func() {
-		defer sess.Close()
-		_, err := io.Copy(stdin, os.Stdin)
-		errC <- err
-	}()
-	go func() {
-		defer sess.Close()
-		_, err := io.Copy(os.Stderr, stderr)
-		errC <- err
-	}()
-	var errs []error
-	for i := 0; i < 3; i++ {
-		select {
-		case <-ctx.Done():
-			return nil
-		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		}
-	}
-	return trace.NewAggregate(errs...)
 }
 
 // formatCommand formats command making it suitable for the end user to copy the command and paste it into terminal.
@@ -440,7 +200,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		var opts = []dbcmd.ConnectCommandFunc{
+		opts := []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -874,7 +634,6 @@ func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStat
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
-
 	}
 	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 		Entity: pkix.Name{
@@ -950,7 +709,7 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 ` + dbProxyConnectAd + `
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 {{range $item := .commands}}
-  * {{$item.Description}}: 
+  * {{$item.Description}}:
 
   $ {{$item.Command}}
 {{end}}

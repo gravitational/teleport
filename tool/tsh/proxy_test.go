@@ -291,11 +291,15 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
 			runProxySSH := func(proxyRequest string, opts ...cliOption) error {
-				return Run(ctx, []string{
+				var args []string
+				if testing.Verbose() {
+					args = append(args, "--debug")
+				}
+				return Run(ctx, append(args,
 					"--insecure",
 					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
 					"proxy", "ssh", proxyRequest,
-				}, opts...)
+				), opts...)
 			}
 
 			// login to Teleport
@@ -325,10 +329,10 @@ func TestProxySSH(t *testing.T) {
 			t.Run("invalid node login", func(t *testing.T) {
 				t.Parallel()
 
+				// it's legal to specify any username before the request
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
 				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+				require.NoError(t, err)
 			})
 		})
 	}
@@ -949,11 +953,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
@@ -1008,11 +1012,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
