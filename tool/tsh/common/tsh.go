@@ -249,7 +249,8 @@ type CLIConf struct {
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
 	BindAddr string
-
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
 	CallbackAddr string
 
 	// AuthConnector is the name of the connector to use.
@@ -682,7 +683,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
-	app.Flag("callback", "Override the host of the URL shown when opening a browser for cluster logins").StringVar(&cf.CallbackAddr)
+	app.Flag("callback", "Override the base URL (scheme://host:port) of the link shown when opening a browser for cluster logins").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).

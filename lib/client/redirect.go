@@ -236,9 +236,14 @@ func (rd *Redirector) ClickableURL() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	if rd.CallbackAddr != "" {
-		serverURL.Host = rd.CallbackAddr
+		callback, err := url.Parse(rd.CallbackAddr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		serverURL = callback
 	}
-	return utils.ClickableURL(serverURL.String() + rd.shortPath), nil
+	serverURL.Path = rd.shortPath
+	return utils.ClickableURL(serverURL.String()), nil
 }
 
 // ResponseC returns a channel with response
