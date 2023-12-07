@@ -208,11 +208,11 @@ func TestService(t *testing.T) {
 		}, time.Second*2, time.Millisecond*100)
 
 		clock.Advance(time.Second * 10)
-		_, err = svc.RunReport(ctx, &pb.RunReportRequest{
+
+		mustRunReportAndWaitForResult(t, ctx, svc, &pb.RunReportRequest{
 			Name: reports.PrivilegeAccessReport.Name,
 			Days: 7,
 		})
-		require.NoError(t, err)
 
 		statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
 			Name: reports.PrivilegeAccessReport.Name,
@@ -526,5 +526,12 @@ func mustUpsertReport(t *testing.T, store services.SecReports) {
 	rep, err := reports.ToSecurityReportType(r)
 	require.NoError(t, err)
 	err = store.UpsertSecurityReport(context.Background(), rep)
+	require.NoError(t, err)
+}
+
+func mustRunReportAndWaitForResult(t *testing.T, ctx context.Context, svc Service, req *pb.RunReportRequest) {
+	report, err := svc.storage.GetSecurityReport(ctx, req.GetName())
+	require.NoError(t, err)
+	err = svc.runReport(ctx, report, int32(req.GetDays()))
 	require.NoError(t, err)
 }
