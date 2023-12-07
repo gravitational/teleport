@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  Children,
+  PropsWithChildren,
+} from 'react';
 
 import styled from 'styled-components';
 import {
@@ -368,60 +374,45 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         margin: 0 auto;
       `}
     >
-      {resourcesFetchAttempt.status === 'failed' && (
-        <ErrorBox>
-          {/* If pinning is hidden, we hide the different tabs to select a view (All resources, pinning).
-              This causes this error box to cover the search bar. If pinning isn't supported, we push down the
-              error by 60px to not hide the search bar.
-          */}
-          <ErrorBoxInternal
-            topPadding={pinning.kind === 'hidden' ? '60px' : '0px'}
-          >
-            <Danger>
-              Could not fetch resources: {resourcesFetchAttempt.statusText}
-              {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-              {resourcesFetchAttempt.statusCode !== 400 &&
-                resourcesFetchAttempt.statusCode !== 403 && (
-                  <Box flex="0 0 auto" ml={2}>
-                    <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
-                  </Box>
-                )}
-            </Danger>
-          </ErrorBoxInternal>
-        </ErrorBox>
-      )}
-      {getPinnedResourcesAttempt.status === 'error' && (
-        <ErrorBox>
-          <Danger>
+      <ErrorsContainer>
+        {resourcesFetchAttempt.status === 'failed' && (
+          <Danger mb={0}>
+            Could not fetch resources: {resourcesFetchAttempt.statusText}
+            {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
+            {resourcesFetchAttempt.statusCode !== 400 &&
+              resourcesFetchAttempt.statusCode !== 403 && (
+                <Box flex="0 0 auto" ml={2}>
+                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+                </Box>
+              )}
+          </Danger>
+        )}
+        {getPinnedResourcesAttempt.status === 'error' && (
+          <Danger mb={0}>
             Could not fetch pinned resources:{' '}
             {getPinnedResourcesAttempt.statusText}
           </Danger>
-        </ErrorBox>
-      )}
-      {updatePinnedResourcesAttempt.status === 'error' && (
-        <ErrorBox>
-          <Danger>
+        )}
+        {updatePinnedResourcesAttempt.status === 'error' && (
+          <Danger mb={0}>
             Could not update pinned resources:{' '}
             {updatePinnedResourcesAttempt.statusText}
           </Danger>
-        </ErrorBox>
-      )}
-      {unifiedResourcePreferencesAttempt.status === 'error' && (
-        <ErrorBox>
-          <Danger>
+        )}
+        {unifiedResourcePreferencesAttempt.status === 'error' && (
+          <Danger mb={0}>
             Could not fetch unified view preferences:{' '}
             {unifiedResourcePreferencesAttempt.statusText}
           </Danger>
-        </ErrorBox>
-      )}
-      {updateUnifiedResourcesPreferencesAttempt?.status === 'error' && (
-        <ErrorBox>
-          <Danger>
+        )}
+        {updateUnifiedResourcesPreferencesAttempt?.status === 'error' && (
+          <Danger mb={0}>
             Could not update unified view preferences:{' '}
             {updateUnifiedResourcesPreferencesAttempt.statusText}
           </Danger>
-        </ErrorBox>
-      )}
+        )}
+      </ErrorsContainer>
+
       {props.Header}
       <FilterPanel
         params={params}
@@ -642,18 +633,22 @@ function NoResults({
   return null;
 }
 
-const ErrorBox = styled(Box)`
-  position: sticky;
-  top: 0;
-  z-index: 1;
-`;
+function ErrorsContainer(props: PropsWithChildren<unknown>) {
+  if (!Children.toArray(props.children).length) {
+    return null;
+  }
 
-const ErrorBoxInternal = styled(Box)`
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: ${props => props.topPadding};
-  margin: ${props => props.theme.space[1]}px 10% 0 10%;
+  return <ErrorBox>{props.children}</ErrorBox>;
+}
+
+const ErrorBox = styled(Flex)`
+  position: sticky;
+  flex-direction: column;
+  top: ${props => props.theme.space[3]}px;
+  gap: ${props => props.theme.space[1]}px;
+  padding-top: ${props => props.theme.space[1]}px;
+  padding-bottom: ${props => props.theme.space[3]}px;
+  z-index: 1;
 `;
 
 const INDICATOR_SIZE = '48px';
