@@ -731,12 +731,15 @@ func TestAccessListReviewMarshal(t *testing.T) {
 // following requirements
 //
 // Membership:
+//
 //	Roles: mrole1, mrole2,
 //	Traits:
 //	  mtrait1: "mvalue1", "mvalue2"
 //	  mtrait2: "mvalue3", "mvalue4"
+//
 // Ownership:
-// 	nil
+//
+//	nil
 func newAccessListWithMembership(t *testing.T, membership accesslist.Inclusion) *accesslist.AccessList {
 	t.Helper()
 
