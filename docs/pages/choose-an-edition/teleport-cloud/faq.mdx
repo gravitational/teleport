@@ -151,12 +151,11 @@ described in [Teleport Upcoming Releases](../../upcoming-releases.mdx).
 
 If you have Teleport agents connected to a Teleport Team or Teleport Enterprise cluster that are
 more than one major version behind, you might experience compatibility issues unless your agents
-are enrolled in automatic updates. 
+are enrolled in automatic updates. See the [Upgrading
+Overview](../../upgrading/overview.mdx) for more information.
 
 To get version information for your agents, see [How can I find version information on 
 connected agents?](#how-can-i-find-version-information-on-connected-agents).
-For information about enrolling in automatic agent updates, see [Enroll an agent into automatic 
-updates](../../management/operations/enroll-agent-into-automatic-updates.mdx).
 
 For more information about automatic updates and compatibility issues, contact 
 [Teleport support](https://goteleport.com/support/).
@@ -182,15 +181,19 @@ new releases.
 
 ### When are agents automatically updated?
 
-Teleport Team and Teleport Enterprise must be set to receive automatic updates
+Teleport Team and Teleport Enterprise Cloud must be set to receive automatic updates
 to use the Teleport Cloud version server for automatic agent updates. With automatic 
 agent updates, agents periodically check the version server for new releases and 
 update the software when new versions are found.
 
 If you enroll in automatic agent updates, Teleport agents are automatically 
 updated after your Teleport cluster is updated during your scheduled maintenance 
-period. For information about enrolling in automatic agent updates, see [Enroll an 
-agent into automatic updates](../../management/operations/enroll-agent-into-automatic-updates.mdx).
+period. For more information, read one of the following guides:
+
+- [Upgrading Teleport Cloud Agents on
+  Kubernetes](../../upgrading/cloud-kubernetes.mdx)
+- [Upgrading Teleport Cloud Agents on
+  Linux Servers](../../upgrading/cloud-linux.mdx)
 
 ### How can I find version information on connected agents?
 
