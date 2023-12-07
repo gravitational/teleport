@@ -30,7 +30,9 @@ describe('test DeviceTrust.tsx', () => {
 
   test('empty team cta', async () => {
     cfg.isTeam = true;
-    jest.spyOn(deviceService, 'fetchDevices').mockResolvedValue({ items: [] });
+    jest
+      .spyOn(deviceService, 'fetchDevices')
+      .mockResolvedValue({ items: [], startKey: '' });
 
     const { container } = renderComponent();
     await screen.findByText(/register trusted device/i);
@@ -41,7 +43,9 @@ describe('test DeviceTrust.tsx', () => {
   test('empty EUB cta', async () => {
     cfg.isTeam = false;
     cfg.isUsageBasedBilling = true;
-    jest.spyOn(deviceService, 'fetchDevices').mockResolvedValue({ items: [] });
+    jest
+      .spyOn(deviceService, 'fetchDevices')
+      .mockResolvedValue({ items: [], startKey: '' });
 
     const { container } = renderComponent();
     await screen.findByText(/register trusted device/i);
@@ -54,7 +58,7 @@ describe('test DeviceTrust.tsx', () => {
     cfg.isUsageBasedBilling = false;
     jest
       .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: devices });
+      .mockResolvedValue({ items: devices, startKey: '' });
 
     const { container } = renderComponent();
     await screen.findByText(/register trusted device/i);
@@ -68,7 +72,7 @@ describe('test DeviceTrust.tsx', () => {
     cfg.isIgsEnabled = true;
     jest
       .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: devices });
+      .mockResolvedValue({ items: devices, startKey: '' });
 
     const { container } = renderComponent();
     await screen.findByText(/register trusted device/i);
@@ -81,7 +85,7 @@ describe('test DeviceTrust.tsx', () => {
     cfg.isUsageBasedBilling = true;
     jest
       .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: devices });
+      .mockResolvedValue({ items: devices, startKey: '' });
 
     const { container } = renderComponent();
     await screen.findByText(/register trusted device/i);
@@ -93,7 +97,7 @@ describe('test DeviceTrust.tsx', () => {
     cfg.isTeam = true;
     jest
       .spyOn(deviceService, 'fetchDevices')
-      .mockResolvedValue({ items: devices });
+      .mockResolvedValue({ items: devices, startKey: '' });
 
     const { container } = renderComponent();
     await screen.findByText(/register trusted device/i);
