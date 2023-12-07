@@ -101,8 +101,9 @@ When we apply the `teleport_provision_token` resources, the Teleport Terraform
 provider creates them on the Teleport Auth Service backend. 
 
 The Teleport Auth Service associates the join token with one or more roles,
-identifying the Teleport service that is allowed to use the token. The
-configuration above generates tokens for the following Teleport services:
+identifying the Teleport service that is allowed to use the token.  Modify
+`token.tf` to uncomment the token roles that correspond to the Teleport services
+you plan to run on your agent nodes:
 
 - Teleport Application Service (`App`)
 - Teleport Discovery Service (`Discovery`)
@@ -151,9 +152,18 @@ later.
 Finally, the script restarts Teleport on the host to apply the new
 configuration.
 
-The cloud-init script run by each VM makes Teleport the only option for
-accessing agent instances by disabling OpenSSH on startup and deleting any
-authorized public keys.
+In the example above, only the Teleport SSH Service is enabled. Edit the script
+to enable each Teleport service you plan to run on your agent nodes by making
+the following change for each service you want to enable:
+
+```diff
+-  enabled: false
++  enabled: true
+```
+
+Make sure you have configured the `teleport_provision_token` resource to include
+a role that corresponds to each service you plan to run. For example, if you
+enable the Teleport Kubernetes Service, the token must have the `Kube` role.
 
 ## Step 3/4. Assign input variables
 
