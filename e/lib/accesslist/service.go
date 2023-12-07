@@ -2,6 +2,8 @@ package accesslist
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -664,7 +666,14 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}
 
 	results, nextToken, err := s.accessLists.ListAccessListMembers(ctx, req.AccessList, int(req.PageSize), req.PageToken)
-	if err != nil {
+	switch {
+	case err == nil:
+		break
+
+	case errors.Is(err, services.ImplicitAccessListError{}):
+		return s.listImplicitAccessListMembers(ctx, req.AccessList, int(req.PageSize), req.PageToken)
+
+	default:
 		return nil, trace.Wrap(err)
 	}
 
@@ -691,6 +700,83 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	return &accesslistv1.ListAccessListMembersResponse{
 		Members:       members,
 		NextPageToken: nextToken,
+	}, nil
+}
+
+func generateEphemeralMember(accessList *accesslist.AccessList, user types.User, clock clockwork.Clock) (*accesslistv1.Member, error) {
+	m, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: fmt.Sprintf("%s%c%s", accessList.GetName(), backend.Separator, user.GetName()),
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: accessList.GetName(),
+			Membership: accesslist.InclusionImplicit,
+			Name:       user.GetName(),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conv.ToMemberProto(m), nil
+}
+
+// listImplicitAccessListMembers generates a snapshot of the current member
+// list for an AccessList with implicit membership. Note that this method
+// performs no authorization. This must be handled by the caller.
+func (s *Service) listImplicitAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (*accesslistv1.ListAccessListMembersResponse, error) {
+	if pageSize <= 0 {
+		pageSize = s.userPageSize
+	}
+
+	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var members []*accesslistv1.Member
+	for {
+		var candidates []types.User
+
+		// Query for *at most* enough candidate users such that, even if all
+		// of them are identified as members, we don't blow the page size
+		// budget that the caller has set us
+		candidatePageSize := min(pageSize-len(members), s.userPageSize)
+		candidates, pageToken, err = s.cachedUsers.ListUsers(ctx, candidatePageSize, pageToken, false /* without secrets */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Filter out all of the non-members, copying the identified members
+		// into the output page buffer
+		for _, candidate := range candidates {
+			isMember := services.UserMeetsRequirements(tlsca.Identity{
+				Groups: candidate.GetRoles(),
+				Traits: candidate.GetTraits(),
+			}, accessList.Spec.MembershipRequires)
+
+			if isMember {
+				member, err := generateEphemeralMember(accessList, candidate, s.clock)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				members = append(members, member)
+			}
+		}
+
+		// if there are no more users to iterate over...
+		if pageToken == "" {
+			break
+		}
+
+		// if we have hit the maximum size of the page we want...
+		if len(members) == pageSize {
+			break
+		}
+	}
+
+	return &accesslistv1.ListAccessListMembersResponse{
+		Members:       members,
+		NextPageToken: pageToken,
 	}, nil
 }
 

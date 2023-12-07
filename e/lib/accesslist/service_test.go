@@ -22,6 +22,7 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -548,7 +549,16 @@ func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MF
 	return nil, "", nil
 }
 
+type testEnvironment struct {
+	identity services.Identity
+}
+
 func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock, emitter *eventstest.ChannelEmitter, usageEvents *usageEventsClient) {
+	userCtx, ownerCtx, svc, clock, emitter, events, _ := initSvcAndTestEnv(t)
+	return userCtx, ownerCtx, svc, clock, emitter, events
+}
+
+func initSvcAndTestEnv(t *testing.T) (userContext context.Context, ownerContext context.Context, svc *Service, clock clockwork.Clock, emitter *eventstest.ChannelEmitter, usageEvents *usageEventsClient, testEnv *testEnvironment) {
 	ctx := context.Background()
 	clock = clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
@@ -708,8 +718,12 @@ func initSvc(t *testing.T) (userContext context.Context, ownerContext context.Co
 	_, err = userSvc.CreateUser(ctx, member3)
 	require.NoError(t, err)
 
-	return genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil),
-		genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits), svc, clock, emitter, usageEvents
+	userContext = genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil)
+	ownerContext = genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits)
+	testEnv = &testEnvironment{
+		identity: userSvc,
+	}
+	return userContext, ownerContext, svc, clock, emitter, usageEvents, testEnv
 }
 
 func TestService_ListAccessListMembers(t *testing.T) {
@@ -747,6 +761,119 @@ func TestService_ListAccessListMembers(t *testing.T) {
 		AccessList: a3.GetName(),
 	})
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestService_ListDynamicAccessListMembers(t *testing.T) {
+	const accessClassTrait = "access-class"
+
+	// Given an AccessList service, and all its associated paraphernalia...
+	ctx := context.Background()
+
+	userCtx, ownerCtx, svc, clock, _, _, env := initSvcAndTestEnv(t)
+	svc.userPageSize = 7
+
+	// Given a collection of users divided into groups by trait
+	accessClasses := []string{"A", "B", "C"}
+	accessClassIndex := 0
+
+	// a cache for keeping track of which access class we drop each
+	// user into
+	userBuckets := map[string]map[string]struct{}{}
+	for _, accessClass := range accessClasses {
+		userBuckets[accessClass] = map[string]struct{}{}
+	}
+
+	for i := 0; i < 29; i++ {
+		// NOTE: 29 is not special beyond being prime, so no page size will
+		//       divide evenly into it.
+
+		if i%5 == 0 {
+			accessClassIndex = (accessClassIndex + 1) % len(accessClasses)
+		}
+
+		u, err := types.NewUser(fmt.Sprintf("user-%03d", i))
+		require.NoError(t, err)
+
+		accessClass := accessClasses[accessClassIndex]
+		u.SetTraits(map[string][]string{accessClassTrait: {accessClass}})
+		userBuckets[accessClass][u.GetName()] = struct{}{}
+
+		_, err = env.identity.CreateUser(ctx, u)
+		require.NoError(t, err)
+	}
+
+	t.Run("listing", func(t *testing.T) {
+		// Given an access list that implicitly grants membership to any user in
+		// access class "A"
+		al1 := newAccessList(t, t.Name(), clock)
+		al1.Spec.Membership = accesslist.InclusionImplicit
+		al1.Spec.MembershipRequires = accesslist.Requires{
+			Roles:  []string{},
+			Traits: trait.Traits{accessClassTrait: []string{"A"}},
+		}
+		_, err := svc.UpsertAccessList(userCtx, &accesslistv1.UpsertAccessListRequest{
+			AccessList: conv.ToProto(al1),
+		})
+		require.NoError(t, err)
+
+		// When I list all members of the AccessList
+		members := listAllAccessListMembers(ownerCtx, t, svc, al1.GetName(), 7)
+
+		// Expect that every member of access class A is returned as a member
+		// of the AccessList
+		uniqueMembers := map[string]struct{}{}
+		for _, m := range members {
+			uniqueMembers[m.Spec.Name] = struct{}{}
+		}
+		require.Equal(t, userBuckets["A"], uniqueMembers)
+	})
+
+	t.Run("listing pagesize 0", func(t *testing.T) {
+		// Given an access list that implicitly grants membership to any user in
+		// access class "A"
+		al1 := newAccessList(t, t.Name(), clock)
+		al1.Spec.Membership = accesslist.InclusionImplicit
+		al1.Spec.MembershipRequires = accesslist.Requires{
+			Roles:  []string{},
+			Traits: trait.Traits{accessClassTrait: []string{"A"}},
+		}
+		_, err := svc.UpsertAccessList(userCtx, &accesslistv1.UpsertAccessListRequest{
+			AccessList: conv.ToProto(al1),
+		})
+		require.NoError(t, err)
+
+		// When I list all members of the AccessList with a page size of 0
+		members := listAllAccessListMembers(ownerCtx, t, svc, al1.GetName(), 0)
+
+		// Expect that every member of access class A is returned as a member
+		// of the AccessList
+		uniqueMembers := map[string]struct{}{}
+		for _, m := range members {
+			uniqueMembers[m.Spec.Name] = struct{}{}
+		}
+		require.Equal(t, userBuckets["A"], uniqueMembers)
+	})
+
+	t.Run("empty list", func(t *testing.T) {
+		// Given an access list that implicitly grants membership to any user in
+		// access class "D" (NOTE: we have no users in class D)
+		al1 := newAccessList(t, t.Name(), clock)
+		al1.Spec.Membership = accesslist.InclusionImplicit
+		al1.Spec.MembershipRequires = accesslist.Requires{
+			Roles:  []string{},
+			Traits: trait.Traits{accessClassTrait: []string{"D"}},
+		}
+		_, err := svc.UpsertAccessList(userCtx, &accesslistv1.UpsertAccessListRequest{
+			AccessList: conv.ToProto(al1),
+		})
+		require.NoError(t, err)
+
+		// When I list all members of the AccessList
+		members := listAllAccessListMembers(ownerCtx, t, svc, al1.GetName(), 7)
+
+		// Expect that the returned member list is empty
+		require.Empty(t, members)
+	})
 }
 
 func TestService_GetAccessListMember(t *testing.T) {
