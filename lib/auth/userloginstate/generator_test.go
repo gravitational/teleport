@@ -42,9 +42,12 @@ import (
 
 func TestAccessLists(t *testing.T) {
 	user, err := types.NewUser("user")
-	user.SetStaticLabels(map[string]string{
-		"label1": "value1",
-		"label2": "value2",
+	user.SetMetadata(types.Metadata{
+		Name: "user",
+		Labels: map[string]string{
+			"label1": "value1",
+			"label2": "value2",
+		},
 	})
 	user.SetRoles([]string{"orole1"})
 	user.SetTraits(map[string][]string{
