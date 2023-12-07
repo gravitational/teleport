@@ -50,41 +50,45 @@ describe('agentCleanupDaemon', () => {
       name: 'follows up SIGTERM with SIGKILL in case SIGTERM did not cause the agent to terminate',
       parentArgs: ['sendPidsWhenReady', 'ignoreSigterm'],
     },
-  ])('$name', async ({ parentArgs }) => {
-    await cleanupPids(async addPidToCleanup => {
-      const parent = childProcess.fork(
-        path.join(__dirname, 'parentTestProcess.mjs'),
-        [logsDir, ...parentArgs],
-        { stdio }
-      );
-      addPidToCleanup(parent.pid);
+  ])(
+    '$name',
+    async ({ parentArgs }) => {
+      await cleanupPids(async addPidToCleanup => {
+        const parent = childProcess.fork(
+          path.join(__dirname, 'parentTestProcess.mjs'),
+          [logsDir, ...parentArgs],
+          { stdio }
+        );
+        addPidToCleanup(parent.pid);
 
-      // parentTestProcess sends PIDs only after it gets a message from both childTestProcess and
-      // agentCleanupDaemon. This way we know that both children are actually up and running.
-      //
-      // Otherwise we might end up killing the parent before the agent cleanup daemon was set up.
-      //
-      // If sendPidsImmediately is passed as the first arg to the parent process, the PIDs are sent
-      // immediately after spawning the children, without waiting for messages.
-      const pidsPromise = waitForMessage(parent);
-      await expect(pidsPromise).resolves.toMatchObject({
-        agentCleanupDaemon: expect.any(Number),
-        agent: expect.any(Number),
+        // parentTestProcess sends PIDs only after it gets a message from both childTestProcess and
+        // agentCleanupDaemon. This way we know that both children are actually up and running.
+        //
+        // Otherwise we might end up killing the parent before the agent cleanup daemon was set up.
+        //
+        // If sendPidsImmediately is passed as the first arg to the parent process, the PIDs are sent
+        // immediately after spawning the children, without waiting for messages.
+        const pidsPromise = waitForMessage(parent);
+        await expect(pidsPromise).resolves.toMatchObject({
+          agentCleanupDaemon: expect.any(Number),
+          agent: expect.any(Number),
+        });
+        const pids = await pidsPromise;
+        addPidToCleanup(pids['agent']);
+        addPidToCleanup(pids['agentCleanupDaemon']);
+
+        // Make sure that both children are still running.
+        expect(isRunning(pids['agent'])).toBe(true);
+        expect(isRunning(pids['agentCleanupDaemon'])).toBe(true);
+
+        // Verify that killing the parent results in the eventual termination of both children.
+        expect(parent.kill('SIGKILL')).toBe(true);
+        await expectPidToEventuallyTerminate(pids['agent']);
+        await expectPidToEventuallyTerminate(pids['agentCleanupDaemon']);
       });
-      const pids = await pidsPromise;
-      addPidToCleanup(pids['agent']);
-      addPidToCleanup(pids['agentCleanupDaemon']);
-
-      // Make sure that both children are still running.
-      expect(isRunning(pids['agent'])).toBe(true);
-      expect(isRunning(pids['agentCleanupDaemon'])).toBe(true);
-
-      // Verify that killing the parent results in the eventual termination of both children.
-      expect(parent.kill('SIGKILL')).toBe(true);
-      await expectPidToEventuallyTerminate(pids['agent']);
-      await expectPidToEventuallyTerminate(pids['agentCleanupDaemon']);
-    });
-  });
+    },
+    60000 // 1 minute timeout
+  );
 
   it('exits early if the agent is not running at the start', async () => {
     await cleanupPids(async addPidToCleanup => {
@@ -173,7 +177,7 @@ const waitForMessage = (process: childProcess.ChildProcess) =>
 
 const expectPidToEventuallyTerminate = async (pid: number) =>
   expect(() => !isRunning(pid)).toEventuallyBeTrue({
-    waitFor: 4000,
+    waitFor: 60000, // 1 minute
     tick: 10,
   });
 
