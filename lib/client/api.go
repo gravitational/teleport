@@ -355,7 +355,8 @@ type Config struct {
 
 	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
-
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
 	CallbackAddr string
 
 	// NoRemoteExec will not execute a remote command after connecting to a host,
