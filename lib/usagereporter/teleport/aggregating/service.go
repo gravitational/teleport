@@ -50,28 +50,36 @@ func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
 	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
-func prepareUserActivityReport(
+func prepareUserActivityReports(
 	clusterName, reporterHostID []byte,
 	startTime time.Time, records []*prehogv1.UserActivityRecord,
-) (*prehogv1.UserActivityReport, error) {
-	reportUUID := uuid.New()
-	report := &prehogv1.UserActivityReport{
-		ReportUuid:     reportUUID[:],
-		ClusterName:    clusterName,
-		ReporterHostid: reporterHostID,
-		StartTime:      timestamppb.New(startTime),
-		Records:        records,
-	}
+) (reports []*prehogv1.UserActivityReport, err error) {
+	recordsTail := make([]*prehogv1.UserActivityRecord, 0)
 
-	for proto.Size(report) > maxItemSize {
-		if len(report.Records) <= 1 {
-			return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+	for len(records) > 0 {
+		reportUUID := uuid.New()
+		report := &prehogv1.UserActivityReport{
+			ReportUuid:     reportUUID[:],
+			ClusterName:    clusterName,
+			ReporterHostid: reporterHostID,
+			StartTime:      timestamppb.New(startTime),
+			Records:        records,
 		}
 
-		report.Records = report.Records[:len(report.Records)/2]
+		for proto.Size(report) > maxItemSize {
+			if len(report.Records) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
+			}
+
+			recordsTail = append(recordsTail, report.Records[len(report.Records)/2:]...)
+			report.Records = report.Records[:len(report.Records)/2]
+		}
+
+		records = recordsTail
+		reports = append(reports, report)
 	}
 
-	return report, nil
+	return reports, nil
 }
 
 // reportService is a [backend.Backend] wrapper that handles usage reports.
