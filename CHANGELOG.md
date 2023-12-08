@@ -159,6 +159,14 @@ the newer hardened Amazon Linux 2023 AMIs will be produced.
 The legacy AMIs will continue to be published for Teleport 13 and 14 throughout
 the remainder of these releases' lifecycle.
 
+#### `windows_desktop_service` no longer writes to the NTAuth store
+
+In Teleport 15, the process that periodically publishes Teleport's user CA to
+the Windows NTAuth store has been removed. It is not necessary for Teleport to
+perform this step since it must be done by an administrator at installation
+time. As a result, Teleport's service account can use more restrictive
+permissions.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:
