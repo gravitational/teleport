@@ -26,6 +26,8 @@ import (
 	"strings"
 )
 
+const yamlExampleDelimeter string = "Example YAML:\n---\n"
+
 // Package is used to look up a Go declaration in a map of declaration names to
 // resource data.
 type PackageInfo struct {
@@ -543,11 +545,11 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	return result, nil
 }
 
-// descriptionWithoutName takes a description that contains name and removes
-// name, fixing capitalization. The best practice for adding comments to
-// exported Go declarations is to begin the comment with the name of the
-// declaration. This function removes the declaration name since it won't mean
-// anything to readers of the user-facing documentation.
+// descriptionWithoutName takes a description that contains an identifier name
+// and removes the name so we can include it within the resource reference,
+// fixing capitalization issues resulting from removing the name. Since the
+// identifier's name within the source won't mean anything to a docs reader,
+// removing it makes the description easier to read.
 func descriptionWithoutName(description, name string) string {
 	// Not possible to trim the name from description
 	if len(name) > len(description) {
@@ -573,8 +575,6 @@ func descriptionWithoutName(description, name string) string {
 
 	return result
 }
-
-const yamlExampleDelimeter string = "Example YAML:\n---\n"
 
 // handleEmbeddedStructFields finds embedded structs within fld and recursively
 // processes the fields of those structs as though the fields belonged to the
