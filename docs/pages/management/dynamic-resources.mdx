@@ -115,7 +115,7 @@ Teleport's Terraform provider lets you manage your Teleport resources within the
 same infrastructure-as-code source as the rest of your infrastructure. There is
 a Terraform resource for each Teleport configuration resource. For example:
 
-```text
+```hcl
 resource "teleport_role" "developer" {
   metadata = {
     name = "developer"
@@ -134,10 +134,8 @@ resource "teleport_role" "developer" {
 }
 ```
 
-- [Get started with the Terraform
-  provider](./dynamic-resources/terraform-provider.mdx).
-- [Use Teleport's Terraform provider with
-  Spacelift](./dynamic-resources/spacelift.mdx).
+[Get started with the Terraform
+provider](./dynamic-resources/terraform-provider.mdx).
 
 ### Teleport Kubernetes Operator
 
