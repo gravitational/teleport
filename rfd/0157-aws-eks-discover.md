@@ -194,6 +194,20 @@ associations for the cluster if they wish.
 
 ## Future considerations
 
+In the future, we will allow users to select more than one cluster to enroll at a time. 
+This will require some UI changes for testing connection steps.
+
+Also, as an alternative to the simple Helm command for manual fallback, we could generate a script to run 
+inside AWS CloudShell. Such a script might lessen the friction by preparing Helm access to the cluster, so
+users don't need to do it themselves. It could also be used for enrolling more than one cluster at a time.
+
+In this RFD, we propose the usage of the `system:masters` group for the initial token that allows us to install 
+the Helm chart onto the EKS cluster. This is a reliable way to enroll a cluster, since we know this group is 
+present on AWS EKS clusters and gives us enough permission to perform the required actions. However, 
+it might not be the best option from a security standpoint. Some users might want to limit the scope of that initial 
+token by providing Teleport with a preconfigured cluster role. As a possible improvement, we can offer users a way to 
+configure what user/group claims Teleport will use for the initial token.
+
 At the moment, the association of an OIDC provider with an EKS cluster allows for the best automation regarding cluster
 enrollment. This approach completely sidesteps the IAM method of EKS authentication, which currently lacks the flexibility
 we would require. Currently, IAM authentication in EKS is controlled by the `aws-auth` config map, which needs to be
