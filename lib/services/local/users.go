@@ -1250,7 +1250,10 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	for _, item := range result.Items {
 		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			logrus.WithError(err).Errorf("Error unmarshaling OIDC Connector: %s", item.Key)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling OIDC Connector")
 			continue
 		}
 		if !withSecrets {
@@ -1416,7 +1419,10 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	for _, item := range result.Items {
 		conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			logrus.WithError(err).Errorf("Error unmarshaling SAML Connector: %s", item.Key)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
 			continue
 		}
 		if !withSecrets {
@@ -1606,7 +1612,10 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	for _, item := range result.Items {
 		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			logrus.WithError(err).Errorf("Error unmarshaling GitHub Connector: %s", item.Key)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling GitHub Connector")
 			continue
 		}
 		if !withSecrets {
