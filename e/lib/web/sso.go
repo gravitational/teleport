@@ -262,8 +262,13 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 		return client.LoginFailedRedirectURL
 	}
 
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to parse request remote address %q", r.RemoteAddr)
+		return client.LoginFailedRedirectURL
+	}
 	proxyClient := p.h.GetProxyClient()
-	response, err := proxyClient.ValidateSAMLResponse(r.Context(), samlResponse, params.ByName("connector"))
+	response, err := proxyClient.ValidateSAMLResponse(r.Context(), samlResponse, params.ByName("connector"), clientIP)
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
 

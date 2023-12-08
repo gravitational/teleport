@@ -466,7 +466,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
 	// empty response gives error.
-	response, err := a.ValidateSAMLResponse(context.Background(), "", "")
+	response, err := a.ValidateSAMLResponse(context.Background(), "", "", "")
 	require.Nil(t, response)
 	require.Error(t, err)
 
@@ -574,19 +574,29 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	}
 
 	// check ValidateSAMLResponse
-	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
+	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	require.Equal(t, 0, int(loginHookCounter.Load()))
 
-	// check ValidateSAMLResponse for IdP-initiated flow
-	addr := utils.MustParseAddr("1.1.1.1:42")
-	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientSrcAddr(context.Background(), addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn)
+	// check ValidateSAMLResponse takes loginIP from provided clientIP parameter for IdP-initiated flow
+	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "2.2.2.2")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	cert, err := tlsca.ParseCertificatePEM(response.Session.GetTLSCert())
 	require.NoError(t, err)
 	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, "2.2.2.2", identity.LoginIP, "login IP for the session certificate was not propagated correctly")
+
+	// check ValidateSAMLResponse takes loginIP from connection for IdP-initiated flow if client IP is empty
+	addr := utils.MustParseAddr("1.1.1.1:42")
+	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientSrcAddr(context.Background(), addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "")
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	cert, err = tlsca.ParseCertificatePEM(response.Session.GetTLSCert())
+	require.NoError(t, err)
+	identity, err = tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 	require.Equal(t, addr.Host(), identity.LoginIP, "login IP for the session certificate was not propagated correctly")
 
@@ -594,7 +604,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	sas.auth.RegisterLoginHook(loginHook)
 	sas.auth.RegisterLoginHook(loginHook)
 
-	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
+	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	require.Equal(t, 2, int(loginHookCounter.Load()))
@@ -603,7 +613,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, a)
-	auth, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
+	auth, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.

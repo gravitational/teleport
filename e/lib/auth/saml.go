@@ -384,7 +384,7 @@ func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) auth.SAMLAuthRequest {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse string, connectorID string) (*auth.SAMLAuthResponse, error) {
+func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*auth.SAMLAuthResponse, error) {
 	if sas.license.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
@@ -398,7 +398,7 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, sas.auth)
 
-	auth, err := sas.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID)
+	auth, err := sas.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID, clientIP)
 	diagCtx.Info.Error = trace.UserMessage(err)
 
 	diagCtx.WriteToBackend(ctx)
@@ -461,7 +461,7 @@ func (sas *SAMLAuthService) checkIDPInitiatedSAML(ctx context.Context, connector
 	return trace.Wrap(err)
 }
 
-func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse string, connectorID string) (*auth.SAMLAuthResponse, error) {
+func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse, connectorID, clientIP string) (*auth.SAMLAuthResponse, error) {
 	idpInitiated := false
 	var connector types.SAMLConnector
 	var provider *saml2.SAMLServiceProvider
@@ -637,6 +637,10 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	loginIP := ""
 	if request != nil {
 		loginIP = request.ClientLoginIP
+	} else if clientIP != "" {
+		// In case of IdP initiated login we don't have a request with the client IP, so we take the IP from
+		// incoming connection, sent by the Proxy.
+		loginIP = clientIP
 	} else if addr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		host, _, err := net.SplitHostPort(addr.String())
 		if err != nil {
@@ -699,7 +703,7 @@ func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWr
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := authClient.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID)
+	response, err := authClient.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID, req.ClientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
