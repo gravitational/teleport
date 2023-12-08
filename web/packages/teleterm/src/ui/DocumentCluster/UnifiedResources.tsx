@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 
 import {
   UnifiedResources as SharedUnifiedResources,
@@ -37,13 +37,9 @@ import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import {
-  DefaultTab,
-  UnifiedResourcePreferences,
-  LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
 
-import { mapAttempt, Attempt } from 'shared/hooks/useAsync';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import {
   UnifiedResourceResponse,
@@ -75,17 +71,10 @@ export function UnifiedResources(props: {
   docUri: uri.DocumentUri;
   queryParams: DocumentClusterQueryParams;
 }) {
-  const {
-    unifiedResourcePreferencesFallback,
-    userPreferencesAttempt,
-    updateUserPreferences,
-    updateUserPreferencesAttempt,
-  } = useUserPreferences(props.clusterUri);
+  const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
+    useUserPreferences(props.clusterUri);
 
-  const unifiedResourcePreferences =
-    userPreferencesAttempt.status === 'success'
-      ? userPreferencesAttempt.data.unifiedResourcePreferences
-      : unifiedResourcePreferencesFallback;
+  const { unifiedResourcePreferences } = userPreferences;
 
   const mergedParams: UnifiedResourcesQueryParams = {
     kinds: props.queryParams.resourceKinds,
@@ -98,7 +87,6 @@ export function UnifiedResources(props: {
     query: props.queryParams.advancedSearchEnabled
       ? props.queryParams.search
       : '',
-  labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     };
 
   return (
@@ -108,8 +96,7 @@ export function UnifiedResources(props: {
       clusterUri={props.clusterUri}
       userPreferencesAttempt={userPreferencesAttempt}
       updateUserPreferences={updateUserPreferences}
-      updateUserPreferencesAttempt={updateUserPreferencesAttempt}
-      unifiedResourcePreferencesFallback={unifiedResourcePreferencesFallback}
+      userPreferences={userPreferences}
       // Reset the component state when query params object change.
       // JSON.stringify on the same object will always produce the same string.
       key={JSON.stringify(mergedParams)}
@@ -121,10 +108,9 @@ function Resources(props: {
   clusterUri: uri.ClusterUri;
   docUri: uri.DocumentUri;
   queryParams: UnifiedResourcesQueryParams;
-  userPreferencesAttempt: Attempt<UserPreferences>;
+  userPreferencesAttempt?: Attempt<void>;
+  userPreferences: UserPreferences;
   updateUserPreferences(u: UserPreferences): Promise<void>;
-  updateUserPreferencesAttempt: Attempt<void>;
-  unifiedResourcePreferencesFallback: UnifiedResourcePreferences;
 }) {
   const appContext = useAppContext();
   const { onResourcesRefreshRequest } = useResourcesContext();
@@ -210,54 +196,36 @@ function Resources(props: {
     });
   }
 
-  function getPinning(): UnifiedResourcesPinning {
-    // optimistically assume that pinning is supported
-    const isPinningSupported =
-      props.userPreferencesAttempt.status !== 'success' ||
-      !!(
-        props.userPreferencesAttempt.status === 'success' &&
-        props.userPreferencesAttempt.data.clusterPreferences?.pinnedResources
-          ?.resourceIdsList
-      );
-    return isPinningSupported
+  const resourceIdsList =
+    props.userPreferences.clusterPreferences?.pinnedResources?.resourceIdsList;
+  const { updateUserPreferences } = props;
+  const pinning = useMemo<UnifiedResourcesPinning>(() => {
+    return resourceIdsList
       ? {
           kind: 'supported',
-          getClusterPinnedResources: fetchPinnedResources,
-          updateClusterPinnedResources: updatePinnedResources,
+          getClusterPinnedResources: async () => resourceIdsList,
+          updateClusterPinnedResources: pinnedIds =>
+            updateUserPreferences({
+              clusterPreferences: {
+                pinnedResources: { resourceIdsList: pinnedIds },
+              },
+            }),
         }
       : { kind: 'not-supported' };
-  }
-
-  const fetchPinnedResources = useCallback(async () => {
-    if (props.userPreferencesAttempt.status === 'success') {
-      return props.userPreferencesAttempt.data.clusterPreferences
-        .pinnedResources.resourceIdsList;
-    }
-    return [];
-  }, [props.userPreferencesAttempt]);
-  const updatePinnedResources = (pinnedIds: string[]) =>
-    props.updateUserPreferences({
-      clusterPreferences: { pinnedResources: { resourceIdsList: pinnedIds } },
-    });
+  }, [updateUserPreferences, resourceIdsList]);
 
   return (
     <SharedUnifiedResources
       params={props.queryParams}
       setParams={onParamsChange}
-      unifiedResourcePreferencesAttempt={mapAttempt(
-        props.userPreferencesAttempt,
-        attemptData => attemptData.unifiedResourcePreferences
-      )}
-      unifiedResourcePreferencesFallback={
-        props.unifiedResourcePreferencesFallback
+      unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+      unifiedResourcePreferences={
+        props.userPreferences.unifiedResourcePreferences
       }
       updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
         props.updateUserPreferences({ unifiedResourcePreferences })
       }
-      updateUnifiedResourcesPreferencesAttempt={
-        props.updateUserPreferencesAttempt
-      }
-      pinning={getPinning()}
+      pinning={pinning}
       resources={resources.map(mapToSharedResource)}
       resourcesFetchAttempt={attempt}
       fetchResources={fetch}

@@ -15,8 +15,6 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
-
-import { wait } from 'shared/utils/wait';
 import {
   ViewMode,
   DefaultTab,
@@ -63,11 +61,8 @@ test('user preferences are fetched', async () => {
 
   await act(() => getUserPreferencesPromise);
 
-  expect(result.current.userPreferencesAttempt).toEqual({
-    status: 'success',
-    data: preferences,
-    statusText: '',
-  });
+  expect(result.current.userPreferences).toEqual(preferences);
+  expect(result.current.userPreferencesAttempt.status).toBe('success');
 
   // updating the fallback
   expect(
@@ -77,8 +72,11 @@ test('user preferences are fetched', async () => {
 
 test('unified resources fallback preferences are taken from a workspace', async () => {
   const appContext = new MockAppContext();
+  let resolveGetUserPreferencesPromise: (u: UserPreferences) => void;
+  const getUserPreferencesPromise = new Promise(resolve => {
+    resolveGetUserPreferencesPromise = resolve;
+  });
 
-  const getUserPreferencesPromise = Promise.resolve({});
   jest
     .spyOn(appContext.tshd, 'getUserPreferences')
     .mockImplementation(() => getUserPreferencesPromise);
@@ -97,11 +95,11 @@ test('unified resources fallback preferences are taken from a workspace', async 
     ),
   });
 
-  await act(() => getUserPreferencesPromise);
-
-  expect(result.current.unifiedResourcePreferencesFallback).toEqual(
+  expect(result.current.userPreferences.unifiedResourcePreferences).toEqual(
     preferences.unifiedResourcePreferences
   );
+  resolveGetUserPreferencesPromise(null);
+  await act(() => getUserPreferencesPromise);
 });
 
 describe('updating preferences works correctly', () => {
@@ -145,78 +143,40 @@ describe('updating preferences works correctly', () => {
 
     await act(() => result.current.updateUserPreferences(newPreferences));
 
-    expect(result.current.updateUserPreferencesAttempt.status).toBe('success');
-    expect(appContext.tshd.updateUserPreferences).toHaveBeenCalledWith({
-      clusterUri: cluster.uri,
-      userPreferences: newPreferences,
-    });
-    expect(
-      result.current.userPreferencesAttempt.status === 'success' &&
-        result.current.userPreferencesAttempt.data
-    ).toEqual(newPreferences);
-  });
-
-  test('when the request for fetching preferences is in-flight', async () => {
-    let rejectGetUserPreferencesPromise: () => void;
-    const getUserPreferencesPromise = new Promise((resolve, reject) => {
-      rejectGetUserPreferencesPromise = reject;
-    });
-
-    jest
-      .spyOn(appContext.tshd, 'getUserPreferences')
-      .mockImplementation(() => getUserPreferencesPromise);
-    jest
-      .spyOn(appContext.tshd, 'updateUserPreferences')
-      .mockImplementation(async preferences => preferences.userPreferences);
-
-    const { result } = renderHook(() => useUserPreferences(cluster.uri), {
-      wrapper: ({ children }) => (
-        <MockAppContextProvider appContext={appContext}>
-          {children}
-        </MockAppContextProvider>
-      ),
-    });
-
-    const newPreferences: UserPreferences = {
-      clusterPreferences: {},
-      unifiedResourcePreferences: {
-        viewMode: ViewMode.VIEW_MODE_LIST,
-        defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
-      },
-    };
-
-    await act(() => result.current.updateUserPreferences(newPreferences));
-
-    expect(result.current.updateUserPreferencesAttempt.status).toBe('success');
-    expect(appContext.tshd.updateUserPreferences).toHaveBeenCalledWith({
-      clusterUri: cluster.uri,
-      userPreferences: newPreferences,
-    });
-    expect(
-      result.current.userPreferencesAttempt.status === 'success' &&
-        result.current.userPreferencesAttempt.data
-    ).toEqual(newPreferences);
-
-    // updating the fallback
+    // updating state
     expect(
       appContext.workspacesService.setUnifiedResourcePreferences
     ).toHaveBeenCalledWith(
       cluster.uri,
       newPreferences.unifiedResourcePreferences
     );
-    rejectGetUserPreferencesPromise();
+    expect(result.current.userPreferences.unifiedResourcePreferences).toEqual(
+      newPreferences.unifiedResourcePreferences
+    );
+
+    expect(result.current.userPreferencesAttempt.status).toBe('success');
+    expect(appContext.tshd.updateUserPreferences).toHaveBeenCalledWith({
+      clusterUri: cluster.uri,
+      userPreferences: newPreferences,
+    });
   });
 
-  test('when the request for fetching preferences is in-flight and the request to update them fails', async () => {
-    // resolves after 100 ms, after the request to update the preference returns
-    const getUserPreferencesPromise = wait(100).then(() => preferences);
+  test('when the request for fetching preferences is in-flight', async () => {
+    let resolveGetUserPreferencesPromise: (u: UserPreferences) => void;
+    const getUserPreferencesPromise = new Promise<UserPreferences>(resolve => {
+      resolveGetUserPreferencesPromise = resolve;
+    });
+    let resolveUpdateUserPreferencesPromise: (u: UserPreferences) => void;
+    const updateUserPreferencesPromise = new Promise(resolve => {
+      resolveUpdateUserPreferencesPromise = resolve;
+    });
 
     jest
       .spyOn(appContext.tshd, 'getUserPreferences')
       .mockImplementation(() => getUserPreferencesPromise);
     jest
       .spyOn(appContext.tshd, 'updateUserPreferences')
-      .mockRejectedValue('Failed to update');
+      .mockImplementation(() => updateUserPreferencesPromise);
 
     const { result } = renderHook(() => useUserPreferences(cluster.uri), {
       wrapper: ({ children }) => (
@@ -234,25 +194,30 @@ describe('updating preferences works correctly', () => {
       },
     };
 
-    await act(() => result.current.updateUserPreferences(newPreferences));
-    await act(() => getUserPreferencesPromise);
+    act(() => {
+      result.current.updateUserPreferences(newPreferences);
+    });
 
-    expect(
-      result.current.updateUserPreferencesAttempt.status === 'error' &&
-        result.current.updateUserPreferencesAttempt.error
-    ).toBe('Failed to update');
-
-    // updating the fallback
+    // updating state
     expect(
       appContext.workspacesService.setUnifiedResourcePreferences
     ).toHaveBeenCalledWith(
       cluster.uri,
-      newPreferences.unifiedResourcePreferences // the fallback is left with new preferences
+      newPreferences.unifiedResourcePreferences
+    );
+    expect(result.current.userPreferences.unifiedResourcePreferences).toEqual(
+      newPreferences.unifiedResourcePreferences
     );
 
-    expect(
-      result.current.userPreferencesAttempt.status === 'success' &&
-        result.current.userPreferencesAttempt.data
-    ).toEqual(preferences); // non-updated preferences
+    expect(result.current.userPreferencesAttempt.status).toBe('processing');
+    expect(appContext.tshd.updateUserPreferences).toHaveBeenCalledWith({
+      clusterUri: cluster.uri,
+      userPreferences: newPreferences,
+    });
+
+    act(() => resolveGetUserPreferencesPromise(null));
+    await act(() => getUserPreferencesPromise);
+    act(() => resolveUpdateUserPreferencesPromise(null));
+    await act(() => updateUserPreferencesPromise);
   });
 });

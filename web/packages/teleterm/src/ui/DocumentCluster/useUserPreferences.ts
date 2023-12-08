@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   useAsync,
+  Attempt,
+  makeEmptyAttempt,
+  makeProcessingAttempt,
+  makeErrorAttempt,
   makeSuccessAttempt,
   mapAttempt,
-  Attempt,
+  CanceledError,
 } from 'shared/hooks/useAsync';
 
 import {
@@ -35,141 +39,141 @@ import { routing, ClusterUri } from 'teleterm/ui/uri';
 
 import { UserPreferences } from 'teleterm/services/tshd/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import createAbortController from 'teleterm/services/tshd/createAbortController';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
-  userPreferencesAttempt: Attempt<UserPreferences>;
-  unifiedResourcePreferencesFallback: UnifiedResourcePreferences;
-  updateUserPreferencesAttempt: Attempt<void>;
+  userPreferencesAttempt: Attempt<void>;
   updateUserPreferences(newPreferences: UserPreferences): Promise<void>;
+  userPreferences: UserPreferences;
 } {
   const appContext = useAppContext();
-  const [
-    fetchUserPreferencesAttempt,
-    runFetchUserPreferencesAttempt,
-    setFetchUserPreferencesAttempt,
-  ] = useAsync<Promise<UserPreferences>[], UserPreferences>(value => value);
-  const [updateUserPreferencesAttempt, runUpdateUserPreferencesAttempt] =
-    useAsync(async (newPreferences: UserPreferences) =>
+  const initialFetchAttemptAbortController = useRef(createAbortController());
+  const [unifiedResourcePreferences, setUnifiedResourcePreferences] = useState<
+    UserPreferences['unifiedResourcePreferences']
+  >(
+    mergeWithDefaultUnifiedResourcePreferences(
+      appContext.workspacesService.getUnifiedResourcePreferences(
+        routing.ensureRootClusterUri(clusterUri)
+      )
+    ) || {
+      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
+      viewMode: ViewMode.VIEW_MODE_CARD,
+    }
+  );
+  const [clusterPreferences, setClusterPreferences] = useState<
+    UserPreferences['clusterPreferences']
+  >({
+    // we pass an empty array, so pinning is enabled by default
+    pinnedResources: { resourceIdsList: [] },
+  });
+
+  const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
+    useCallback(
+      async () =>
+        retryWithRelogin(appContext, clusterUri, () =>
+          appContext.tshd.getUserPreferences(
+            { clusterUri },
+            initialFetchAttemptAbortController.current.signal
+          )
+        ),
+      [appContext, clusterUri]
+    )
+  );
+  const [supersededInitialFetchAttempt, setSupersededInitialFetchAttempt] =
+    useState<Attempt<void>>(makeEmptyAttempt());
+
+  const [, runUpdateAttempt] = useAsync(
+    async (newPreferences: UserPreferences) =>
       retryWithRelogin(appContext, clusterUri, () =>
         appContext.tshd.updateUserPreferences({
           clusterUri,
           userPreferences: newPreferences,
         })
       )
-    );
+  );
 
-  const getPreferencesPromise = useRef<ReturnType<typeof getPreferences>>();
-  const getPreferences = useCallback(async () => {
-    const preferencesPromise = retryWithRelogin(appContext, clusterUri, () =>
-      appContext.tshd.getUserPreferences({
-        clusterUri,
-      })
-    );
-    getPreferencesPromise.current = preferencesPromise;
-    return preferencesPromise;
-  }, [appContext, clusterUri]);
-
-  const unifiedResourcePreferencesFallback =
-    appContext.workspacesService.getUnifiedResourcePreferences(
-      routing.ensureRootClusterUri(clusterUri)
-    ) || {
-      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: ViewMode.VIEW_MODE_CARD,
-    };
-
-  const updateFetchAttemptAndWorkspace = useCallback(
-    async (preferencesPromise: Promise<UserPreferences>) => {
-      const [updated, error] = await runFetchUserPreferencesAttempt(
-        preferencesPromise
+  const updateUnifiedResourcePreferencesStateAndWorkspace = useCallback(
+    (unifiedResourcePreferences: UnifiedResourcePreferences) => {
+      const prefsWithDefaults = mergeWithDefaultUnifiedResourcePreferences(
+        unifiedResourcePreferences
       );
-      if (!error) {
-        appContext.workspacesService.setUnifiedResourcePreferences(
-          routing.ensureRootClusterUri(clusterUri),
-          updated.unifiedResourcePreferences
-        );
-      }
+      setUnifiedResourcePreferences(prefsWithDefaults);
+      appContext.workspacesService.setUnifiedResourcePreferences(
+        routing.ensureRootClusterUri(clusterUri),
+        prefsWithDefaults
+      );
     },
-    [appContext.workspacesService, clusterUri, runFetchUserPreferencesAttempt]
+    [appContext.workspacesService, clusterUri]
   );
 
   useEffect(() => {
-    if (fetchUserPreferencesAttempt.status === '') {
-      updateFetchAttemptAndWorkspace(getPreferences());
-    }
+    const fetchPreferences = async () => {
+      if (supersededInitialFetchAttempt.status === '') {
+        const [prefs, error] = await runInitialFetchAttempt();
+        if (!error) {
+          updateUnifiedResourcePreferencesStateAndWorkspace(
+            prefs?.unifiedResourcePreferences
+          );
+          setClusterPreferences(prefs?.clusterPreferences);
+        }
+      }
+    };
+
+    fetchPreferences();
   }, [
-    updateFetchAttemptAndWorkspace,
-    fetchUserPreferencesAttempt.status,
-    getPreferences,
+    supersededInitialFetchAttempt.status,
+    runInitialFetchAttempt,
+    updateUnifiedResourcePreferencesStateAndWorkspace,
   ]);
 
-  async function updateUserPreferences(
-    newPreferences: Partial<UserPreferences>
-  ): Promise<void> {
-    // If we don't have the preferences fetched yet,
-    // we start from updating the workspace (so the user sees an update in the UI).
-    //
-    // Since we know that the preferences have changed,
-    // we don't want to show the user the preferences from the "get"
-    // request that are outdated.
-    // Instead, we replace a request in that attempt with an "update" request,
-    // falling back to "get" response, only if the update failed.
-    // Thanks to that, the user sees a continuous loading screen.
-    if (fetchUserPreferencesAttempt.status !== 'success') {
+  const updateUserPreferences = useCallback(
+    async (newPreferences: Partial<UserPreferences>): Promise<void> => {
       if (newPreferences.unifiedResourcePreferences) {
-        appContext.workspacesService.setUnifiedResourcePreferences(
-          routing.ensureRootClusterUri(clusterUri),
+        updateUnifiedResourcePreferencesStateAndWorkspace(
           newPreferences.unifiedResourcePreferences
         );
       }
 
-      const updater = async (): Promise<UserPreferences> => {
-        const [updated, error] = await runUpdateUserPreferencesAttempt(
-          newPreferences
-        );
-        if (error) {
-          return getPreferencesPromise.current;
-        }
-        return updated;
-      };
-
-      await updateFetchAttemptAndWorkspace(updater());
-    } else {
-      // Update the local state first, so the user sees an update in the UI.
-      setFetchUserPreferencesAttempt(prevState =>
-        makeSuccessAttempt({ ...prevState.data, ...newPreferences })
-      );
-      const [updated, error] = await runUpdateUserPreferencesAttempt(
-        newPreferences
-      );
-      if (!error) {
-        appContext.workspacesService.setUnifiedResourcePreferences(
-          routing.ensureRootClusterUri(clusterUri),
-          updated.unifiedResourcePreferences
-        );
-        setFetchUserPreferencesAttempt(makeSuccessAttempt(updated));
+      const hasUpdateSupersededInitialFetch =
+        initialFetchAttempt.status !== 'success' &&
+        supersededInitialFetchAttempt.status === '';
+      if (hasUpdateSupersededInitialFetch) {
+        setSupersededInitialFetchAttempt(makeProcessingAttempt());
+        initialFetchAttemptAbortController.current.abort();
       }
-    }
-  }
+
+      const [prefs, error] = await runUpdateAttempt(newPreferences);
+      if (!error) {
+        // wa always try to update pinned resources
+        setClusterPreferences(prefs?.clusterPreferences);
+      }
+
+      if (hasUpdateSupersededInitialFetch) {
+        if (!(error instanceof CanceledError)) {
+          setSupersededInitialFetchAttempt(makeErrorAttempt(error));
+          return;
+        }
+        setSupersededInitialFetchAttempt(makeSuccessAttempt(undefined));
+      }
+    },
+    [
+      initialFetchAttempt.status,
+      supersededInitialFetchAttempt.status,
+      runUpdateAttempt,
+      updateUnifiedResourcePreferencesStateAndWorkspace,
+    ]
+  );
 
   return {
-    userPreferencesAttempt: mapAttempt(
-      fetchUserPreferencesAttempt,
-      attemptData => ({
-        ...attemptData,
-        unifiedResourcePreferences: mergeWithDefaultUnifiedResourcePreferences(
-          attemptData.unifiedResourcePreferences
-        ),
-      })
-    ),
-    unifiedResourcePreferencesFallback:
-      mergeWithDefaultUnifiedResourcePreferences(
-        unifiedResourcePreferencesFallback
-      ),
-    updateUserPreferencesAttempt: mapAttempt(
-      updateUserPreferencesAttempt,
-      () => undefined
-    ),
+    userPreferencesAttempt:
+      supersededInitialFetchAttempt.status !== ''
+        ? supersededInitialFetchAttempt
+        : mapAttempt(initialFetchAttempt, () => undefined),
     updateUserPreferences,
+    userPreferences: {
+      unifiedResourcePreferences,
+      clusterPreferences,
+    },
   };
 }
 
