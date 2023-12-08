@@ -53,7 +53,10 @@ to an EKS cluster (details [below](#eks-identity-provider-association)). AWS per
             "Action": [
                 "eks:DescribeCluster",
                 "eks:ListClusters",
-                "eks:AssociateIdentityProviderConfig"
+                "eks:AssociateIdentityProviderConfig",
+                "eks:DisassociateIdentityProviderConfig",
+                "eks:ListIdentityProviderConfigs",
+                "eks:DescribeIdentityProviderConfig"
             ],
             "Resource": "*"
         }
