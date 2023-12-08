@@ -493,13 +493,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               resourcesFetchAttempt.status === 'processing' ||
               getPinnedResourcesAttempt.status === '' ||
               getPinnedResourcesAttempt.status === 'processing' ||
-              unifiedResourcePreferencesAttempt.status === '' ||
-              unifiedResourcePreferencesAttempt.status === 'processing'
+              unifiedResourcePreferencesAttempt?.status === '' ||
+              unifiedResourcePreferencesAttempt?.status === 'processing'
             }
             mappedResources={
               // Hide the resources until the preferences are fetched.
               // ViewComponent supports infinite scroll, so it shows both already loaded resources
               // and a loading indicator if needed.
+              !unifiedResourcePreferencesAttempt ||
               hasFinished(unifiedResourcePreferencesAttempt)
                 ? resources.map(unifiedResource => ({
                     item: mapResourceToViewItem(unifiedResource),

@@ -149,7 +149,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       }
 
       if (hasUpdateSupersededInitialFetch) {
-        if (!(error instanceof CanceledError)) {
+        if (error && !(error instanceof CanceledError)) {
           setSupersededInitialFetchAttempt(makeErrorAttempt(error));
           return;
         }

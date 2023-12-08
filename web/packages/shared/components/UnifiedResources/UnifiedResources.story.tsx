@@ -36,11 +36,7 @@ import {
   LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
-import {
-  makeSuccessAttempt,
-  makeErrorAttempt,
-  makeProcessingAttempt,
-} from 'shared/hooks/useAsync';
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
 import {
   UnifiedResources,
