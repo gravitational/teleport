@@ -1523,7 +1523,7 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 
 // UpsertGithubConnector creates or updates a Github connector
 func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
@@ -1548,7 +1548,7 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 
 // UpdateGithubConnector updates an existing Github connector.
 func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)
@@ -1572,7 +1572,7 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 
 // CreateGithubConnector creates a new Github connector.
 func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)

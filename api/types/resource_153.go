@@ -79,14 +79,6 @@ func (r *resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.inner)
 }
 
-func (r *resource153ToLegacyAdapter) CheckAndSetDefaults() error {
-	// Validation is not a distributed responsibility!
-	// Write your own validation, against the concrete type, in the storage layer.
-	// https://github.com/gravitational/teleport/pull/34103/files#diff-49c80914f68671852ea118fbd508af507b6b59b196b48a404c658e3eb9f1bf78R309
-	// TODO(rossstimothy): Update link above when RFD 153 lands.
-	return nil
-}
-
 func (r *resource153ToLegacyAdapter) Expiry() time.Time {
 	return r.inner.GetMetadata().Expires.AsTime()
 }
