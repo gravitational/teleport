@@ -1,4 +1,7 @@
 /**
+ * @jest-environment node
+ */
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
