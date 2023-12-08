@@ -1742,6 +1742,9 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
+	// dbRoles is the optional list of database roles which, if provided, will
+	// be used instead of all database roles granted for the target database.
+	dbRoles []string
 	// mfaVerified is the UUID of an MFA device when this certRequest was
 	// created immediately after an MFA check.
 	mfaVerified string
@@ -2051,6 +2054,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
+		dbRoles:        req.RouteToDatabase.Roles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2602,6 +2606,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			Protocol:    req.dbProtocol,
 			Username:    req.dbUser,
 			Database:    req.dbName,
+			Roles:       req.dbRoles,
 		},
 		DatabaseNames:           dbNames,
 		DatabaseUsers:           dbUsers,
@@ -5542,21 +5547,26 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		autoCreate, _, err := checker.CheckDatabaseRoles(db)
-		if err != nil {
+		autoCreate, err := checker.DatabaseAutoUserMode(db)
+		switch {
+		case errors.Is(err, services.ErrSessionMFARequired):
+			noMFAAccessErr = err
+		case err != nil:
 			return nil, trace.Wrap(err)
+		default:
+			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:       db,
+				DatabaseUser:   t.Database.Username,
+				DatabaseName:   t.Database.GetDatabase(),
+				AutoCreateUser: autoCreate.IsEnabled(),
+			})
+			noMFAAccessErr = checker.CheckAccess(
+				db,
+				services.AccessState{},
+				dbRoleMatchers...,
+			)
 		}
-		dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-			Database:       db,
-			DatabaseUser:   t.Database.Username,
-			DatabaseName:   t.Database.GetDatabase(),
-			AutoCreateUser: autoCreate.IsEnabled(),
-		})
-		noMFAAccessErr = checker.CheckAccess(
-			db,
-			services.AccessState{},
-			dbRoleMatchers...,
-		)
+
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
 		if err != nil {

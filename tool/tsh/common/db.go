@@ -324,6 +324,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Protocol:    dbInfo.Protocol,
 					Username:    dbInfo.Username,
 					Database:    dbInfo.Database,
+					Roles:       dbInfo.Roles,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 			})
@@ -850,6 +851,9 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	if cf.DatabaseName != "" {
 		d.Database = cf.DatabaseName
 	}
+	if len(cf.DatabaseRoles) > 0 {
+		d.Roles = cf.DatabaseRoles
+	}
 	db, err := d.GetDatabase(cf.Context, tc)
 	if err != nil {
 		if d.isActive && trace.IsNotFound(err) && strings.Contains(err.Error(), d.ServiceName) {
@@ -1261,7 +1265,7 @@ func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
 func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
-	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" && len(cf.DatabaseRoles) == 0 {
 		return false, nil
 	}
 
@@ -1286,7 +1290,23 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
 		return true, nil
 	}
+	if !equalSliceValues(cf.DatabaseRoles, identity.RouteToDatabase.Roles) {
+		log.Debugf("Will reissue database certificate for database roles %v (was %v)", cf.DatabaseRoles, identity.RouteToDatabase.Roles)
+		return true, nil
+	}
 	return false, nil
+}
+
+func equalSliceValues[S ~[]E, E comparable](s1, s2 S) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+	for i := range s1 {
+		if !slices.Contains(s2, s1[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
