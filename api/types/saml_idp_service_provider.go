@@ -20,8 +20,9 @@ import (
 	"encoding/xml"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 var (
@@ -97,7 +98,7 @@ func (s *SAMLIdPServiceProviderV1) GetACSURL() string {
 	return s.Spec.ACSURL
 }
 
-// SetEntityID sets the ACS URL.
+// SetACSURL sets the ACS URL.
 func (s *SAMLIdPServiceProviderV1) SetACSURL(acsURL string) {
 	s.Spec.ACSURL = acsURL
 }
