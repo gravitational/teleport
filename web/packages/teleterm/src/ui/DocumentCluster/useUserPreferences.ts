@@ -34,6 +34,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { routing, ClusterUri } from 'teleterm/ui/uri';
 
 import { UserPreferences } from 'teleterm/services/tshd/types';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferencesAttempt: Attempt<UserPreferences>;
@@ -49,20 +50,24 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   ] = useAsync<Promise<UserPreferences>[], UserPreferences>(value => value);
   const [updateUserPreferencesAttempt, runUpdateUserPreferencesAttempt] =
     useAsync(async (newPreferences: UserPreferences) =>
-      appContext.tshd.updateUserPreferences({
-        clusterUri,
-        userPreferences: newPreferences,
-      })
+      retryWithRelogin(appContext, clusterUri, () =>
+        appContext.tshd.updateUserPreferences({
+          clusterUri,
+          userPreferences: newPreferences,
+        })
+      )
     );
 
   const getPreferencesPromise = useRef<ReturnType<typeof getPreferences>>();
   const getPreferences = useCallback(async () => {
-    const preferencesPromise = appContext.tshd.getUserPreferences({
-      clusterUri,
-    });
+    const preferencesPromise = retryWithRelogin(appContext, clusterUri, () =>
+      appContext.tshd.getUserPreferences({
+        clusterUri,
+      })
+    );
     getPreferencesPromise.current = preferencesPromise;
     return preferencesPromise;
-  }, [appContext.tshd, clusterUri]);
+  }, [appContext, clusterUri]);
 
   const unifiedResourcePreferencesFallback =
     appContext.workspacesService.getUnifiedResourcePreferences(
