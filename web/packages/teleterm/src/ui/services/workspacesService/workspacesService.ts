@@ -405,12 +405,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     unifiedResourcePreferences: unknown
     // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
   ): Partial<UnifiedResourcePreferences> | undefined {
-    const schema = z.object({
-      defaultTab: z.nativeEnum(DefaultTab),
-      viewMode: z.nativeEnum(ViewMode),
-    });
     try {
-      return schema.parse(unifiedResourcePreferences);
+      return unifiedResourcePreferencesSchema.parse(unifiedResourcePreferences);
     } catch (e) {
       this.logger.error('Failed to parse unified resource preferences', e);
     }
@@ -525,6 +521,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }
+
+const unifiedResourcePreferencesSchema = z.object({
+  defaultTab: z.nativeEnum(DefaultTab),
+  viewMode: z.nativeEnum(ViewMode),
+});
 
 export type PendingAccessRequest = {
   [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
