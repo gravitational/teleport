@@ -72,7 +72,7 @@ import { ResourceTab } from './ResourceTab';
 import { FilterPanel } from './FilterPanel';
 import { CardsView } from './CardsView/CardsView';
 import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory'; // get 48 resources to start
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -150,7 +150,6 @@ export interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
-  updateUnifiedResourcesPreferencesAttempt?: AsyncAttempt<void>;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
