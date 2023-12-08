@@ -56,7 +56,6 @@ var someContext interface{} = mock.MatchedBy(func(context.Context) bool { return
 func mkUser(t *testing.T, name string) types.User {
 	u, err := types.NewUser(name)
 	require.NoError(t, err)
-	require.NoError(t, u.CheckAndSetDefaults())
 	return u
 }
 
