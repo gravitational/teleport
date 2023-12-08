@@ -92,7 +92,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
-	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339)").StringVar(&c.assumeStartTimeRaw)
+	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&c.assumeStartTimeRaw)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request.")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -236,7 +236,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 	if c.assumeStartTimeRaw != "" {
 		parsedAssumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
 		if err != nil {
-			return trace.BadParameter("parsing assume-start-time: %v", err)
+			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
 		if time.Until(parsedAssumeStartTime) > constants.MaxAssumeStartTime {
 			return trace.BadParameter("assume-start-time too far in future: latest date %q",
