@@ -471,55 +471,63 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        <ViewComponent
-          onLabelClick={label =>
-            setParams({
-              ...params,
-              search: '',
-              query: makeAdvancedSearchQueryForLabel(label, params),
-            })
-          }
-          pinnedResources={pinnedResources}
-          selectedResources={selectedResources}
-          onSelectResource={handleSelectResource}
-          onPinResource={handlePinResource}
-          pinningSupport={getResourcePinningSupport(
-            pinning.kind,
-            updatePinnedResourcesAttempt
-          )}
-          isProcessing={
-            resourcesFetchAttempt.status === 'processing' ||
-            getPinnedResourcesAttempt.status === 'processing' ||
-            unifiedResourcePreferencesAttempt.status === 'processing'
-          }
-          mappedResources={
-            // Hide the resources until the preferences are fetched.
-            // ViewComponent supports infinite scroll, so it shows both already loaded resources
-            // and a loading indicator if needed.
-            hasFinished(unifiedResourcePreferencesAttempt)
-              ? resources.map(unifiedResource => ({
-                item: mapResourceToViewItem(unifiedResource),
-                key: generateUnifiedResourceKey(unifiedResource.resource),
-              }))
-              : []
-          }
+        <>
+          <ViewComponent
+            onLabelClick={label =>
+              setParams({
+                ...params,
+                search: '',
+                query: makeAdvancedSearchQueryForLabel(label, params),
+              })
+            }
+            pinnedResources={pinnedResources}
+            selectedResources={selectedResources}
+            onSelectResource={handleSelectResource}
+            onPinResource={handlePinResource}
+            pinningSupport={getResourcePinningSupport(
+              pinning.kind,
+              updatePinnedResourcesAttempt
+            )}
+            isProcessing={
+              resourcesFetchAttempt.status === 'processing' ||
+              getPinnedResourcesAttempt.status === 'processing' ||
+              unifiedResourcePreferencesAttempt.status === 'processing'
+            }
+            mappedResources={
+              // Hide the resources until the preferences are fetched.
+              // ViewComponent supports infinite scroll, so it shows both already loaded resources
+              // and a loading indicator if needed.
+              hasFinished(unifiedResourcePreferencesAttempt)
+                ? resources.map(unifiedResource => ({
+                    item: mapResourceToViewItem(unifiedResource),
+                    key: generateUnifiedResourceKey(unifiedResource.resource),
+                  }))
+                : []
+            }
           expandAllLabels={expandAllLabels}
         />
+          <div ref={setTrigger} />
+          <ListFooter>
+            {resourcesFetchAttempt.status === 'failed' &&
+              resources.length > 0 && (
+                <ButtonSecondary onClick={onRetryClicked}>
+                  Load more
+                </ButtonSecondary>
+              )}
+            {noResults &&
+              isSearchEmpty &&
+              !params.pinnedOnly &&
+              props.NoResources}
+            {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
+            {noResults && !isSearchEmpty && (
+              <NoResults
+                isPinnedTab={params.pinnedOnly}
+                query={params?.query || params?.search}
+              />
+            )}
+          </ListFooter>
+        </>
       )}
-      <div ref={setTrigger} />
-      <ListFooter>
-        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
-          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
-        )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
-        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
-        {noResults && !isSearchEmpty && (
-          <NoResults
-            isPinnedTab={params.pinnedOnly}
-            query={params?.query || params?.search}
-          />
-        )}
-      </ListFooter>
     </div>
   );
 }
