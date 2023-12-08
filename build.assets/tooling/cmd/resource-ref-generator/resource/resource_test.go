@@ -36,10 +36,8 @@ func replaceBackticks(source string) string {
 func TestNewFromDecl(t *testing.T) {
 	cases := []struct {
 		description string
-		// Go source fixture. Replace backticks with the "BACKTICK"
-		// placeholder.
-		source   string
-		expected map[PackageInfo]ReferenceEntry
+		source      string
+		expected    map[PackageInfo]ReferenceEntry
 		// Go source fixtures that the test uses for named type fields.
 		declSources []string
 		// Substring to expect in a resulting error message
@@ -1138,7 +1136,7 @@ func (stream *streamFunc[T]) Next() bool {
 			// For generating method information
 			allDecls := []DeclarationInfo{}
 			pkgToDecl := make(map[PackageInfo]DeclarationInfo)
-			// Assemble map of PackageInfo to *ast.GenDecl for
+			// Assemble a map of PackageInfo to *ast.GenDecl for
 			// source fixtures the test case depends on.
 			for n, dep := range tc.declSources {
 				d, err := parser.ParseFile(fset,

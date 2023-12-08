@@ -110,18 +110,18 @@ type TypeInfo struct {
 	Name string `yaml:"name"`
 }
 
-// GeneratorConfig is the user-facing configuration object for the resource
-// reference generator.
+// GeneratorConfig is the user-facing configuration for the resource reference
+// generator.
 type GeneratorConfig struct {
-	// Field types that a type must have to be included in the reference.  A
+	// Field types that a type must have to be included in the reference. A
 	// type must have one of these field types to be included in the
 	// reference. The fields named here can be embedded fields.
 	RequiredFieldTypes []TypeInfo `yaml:"required_field_types"`
-	// Path to the root of the Go project directory
+	// Path to the root of the Go project directory.
 	SourcePath string `yaml:"source"`
-	// Path of the resource reference
+	// Path of the resource reference.
 	DestinationPath string `yaml:"destination"`
-	// Struct types to exclude from the reference
+	// Struct types to exclude from the reference.
 	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
 	// The name of the method that assigns values to the required fields
 	// within a dynamic resource. The generator determines that a type is a
