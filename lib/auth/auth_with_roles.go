@@ -3626,15 +3626,20 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // ValidateSAMLResponse validates SAML auth response.
-func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+	if !isProxy {
+		clientIP = "" // We only trust IP information coming from the Proxy.
+	}
+
 	// auth callback is it's own authz, no need to check extra permissions
-	resp, err := a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	resp, err := a.authServer.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Only the Proxy service can create web sessions via SAML connector.
-	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+	if resp.Session != nil && !isProxy {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
