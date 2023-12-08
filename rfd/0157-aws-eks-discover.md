@@ -169,7 +169,6 @@ message UIDiscoverEKSClusterEnrollEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
-  int64 selected_resources_count = 4;
 }
 ```
 
