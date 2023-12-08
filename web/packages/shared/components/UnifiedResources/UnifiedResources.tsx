@@ -489,8 +489,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               updatePinnedResourcesAttempt
             )}
             isProcessing={
+              // we don't check for '' in resourcesFetchAttempt because
+              // `keyBasedPagination` returns to that status on abort errors.
               resourcesFetchAttempt.status === 'processing' ||
+              getPinnedResourcesAttempt.status === '' ||
               getPinnedResourcesAttempt.status === 'processing' ||
+              unifiedResourcePreferencesAttempt.status === '' ||
               unifiedResourcePreferencesAttempt.status === 'processing'
             }
             mappedResources={
