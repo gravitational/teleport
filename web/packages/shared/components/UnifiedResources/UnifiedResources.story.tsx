@@ -135,7 +135,7 @@ const story = ({
         params={mergedParams}
         setParams={() => undefined}
         pinning={pinning}
-        unifiedResourcePreferencesAttempt={makeSuccessAttempt(userPrefs)}
+        unifiedResourcePreferences={userPrefs}
         updateUnifiedResourcesPreferences={setUserPrefs}
         NoResources={undefined}
         fetchResources={fetch}

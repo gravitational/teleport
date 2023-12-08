@@ -28,8 +28,6 @@ import {
 } from 'shared/components/UnifiedResources';
 import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
 
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
-
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
@@ -207,9 +205,7 @@ function ClusterResources({
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
-        unifiedResourcePreferencesAttempt={makeSuccessAttempt(
-          preferences.unifiedResourcePreferences
-        )}
+        unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
         }}

@@ -52,6 +52,7 @@ import {
   makeSuccessAttempt,
   useAsync,
   Attempt as AsyncAttempt,
+  hasFinished,
 } from 'shared/hooks/useAsync';
 import {
   useKeyBasedPagination,
@@ -71,7 +72,7 @@ import { ResourceTab } from './ResourceTab';
 import { FilterPanel } from './FilterPanel';
 import { CardsView } from './CardsView/CardsView';
 import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
+import { mapResourceToViewItem } from './shared/viewItemsFactory'; // get 48 resources to start
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -144,8 +145,8 @@ export interface UnifiedResourcesProps {
   setParams(params: UnifiedResourcesQueryParams): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
-  unifiedResourcePreferencesAttempt: AsyncAttempt<UnifiedResourcePreferences>;
-  unifiedResourcePreferencesFallback?: UnifiedResourcePreferences;
+  unifiedResourcePreferencesAttempt?: AsyncAttempt<void>;
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
@@ -163,8 +164,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     pinning,
     unifiedResourcePreferencesAttempt,
     updateUnifiedResourcesPreferences,
-    unifiedResourcePreferencesFallback,
-    updateUnifiedResourcesPreferencesAttempt,
+    unifiedResourcePreferences,
     bulkActions = [],
   } = props;
 
@@ -284,11 +284,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     );
   };
 
-  const unifiedResourcePreferences =
-    unifiedResourcePreferencesAttempt.status === 'success'
-      ? unifiedResourcePreferencesAttempt.data
-      : unifiedResourcePreferencesFallback;
-
   const selectTab = (value: DefaultTab) => {
     const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
     setParams({
@@ -297,21 +292,17 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
     setSelectedResources([]);
     setUpdatePinnedResources(makeEmptyAttempt());
-    if (unifiedResourcePreferences) {
-      updateUnifiedResourcesPreferences({
-        ...unifiedResourcePreferences,
-        defaultTab: value,
-      });
-    }
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      defaultTab: value,
+    });
   };
 
   const selectViewMode = (viewMode: ViewMode) => {
-    if (unifiedResourcePreferences) {
-      updateUnifiedResourcesPreferences({
-        ...unifiedResourcePreferences,
-        viewMode,
-      });
-    }
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      viewMode,
+    });
   };
 
   const setLabelsViewMode = (labelsViewMode: LabelsViewMode) => {
@@ -359,11 +350,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences.labelsViewMode ===
     LabelsViewMode.LABELS_VIEW_MODE_EXPANDED;
 
-  const ViewComponent = unifiedResourcePreferences
-    ? unifiedResourcePreferences?.viewMode === ViewMode.VIEW_MODE_LIST
+  const ViewComponent =
+    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
       ? ListView
-      : CardsView
-    : undefined;
+      : CardsView;
 
   return (
     <div
@@ -399,16 +389,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             {updatePinnedResourcesAttempt.statusText}
           </Danger>
         )}
-        {unifiedResourcePreferencesAttempt.status === 'error' && (
+        {unifiedResourcePreferencesAttempt?.status === 'error' && (
           <Danger mb={0}>
             Could not fetch unified view preferences:{' '}
             {unifiedResourcePreferencesAttempt.statusText}
-          </Danger>
-        )}
-        {updateUnifiedResourcesPreferencesAttempt?.status === 'error' && (
-          <Danger mb={0}>
-            Could not update unified view preferences:{' '}
-            {updateUnifiedResourcesPreferencesAttempt.statusText}
           </Danger>
         )}
       </ErrorsContainer>
@@ -420,7 +404,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         availableKinds={availableKinds}
         selectVisible={toggleSelectVisible}
         selected={allSelected}
-        currentViewMode={unifiedResourcePreferences?.viewMode}
+        currentViewMode={unifiedResourcePreferences.viewMode}
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
         setExpandAllLabels={expandAllLabels => {
@@ -476,12 +460,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               }
               title={tab.label}
               isSelected={
-                unifiedResourcePreferences
-                  ? // TODO(gzdunek): selected tab should be taken from unifiedResourcePreferences
-                    params.pinnedOnly
-                    ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
-                    : tab.value === DefaultTab.DEFAULT_TAB_ALL
-                  : false
+                params.pinnedOnly
+                  ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
+                  : tab.value === DefaultTab.DEFAULT_TAB_ALL
               }
             />
           ))}
@@ -490,34 +471,40 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       {pinning.kind === 'not-supported' && params.pinnedOnly ? (
         <PinningNotSupported />
       ) : (
-        ViewComponent && (
-          <ViewComponent
-            onLabelClick={label =>
-              setParams({
-                ...params,
-                search: '',
-                query: makeAdvancedSearchQueryForLabel(label, params),
-              })
-            }
-            pinnedResources={pinnedResources}
-            selectedResources={selectedResources}
-            onSelectResource={handleSelectResource}
-            onPinResource={handlePinResource}
-            pinningSupport={getResourcePinningSupport(
-              pinning.kind,
-              updatePinnedResourcesAttempt
-            )}
-            isProcessing={
-              resourcesFetchAttempt.status === 'processing' ||
-              getPinnedResourcesAttempt.status === 'processing' ||
-              unifiedResourcePreferencesAttempt.status === 'processing'
-            }
-            mappedResources={resources.map(unifiedResource => ({
-              item: mapResourceToViewItem(unifiedResource),
-              key: generateUnifiedResourceKey(unifiedResource.resource),
-            }))}
-          expandAllLabels={expandAllLabels}/>
-        )
+        <ViewComponent
+          onLabelClick={label =>
+            setParams({
+              ...params,
+              search: '',
+              query: makeAdvancedSearchQueryForLabel(label, params),
+            })
+          }
+          pinnedResources={pinnedResources}
+          selectedResources={selectedResources}
+          onSelectResource={handleSelectResource}
+          onPinResource={handlePinResource}
+          pinningSupport={getResourcePinningSupport(
+            pinning.kind,
+            updatePinnedResourcesAttempt
+          )}
+          isProcessing={
+            resourcesFetchAttempt.status === 'processing' ||
+            getPinnedResourcesAttempt.status === 'processing' ||
+            unifiedResourcePreferencesAttempt.status === 'processing'
+          }
+          mappedResources={
+            // Hide the resources until the preferences are fetched.
+            // ViewComponent supports infinite scroll, so it shows both already loaded resources
+            // and a loading indicator if needed.
+            hasFinished(unifiedResourcePreferencesAttempt)
+              ? resources.map(unifiedResource => ({
+                item: mapResourceToViewItem(unifiedResource),
+                key: generateUnifiedResourceKey(unifiedResource.resource),
+              }))
+              : []
+          }
+          expandAllLabels={expandAllLabels}
+        />
       )}
       <div ref={setTrigger} />
       <ListFooter>
