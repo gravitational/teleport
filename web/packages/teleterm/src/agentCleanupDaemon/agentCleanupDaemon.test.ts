@@ -170,9 +170,13 @@ describe('isRunning', () => {
 });
 
 const waitForMessage = (process: childProcess.ChildProcess) =>
-  new Promise((resolve, reject) => {
-    setTimeout(() => reject(new Error('timeout')), 4000);
-    process.once('message', resolve);
+  new Promise<childProcess.Serializable>((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(new Error('timeout')), 4000);
+
+    process.once('message', message => {
+      clearTimeout(timeoutId);
+      resolve(message);
+    });
   });
 
 const expectPidToEventuallyTerminate = async (pid: number) =>
