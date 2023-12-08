@@ -100,9 +100,10 @@ We will reuse the existing EKS discovery capability, although a new mode will be
 the AWS integration. EKS discovery in that mode will rely on the AWS integration, selected in the Discovery UI,
 to find clusters and then install the Helm chart on them. The algorithm will be as follows:
 - List EKS clusters through the AWS integration.
-- Cross-check to see which EKS clusters are already registered in the system.
-- Once a new EKS cluster is found, associate our OIDC provider with it.
+- Cross-check to see which EKS clusters are already registered in the system, using labels we inject on Helm chart installation.
+- Once a new EKS cluster is found, associate our OIDC provider with it and wait for association to be in active state.
 - Using the associated provider, generate an access token and install the kube agent through the Helm chart.
+- Disassociate our OIDC provider from the EKS cluster.
 
 Users will be able to filter EKS clusters for discovery by using labels.
 
