@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package socketpair
+package uds
 
 import (
 	"os"
@@ -26,12 +26,29 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewFDs creates a unix socket pair, returning the halves as files.
-func NewFDs() (left, right *os.File, err error) {
-	lfd, rfd, err := cloexecSocketpair()
+// NewSocketpair creates a unix socket pair, returning the halves as files.
+func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+	lfd, rfd, err := cloexecSocketpair(t)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return os.NewFile(lfd, "lsock"), os.NewFile(rfd, "rsock"), nil
+	lfile, rfile := os.NewFile(lfd, "lsock"), os.NewFile(rfd, "rsock")
+	defer func() {
+		lfile.Close()
+		rfile.Close()
+	}()
+
+	left, err = FromFile(lfile)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	right, err = FromFile(rfile)
+	if err != nil {
+		left.Close()
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return left, right, nil
 }

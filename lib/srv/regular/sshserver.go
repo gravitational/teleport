@@ -65,12 +65,11 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
-	"github.com/gravitational/teleport/lib/srv/tcpip"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/socketpair"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -1120,25 +1119,25 @@ func (s *Server) getDirectTCPIPForwardDialer(ctx *srv.ServerContext) (sshutils.T
 		return d, nil
 	}
 
-	dialerFD, listenerFD, err := socketpair.NewFDs()
+	dialerConn, listenerConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer listenerConn.Close()
 
-	socketDialer, err := socketpair.DialerFromFD(dialerFD)
+	listenerFD, err := listenerConn.File()
 	if err != nil {
+		dialerConn.Close()
 		return nil, trace.Wrap(err)
 	}
-
-	dialer := tcpip.NewDialer(socketDialer)
+	defer listenerFD.Close()
 
 	// Create command to re-exec Teleport which will handle forwarding. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
 	cmd, err := srv.ConfigureCommand(ctx, listenerFD)
 	if err != nil {
-		listenerFD.Close()
-		dialer.Close()
+		dialerConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1147,10 +1146,8 @@ func (s *Server) getDirectTCPIPForwardDialer(ctx *srv.ServerContext) (sshutils.T
 
 	// Start the child process that will be used to make the actual connection
 	// to the target host.
-	err = cmd.Start()
-	listenerFD.Close()
-	if err != nil {
-		dialer.Close()
+	if err := cmd.Start(); err != nil {
+		dialerConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1168,7 +1165,7 @@ func (s *Server) getDirectTCPIPForwardDialer(ctx *srv.ServerContext) (sshutils.T
 	closer := utils.CloseFunc(func() error {
 		// set flag indicating that the exit of the child is expected (changes logging behavior).
 		explicitlyClosed.Store(true)
-		dialer.Close()
+		dialerConn.Close()
 
 		// we expect closing the dialer to cause the child process to exit, but its
 		// best to verify.
@@ -1181,6 +1178,32 @@ func (s *Server) getDirectTCPIPForwardDialer(ctx *srv.ServerContext) (sshutils.T
 		}
 		return nil
 	})
+
+	// set up a dial function that sends the address + fd as a unix datagram message. the forwarder subprocess
+	// interprets all such messages in this way, and will dial the specified address and proxy all traffic
+	// to the desired endpoint.
+	dialer := func(addr string) (net.Conn, error) {
+		local, remote, err := uds.NewSocketpair(uds.SocketTypeStream)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer remote.Close()
+
+		remoteFD, err := remote.File()
+		if err != nil {
+			local.Close()
+			return nil, trace.Wrap(err)
+		}
+		defer remoteFD.Close()
+
+		_, _, err = dialerConn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+		if err != nil {
+			local.Close()
+			return nil, trace.Wrap(err)
+		}
+
+		return local, nil
+	}
 
 	// try to register with the parent context.
 	if other, ok := ctx.Parent().TrySetDirectTCPIPForwardDialer(dialer); !ok {
@@ -1490,7 +1513,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 
-	dialer, err := s.getDirectTCPIPForwardDialer(scx)
+	dialFunc, err := s.getDirectTCPIPForwardDialer(scx)
 	if err != nil {
 		if errors.Is(err, trace.NotFound(user.UnknownUserError(scx.Identity.Login).Error())) || errors.Is(err, trace.BadParameter("unknown user")) {
 			// user does not exist for the provided login. Terminate the connection.
@@ -1509,7 +1532,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.Debugf("Opening direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 	defer scx.Debugf("Closing direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 
-	conn, err := dialer.Dial(scx.DstAddr)
+	conn, err := dialFunc(scx.DstAddr)
 	if err != nil {
 		writeStderr(channel, err.Error())
 		return
