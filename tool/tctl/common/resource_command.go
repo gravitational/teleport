@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -847,19 +849,25 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 		return trace.Wrap(err)
 	}
 
-	connectorName := conn.GetName()
-	_, err = client.GetOIDCConnector(ctx, connectorName, false)
-	if err != nil && !trace.IsNotFound(err) {
+	if rc.force {
+		upserted, err := client.UpsertOIDCConnector(ctx, conn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("authentication connector '%s' has been updated\n", upserted.GetName())
+		return nil
+	}
+
+	created, err := client.CreateOIDCConnector(ctx, conn)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", conn.GetName())
+		}
+
 		return trace.Wrap(err)
 	}
-	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
-	}
-	if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+
+	fmt.Printf("authentication connector '%s' has been created\n", created.GetName())
 	return nil
 }
 

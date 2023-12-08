@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -942,12 +944,12 @@ func NewDatabasesFromRDSCluster(cluster *rds.DBCluster) (types.Databases, error)
 }
 
 // NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
-func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) (types.Database, error) {
+func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxy(dbProxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily))
+	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.StringValue(dbProxy.EngineFamily))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -965,12 +967,12 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) 
 
 // NewDatabaseFromRDSProxyCustomEndpoint creates database resource from RDS
 // Proxy custom endpoint.
-func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, port int64, tags []*rds.Tag) (types.Database, error) {
+func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxyCustomEndpoint(dbProxy, customEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	protocol, err := rdsEngineFamilyToProtocol(aws.StringValue(dbProxy.EngineFamily))
+	protocol, port, err := rdsEngineFamilyToProtocolAndPort(aws.StringValue(dbProxy.EngineFamily))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1525,17 +1527,17 @@ func rdsEngineToProtocol(engine string) (string, error) {
 	return "", trace.BadParameter("unknown RDS engine type %q", engine)
 }
 
-// rdsEngineFamilyToProtocol converts RDS engine family to the database protocol.
-func rdsEngineFamilyToProtocol(engineFamily string) (string, error) {
+// rdsEngineFamilyToProtocolAndPort converts RDS engine family to the database protocol and port.
+func rdsEngineFamilyToProtocolAndPort(engineFamily string) (string, int, error) {
 	switch engineFamily {
 	case rds.EngineFamilyMysql:
-		return defaults.ProtocolMySQL, nil
+		return defaults.ProtocolMySQL, RDSProxyMySQLPort, nil
 	case rds.EngineFamilyPostgresql:
-		return defaults.ProtocolPostgres, nil
+		return defaults.ProtocolPostgres, RDSProxyPostgresPort, nil
 	case rds.EngineFamilySqlserver:
-		return defaults.ProtocolSQLServer, nil
+		return defaults.ProtocolSQLServer, RDSProxySQLServerPort, nil
 	}
-	return "", trace.BadParameter("unknown RDS engine family type %q", engineFamily)
+	return "", 0, trace.BadParameter("unknown RDS engine family type %q", engineFamily)
 }
 
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
@@ -2040,6 +2042,15 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	// RDSProxyMySQLPort is the port that RDS Proxy listens on for MySQL connections.
+	RDSProxyMySQLPort = 3306
+	// RDSProxyPostgresPort is the port that RDS Proxy listens on for Postgres connections.
+	RDSProxyPostgresPort = 5432
+	// RDSProxySQLServerPort is the port that RDS Proxy listens on for SQL Server connections.
+	RDSProxySQLServerPort = 1433
 )
 
 const (

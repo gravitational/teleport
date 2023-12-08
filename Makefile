@@ -882,7 +882,7 @@ test-rust:
 endif
 endif
 
-# Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
+# Run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
 test-sh:
 	@if ! type bats 2>&1 >/dev/null; then \
@@ -890,7 +890,7 @@ test-sh:
 		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+	bats $(BATSFLAGS) ./assets/aws/files/tests
 
 
 .PHONY: test-e2e
@@ -1079,7 +1079,7 @@ lint-helm:
 	$(MAKE) -C examples/chart check-chart-ref
 
 ADDLICENSE := $(GOPATH)/bin/addlicense
-ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
+ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
 		-ignore '**/*.h' \
 		-ignore '**/*.html' \
@@ -1104,14 +1104,21 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore 'ignoreme'
+ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
+		-ignore 'api/**' \
+		-f $(CURDIR)/build.assets/LICENSE.header
+ADDLICENSE_APACHE2_ARGS := $(ADDLICENSE_COMMON_ARGS) \
+		-l apache
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
-	$(ADDLICENSE) $(ADDLICENSE_ARGS) -check * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) -check * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) -check api/* 2>/dev/null
 
 .PHONY: fix-license
 fix-license: $(ADDLICENSE)
-	$(ADDLICENSE) $(ADDLICENSE_ARGS) * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) api/* 2>/dev/null
 
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0

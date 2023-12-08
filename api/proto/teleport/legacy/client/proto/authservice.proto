@@ -479,6 +479,15 @@ message PingResponse {
   reserved "LicenseWarnings";
 }
 
+// ProductType is the type of product.
+enum ProductType {
+  PRODUCT_TYPE_UNKNOWN = 0;
+  // PRODUCT_TYPE_TEAM is Teleport Team product.
+  PRODUCT_TYPE_TEAM = 1;
+  // PRODUCT_TYPE_EUB is Teleport Enterprise Usage Based product.
+  PRODUCT_TYPE_EUB = 2;
+}
+
 // Features are auth server features.
 message Features {
   // Kubernetes enables Kubernetes Access product
@@ -493,11 +502,17 @@ message Features {
   bool SAML = 5 [(gogoproto.jsontag) = "saml"];
   // AccessControls enables FIPS access controls
   bool AccessControls = 6 [(gogoproto.jsontag) = "access_controls"];
-  // AdvancedAccessWorkflows enables advanced access workflows.
+  // Currently this flag is to gate actions from OSS clusters.
   //
-  // This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
-  // product. It will still be used for backwards compatibility for legacy feature support
-  // where existing licenses before EUB should still have the same support as before.
+  // Determining support for access request is currently determined by:
+  //   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
+  //   introduced with Enterprise Usage Based (EUB) product.
+  //   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
+  //   where before EUB, it was unlimited.
+  //
+  // AdvancedAccessWorkflows is currently set to true for all
+  // enterprise editions (team, cloud, on-prem). Historically, access request
+  // was only available for enterprise cloud and enterprise on-prem.
   bool AdvancedAccessWorkflows = 7 [(gogoproto.jsontag) = "advanced_access_workflows"];
   // Cloud enables some cloud-related features
   bool Cloud = 8 [(gogoproto.jsontag) = "cloud"];
@@ -535,17 +550,21 @@ message Features {
   AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
   // AccessMonitoringFeature holds its namesake feature settings.
   AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
+  // ProductType describes the product being used.
+  ProductType ProductType = 27 [(gogoproto.jsontag) = "product_type,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
 // settings.
 // Limits have no affect if [Features.IdentityGovernance] is enabled.
 message DeviceTrustFeature {
-  // True if the Device Trust feature is enabled.
+  // Currently this flag is to gate actions from OSS clusters.
   //
-  // This field is now a legacy flag with the introduction of Enterprise Usage Based (EUB)
-  // product. It will still be used for backwards compatibility for legacy feature support
-  // where existing licenses before EUB should still have the same support as before.
+  // Determining support for device trust is currently determined by:
+  //   1) Enterprise + [Features.IdentityGovernanceSecurity] == true, new flag
+  //   introduced with Enterprise Usage Based (EUB) product.
+  //   2) Enterprise + [Features.IsUsageBasedBilling] == false, legacy support
+  //   where before EUB, it was unlimited.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Usage-based limit for the number of registered/enrolled devices, at the
   // implementation's discretion.
@@ -576,6 +595,8 @@ message AccessListFeature {
 message AccessMonitoringFeature {
   // True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // Defines the max number of days to include in an access report.
+  int32 max_report_range_limit = 2 [(gogoproto.jsontag) = "max_report_range_limit,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2241,6 +2262,8 @@ message UpstreamInventoryHello {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 5;
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 6;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

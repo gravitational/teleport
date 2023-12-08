@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -2035,12 +2037,21 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 		return trace.BadParameter("unexpected token type %T", token)
 	}
 
-	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+	switch v.Spec.JoinMethod {
+	case types.JoinMethodGitHub:
+		if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+			return fmt.Errorf(
+				"github enterprise server joining: %w",
+				ErrRequiresEnterprise,
+			)
+		}
+	case types.JoinMethodSpacelift:
 		return fmt.Errorf(
-			"github enterprise server joining: %w",
+			"spacelift joining: %w",
 			ErrRequiresEnterprise,
 		)
 	}
+
 	return nil
 }
 
@@ -3197,22 +3208,22 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if !modules.GetModules().Features().OIDC {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
-		return trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	err := a.authServer.UpsertOIDCConnector(ctx, connector)
-	return trace.Wrap(err)
+	upserted, err := a.authServer.UpsertOIDCConnector(ctx, connector)
+	return upserted, trace.Wrap(err)
 }
 
 // UpdateOIDCConnector updates an existing OIDC connector.
@@ -3430,15 +3441,20 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // ValidateSAMLResponse validates SAML auth response.
-func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+	if !isProxy {
+		clientIP = "" // We only trust IP information coming from the Proxy.
+	}
+
 	// auth callback is it's own authz, no need to check extra permissions
-	resp, err := a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	resp, err := a.authServer.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Only the Proxy service can create web sessions via SAML connector.
-	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+	if resp.Session != nil && !isProxy {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
