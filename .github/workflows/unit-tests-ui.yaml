@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      options: --init
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
