@@ -169,7 +169,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   };
 }
 
-// TODO(gzdunek): Remove this fallback in v16.
+// TODO(gzdunek): DELETE IN 16.0.0.
 // Support for UnifiedTabPreference has been added in 14.1 and for
 // UnifiedViewModePreference in 14.1.5.
 // We have to support these values being undefined/unset in Connect v15.

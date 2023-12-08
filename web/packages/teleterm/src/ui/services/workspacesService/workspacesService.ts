@@ -403,7 +403,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   // Parsing should be extended to the entire state read from disk.
   private parseUnifiedResourcePreferences(
     unifiedResourcePreferences: unknown
-    //TODO(gzdunek): Remove partial in v16. See comment in useUserPreferences.ts.
+    // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
   ): Partial<UnifiedResourcePreferences> | undefined {
     const schema = z.object({
       defaultTab: z.nativeEnum(DefaultTab),
