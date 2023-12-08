@@ -67,7 +67,7 @@ to an EKS cluster (details [below](#eks-identity-provider-association)). AWS per
 We will reuse existing code for AWS Integration setup using these new permissions.
 
 After setting up AWS integration, users will see a list of the EKS clusters in the next step.
-There, they will be able to use checkboxes in the table to select the cluster(s) they want to enroll.
+There, they will be able to select the cluster they want to enroll.
 We will determine which clusters are already enrolled and present in the Teleport inventory; those clusters
 will be greyed out in the table.
 
@@ -75,20 +75,17 @@ Users will also have an option to enable Kubernetes App Discovery in the enrolle
 will be enabled by default.
 
 Users will have two main options for enrolling EKS clusters:
- - Enroll specific selected clusters from the list of available ones.
+ - Enroll specific selected cluster from the list of available ones.
  - Set up automatic discovery and enrollment of the clusters using OIDC integration.
+
+Cluster enrollment will be done through the installation of the Teleport agent using the Helm chart
+`teleport-kube-agent`.
 
 ### Enrolling Selected Clusters
 
 For the enrollment of just the selected clusters, users will be further given two choices:
-- Manually run a script in the AWS CloudShell.
 - Use EKS OIDC identity provider association to enroll a cluster with just the API.
-
-Cluster enrollment will be done through the installation of the Teleport agent using the Helm chart
-`teleport-kube-agent`. 
-
-For the AWS CloudShell, the command we generate will download a script
-that will run the Helm installation of the chart on the clusters selected by the user.
+- As a backup option - manually run a Helm command that we generated for them.
 
 For completely automated cluster enrollment through the API, the Helm Go SDK will be used -
 allowing us to avoid the need for an additional step to run Helm itself elsewhere. It would require
