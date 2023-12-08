@@ -1,25 +1,27 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, MutableRefObject } from 'react';
 
 import { ResourcesResponse } from 'teleport/services/agents';
 import { ApiError } from 'teleport/services/api/parseError';
 
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 
 /**
@@ -36,10 +38,19 @@ export function useKeyBasedPagination<T>({
   initialFetchSize = 30,
   fetchMoreSize = 20,
 }: KeyBasedPaginationOptions<T>): KeyBasedPagination<T> {
-  const { attempt, setAttempt } = useAttempt();
-  const [finished, setFinished] = useState(false);
-  const [resources, setResources] = useState<T[]>([]);
-  const [startKey, setStartKey] = useState<string | null>(null);
+  // Because we need to access the current state in `fetch`, we can't use regular
+  // `useState`.
+  const [stateRef, setState] = useRefState<{
+    attempt: Attempt;
+    finished: boolean;
+    resources: T[];
+    startKey: string | null;
+  }>({
+    attempt: { status: '', statusText: '' },
+    finished: false,
+    resources: [],
+    startKey: null,
+  });
 
   // Ephemeral state used solely to coordinate fetch calls, doesn't need to
   // cause rerenders.
@@ -51,85 +62,106 @@ export function useKeyBasedPagination<T>({
     abortController.current = null;
     pendingPromise.current = null;
 
-    setAttempt({ status: '', statusText: '' });
-    setFinished(false);
-    setResources([]);
-    setStartKey(null);
-  }, [setAttempt]);
-
-  const fetchInternal = async (force: boolean) => {
-    if (
-      finished ||
-      (!force &&
-        (pendingPromise.current ||
-          attempt.status === 'processing' ||
-          attempt.status === 'failed'))
-    ) {
-      return;
-    }
-
-    try {
-      setAttempt({ status: 'processing' });
-      abortController.current?.abort();
-      abortController.current = new AbortController();
-      const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
-      const newPromise = fetchFunc(
-        {
-          limit,
-          startKey,
-        },
-        abortController.current.signal
-      );
-      pendingPromise.current = newPromise;
-
-      const res = await newPromise;
-
-      if (pendingPromise.current !== newPromise) {
-        return;
-      }
-
-      pendingPromise.current = null;
-      abortController.current = null;
-      // Note: even though the old resources appear in this call, this _is_ more
-      // correct than a standard practice of using a callback form of
-      // `setState`. This is because, contrary to an "increasing a counter"
-      // analogy, adding given set of resources to the current set of resources
-      // strictly depends on the exact set of resources that were there when
-      // `fetch` was called. This shouldn't make a difference in practice (we
-      // have other ways to mitigate discrepancies here), but better safe than
-      // sorry.
-      setResources([...resources, ...res.agents]);
-      setStartKey(res.startKey);
-      if (!res.startKey) {
-        setFinished(true);
-      }
-      setAttempt({ status: 'success' });
-    } catch (err) {
-      // Aborting is not really an error here.
-      if (isAbortError(err)) {
-        setAttempt({ status: '', statusText: '' });
-        return;
-      }
-      let statusCode;
-      if (err instanceof ApiError && err.response) {
-        statusCode = err.response.status;
-      }
-      setAttempt({ status: 'failed', statusText: err.message, statusCode });
-    }
-  };
+    setState({
+      attempt: { status: '', statusText: '' },
+      startKey: null,
+      finished: false,
+      resources: [],
+    });
+  }, [setState]);
 
   const fetch = useCallback(
-    (options: { force?: boolean }) => fetchInternal(!!options?.force),
-    [fetchFunc, startKey, resources, finished, attempt]
+    async (options?: { force?: boolean }) => {
+      const { finished, attempt, resources, startKey } = stateRef.current;
+      if (
+        finished ||
+        (!options?.force &&
+          (pendingPromise.current ||
+            attempt.status === 'processing' ||
+            attempt.status === 'failed'))
+      ) {
+        return;
+      }
+
+      try {
+        setState({
+          ...stateRef.current,
+          attempt: { status: 'processing' },
+        });
+        abortController.current?.abort();
+        abortController.current = new AbortController();
+        const limit = resources.length > 0 ? fetchMoreSize : initialFetchSize;
+        const newPromise = fetchFunc(
+          {
+            limit,
+            startKey,
+          },
+          abortController.current.signal
+        );
+        pendingPromise.current = newPromise;
+
+        const res = await newPromise;
+
+        if (pendingPromise.current !== newPromise) {
+          return;
+        }
+
+        pendingPromise.current = null;
+        abortController.current = null;
+
+        setState({
+          resources: [...resources, ...res.agents],
+          startKey: res.startKey,
+          finished: !res.startKey,
+          attempt: { status: 'success' },
+        });
+      } catch (err) {
+        // Aborting is not really an error here.
+        if (isAbortError(err)) {
+          setState({
+            ...stateRef.current,
+            attempt: { status: '', statusText: '' },
+          });
+          return;
+        }
+        let statusCode: number | undefined;
+        if (err instanceof ApiError && err.response) {
+          statusCode = err.response.status;
+        }
+        setState({
+          ...stateRef.current,
+          attempt: { status: 'failed', statusText: err.message, statusCode },
+        });
+      }
+    },
+    [fetchFunc, stateRef, setState, fetchMoreSize, initialFetchSize]
   );
 
   return {
     fetch,
     clear,
-    attempt,
-    resources,
-    finished,
+    attempt: stateRef.current.attempt,
+    resources: stateRef.current.resources,
+    finished: stateRef.current.finished,
   };
+}
+
+/**
+ *  `useRefState` returns a mutable ref object and an update function
+ *  that triggers re-render.
+ */
+function useRefState<T>(
+  initialState: T
+): [MutableRefObject<T>, (newState: T) => void] {
+  const stateRef = useRef<T>(initialState);
+  const [, setRefresh] = useState({});
+
+  const setStateAndRefresh = useCallback((newState: T) => {
+    stateRef.current = newState;
+    setRefresh({}); // triggers re-render
+  }, []);
+
+  return [stateRef, setStateAndRefresh];
 }
 
 export type KeyBasedPaginationOptions<T> = {

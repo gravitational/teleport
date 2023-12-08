@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package iam
 
@@ -49,7 +51,10 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 // GetAWSPolicyDocumentForAssumedRole returns the AWS IAM policy document for
 // provided database for setting up the IAM role assumed by the database agent.
 func GetAWSPolicyDocumentForAssumedRole(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
-	if db.GetType() == types.DatabaseTypeRedshiftServerless {
+	switch db.GetType() {
+	case types.DatabaseTypeRedshift:
+		return getRedshiftAssumedRolePolicyDocument(db)
+	case types.DatabaseTypeRedshiftServerless:
 		return getRedshiftServerlessPolicyDocument(db)
 	}
 	return nil, nil, trace.BadParameter("GetAWSPolicyDocumentForAssumedRole is not supported for database type %s", db.GetType())
@@ -173,6 +178,32 @@ func getRedshiftPolicyDocument(db types.Database) (*awslib.PolicyDocument, Place
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbuser:%v/*", partition, region, accountID, clusterID),
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*", partition, region, accountID, clusterID),
 			fmt.Sprintf("arn:%v:redshift:%v:%v:dbgroup:%v/*", partition, region, accountID, clusterID),
+		},
+	})
+	return policyDoc, placeholders, nil
+}
+
+// getRedshiftAssumedRolePolicyDocument returns the policy document used for
+// Redshift databases when the database user is an IAM role.
+//
+// https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonredshift.html
+func getRedshiftAssumedRolePolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	aws := db.GetAWS()
+	partition := awsutils.GetPartitionFromRegion(aws.Region)
+	region := aws.Region
+	accountID := aws.AccountID
+	clusterID := aws.Redshift.ClusterID
+
+	placeholders := Placeholders(nil).
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&clusterID, "{cluster_id}")
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: awslib.SliceOrString{"redshift:GetClusterCredentialsWithIAM"},
+		Resources: awslib.SliceOrString{
+			fmt.Sprintf("arn:%v:redshift:%v:%v:dbname:%v/*", partition, region, accountID, clusterID),
 		},
 	})
 	return policyDoc, placeholders, nil

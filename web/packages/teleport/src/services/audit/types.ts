@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
@@ -265,6 +267,8 @@ export const eventCodes = {
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
   SECURITY_REPORT_AUDIT_QUERY_RUN: 'SRE001I',
   SECURITY_REPORT_RUN: 'SRE002I',
+  EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
+  EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
 } as const;
 
 /**
@@ -1055,6 +1059,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_STARTED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1063,6 +1068,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_STARTED_FAILED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1071,6 +1077,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_ENDED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1453,11 +1460,23 @@ export type RawEvents = {
     }
   >;
   [eventCodes.SECURITY_REPORT_RUN]: RawEvent<
-    typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
+    typeof eventCodes.SECURITY_REPORT_RUN,
     {
       name: string;
       total_execution_time_in_millis: string;
       total_data_scanned_in_bytes: string;
+    }
+  >;
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: RawEvent<
+    typeof eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE,
+    {
+      updated_by: string;
+    }
+  >;
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: RawEvent<
+    typeof eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE,
+    {
+      updated_by: string;
     }
   >;
 };

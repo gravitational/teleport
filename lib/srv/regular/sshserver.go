@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package regular implements SSH server that supports multiplexing
 // tunneling, SSH connections proxying and only supports Key based auth
@@ -1924,15 +1926,14 @@ func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCon
 
 // handleKeepAlive accepts and replies to keepalive@openssh.com requests.
 func (s *Server) handleKeepAlive(req *ssh.Request) {
-	s.Logger.Debugf("Received %q: WantReply: %v", req.Type, req.WantReply)
-
 	// only reply if the sender actually wants a response
-	if req.WantReply {
-		err := req.Reply(true, nil)
-		if err != nil {
-			s.Logger.Warnf("Unable to reply to %q request: %v", req.Type, err)
-			return
-		}
+	if !req.WantReply {
+		return
+	}
+
+	if err := req.Reply(true, nil); err != nil {
+		s.Logger.Warnf("Unable to reply to %q request: %v", req.Type, err)
+		return
 	}
 
 	s.Logger.Debugf("Replied to %q", req.Type)

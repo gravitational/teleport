@@ -676,6 +676,9 @@ message InstanceSpecV1 {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
+
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -2532,6 +2535,9 @@ enum CreateHostUserMode {
   HOST_USER_MODE_DROP = 2;
   // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
   HOST_USER_MODE_KEEP = 3;
+  // HOST_USER_MODE_INSECURE enables host user creation without a home directory and deletes
+  // users at session end.
+  HOST_USER_MODE_INSECURE_DROP = 4;
 }
 
 // CreateDatabaseUserMode determines whether database user creation should be
@@ -6281,6 +6287,9 @@ message AWSMatcher {
   // SSM provides options to use when sending a document command to
   // an EC2 node
   AWSSSM SSM = 6 [(gogoproto.jsontag) = "ssm,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role

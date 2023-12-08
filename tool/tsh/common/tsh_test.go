@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -232,6 +234,8 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 }
 
 func (p *cliModules) EnableAccessGraph() {}
+
+func (p *cliModules) EnableAccessMonitoring() {}
 
 func TestAlias(t *testing.T) {
 	testExecutable, err := os.Executable()
@@ -4514,6 +4518,18 @@ func TestListDatabasesWithUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	dbWithAutoUser, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "auto-user",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "teleport-admin",
+		},
+	})
+	require.NoError(t, err)
+
 	roleDevStage := &types.RoleV6{
 		Metadata: types.Metadata{Name: "dev-stage", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4535,6 +4551,21 @@ func TestListDatabasesWithUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	roleAutoUser := &types.RoleV6{
+		Metadata: types.Metadata{Name: "auto-user", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"dev"},
+				DatabaseNames:  []string{"*"},
+				DatabaseUsers:  []string{types.Wildcard},
 			},
 		},
 	}
@@ -4598,6 +4629,33 @@ func TestListDatabasesWithUsers(t *testing.T) {
 			},
 			wantText: "[dev]",
 		},
+		{
+			name:     "db with admin user and role with auto-user",
+			database: dbWithAutoUser,
+			roles:    services.RoleSet{roleAutoUser},
+			wantUsers: &dbUsers{
+				Allowed: []string{"alice"},
+			},
+			wantText: "[alice] (Auto-provisioned)",
+		},
+		{
+			name:     "db with admin user but role without auto-user",
+			database: dbWithAutoUser,
+			roles:    services.RoleSet{roleDevProd},
+			wantUsers: &dbUsers{
+				Allowed: []string{"dev"},
+			},
+			wantText: "[dev]",
+		},
+		{
+			name:     "db without admin user but role with auto-user",
+			database: dbProd,
+			roles:    services.RoleSet{roleAutoUser},
+			wantUsers: &dbUsers{
+				Allowed: []string{"*"},
+			},
+			wantText: "[*]",
+		},
 	}
 
 	for _, tt := range tests {
@@ -4605,7 +4663,9 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+				Username: "alice",
+			}, "clustername", tt.roles)
 
 			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)

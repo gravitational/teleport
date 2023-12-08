@@ -58,7 +58,7 @@ func currentUser(getUser userGetter, timeout time.Duration) (*user.User, error) 
 		return u.user, trace.Wrap(u.err)
 	case <-timer.C:
 		return nil, trace.LimitExceeded(
-			"looking up the current host user exceeded timeout, try explicitly specifying the Teleport user or host user with --user or --login",
+			"unexpected host user lookup timeout, please explicitly specify the Teleport user with \"--user\" and the host user \"--login\" to skip host user lookup",
 		)
 	}
 }

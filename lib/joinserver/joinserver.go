@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package joinserver contains the implementation of the JoinService gRPC server
 // which runs on both Auth and Proxy.
@@ -20,6 +22,8 @@ package joinserver
 
 import (
 	"context"
+	"net"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,6 +33,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -109,7 +116,14 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv 
 
 		// Then get the response from the client and return it.
 		req, err := srv.Recv()
-		return req, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -160,6 +174,28 @@ func (s *JoinServiceGRPCServer) RegisterUsingAzureMethod(srv proto.JoinService_R
 	}
 }
 
+func checkForProxyRole(identity tlsca.Identity) bool {
+	const proxyRole = string(types.RoleProxy)
+	return slices.Contains(identity.Groups, proxyRole) || slices.Contains(identity.SystemRoles, proxyRole)
+}
+
+func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+	// If request is coming from the Proxy, trust the IP set on the request.
+	if user, err := authz.UserFromContext(ctx); err == nil && checkForProxyRole(user.GetIdentity()) {
+		return nil
+	}
+	// Otherwise this is (likely) the proxy, set the IP from the connection.
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("could not get peer from the context")
+	}
+	req.RemoteAddr = p.Addr.String() // Addr without port is used in tests.
+	if ip, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		req.RemoteAddr = ip
+	}
+	return nil
+}
+
 func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, srv proto.JoinService_RegisterUsingAzureMethodServer) error {
 	certs, err := s.joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 		err := srv.Send(&proto.RegisterUsingAzureMethodResponse{
@@ -170,7 +206,14 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, sr
 		}
 
 		req, err := srv.Recv()
-		return req, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -236,7 +238,7 @@ type AccessChecker interface {
 	EnumerateEntities(resource AccessCheckable, listFn roleEntitiesListFn, newMatcher roleMatcherFactoryFn, extraEntities ...string) EnumerationResult
 
 	// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
-	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult
+	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error)
 
 	// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
 	EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult
@@ -265,6 +267,8 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
+	// Username is the Teleport username.
+	Username string
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -340,7 +344,8 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}
 
 	remoteAccessInfo := &AccessInfo{
-		Traits: remoteUser.GetTraits(),
+		Username: localAccessInfo.Username,
+		Traits:   remoteUser.GetTraits(),
 		// Will fill this in with the names of the remote/mapped roles we got
 		// from GetCurrentUserRoles.
 		Roles: make([]string, 0, len(remoteRoles)),
@@ -563,14 +568,26 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (mode types.
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
-func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error) {
+	// When auto-user provisioning is enabled, only Teleport username is allowed.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		result := NewEnumerationResult()
+		autoUser, _, err := a.CheckDatabaseRoles(database)
+		if err != nil {
+			return result, trace.Wrap(err)
+		} else if autoUser.IsEnabled() {
+			result.allowedDeniedMap[a.info.Username] = true
+			return result, nil
+		}
+	}
+
 	listFn := func(role types.Role, condition types.RoleConditionType) []string {
 		return role.GetDatabaseUsers(condition)
 	}
 	newMatcher := func(user string) RoleMatcher {
 		return NewDatabaseUserMatcher(database, user)
 	}
-	return a.EnumerateEntities(database, listFn, newMatcher, extraUsers...)
+	return a.EnumerateEntities(database, listFn, newMatcher, extraUsers...), nil
 }
 
 // EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
@@ -880,7 +897,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			mode = createHostUserMode
 		}
 		// prefer to use HostUserModeKeep over Drop if mode has already been set.
-		if mode == types.CreateHostUserMode_HOST_USER_MODE_DROP && createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+		if (mode == types.CreateHostUserMode_HOST_USER_MODE_DROP || mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP) &&
+			createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
 			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
 		}
 
@@ -999,6 +1017,7 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 	}
 
 	return &AccessInfo{
+		Username:           cert.KeyId,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1045,6 +1064,7 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMa
 	}
 
 	return &AccessInfo{
+		Username:           cert.KeyId,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1078,6 +1098,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 	}
 
 	return &AccessInfo{
+		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1127,6 +1148,7 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
+		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
@@ -1171,7 +1193,8 @@ func AccessInfoFromUserState(user UserState) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
 	return &AccessInfo{
-		Roles:  roles,
-		Traits: traits,
+		Username: user.GetName(),
+		Roles:    roles,
+		Traits:   traits,
 	}
 }

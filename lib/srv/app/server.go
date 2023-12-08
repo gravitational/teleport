@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package app runs the application proxy process. It keeps dynamic labels
 // updated, heart beats its presence, checks access controls, and forwards
@@ -800,8 +802,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Covert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+
+		var text string
+		if errors.Is(err, services.ErrTrustedDeviceRequired) {
+			// Return a nicer error message for device trust errors.
+			text = `Access to this app requires a trusted device.
+
+See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+`
+		} else {
+			text = http.StatusText(code)
+		}
+
 		w.Header().Set("Connection", "close")
-		http.Error(w, http.StatusText(code), code)
+		http.Error(w, text, code)
 	}
 }
 
@@ -966,11 +980,14 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 	}
 
 	state := authContext.GetAccessState(authPref)
-	err = authContext.Checker.CheckAccess(
+	switch err := authContext.Checker.CheckAccess(
 		app,
 		state,
-		matchers...)
-	if err != nil {
+		matchers...); {
+	case errors.Is(err, services.ErrTrustedDeviceRequired):
+		// Let the trusted device error through for clarity.
+		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
+	case err != nil:
 		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
@@ -1051,10 +1068,10 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
+		// Note: read/write timeouts *should not* be set here because it will
+		// break application access.
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {

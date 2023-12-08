@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -27,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
 
@@ -106,13 +109,15 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 	})
 	tests := []struct {
-		name        string
-		request     *types.RegisterUsingTokenRequest
-		tokenSpec   types.ProvisionTokenSpecV2
-		assertError require.ErrorAssertionFunc
+		name          string
+		setEnterprise bool
+		request       *types.RegisterUsingTokenRequest
+		tokenSpec     types.ProvisionTokenSpecV2
+		assertError   require.ErrorAssertionFunc
 	}{
 		{
-			name: "success",
+			name:          "success",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -127,7 +132,26 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "multiple allow rules",
+			name:          "missing enterprise",
+			setEnterprise: false,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodSpacelift,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
+					Hostname: "example.app.spacelift.io",
+					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request: newRequest(validIDToken),
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "requires Teleport Enterprise")
+			},
+		},
+		{
+			name:          "multiple allow rules",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -145,7 +169,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "incorrect space_id",
+			name:          "incorrect space_id",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -162,7 +187,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect caller_id",
+			name:          "incorrect caller_id",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -179,7 +205,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect caller_type",
+			name:          "incorrect caller_type",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -196,7 +223,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect scope",
+			name:          "incorrect scope",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -213,7 +241,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "invalid token",
+			name:          "invalid token",
+			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -232,6 +261,13 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnterprise {
+				modules.SetTestModules(
+					t,
+					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+				)
+			}
+
 			token, err := types.NewProvisionTokenFromSpec(
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
 			)

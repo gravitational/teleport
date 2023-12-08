@@ -7,7 +7,7 @@ toolchain go1.21.1
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/distribution/reference v0.5.0
-	github.com/google/go-containerregistry v0.16.1
+	github.com/google/go-containerregistry v0.17.0
 	github.com/gravitational/trace v1.3.1
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/opencontainers/go-digest v1.0.0
@@ -16,8 +16,8 @@ require (
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/mod v0.14.0
-	k8s.io/api v0.28.3
-	k8s.io/apimachinery v0.28.3
+	k8s.io/api v0.28.4
+	k8s.io/apimachinery v0.28.4
 	sigs.k8s.io/controller-runtime v0.16.1
 )
 
