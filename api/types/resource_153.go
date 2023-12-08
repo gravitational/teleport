@@ -32,7 +32,7 @@ import (
 // interface. If you do need to represent resources in a generic manner,
 // consider declaring a smaller interface with only what you need.
 //
-// Embedding and further extending this interface is highly discouraged.
+// Embedding or further extending this interface is highly discouraged.
 type Resource153 interface {
 	// GetKind returns the resource kind.
 	//
@@ -73,7 +73,8 @@ func (r *resource153ToLegacyAdapter) Unwrap() Resource153 {
 	return r.inner
 }
 
-// MarshalJSON adds support for marshaling the wrapped resource to the adapter.
+// MarshalJSON adds support for marshaling the wrapped resource (instead of
+// marshaling the adapter itself).
 func (r *resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.inner)
 }
@@ -82,6 +83,7 @@ func (r *resource153ToLegacyAdapter) CheckAndSetDefaults() error {
 	// Validation is not a distributed responsibility!
 	// Write your own validation, against the concrete type, in the storage layer.
 	// https://github.com/gravitational/teleport/pull/34103/files#diff-49c80914f68671852ea118fbd508af507b6b59b196b48a404c658e3eb9f1bf78R309
+	// TODO(rossstimothy): Update link above when RFD 153 lands.
 	return nil
 }
 
@@ -137,6 +139,7 @@ func (r *resource153ToLegacyAdapter) SetName(name string) {
 }
 
 func (r *resource153ToLegacyAdapter) SetResourceID(id int64) {
+	//nolint:deprecated // We need to refer to Id to provide SetResourceID.
 	r.inner.GetMetadata().Id = id
 }
 
@@ -146,6 +149,4 @@ func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
 
 func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
-
-	// TODO(codingllama): Consider reflecting on the sub_kind field?
 }

@@ -33,7 +33,6 @@ func TestResource153ToLegacy(t *testing.T) {
 	bot := &machineidv1.Bot{
 		Kind:     "bot",
 		SubKind:  "robot",
-		Version:  "",
 		Metadata: &headerv1.Metadata{Name: "Bernard"},
 		Spec: &machineidv1.BotSpec{
 			Roles: []string{"robot", "human"},
