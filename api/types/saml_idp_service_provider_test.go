@@ -48,7 +48,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			expectedEntityID: "IAMShowcase",
 		},
 		{
-			name:             "empty entity descriptor with missing entity ID and ACS URL",
+			name:             "empty entity descriptor, entity ID and ACS URL",
 			entityDescriptor: "",
 			errAssertion:     require.Error,
 		},
@@ -59,16 +59,22 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			expectedEntityID: "IAMShowcase",
 		},
 		{
-			name:             "empty entity descriptor with missing entity ID",
+			name:             "empty entity descriptor and entity ID",
 			entityDescriptor: "",
 			acsURL:           "https:/test.com/acs",
-			errAssertion:     require.Error,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndEntityID)
+			},
 		},
 		{
-			name:             "empty entity descriptor with missing ACS URL",
+			name:             "empty entity descriptor and ACS URL",
 			entityDescriptor: "",
 			entityID:         "IAMShowcase",
-			errAssertion:     require.Error,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndACSURL)
+			},
 		},
 		{
 			name:             "empty entity descriptor with entity ID and ACS URL",

@@ -52,7 +52,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		types.Events
 	}
 
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	samlService, err := local.NewSAMLIdPServiceProviderService(bk, nil /* http client */)
 	require.NoError(t, err)
 
 	clt := &client{
@@ -196,7 +196,7 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 		types.Events
 	}
 
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	samlService, err := local.NewSAMLIdPServiceProviderService(bk, nil /* http client */)
 	require.NoError(t, err)
 
 	clt := &client{
@@ -252,7 +252,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		types.Events
 	}
 
-	samlService, err := local.NewSAMLIdPServiceProviderService(bk)
+	samlService, err := local.NewSAMLIdPServiceProviderService(bk, nil /* http client */)
 	require.NoError(t, err)
 
 	clt := &client{

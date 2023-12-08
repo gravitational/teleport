@@ -18,23 +18,17 @@ package types
 
 import (
 	"encoding/xml"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 
-	"github.com/crewjam/saml"
-	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
 var (
 	// ErrMissingEntityDescriptorAndEntityID is returned when both entity descriptor and entity ID is empty.
-	ErrMissingEntityDescriptorAndEntityID = errors.New("either entity descriptor or entity ID should be configured")
-	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and entity ID is empty.
-	ErrMissingEntityDescriptorAndACSURL = errors.New("either entity descriptor or ACS URL should be configured")
+	ErrEmptyEntityDescriptorAndEntityID = trace.BadParameter("either entity_descriptor or entity_id must be provided")
+	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and ACS URL is empty.
+	ErrEmptyEntityDescriptorAndACSURL = trace.BadParameter("either entity_descriptor or acs_url must be provided")
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
@@ -52,6 +46,10 @@ type SAMLIdPServiceProvider interface {
 	GetEntityID() string
 	// SetEntityID sets the entity ID.
 	SetEntityID(string)
+	// GetACSURL returns the ACS URL.
+	GetACSURL() string
+	// SetACSURL sets the ACS URL.
+	SetACSURL(string)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
 	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
@@ -140,34 +138,11 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 
 	if s.Spec.EntityDescriptor == "" {
 		if s.Spec.EntityID == "" {
-			return trace.BadParameter("either entity descriptor or entity ID must be configured")
+			return ErrEmptyEntityDescriptorAndEntityID
 		}
 
 		if s.Spec.ACSURL == "" {
-			return trace.BadParameter("either entity descriptor or ACS URL must be configured")
-		}
-
-		var entityDescriptor []byte
-		entityDescriptor, err := s.fetchEntityDescriptor()
-		switch {
-		case err != nil || len(entityDescriptor) == 0:
-			defaultED, err := s.defaultSPEntityDescriptor()
-			if err != nil {
-				return trace.BadParameter("could not create Service Provider with given entityID.")
-			}
-
-			edstr, err := xml.MarshalIndent(defaultED, "", "    ")
-			if err != nil {
-				return trace.BadParameter("could not create Service Provider with given entityID.")
-			}
-			s.SetEntityDescriptor(string(edstr))
-		case len(entityDescriptor) > 0:
-			// validate if its correct enity Descriptor
-			_, err := samlsp.ParseMetadata(entityDescriptor)
-			if err != nil {
-				return trace.BadParameter("could not create Service Provider with given entityID.")
-			}
-			s.SetEntityDescriptor(string(entityDescriptor))
+			return ErrEmptyEntityDescriptorAndACSURL
 		}
 
 	}
@@ -186,49 +161,6 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// fetchEntityDescriptor fetches SP entity descriptor (aka SP metadata) from
-// remote SP metadata endpoint (Entity ID)
-func (s *SAMLIdPServiceProviderV1) fetchEntityDescriptor() ([]byte, error) {
-	httpClient := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	resp, err := httpClient.Get(s.GetEntityID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, trace.NotFound("SP metadata not found at given Entity ID")
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return body, nil
-}
-
-// defaultSPEntityDescriptor generates SP metadata with ACS URL, Entity ID
-// and unspecified NameID format
-func (s *SAMLIdPServiceProviderV1) defaultSPEntityDescriptor() (*saml.EntityDescriptor, error) {
-	acsURL, err := url.Parse(s.GetACSURL())
-	if err != nil {
-		return nil, err
-	}
-
-	sp := saml.ServiceProvider{
-		EntityID:          s.GetEntityID(),
-		AcsURL:            *acsURL,
-		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
-	}
-
-	return sp.Metadata(), nil
 }
 
 // SAMLIdPServiceProviders is a list of SAML IdP service provider resources.
