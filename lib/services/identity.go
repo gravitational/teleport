@@ -173,7 +173,8 @@ type Identity interface {
 	// GetOIDCConnector returns OIDC connector data, withSecrets adds or removes client secret from return results
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 
-	// GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
+	// GetOIDCConnectors returns valid registered connectors, withSecrets adds or removes client secret from return
+	// results.  Invalid Connectors are simply logged but errors are not forwarded.
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
@@ -191,7 +192,8 @@ type Identity interface {
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 
-	// GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
@@ -209,7 +211,7 @@ type Identity interface {
 	// UpsertGithubConnector creates or updates a new Github connector
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
 
-	// GetGithubConnectors returns all configured Github connectors
+	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 
 	// GetGithubConnector returns a Github connector by its name
