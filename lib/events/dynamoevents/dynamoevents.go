@@ -382,6 +382,7 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 	}
 	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
 	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	events.MetricStoredTrimmedEvents.Inc()
 	return nil
 }
 

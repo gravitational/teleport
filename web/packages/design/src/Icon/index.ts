@@ -187,6 +187,7 @@ export { VolumeUp } from './Icons/VolumeUp';
 export { VpnKey } from './Icons/VpnKey';
 export { Wand } from './Icons/Wand';
 export { Warning } from './Icons/Warning';
+export { WarningCircle } from './Icons/WarningCircle';
 export { Wifi } from './Icons/Wifi';
 export { Windows } from './Icons/Windows';
 export { Wrench } from './Icons/Wrench';

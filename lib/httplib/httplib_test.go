@@ -292,8 +292,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage (with stripe, no wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true},
+			name:     "for cloud based usage, Team product (with stripe, no wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_TEAM},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
@@ -303,6 +303,22 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"object-src":      "'none'",
 				"script-src":      "'self' https://js.stripe.com",
 				"frame-src":       "https://js.stripe.com",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:     "for cloud based usage, EUB product (no stripe or wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_EUB},
+			urlPath:  "/web/index.js",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
@@ -327,8 +343,8 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:     "for cloud based usage & desktop session (with stripe, with wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true},
+			name:     "for cloud based usage & desktop session, Team product (with stripe, with wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_TEAM},
 			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",

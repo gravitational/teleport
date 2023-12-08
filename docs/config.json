@@ -112,6 +112,11 @@
               ]
             },
             {
+              "title": "External Audit Storage",
+              "slug": "/choose-an-edition/teleport-cloud/external-audit-storage/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Downloads",
               "slug": "/choose-an-edition/teleport-cloud/downloads/",
               "forScopes": [
@@ -604,6 +609,11 @@
               ]
             }
           ]
+        },
+        {
+          "title": "Access Graph",
+          "slug": "/access-graph/",
+          "forScopes": ["team"]
         },
         {
           "title": "Access Requests",

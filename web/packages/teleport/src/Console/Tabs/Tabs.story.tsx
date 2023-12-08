@@ -54,6 +54,10 @@ const items = [
     kind: 'nodes',
     url: 'localhost',
     created: new Date('2019-05-13T20:18:09Z'),
+    latency: {
+      client: 0,
+      server: 0,
+    },
   } as const,
   {
     id: 22,
@@ -62,6 +66,10 @@ const items = [
     kind: 'nodes',
     url: 'localhost',
     created: new Date('2019-05-13T20:18:09Z'),
+    latency: {
+      client: 0,
+      server: 0,
+    },
   } as const,
   {
     id: 23,
@@ -70,5 +78,9 @@ const items = [
     kind: 'nodes',
     url: 'localhost',
     created: new Date('2019-05-13T20:18:09Z'),
+    latency: {
+      client: 0,
+      server: 0,
+    },
   } as const,
 ];

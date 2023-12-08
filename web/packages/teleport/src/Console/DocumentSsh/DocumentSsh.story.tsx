@@ -84,6 +84,10 @@ const doc = {
   id: 3,
   url: 'fd',
   created: new Date(),
+  latency: {
+    client: 123,
+    server: 456,
+  },
 } as const;
 
 const session: Session = {

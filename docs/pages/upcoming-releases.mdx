@@ -19,15 +19,42 @@ The Teleport team delivers a new major release roughly every 4 months.
 Users will be able to create access lists that do not require adding members to them
 explicitly.
 
+#### RDS auto-discovery in Access Management UI
+
+Users going through the Access Management flow to enroll RDS instances will be able
+to configure auto-discovery.
+
+#### Web UI SSH latency detector
+
+Teleport's web UI will detect and report on the latency of SSH sessions.
+
+#### Improved registration of static desktops
+
+Teleport's configuration schema will be updated to allow users to specify custom
+hostnames and labels for static desktops.
+
+#### Automatic user provisioning for MongoDB
+
+Teleport will add support for MongoDB automatic user provisioning.
+
+#### Add Spacelift joining support for Machine ID
+
+Teleport Machine ID will support secretless infrastructure as code workflows
+with [Spacelift](https://spacelift.io/).
+
+### 15.0.0
+
+#### Desktop access performance improvements
+
+Teleport 15 will leverage a new, more performant RDP engine, resulting in a
+smoother desktop access experience.
+
 #### SCIM provisioning for Okta
 
 Teleport will support SCIM provisioning for receiving user/group updates from the
 configured Okta integration.
 
-#### RDS auto-discovery in Access Management UI
-
-Users going through the Access Management flow to enroll RDS instances will be able
-to configure auto-discovery.
+*Delayed from Teleport 14.3.0.*
 
 #### Device Trust for Linux
 
@@ -39,15 +66,13 @@ Platform Modules (TPM 2.0).
 Teleport will permit accessing applications when device enforcement is required
 via `tsh proxy app`.
 
-#### Web UI SSH latency detector
+#### EKS Integration for Teleport
 
-Teleport's web UI will detect and report on the latency of SSH sessions.
+Teleport will allow users to enroll EKS clusters via Access Management UI.
 
+#### MFA for Administrative Actions
 
-#### Improved registration of static desktops
-
-Teleport's configuration schema will be updated to allow users to specify custom
-hostnames and labels for static desktops.
+`tctl` will support MFA for sensitive administrative cluster actions.
 
 ## Teleport Cloud
 
