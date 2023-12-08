@@ -62,6 +62,7 @@ type SlackSuite struct {
 		reviewer2 string
 		plugin    string
 	}
+	requestorUser  User
 	raceNumber     int
 	fakeSlack      *FakeSlack
 	fakeStatusSink *fakeStatusSink
@@ -198,7 +199,7 @@ func (s *SlackSuite) SetupTest() {
 	s.fakeSlack = NewFakeSlack(User{Name: "slackbot"}, s.raceNumber)
 	t.Cleanup(s.fakeSlack.Close)
 
-	s.fakeSlack.StoreUser(User{Name: "Vladimir", Profile: UserProfile{Email: s.userNames.requestor}})
+	s.requestorUser = s.fakeSlack.StoreUser(User{Name: "Vladimir", Profile: UserProfile{Email: s.userNames.requestor}})
 
 	s.fakeStatusSink = &fakeStatusSink{}
 
@@ -285,30 +286,33 @@ func (s *SlackSuite) TestMessagePosting() {
 	reviewer2 := s.fakeSlack.StoreUser(User{Profile: UserProfile{Email: s.userNames.reviewer2}})
 
 	s.startApp()
+	const numMessages = 3
 	request := s.createAccessRequest([]User{reviewer2, reviewer1})
 
 	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
-	assert.Len(t, pluginData.SentMessages, 2)
+	assert.Len(t, pluginData.SentMessages, numMessages)
 
 	var messages []Message
 	messageSet := make(SlackDataMessageSet)
-	for i := 0; i < 2; i++ {
+	for i := 0; i < numMessages; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(s.Context())
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
 		messages = append(messages, msg)
 	}
 
-	assert.Len(t, messageSet, 2)
-	assert.Contains(t, messageSet, pluginData.SentMessages[0])
-	assert.Contains(t, messageSet, pluginData.SentMessages[1])
+	assert.Len(t, messageSet, numMessages)
+	for i := 0; i < numMessages; i++ {
+		assert.Contains(t, messageSet, pluginData.SentMessages[i])
+	}
 
 	sort.Sort(SlackMessageSlice(messages))
 
-	assert.Equal(t, reviewer1.ID, messages[0].Channel)
-	assert.Equal(t, reviewer2.ID, messages[1].Channel)
+	assert.Equal(t, s.requestorUser.ID, messages[0].Channel)
+	assert.Equal(t, reviewer1.ID, messages[1].Channel)
+	assert.Equal(t, reviewer2.ID, messages[2].Channel)
 
 	msgUser, err := parseMessageField(messages[0], "User")
 	require.NoError(t, err)
@@ -340,38 +344,35 @@ func (s *SlackSuite) TestRecipientsConfig() {
 	}
 
 	s.startApp()
+	const numMessages = 3
 
 	request := s.createAccessRequest(nil)
 	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
-	assert.Len(t, pluginData.SentMessages, 2)
+	assert.Len(t, pluginData.SentMessages, numMessages)
 
-	var (
-		msg      Message
-		messages []Message
-	)
+	var messages []Message
 
 	messageSet := make(SlackDataMessageSet)
 
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
-	messages = append(messages, msg)
+	for i := 0; i < numMessages; i++ {
+		msg, err := s.fakeSlack.CheckNewMessage(s.Context())
+		require.NoError(t, err)
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
+		messages = append(messages, msg)
+	}
 
-	msg, err = s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
-	messages = append(messages, msg)
-
-	assert.Len(t, messageSet, 2)
-	assert.Contains(t, messageSet, pluginData.SentMessages[0])
-	assert.Contains(t, messageSet, pluginData.SentMessages[1])
+	assert.Len(t, messageSet, numMessages)
+	for i := 0; i < numMessages; i++ {
+		assert.Contains(t, messageSet, pluginData.SentMessages[i])
+	}
 
 	sort.Sort(SlackMessageSlice(messages))
 
-	assert.Equal(t, reviewer1.ID, messages[0].Channel)
-	assert.Equal(t, reviewer2.ID, messages[1].Channel)
+	assert.Equal(t, s.requestorUser.ID, messages[0].Channel)
+	assert.Equal(t, reviewer1.ID, messages[1].Channel)
+	assert.Equal(t, reviewer2.ID, messages[2].Channel)
 }
 
 func (s *SlackSuite) TestApproval() {
@@ -382,21 +383,16 @@ func (s *SlackSuite) TestApproval() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msg.Channel)
+	msgs := s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID, reviewer.ID), matchOnlyOnChannel)
 
-	err = s.ruler().ApproveAccessRequest(s.Context(), req.GetName(), "okay")
+	err := s.ruler().ApproveAccessRequest(s.Context(), req.GetName(), "okay")
 	require.NoError(t, err)
 
-	msgUpdate, err := s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msgUpdate.Channel)
-	assert.Equal(t, msg.Timestamp, msgUpdate.Timestamp)
-
-	statusLine, err := getStatusLine(msgUpdate)
-	require.NoError(t, err)
-	assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nokay```", statusLine)
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nokay```", statusLine)
+	})
 }
 
 func (s *SlackSuite) TestDenial() {
@@ -407,22 +403,17 @@ func (s *SlackSuite) TestDenial() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msg.Channel)
+	msgs := s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID, reviewer.ID), matchOnlyOnChannel)
 
 	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
-	err = s.ruler().DenyAccessRequest(s.Context(), req.GetName(), "not okay "+strings.Repeat("A", 4000))
+	err := s.ruler().DenyAccessRequest(s.Context(), req.GetName(), "not okay "+strings.Repeat("A", 4000))
 	require.NoError(t, err)
 
-	msgUpdate, err := s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msgUpdate.Channel)
-	assert.Equal(t, msg.Timestamp, msgUpdate.Timestamp)
-
-	statusLine, err := getStatusLine(msgUpdate)
-	require.NoError(t, err)
-	assert.Equal(t, "*Status*: ❌ DENIED\n*Resolution reason*: ```\nnot okay "+strings.Repeat("A", 491)+"``` (truncated)", statusLine)
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ❌ DENIED\n*Resolution reason*: ```\nnot okay "+strings.Repeat("A", 491)+"``` (truncated)", statusLine)
+	})
 }
 
 func (s *SlackSuite) TestReviewReplies() {
@@ -441,11 +432,9 @@ func (s *SlackSuite) TestReviewReplies() {
 		return len(data.SentMessages) > 0
 	})
 
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msg.Channel)
+	msgs := s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID, reviewer.ID), matchOnlyOnChannel)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
+	err := s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer1,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
@@ -453,13 +442,11 @@ func (s *SlackSuite) TestReviewReplies() {
 	})
 	require.NoError(t, err)
 
-	reply, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, msg.Channel, reply.Channel)
-	assert.Equal(t, msg.Timestamp, reply.ThreadTs)
-	assert.Contains(t, reply.Text, s.userNames.reviewer1+" reviewed the request", "reply must contain a review author")
-	assert.Contains(t, reply.Text, "Resolution: ✅ APPROVED", "reply must contain a proposed state")
-	assert.Contains(t, reply.Text, "Reason: ```\nokay```", "reply must contain a reason")
+	s.checkNewMessages(t, msgs, matchByThreadTs, func(t *testing.T, reply Message) {
+		assert.Contains(t, reply.Text, s.userNames.reviewer1+" reviewed the request", "reply must contain a review author")
+		assert.Contains(t, reply.Text, "Resolution: ✅ APPROVED", "reply must contain a proposed state")
+		assert.Contains(t, reply.Text, "Reason: ```\nokay```", "reply must contain a reason")
+	})
 
 	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer2,
@@ -469,13 +456,11 @@ func (s *SlackSuite) TestReviewReplies() {
 	})
 	require.NoError(t, err)
 
-	reply, err = s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, msg.Channel, reply.Channel)
-	assert.Equal(t, msg.Timestamp, reply.ThreadTs)
-	assert.Contains(t, reply.Text, s.userNames.reviewer2+" reviewed the request", "reply must contain a review author")
-	assert.Contains(t, reply.Text, "Resolution: ❌ DENIED", "reply must contain a proposed state")
-	assert.Contains(t, reply.Text, "Reason: ```\nnot okay```", "reply must contain a reason")
+	s.checkNewMessages(t, msgs, matchByThreadTs, func(t *testing.T, reply Message) {
+		assert.Contains(t, reply.Text, s.userNames.reviewer2+" reviewed the request", "reply must contain a review author")
+		assert.Contains(t, reply.Text, "Resolution: ❌ DENIED", "reply must contain a proposed state")
+		assert.Contains(t, reply.Text, "Reason: ```\nnot okay```", "reply must contain a reason")
+	})
 }
 
 func (s *SlackSuite) TestApprovalByReview() {
@@ -490,11 +475,9 @@ func (s *SlackSuite) TestApprovalByReview() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msg.Channel)
+	msgs := s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID, reviewer.ID), matchOnlyOnChannel)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
+	err := s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer1,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
@@ -502,11 +485,15 @@ func (s *SlackSuite) TestApprovalByReview() {
 	})
 	require.NoError(t, err)
 
-	reply, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, msg.Channel, reply.Channel)
-	assert.Equal(t, msg.Timestamp, reply.ThreadTs)
-	assert.Contains(t, reply.Text, s.userNames.reviewer1+" reviewed the request", "reply must contain a review author")
+	s.checkNewMessages(t, msgs, matchByThreadTs, func(t *testing.T, reply Message) {
+		assert.Contains(t, reply.Text, s.userNames.reviewer1+" reviewed the request", "reply must contain a review author")
+	})
+
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ⏳ PENDING", statusLine)
+	})
 
 	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer2,
@@ -516,23 +503,15 @@ func (s *SlackSuite) TestApprovalByReview() {
 	})
 	require.NoError(t, err)
 
-	reply, err = s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, msg.Channel, reply.Channel)
-	assert.Equal(t, msg.Timestamp, reply.ThreadTs)
-	assert.Contains(t, reply.Text, s.userNames.reviewer2+" reviewed the request", "reply must contain a review author")
-	// When posting a review, the slack bot also updates the message to add the amount of reviewrs
-	// This update is soon superseded by the "access allowed" update
-	_, _ = s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
+	s.checkNewMessages(t, msgs, matchByThreadTs, func(t *testing.T, reply Message) {
+		assert.Contains(t, reply.Text, s.userNames.reviewer2+" reviewed the request", "reply must contain a review author")
+	})
 
-	msgUpdate, err := s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msgUpdate.Channel)
-	assert.Equal(t, msg.Timestamp, msgUpdate.Timestamp)
-
-	statusLine, err := getStatusLine(msgUpdate)
-	require.NoError(t, err)
-	assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nfinally okay```", statusLine)
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ✅ APPROVED\n*Resolution reason*: ```\nfinally okay```", statusLine)
+	})
 }
 
 func (s *SlackSuite) TestDenialByReview() {
@@ -547,11 +526,9 @@ func (s *SlackSuite) TestDenialByReview() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msg.Channel)
+	msgs := s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID, reviewer.ID), matchOnlyOnChannel)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
+	err := s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer1,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
@@ -559,11 +536,15 @@ func (s *SlackSuite) TestDenialByReview() {
 	})
 	require.NoError(t, err)
 
-	reply, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, msg.Channel, reply.Channel)
-	assert.Equal(t, msg.Timestamp, reply.ThreadTs)
-	assert.Contains(t, reply.Text, s.userNames.reviewer1+" reviewed the request", "reply must contain a review author")
+	s.checkNewMessages(t, msgs, matchByThreadTs, func(t *testing.T, reply Message) {
+		assert.Contains(t, reply.Text, s.userNames.reviewer1+" reviewed the request", "reply must contain a review author")
+	})
+
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ⏳ PENDING", statusLine)
+	})
 
 	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer2,
@@ -573,23 +554,15 @@ func (s *SlackSuite) TestDenialByReview() {
 	})
 	require.NoError(t, err)
 
-	reply, err = s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, msg.Channel, reply.Channel)
-	assert.Equal(t, msg.Timestamp, reply.ThreadTs)
-	assert.Contains(t, reply.Text, s.userNames.reviewer2+" reviewed the request", "reply must contain a review author")
-	// When posting a review, the slack bot also updates the message to add the amount of reviewrs
-	// This update is soon superseded by the "access allowed" update
-	_, _ = s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
+	s.checkNewMessages(t, msgs, matchByThreadTs, func(t *testing.T, reply Message) {
+		assert.Contains(t, reply.Text, s.userNames.reviewer2+" reviewed the request", "reply must contain a review author")
+	})
 
-	msgUpdate, err := s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msgUpdate.Channel)
-	assert.Equal(t, msg.Timestamp, msgUpdate.Timestamp)
-
-	statusLine, err := getStatusLine(msgUpdate)
-	require.NoError(t, err)
-	assert.Equal(t, "*Status*: ❌ DENIED\n*Resolution reason*: ```\nfinally not okay```", statusLine)
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ❌ DENIED\n*Resolution reason*: ```\nfinally not okay```", statusLine)
+	})
 }
 
 func (s *SlackSuite) TestExpiration() {
@@ -600,25 +573,20 @@ func (s *SlackSuite) TestExpiration() {
 	s.startApp()
 
 	request := s.createAccessRequest([]User{reviewer})
-	msg, err := s.fakeSlack.CheckNewMessage(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msg.Channel)
+	msgs := s.checkNewMessages(t, channelsToMessages(s.requestorUser.ID, reviewer.ID), matchOnlyOnChannel)
 
 	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	err = s.ruler().DeleteAccessRequest(s.Context(), request.GetName()) // simulate expiration
+	err := s.ruler().DeleteAccessRequest(s.Context(), request.GetName()) // simulate expiration
 	require.NoError(t, err)
 
-	msgUpdate, err := s.fakeSlack.CheckMessageUpdateByAPI(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, reviewer.ID, msgUpdate.Channel)
-	assert.Equal(t, msg.Timestamp, msgUpdate.Timestamp)
-
-	statusLine, err := getStatusLine(msgUpdate)
-	require.NoError(t, err)
-	assert.Equal(t, "*Status*: ⌛ EXPIRED", statusLine)
+	s.checkNewMessageUpdateByAPI(t, msgs, matchByTimestamp, func(t *testing.T, msgUpdate Message) {
+		statusLine, err := getStatusLine(msgUpdate)
+		require.NoError(t, err)
+		assert.Equal(t, "*Status*: ⌛ EXPIRED", statusLine)
+	})
 }
 
 func (s *SlackSuite) TestAccessListReminder() {
@@ -727,13 +695,13 @@ func (s *SlackSuite) TestRace() {
 		})
 	}
 
-	// Having TWO suggested reviewers will post TWO messages for each request.
+	// Having TWO suggested reviewers will post THREE messages for each request (including the requestor).
 	// We also have approval threshold of TWO set in the role properties
 	// so lets simply submit the approval from each of the suggested reviewers.
 	//
-	// Multiplier SIX means that we handle TWO messages for each request and also
+	// Multiplier NINE means that we handle THREE messages for each request and also
 	// TWO comments for each message: 2 * (1 message + 2 comments).
-	for i := 0; i < 6*s.raceNumber; i++ {
+	for i := 0; i < 9*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeSlack.CheckNewMessage(ctx)
 			if err != nil {
@@ -759,6 +727,11 @@ func (s *SlackSuite) TestRace() {
 					return setRaceErr(trace.Wrap(err))
 				}
 
+				// The requestor can't submit reviews.
+				if user.ID == s.requestorUser.ID {
+					return nil
+				}
+
 				if err = s.clients[user.Profile.Email].SubmitAccessRequestReview(ctx, reqID, types.AccessReview{
 					Author:        user.Profile.Email,
 					ProposedState: types.RequestState_APPROVED,
@@ -781,8 +754,8 @@ func (s *SlackSuite) TestRace() {
 		})
 	}
 
-	// Multiplier TWO means that we handle the 2 updates for each of the two messages posted to reviewers.
-	for i := 0; i < 2*2*s.raceNumber; i++ {
+	// Multiplier THREE means that we handle the 2 updates for each of the two messages posted to reviewers.
+	for i := 0; i < 3*2*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeSlack.CheckMessageUpdateByAPI(ctx)
 			if err != nil {
@@ -803,7 +776,7 @@ func (s *SlackSuite) TestRace() {
 	<-process.Done()
 	require.NoError(t, raceErr)
 
-	assert.Equal(t, int32(2*s.raceNumber), threadMsgsCount)
+	assert.Equal(t, int32(3*s.raceNumber), threadMsgsCount)
 	threadMsgIDs.Range(func(key, value interface{}) bool {
 		next := true
 
@@ -867,4 +840,81 @@ func getStatusLine(msg Message) (string, error) {
 	}
 
 	return textBlock.GetText(), nil
+}
+
+// matchFns are functions that tell how to match two messages together after matching on the channel ID.
+type matchFn func(matchAgainst Message, newMsg Message) bool
+
+func matchOnlyOnChannel(_, _ Message) bool {
+	return true
+}
+
+func matchByTimestamp(matchAgainst, newMsg Message) bool {
+	return matchAgainst.Timestamp == newMsg.Timestamp
+}
+
+func matchByThreadTs(matchAgainst, newMsg Message) bool {
+	return matchAgainst.Timestamp == newMsg.ThreadTs
+}
+
+// checkMsgTestFn is a test function to run on a new message after it has been matched.
+type checkMsgTestFn func(*testing.T, Message)
+
+func (s *SlackSuite) checkNewMessages(t *testing.T, matchMessages []Message, matchBy matchFn, testFns ...checkMsgTestFn) []Message {
+	t.Helper()
+	return s.matchAndCallFn(t, matchMessages, matchBy, testFns, s.fakeSlack.CheckNewMessage)
+}
+
+func (s *SlackSuite) checkNewMessageUpdateByAPI(t *testing.T, matchMessages []Message, matchBy matchFn, testFns ...checkMsgTestFn) []Message {
+	t.Helper()
+	return s.matchAndCallFn(t, matchMessages, matchBy, testFns, s.fakeSlack.CheckMessageUpdateByAPI)
+}
+
+func channelsToMessages(channels ...string) (messages []Message) {
+	for _, channel := range channels {
+		messages = append(messages, Message{BaseMessage: BaseMessage{Channel: channel}})
+	}
+
+	return messages
+}
+
+type slackCheckMessage func(context.Context) (Message, error)
+
+func (s *SlackSuite) matchAndCallFn(t *testing.T, matchMessages []Message, matchBy matchFn, testFns []checkMsgTestFn, slackCall slackCheckMessage) []Message {
+	matchingTimestamps := map[string]Message{}
+
+	for _, matchMessage := range matchMessages {
+		matchingTimestamps[matchMessage.Channel] = matchMessage
+	}
+
+	var messages []Message
+	var notMatchingMessages []Message
+
+	// Try for 5 seconds to get the expected messages
+	require.Eventually(t, func() bool {
+		msg, err := slackCall(s.Context())
+		if err != nil {
+			return false
+		}
+
+		if matchMsg, ok := matchingTimestamps[msg.Channel]; ok {
+			if matchBy(matchMsg, msg) {
+				messages = append(messages, msg)
+			}
+		} else {
+			notMatchingMessages = append(notMatchingMessages, msg)
+		}
+
+		return len(messages) == len(matchMessages)
+	}, 2*time.Second, 100*time.Millisecond)
+
+	require.Len(t, messages, len(matchMessages), "missing required messages, found %v", notMatchingMessages)
+
+	for _, testFn := range testFns {
+		for _, message := range messages {
+			testFn(t, message)
+		}
+	}
+
+	return messages
 }
