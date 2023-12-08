@@ -182,7 +182,7 @@ const waitForMessage = (process: childProcess.ChildProcess) =>
 const expectPidToEventuallyTerminate = async (pid: number) =>
   expect(() => !isRunning(pid)).toEventuallyBeTrue({
     waitFor: 2000,
-    tick: 10,
+    tick: 1000,
   });
 
 /**
@@ -192,6 +192,15 @@ const expectPidToEventuallyTerminate = async (pid: number) =>
  * https://nodejs.org/docs/latest-v18.x/api/process.html#processkillpid-signal
  */
 const isRunning = (pid: number) => {
+  childProcess.execFile(
+    'cat',
+    [`/proc/${pid}/status`],
+    (err, stdout, stderr) => {
+      // err is just noise, we already have stderr
+      stdout && console.log(stdout);
+      stderr && console.log(stderr);
+    }
+  );
   try {
     return process.kill(pid, 0);
   } catch (error) {
