@@ -189,6 +189,14 @@ privileges:
    earlier, whichever is shorter. Otherwise, set the duration of elevated
    privileges to the session TTL.
 
+### Setting when the elevated privileges can be assumed
+
+When creating or reviewing access requests the earliest time the elevated privileges
+can be set using the `--assume-start-time` flag. This flag is available for the
+[`tsh request create`](../../reference/cli/tsh.mdx#tsh-request-create) and [`tsh request
+review`](../../reference/cli/tsh.mdx#tsh-request-review) commands. The format accepted
+is RFC3339 e.g `2023-12-12T23:20:50.52Z`
+
 ### The `request.max_duration` field
 
 The `max_duration` option indicates the maximum length of time that a user is
