@@ -3263,10 +3263,11 @@
       "permanent": true
     },
     {
-
       "source": "/management/dynamic-resources/spacelift/",
       "destination": "/machine-id/deployment/spacelift/",
+      "permanent": true
     },
+    {
       "source": "/management/operations/enroll-agent-into-automatic-updates/",
       "destination": "/upgrading/",
       "permanent": true
