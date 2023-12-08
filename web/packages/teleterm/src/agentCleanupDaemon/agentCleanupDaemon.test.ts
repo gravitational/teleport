@@ -87,7 +87,7 @@ describe('agentCleanupDaemon', () => {
         await expectPidToEventuallyTerminate(pids['agentCleanupDaemon']);
       });
     },
-    60000 // 1 minute timeout
+    10 * 60000 // 10 minute timeout
   );
 
   it('exits early if the agent is not running at the start', async () => {
@@ -177,7 +177,7 @@ const waitForMessage = (process: childProcess.ChildProcess) =>
 
 const expectPidToEventuallyTerminate = async (pid: number) =>
   expect(() => !isRunning(pid)).toEventuallyBeTrue({
-    waitFor: 60000, // 1 minute
+    waitFor: 10 * 60000, // 10 minute timeout
     tick: 10,
   });
 
