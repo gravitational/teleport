@@ -2828,7 +2828,7 @@ func (g *GRPCServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWi
 	return connector, nil
 }
 
-// GetOIDCConnectors retrieves all OIDC connectors.
+// GetOIDCConnectors retrieves valid OIDC connectors, errors from individual connectors are not forwarded.
 func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2917,7 +2917,7 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	return samlConnectorV2, nil
 }
 
-// GetSAMLConnectors retrieves all SAML connectors.
+// GetSAMLConnectors retrieves valid SAML connectors, errors from individual connectors are not forwarded.
 func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -3006,7 +3006,7 @@ func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.Resource
 	return githubConnectorV3, nil
 }
 
-// GetGithubConnectors retrieves all Github connectors.
+// GetGithubConnectors retrieves valid GitHub connectors, errors from individual connectors are not forwarded.
 func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
