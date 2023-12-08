@@ -107,7 +107,7 @@ to find clusters and then install the Helm chart on them. The algorithm will be 
 
 Users will be able to filter EKS clusters for discovery by using labels.
 
-A dynamic discovery configuration will be created as a result of users setting up automatic EKS discovery in the Discover UI.
+A dynamic discovery configuration will be created as a result of users setting up automatic EKS discovery in the Discover UI (see [RFD 125](https://github.com/gravitational/teleport/blob/master/rfd/0125-dynamic-auto-discovery-config.md)).
 This configuration can be picked up by any discovery service. In the Teleport cloud, the Discovery service will be available by default,
 meaning users will not need to perform any additional actions.
 
