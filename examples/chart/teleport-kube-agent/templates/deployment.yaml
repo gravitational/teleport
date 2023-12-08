@@ -43,6 +43,9 @@ spec:
       {{- if .Values.dnsPolicy }}
       dnsPolicy: {{ .Values.dnsPolicy | quote }}
       {{- end }}
+      {{- if .Values.podSecurityContext }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8}}
+      {{- end }}
       {{- if .Values.hostAliases }}
       hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
       {{- end }}
@@ -130,6 +133,8 @@ spec:
         {{- if .Values.updater.enabled }}
         - name: TELEPORT_EXT_UPGRADER
           value: kube
+        - name: TELEPORT_EXT_UPGRADER_VERSION
+          value: {{ include "teleport-kube-agent.version" . }}
         {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}

@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -71,6 +73,35 @@ func (s *ExternalAuditStorageService) GetDraftExternalAuditStorage(ctx context.C
 	return out, nil
 }
 
+// CreateDraftExternalAudit creates the draft External Audit Storage resource if
+// one does not already exist.
+func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx context.Context, in *externalauditstorage.ExternalAuditStorage) (*externalauditstorage.ExternalAuditStorage, error) {
+	value, err := services.MarshalExternalAuditStorage(in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Lock is used here and in Promote to prevent the possibility of deleting a
+	// newly created draft after the previous one was promoted.
+	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		_, err = s.backend.Create(ctx, backend.Item{
+			Key:   draftExternalAuditStorageBackendKey,
+			Value: value,
+		})
+		return trace.Wrap(err)
+	})
+	if trace.IsAlreadyExists(err) {
+		return nil, trace.AlreadyExists("draft external_audit_storage already exists")
+	}
+	return in, trace.Wrap(err)
+}
+
 // UpsertDraftExternalAudit upserts the draft External Audit Storage resource.
 func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx context.Context, in *externalauditstorage.ExternalAuditStorage) (*externalauditstorage.ExternalAuditStorage, error) {
 	value, err := services.MarshalExternalAuditStorage(in)
@@ -110,9 +141,18 @@ func (s *ExternalAuditStorageService) GenerateDraftExternalAuditStorage(ctx cont
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.backend.Create(ctx, backend.Item{
-		Key:   draftExternalAuditStorageBackendKey,
-		Value: value,
+	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:  s.backend,
+			LockName: externalAuditStorageLockName,
+			TTL:      externalAuditStorageLockTTL,
+		},
+	}, func(ctx context.Context) error {
+		_, err = s.backend.Create(ctx, backend.Item{
+			Key:   draftExternalAuditStorageBackendKey,
+			Value: value,
+		})
+		return trace.Wrap(err)
 	})
 	if trace.IsAlreadyExists(err) {
 		return nil, trace.AlreadyExists("draft external_audit_storage already exists")
@@ -148,9 +188,9 @@ func (s *ExternalAuditStorageService) GetClusterExternalAuditStorage(ctx context
 // PromoteToClusterExternalAuditStorage promotes draft to cluster external
 // cloud audit resource.
 func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx context.Context) error {
-	// Lock is used here and in UpsertDraft to prevent upserting in the middle
-	// of a promotion and the possibility of deleting a newly upserted draft
-	// after the previous one was promoted.
+	// Lock is used here and in Create/Upsert/GenerateDraft to prevent upserting
+	// in the middle of a promotion and the possibility of deleting a newly
+	// created draft after the previous one was promoted.
 	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
 			Backend:  s.backend,

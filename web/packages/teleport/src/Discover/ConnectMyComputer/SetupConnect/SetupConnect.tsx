@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useEffect, useCallback, useState, useRef } from 'react';
@@ -194,9 +196,8 @@ export function SetupConnect(
 
         <Text typography="subtitle1" mb={2}>
           Teleport Connect is a native desktop application for browsing and
-          accessing your resources. It can also connect your computer as an SSH
-          resource and scope access to a unique role so it is not automatically
-          shared with all users in the&nbsp;cluster.
+          accessing your resources. It can also connect your computer to the
+          cluster as an SSH resource.
           <br />
           <br />
           Once you’ve downloaded Teleport Connect, run the installer to add it
@@ -215,10 +216,8 @@ export function SetupConnect(
         <Text bold>Step 2: Sign In and Connect My Computer</Text>
 
         <Text typography="subtitle1" mb={2}>
-          The button below will open Teleport Connect and once you are logged
-          in, it will prompt you to connect your computer. From there, follow
-          the instructions in Teleport Connect, and this page will update when
-          your computer is detected in the cluster.
+          The button below will open Teleport Connect. Once you are logged in,
+          Teleport Connect will prompt you to connect your computer.
         </Text>
 
         <ButtonSecondary as="a" href={connectMyComputerDeepLink}>

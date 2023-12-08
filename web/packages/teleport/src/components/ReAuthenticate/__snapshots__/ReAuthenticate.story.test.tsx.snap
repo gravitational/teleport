@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render failed state for re-authentication dialog 1`] = `
-.c7 {
+.c8 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,23 +20,44 @@ exports[`render failed state for re-authentication dialog 1`] = `
   width: 100%;
 }
 
-.c7 a {
+.c8 a {
   color: #FFFFFF;
 }
 
-.c10 {
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-top: 8px;
+}
+
+.c13 {
   box-sizing: border-box;
   margin-bottom: 0px;
   margin-right: 16px;
   width: 50%;
 }
 
-.c13 {
+.c16 {
   box-sizing: border-box;
   width: 50%;
 }
 
-.c15 {
+.c17 {
+  box-sizing: border-box;
+}
+
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -64,22 +85,22 @@ exports[`render failed state for re-authentication dialog 1`] = `
   margin-top: 16px;
 }
 
-.c15:hover,
-.c15:focus {
+.c18:hover,
+.c18:focus {
   background: #B29DFF;
 }
 
-.c15:active {
+.c18:active {
   background: #C5B6FF;
 }
 
-.c15:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c16 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -105,22 +126,22 @@ exports[`render failed state for re-authentication dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c16:hover,
-.c16:focus {
+.c19:hover,
+.c19:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:active {
+.c19:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c16:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -131,7 +152,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -139,7 +160,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   text-align: center;
 }
 
-.c11 {
+.c14 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -147,9 +168,17 @@ exports[`render failed state for re-authentication dialog 1`] = `
   margin-bottom: 4px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 8px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c10 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c12 {
   display: flex;
   align-items: flex-end;
 }
@@ -202,27 +231,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   width: 416px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c8 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c14 {
-  box-sizing: border-box;
-}
-
-.c12 .react-select-container {
+.c15 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -234,7 +243,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
+.c15 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -244,145 +253,145 @@ exports[`render failed state for re-authentication dialog 1`] = `
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
+.c15 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
+.c15 .react-select__control:hover,
+.c15 .react-select__control:focus,
+.c15 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
+.c15 .react-select__control:hover .react-select__dropdown-indicator,
+.c15 .react-select__control:focus .react-select__dropdown-indicator,
+.c15 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
+.c15 .react-select__control .react-select__indicator:hover,
+.c15 .react-select__control .react-select__dropdown-indicator:hover,
+.c15 .react-select__control .react-select__indicator:focus,
+.c15 .react-select__control .react-select__dropdown-indicator:focus,
+.c15 .react-select__control .react-select__indicator:active,
+.c15 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c12 .react-select__control--is-focused {
+.c15 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c15 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c12 .react-select__single-value {
+.c15 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c12 .react-select__placeholder {
+.c15 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c12 .react-select__multi-value {
+.c15 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c12 .react-select__multi-value .react-select__multi-value__label {
+.c15 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c12 .react-select__multi-value .react-select__multi-value__remove {
+.c15 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c15 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c12 .react-select__option:hover {
+.c15 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c12 .react-select__option--is-focused {
+.c15 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c12 .react-select__option--is-focused:hover {
+.c15 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c12 .react-select__option--is-selected {
+.c15 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c12 .react-select__option--is-selected:hover {
+.c15 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c12 .react-select__clear-indicator {
+.c15 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
+.c15 .react-select__clear-indicator:hover,
+.c15 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
+.c15 .react-select__clear-indicator:hover svg,
+.c15 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c12 .react-select__menu {
+.c15 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c15 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c12 .react-select__indicator-separator {
+.c15 .react-select__indicator-separator {
   display: none;
 }
 
-.c12 .react-select__loading-indicator {
+.c15 .react-select__loading-indicator {
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
+.c15 .react-select--is-disabled,
+.c15 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
+.c15 .react-select--is-disabled .react-select__single-value,
+.c15 .react-select__control--is-disabled .react-select__single-value,
+.c15 .react-select--is-disabled .react-select__placeholder,
+.c15 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
+.c15 .react-select--is-disabled .react-select__indicator,
+.c15 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c12 .react-select__input {
+.c15 .react-select__input {
   color: #FFFFFF;
 }
 
@@ -404,17 +413,17 @@ exports[`render failed state for re-authentication dialog 1`] = `
     >
       <form>
         <div
-          class="c4"
+          class="c4 c5"
           style="flex-direction: column;"
         >
           <div
-            class="c5"
+            class="c6"
             color="text.main"
           >
             Verify your identity
           </div>
           <div
-            class="c6"
+            class="c7"
             color="text.slightlyMuted"
           >
             You must verify your identity with one of your existing two-factor devices before 
@@ -423,32 +432,32 @@ exports[`render failed state for re-authentication dialog 1`] = `
           </div>
         </div>
         <div
-          class="c7"
+          class="c8"
           kind="danger"
           width="100%"
         >
           an error has occurred
         </div>
         <div
-          class="c8"
+          class="c9 c10"
         >
           <div
-            class="c9"
+            class="c11 c12"
           >
             <div
-              class="c10"
+              class="c13"
               data-testid="mfa-select"
               width="50%"
             >
               <label
-                class="c11"
+                class="c14"
                 font-size="0"
                 for="select"
               >
                 Two-factor Type
               </label>
               <div
-                class="c12"
+                class="c15"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -502,23 +511,23 @@ exports[`render failed state for re-authentication dialog 1`] = `
               </div>
             </div>
             <div
-              class="c13"
+              class="c16"
               width="50%"
             />
           </div>
         </div>
         <div
-          class="c14"
+          class="c17"
         >
           <button
-            class="c15"
+            class="c18"
             kind="primary"
             type="submit"
           >
             Continue
           </button>
           <button
-            class="c16"
+            class="c19"
             kind="secondary"
           >
             Cancel
@@ -531,19 +540,40 @@ exports[`render failed state for re-authentication dialog 1`] = `
 `;
 
 exports[`render re-authentication dialog 1`] = `
-.c9 {
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-top: 8px;
+}
+
+.c12 {
   box-sizing: border-box;
   margin-bottom: 0px;
   margin-right: 16px;
   width: 50%;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   width: 50%;
 }
 
-.c14 {
+.c16 {
+  box-sizing: border-box;
+}
+
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -571,22 +601,22 @@ exports[`render re-authentication dialog 1`] = `
   margin-top: 16px;
 }
 
-.c14:hover,
-.c14:focus {
+.c17:hover,
+.c17:focus {
   background: #B29DFF;
 }
 
-.c14:active {
+.c17:active {
   background: #C5B6FF;
 }
 
-.c14:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -612,22 +642,22 @@ exports[`render re-authentication dialog 1`] = `
   padding: 0px 24px;
 }
 
-.c15:hover,
-.c15:focus {
+.c18:hover,
+.c18:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c15:active {
+.c18:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c15:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -638,7 +668,7 @@ exports[`render re-authentication dialog 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -646,7 +676,7 @@ exports[`render re-authentication dialog 1`] = `
   text-align: center;
 }
 
-.c10 {
+.c13 {
   color: #FFFFFF;
   display: block;
   font-size: 12px;
@@ -654,9 +684,17 @@ exports[`render re-authentication dialog 1`] = `
   margin-bottom: 4px;
 }
 
-.c8 {
-  box-sizing: border-box;
-  margin-top: 8px;
+.c5 {
+  display: flex;
+  align-items: center;
+}
+
+.c9 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c11 {
   display: flex;
   align-items: flex-end;
 }
@@ -709,27 +747,7 @@ exports[`render re-authentication dialog 1`] = `
   width: 416px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-}
-
-.c7 {
-  box-sizing: border-box;
-  margin-bottom: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.c13 {
-  box-sizing: border-box;
-}
-
-.c11 .react-select-container {
+.c14 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -741,7 +759,7 @@ exports[`render re-authentication dialog 1`] = `
   border-radius: 4px;
 }
 
-.c11 .react-select__control {
+.c14 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -751,145 +769,145 @@ exports[`render re-authentication dialog 1`] = `
   box-shadow: none;
 }
 
-.c11 .react-select__control .react-select__dropdown-indicator {
+.c14 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c11 .react-select__control:hover,
-.c11 .react-select__control:focus,
-.c11 .react-select__control:active {
+.c14 .react-select__control:hover,
+.c14 .react-select__control:focus,
+.c14 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c11 .react-select__control:hover .react-select__dropdown-indicator,
-.c11 .react-select__control:focus .react-select__dropdown-indicator,
-.c11 .react-select__control:active .react-select__dropdown-indicator {
+.c14 .react-select__control:hover .react-select__dropdown-indicator,
+.c14 .react-select__control:focus .react-select__dropdown-indicator,
+.c14 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c11 .react-select__control .react-select__indicator:hover,
-.c11 .react-select__control .react-select__dropdown-indicator:hover,
-.c11 .react-select__control .react-select__indicator:focus,
-.c11 .react-select__control .react-select__dropdown-indicator:focus,
-.c11 .react-select__control .react-select__indicator:active,
-.c11 .react-select__control .react-select__dropdown-indicator:active {
+.c14 .react-select__control .react-select__indicator:hover,
+.c14 .react-select__control .react-select__dropdown-indicator:hover,
+.c14 .react-select__control .react-select__indicator:focus,
+.c14 .react-select__control .react-select__dropdown-indicator:focus,
+.c14 .react-select__control .react-select__indicator:active,
+.c14 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c11 .react-select__control--is-focused {
+.c14 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c14 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c11 .react-select__single-value {
+.c14 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c11 .react-select__placeholder {
+.c14 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c11 .react-select__multi-value {
+.c14 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11 .react-select__multi-value .react-select__multi-value__label {
+.c14 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c11 .react-select__multi-value .react-select__multi-value__remove {
+.c14 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c14 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c11 .react-select__option:hover {
+.c14 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c11 .react-select__option--is-focused {
+.c14 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c11 .react-select__option--is-focused:hover {
+.c14 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c11 .react-select__option--is-selected {
+.c14 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c11 .react-select__option--is-selected:hover {
+.c14 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11 .react-select__clear-indicator {
+.c14 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c11 .react-select__clear-indicator:hover,
-.c11 .react-select__clear-indicator:focus {
+.c14 .react-select__clear-indicator:hover,
+.c14 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c11 .react-select__clear-indicator:hover svg,
-.c11 .react-select__clear-indicator:focus svg {
+.c14 .react-select__clear-indicator:hover svg,
+.c14 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c11 .react-select__menu {
+.c14 .react-select__menu {
   margin-top: 0px;
   background-color: #4A5688;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c14 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c11 .react-select__indicator-separator {
+.c14 .react-select__indicator-separator {
   display: none;
 }
 
-.c11 .react-select__loading-indicator {
+.c14 .react-select__loading-indicator {
   display: none;
 }
 
-.c11 .react-select--is-disabled,
-.c11 .react-select__control--is-disabled {
+.c14 .react-select--is-disabled,
+.c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select__control--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder,
-.c11 .react-select__control--is-disabled .react-select__placeholder {
+.c14 .react-select--is-disabled .react-select__single-value,
+.c14 .react-select__control--is-disabled .react-select__single-value,
+.c14 .react-select--is-disabled .react-select__placeholder,
+.c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator,
-.c11 .react-select__control--is-disabled .react-select__indicator {
+.c14 .react-select--is-disabled .react-select__indicator,
+.c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c11 .react-select__input {
+.c14 .react-select__input {
   color: #FFFFFF;
 }
 
@@ -911,17 +929,17 @@ exports[`render re-authentication dialog 1`] = `
     >
       <form>
         <div
-          class="c4"
+          class="c4 c5"
           style="flex-direction: column;"
         >
           <div
-            class="c5"
+            class="c6"
             color="text.main"
           >
             Verify your identity
           </div>
           <div
-            class="c6"
+            class="c7"
             color="text.slightlyMuted"
           >
             You must verify your identity with one of your existing two-factor devices before 
@@ -930,25 +948,25 @@ exports[`render re-authentication dialog 1`] = `
           </div>
         </div>
         <div
-          class="c7"
+          class="c8 c9"
         >
           <div
-            class="c8"
+            class="c10 c11"
           >
             <div
-              class="c9"
+              class="c12"
               data-testid="mfa-select"
               width="50%"
             >
               <label
-                class="c10"
+                class="c13"
                 font-size="0"
                 for="select"
               >
                 Two-factor Type
               </label>
               <div
-                class="c11"
+                class="c14"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -1002,23 +1020,23 @@ exports[`render re-authentication dialog 1`] = `
               </div>
             </div>
             <div
-              class="c12"
+              class="c15"
               width="50%"
             />
           </div>
         </div>
         <div
-          class="c13"
+          class="c16"
         >
           <button
-            class="c14"
+            class="c17"
             kind="primary"
             type="submit"
           >
             Continue
           </button>
           <button
-            class="c15"
+            class="c18"
             kind="secondary"
           >
             Cancel

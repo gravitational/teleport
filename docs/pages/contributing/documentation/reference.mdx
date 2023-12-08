@@ -249,40 +249,6 @@ This results in the following:
 The description we added to the `proxy` variable appears here. Since the `user`
 variable does not have a description, the `VarList` shows its name instead.
 
-## MermaidJS diagrams
-
-You can declare a MermaidJS diagram by adding a code snippet to a docs page with
-the `mermaid` label. See the [MermaidJS
-documentation](https://mermaid.js.org/intro/) for an introduction to the diagram
-syntax.
-
-For example, you can declare a flowchart using this diagram definition:
-
-````markdown
-```mermaid
-flowchart LR
-  start --> e["end"]
-```
-````
-
-This will render as a diagram:
-
-```mermaid
-flowchart LR
-  start --> e["end"]
-```
-
-The advantage of MermaidJS diagrams over static images is that MermaidJS
-diagrams are easy to edit once they are added to the codebase, since there is no
-need to find an original image file. Docs authors can edit the information
-within a MermaidJS diagram without needing to worry about adjusting lines in a
-graphical editor. It's also possible to apply standard stylesheets to MermaidJS
-diagrams and perform static text analysis (e.g., spell checking and linting).
-
-The disadvantage of MermaidJS diagrams is that the Teleport documentation
-engine's implementation does not currently support images, so diagrams that
-require more than lines, coloring, and text must use another solution.
-
 ## Notices
 
 <Notice type="tip">
