@@ -508,7 +508,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             )}
             isProcessing={
               resourcesFetchAttempt.status === 'processing' ||
-              getPinnedResourcesAttempt.status === 'processing'
+              getPinnedResourcesAttempt.status === 'processing' ||
+              unifiedResourcePreferencesAttempt.status === 'processing'
             }
             mappedResources={resources.map(unifiedResource => ({
               item: mapResourceToViewItem(unifiedResource),
