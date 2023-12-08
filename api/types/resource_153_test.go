@@ -23,20 +23,16 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestResource153ToLegacy(t *testing.T) {
-	// bot is an example of an RFD 153 "compliant" resource.
-	// Any other resource type would do.
-	bot := &machineidv1.Bot{
+	// fake153Resource is used here because, at the time of backport, there were
+	// no RFD 153 resources in this branch.
+	bot := &fake153Resource{
 		Kind:     "bot",
 		SubKind:  "robot",
 		Metadata: &headerv1.Metadata{Name: "Bernard"},
-		Spec: &machineidv1.BotSpec{
-			Roles: []string{"robot", "human"},
-		},
 	}
 
 	legacyResource := types.Resource153ToLegacy(bot)
@@ -54,10 +50,33 @@ func TestResource153ToLegacy(t *testing.T) {
 		jsonBytes, err := json.Marshal(legacyResource)
 		require.NoError(t, err, "Marshal")
 
-		bot2 := &machineidv1.Bot{}
+		bot2 := &fake153Resource{}
 		require.NoError(t, json.Unmarshal(jsonBytes, bot2), "Unmarshal")
 		if diff := cmp.Diff(bot, bot2, protocmp.Transform()); diff != "" {
 			t.Errorf("Marshal/Unmarshal mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+type fake153Resource struct {
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *headerv1.Metadata
+}
+
+func (r *fake153Resource) GetKind() string {
+	return r.Kind
+}
+
+func (r *fake153Resource) GetMetadata() *headerv1.Metadata {
+	return r.Metadata
+}
+
+func (r *fake153Resource) GetSubKind() string {
+	return r.SubKind
+}
+
+func (r *fake153Resource) GetVersion() string {
+	return r.Version
 }
