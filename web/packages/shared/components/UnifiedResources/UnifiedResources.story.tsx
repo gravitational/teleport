@@ -219,15 +219,6 @@ export const LoadingPreferences = story({
   unifiedResourcePreferencesAttempt: makeProcessingAttempt(),
 });
 
-export const FailedToUpdatePreferences = story({
-  fetchFunc: async () => ({
-    agents: allResources,
-  }),
-  updateUnifiedResourcesPreferencesAttempt: makeErrorAttempt(
-    new Error('Network error')
-  ),
-});
-
 export const PinningNotSupported = story({
   fetchFunc: async () => {
     return { agents: allResources, startKey: 'next-key' };
