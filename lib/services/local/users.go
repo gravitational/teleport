@@ -1017,18 +1017,22 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.OIDCConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.OIDCConnector
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalOIDCConnector(
 			item.Value, services.WithExpires(item.Expires))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling OIDC Connector")
+			continue
 		}
 		if !withSecrets {
 			conn.SetClientSecret("")
 			conn.SetGoogleServiceAccount("")
 		}
-		connectors[i] = conn
+		connectors = append(connectors, conn)
 	}
 	return connectors, nil
 }
@@ -1135,12 +1139,16 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.SAMLConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.SAMLConnector
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalSAMLConnector(
 			item.Value, services.WithExpires(item.Expires))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
 		}
 		if !withSecrets {
 			keyPair := conn.GetSigningKeyPair()
@@ -1149,7 +1157,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 				conn.SetSigningKeyPair(keyPair)
 			}
 		}
-		connectors[i] = conn
+		connectors = append(connectors, conn)
 	}
 	return connectors, nil
 }
@@ -1275,16 +1283,20 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.GithubConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.GithubConnector
+	for _, item := range result.Items {
 		connector, err := services.UnmarshalGithubConnector(item.Value)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling GitHub Connector")
+			continue
 		}
 		if !withSecrets {
 			connector.SetClientSecret("")
 		}
-		connectors[i] = connector
+		connectors = append(connectors, connector)
 	}
 	return connectors, nil
 }
