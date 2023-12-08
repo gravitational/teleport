@@ -1,3 +1,5 @@
+//go:build !unix
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -16,19 +18,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package socketpair
+package uds
 
 import (
-	"net"
+	"errors"
+	"syscall"
+
+	"github.com/gravitational/trace"
 )
 
-// Dialer emulates a [net.Dial] by passing fds across a socektpair. Closing a
-// [Dialer] will close the associated listener as well.
-type Dialer struct {
-	c *net.UnixConn
-}
+var nonUnixErr = errors.New("socket pair not available on non-unix platform")
 
-// Close closes the underlying unix conn.
-func (d *Dialer) Close() error {
-	return d.c.Close()
+// NewSocketpair creates a unix socket pair, returning the halves as files.
+func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+	return nil, nil, trace.Wrap(nonUnixErr)
 }

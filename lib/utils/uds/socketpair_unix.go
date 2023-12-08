@@ -18,43 +18,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package socketpair
+package uds
 
 import (
-	"io"
-	"testing"
+	"os"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/trace"
 )
 
-func TestSocketserverBasics(t *testing.T) {
-	left, right, err := NewFDs()
-	require.NoError(t, err)
+// NewSocketpair creates a unix socket pair, returning the halves as files.
+func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+	lfd, rfd, err := cloexecSocketpair(t)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
-	listener, err := ListenerFromFD(left)
-	require.NoError(t, err)
-
-	dialer, err := DialerFromFD(right)
-	require.NoError(t, err)
-
-	go func() {
-		c, err := dialer.Dial()
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		_, err = c.Write([]byte("hello"))
-		assert.NoError(t, err)
-
-		assert.NoError(t, c.Close())
+	lfile, rfile := os.NewFile(lfd, "lsock"), os.NewFile(rfd, "rsock")
+	defer func() {
+		lfile.Close()
+		rfile.Close()
 	}()
 
-	c, err := listener.Accept()
-	require.NoError(t, err)
+	left, err = FromFile(lfile)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
-	b, err := io.ReadAll(c)
-	require.NoError(t, err)
+	right, err = FromFile(rfile)
+	if err != nil {
+		left.Close()
+		return nil, nil, trace.Wrap(err)
+	}
 
-	require.Equal(t, []byte("hello"), b)
+	return left, right, nil
 }

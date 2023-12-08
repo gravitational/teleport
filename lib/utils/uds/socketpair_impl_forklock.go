@@ -1,4 +1,4 @@
-//go:build unix
+//go:build darwin
 
 /*
  * Teleport
@@ -18,20 +18,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package socketpair
+package uds
 
 import (
-	"os"
+	"syscall"
 
 	"github.com/gravitational/trace"
 )
 
-// NewFDs creates a unix socket pair, returning the halves as files.
-func NewFDs() (left, right *os.File, err error) {
-	lfd, rfd, err := cloexecSocketpair()
+// cloexecSocketpair returns a unix/local stream socketpair whose file
+// descriptors are flagged close-on-exec. This implementation acquires
+// [syscall.ForkLock] as it creates the socketpair and sets the two file
+// descriptors close-on-exec.
+func cloexecSocketpair(t SocketType) (uintptr, uintptr, error) {
+	syscall.ForkLock.RLock()
+	defer syscall.ForkLock.RUnlock()
+
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, t.proto(), 0)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return 0, 0, trace.Wrap(err)
 	}
 
-	return os.NewFile(lfd, "lsock"), os.NewFile(rfd, "rsock"), nil
+	syscall.CloseOnExec(fds[0])
+	syscall.CloseOnExec(fds[1])
+
+	return uintptr(fds[0]), uintptr(fds[1]), nil
 }

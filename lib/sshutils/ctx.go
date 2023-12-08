@@ -34,11 +34,7 @@ import (
 )
 
 // TCPIPForwardDialer represents a dialer used to handle TCPIP forward requests.
-type TCPIPForwardDialer interface {
-	// Dial creates a connection to the specified tcp address. The dial operation itself
-	// is typically proxied via a child process.
-	Dial(string) (net.Conn, error)
-}
+type TCPIPForwardDialer func(string) (net.Conn, error)
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {

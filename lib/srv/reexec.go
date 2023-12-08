@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -44,13 +45,12 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/tcpip"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
-	"github.com/gravitational/teleport/lib/utils/socketpair"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -673,19 +673,46 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
 
-	listener, err := socketpair.ListenerFromFD(ffd)
+	conn, err := uds.FromFile(ffd)
+	ffd.Close()
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	forwarder := tcpip.NewForwarder(listener)
-	defer forwarder.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	if err := forwarder.Run(); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	var buf [1024]byte
+	var fbuf [1]*os.File
+	for {
+		n, fn, err := conn.ReadWithFDs(buf[:], fbuf[:])
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return errorWriter, teleport.RemoteCommandSuccess, nil
+			}
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		if fn == 0 {
+			continue
+		}
+
+		conn, err := uds.FromFile(fbuf[0])
+		fbuf[0].Close()
+		if err != nil {
+			continue
+		}
+
+		go func(addr string, conn net.Conn) {
+			defer conn.Close()
+			remote, err := net.Dial("tcp", addr)
+			if err != nil {
+				return
+			}
+			defer remote.Close()
+			utils.ProxyConn(ctx, conn, remote)
+		}(string(buf[:n]), conn)
 	}
-
-	return errorWriter, teleport.RemoteCommandSuccess, nil
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
