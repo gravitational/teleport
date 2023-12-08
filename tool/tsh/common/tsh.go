@@ -2926,7 +2926,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		}
 	}
 
-	// Must match databaseTableColumns().
+	// Must match printDatabaseTableConfig.allColumnTitles().
 	return []string{
 		proxy,
 		cluster,
@@ -2936,6 +2936,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		database.GetType(),
 		database.GetURI(),
 		formatUsersForDB(database, accessChecker),
+		formatDatabaseRolesForDB(database, accessChecker),
 		common.FormatLabels(database.GetAllLabels(), verbose),
 		connect,
 	}

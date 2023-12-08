@@ -21,10 +21,11 @@ package common
 import (
 	"fmt"
 	"io"
+	"slices"
 
-	"golang.org/x/exp/slices"
-
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type printDatabaseTableConfig struct {
@@ -35,19 +36,22 @@ type printDatabaseTableConfig struct {
 	excludeColumns      []string
 }
 
+func (cfg printDatabaseTableConfig) allColumnTitles() []string {
+	return []string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Database Roles", "Labels", "Connect"}
+}
+
 func printDatabaseTable(cfg printDatabaseTableConfig) {
-	allColumns := databaseTableColumns()
 	if !cfg.showProxyAndCluster {
 		cfg.excludeColumns = append(cfg.excludeColumns, "Proxy", "Cluster")
 	}
 	if !cfg.verbose {
-		cfg.excludeColumns = append(cfg.excludeColumns, "Protocol", "Type", "URI")
+		cfg.excludeColumns = append(cfg.excludeColumns, "Protocol", "Type", "URI", "Database Roles")
 	}
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
 
-	for columnIndex, column := range allColumns {
+	for columnIndex, column := range cfg.allColumnTitles() {
 		if slices.Contains(cfg.excludeColumns, column) {
 			continue
 		}
@@ -67,6 +71,19 @@ func printDatabaseTable(cfg printDatabaseTableConfig) {
 	fmt.Fprintln(cfg.writer, t.AsBuffer().String())
 }
 
-func databaseTableColumns() []string {
-	return []string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect"}
+func formatDatabaseRolesForDB(database types.Database, accessChecker services.AccessChecker) string {
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		// may happen if fetching the role set failed for any reason.
+		if accessChecker == nil {
+			return "(unknown)"
+		}
+
+		autoUser, roles, err := accessChecker.CheckDatabaseRoles(database)
+		if err != nil {
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+		} else if autoUser.IsEnabled() {
+			return fmt.Sprintf("%v", roles)
+		}
+	}
+	return ""
 }

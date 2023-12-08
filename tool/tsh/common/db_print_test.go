@@ -23,14 +23,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func Test_printDatabaseTable(t *testing.T) {
 	t.Parallel()
 
 	rows := [][]string{
-		{"proxy", "cluster1", "db1", "describe db1", "postgres", "self-hosted", "localhost:5432", "[*]", "Env=dev", "tsh db connect db1"},
-		{"proxy", "cluster1", "db2", "describe db2", "mysql", "self-hosted", "localhost:3306", "[alice] (Auto-provisioned)", "Env=prod", ""},
+		{"proxy", "cluster1", "db1", "describe db1", "postgres", "self-hosted", "localhost:5432", "[*]", "", "Env=dev", "tsh db connect db1"},
+		{"proxy", "cluster1", "db2", "describe db2", "mysql", "self-hosted", "localhost:3306", "[alice]", "[readonly]", "Env=prod", ""},
 	}
 
 	tests := []struct {
@@ -46,10 +50,10 @@ func Test_printDatabaseTable(t *testing.T) {
 				verbose:             false,
 			},
 			// os.Stdin.Fd() fails during go test, so width is defaulted to 80 for truncated table.
-			expect: `Name Description  Allowed Users       Labels   Connect             
----- ------------ ------------------- -------- ------------------- 
-db1  describe db1 [*]                 Env=dev  tsh db connect d... 
-db2  describe db2 [alice] (Auto-pr... Env=prod                     
+			expect: `Name Description  Allowed Users Labels   Connect             
+---- ------------ ------------- -------- ------------------- 
+db1  describe db1 [*]           Env=dev  tsh db connect d... 
+db2  describe db2 [alice]       Env=prod                     
 
 `,
 		},
@@ -61,10 +65,10 @@ db2  describe db2 [alice] (Auto-pr... Env=prod
 				verbose:             false,
 				excludeColumns:      []string{"Description", "Labels", "Connect"},
 			},
-			expect: `Name Allowed Users              
----- -------------------------- 
-db1  [*]                        
-db2  [alice] (Auto-provisioned) 
+			expect: `Name Allowed Users 
+---- ------------- 
+db1  [*]           
+db2  [alice]       
 
 `,
 		},
@@ -75,24 +79,25 @@ db2  [alice] (Auto-provisioned)
 				showProxyAndCluster: false,
 				verbose:             true,
 			},
-			expect: `Name Description  Protocol Type        URI            Allowed Users              Labels   Connect            
----- ------------ -------- ----------- -------------- -------------------------- -------- ------------------ 
-db1  describe db1 postgres self-hosted localhost:5432 [*]                        Env=dev  tsh db connect db1 
-db2  describe db2 mysql    self-hosted localhost:3306 [alice] (Auto-provisioned) Env=prod                    
+			expect: `Name Description  Protocol Type        URI            Allowed Users Database Roles Labels   Connect            
+---- ------------ -------- ----------- -------------- ------------- -------------- -------- ------------------ 
+db1  describe db1 postgres self-hosted localhost:5432 [*]                          Env=dev  tsh db connect db1 
+db2  describe db2 mysql    self-hosted localhost:3306 [alice]       [readonly]     Env=prod                    
 
 `,
 		},
 		{
-			name: "tsh db ls -v -A",
+			name: "tsh db ls -v -R -E 'Database Roles'",
 			cfg: printDatabaseTableConfig{
 				rows:                rows,
 				showProxyAndCluster: true,
 				verbose:             true,
+				excludeColumns:      []string{"Database Roles"},
 			},
-			expect: `Proxy Cluster  Name Description  Protocol Type        URI            Allowed Users              Labels   Connect            
------ -------- ---- ------------ -------- ----------- -------------- -------------------------- -------- ------------------ 
-proxy cluster1 db1  describe db1 postgres self-hosted localhost:5432 [*]                        Env=dev  tsh db connect db1 
-proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice] (Auto-provisioned) Env=prod                    
+			expect: `Proxy Cluster  Name Description  Protocol Type        URI            Allowed Users Labels   Connect            
+----- -------- ---- ------------ -------- ----------- -------------- ------------- -------- ------------------ 
+proxy cluster1 db1  describe db1 postgres self-hosted localhost:5432 [*]           Env=dev  tsh db connect db1 
+proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]       Env=prod                    
 
 `,
 		},
@@ -107,6 +112,81 @@ proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice] (Au
 
 			printDatabaseTable(cfg)
 			require.Equal(t, test.expect, sb.String())
+		})
+	}
+}
+
+func Test_formatDatabaseRolesForDB(t *testing.T) {
+	t.Parallel()
+
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	dbWithAutoUser, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "dbWithAutoUser",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "teleport-admin",
+		},
+	})
+	require.NoError(t, err)
+
+	roleAutoUser := &types.RoleV6{
+		Metadata: types.Metadata{Name: "auto-user", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"roleA", "roleB"},
+				DatabaseNames:  []string{"*"},
+				DatabaseUsers:  []string{types.Wildcard},
+			},
+		},
+	}
+
+	tests := []struct {
+		name          string
+		database      types.Database
+		accessChecker services.AccessChecker
+		expect        string
+	}{
+		{
+			name:     "nil accessChecker",
+			database: dbWithAutoUser,
+			expect:   "(unknown)",
+		},
+		{
+			name:     "roles",
+			database: dbWithAutoUser,
+			accessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+				Username: "alice",
+			}, "clustername", services.RoleSet{roleAutoUser}),
+			expect: "[roleA roleB]",
+		},
+		{
+			name:     "db without admin user",
+			database: db,
+			accessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+				Username: "alice",
+			}, "clustername", services.RoleSet{roleAutoUser}),
+			expect: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expect, formatDatabaseRolesForDB(test.database, test.accessChecker))
 		})
 	}
 }
