@@ -170,7 +170,8 @@ describe('isRunning', () => {
 });
 
 const waitForMessage = (process: childProcess.ChildProcess) =>
-  new Promise(resolve => {
+  new Promise((resolve, reject) => {
+    setTimeout(() => reject(new Error('timeout')), 4000);
     process.once('message', resolve);
   });
 
