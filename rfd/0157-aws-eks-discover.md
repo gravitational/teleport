@@ -151,13 +151,12 @@ to an already associated identity provider.
 
 ### Plan of implementation
 
-Implementation will be done in three main steps:
+Implementation will be done in two main steps:
 
-1. Introducing a UI flow for the enrollment of selected EKS clusters using AWS CloudShell.
-2. Adding API-only enrollment for selected EKS clusters with the use of an associated OIDC identity provider.
-3. Adding the capability to set up automatic discovery and enrollment of EKS clusters.
+1. Introducing an UI flow for the enrollment of selected EKS cluster using API-only enrollment for selected EKS cluster with the use of an associated OIDC identity provider.
+2. Adding the capability to set up automatic discovery and enrollment of EKS clusters.
 
-Each of these steps is functionally complete and allows building upon it to implement the next step.
+First step is functionally complete and allows building upon it to implement the next step.
 
 ## Product Usage
 
