@@ -30,6 +30,10 @@ import (
 )
 
 // Resource represents common properties for all resources.
+//
+// Please avoid adding new uses of Resource in the codebase. Instead, consider
+// using concrete proto types directly or a manually declared subset of the
+// Resource153 interface for new-style resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string

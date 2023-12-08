@@ -159,7 +159,9 @@ func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 		Description: md.Description,
 		Labels:      md.Labels,
 		Expires:     &expires,
-		ID:          md.Id,
+		//nolint:staticcheck // SA1019. We need to refer to Id to create the Metadata.
+		ID:       md.Id,
+		Revision: md.Revision,
 	}
 }
 
@@ -168,7 +170,12 @@ func (r *resource153ToLegacyAdapter) GetName() string {
 }
 
 func (r *resource153ToLegacyAdapter) GetResourceID() int64 {
+	//nolint:staticcheck // SA1019. We need to refer to Id to provide GetResourceID.
 	return r.inner.GetMetadata().Id
+}
+
+func (r *resource153ToLegacyAdapter) GetRevision() string {
+	return r.inner.GetMetadata().Revision
 }
 
 func (r *resource153ToLegacyAdapter) GetSubKind() string {
@@ -188,7 +195,12 @@ func (r *resource153ToLegacyAdapter) SetName(name string) {
 }
 
 func (r *resource153ToLegacyAdapter) SetResourceID(id int64) {
+	//nolint:staticcheck // SA1019. We need to refer to Id to provide SetResourceID.
 	r.inner.GetMetadata().Id = id
+}
+
+func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
+	r.inner.GetMetadata().Revision = rev
 }
 
 func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
