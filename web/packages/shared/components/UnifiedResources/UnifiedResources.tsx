@@ -493,11 +493,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         ViewComponent && (
           <ViewComponent
             onLabelClick={label =>
-            setParams({
-              ...params,
-              search: '',
-              query: makeAdvancedSearchQueryForLabel(label, params),
-            })}
+              setParams({
+                ...params,
+                search: '',
+                query: makeAdvancedSearchQueryForLabel(label, params),
+              })
+            }
             pinnedResources={pinnedResources}
             selectedResources={selectedResources}
             onSelectResource={handleSelectResource}
