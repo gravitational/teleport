@@ -227,7 +227,7 @@ type Identity interface {
 	// UpsertGithubConnector creates or updates a Github connector.
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 
-	// GetGithubConnectors returns valid Github connectors, nvalid Connectors are simply logged but errors are not forwarded.
+	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 
 	// GetGithubConnector returns a Github connector by its name
