@@ -25,13 +25,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const help string = `the path to a YAML configuration file with the following fields:
+const configHelp string = `The path to a YAML configuration file with the following fields:
 
 ## Main config
 
-required_types (string): a list of type info mappings (see "Type info")
-source (string): the path to the root of a Go project directory
-destination (string): the file path of the resource reference
+required_field_types: a list of type info mappings (see "Type info") indicating
+type names of fields that must be present in a dynamic resource before we
+include it in the reference. For example, if this is "Metadata" from package
+"types", a struct type must include a field with the a field of "types.Metadata"
+before we add it to the reference.
+
+source (string): the path to the root of a Go project directory.
+
+destination (string): the file path of the resource reference.
+
+excluded_resource_types: a list of type info mappings (see "Type info")
+indicating names of resources to exclude from the reference. 
+
+field_assignment_method: the name of a method of a resource type that assigns
+fields to the resource. Used to identify the kind and version of a resource.
 
 ## Type info
 
@@ -50,7 +62,7 @@ destination: "docs/pages/includes/resource-reference.mdx"
 `
 
 func main() {
-	conf := flag.String("config", "./conf.yaml", help)
+	conf := flag.String("config", "./conf.yaml", configHelp)
 	flag.Parse()
 
 	conffile, err := os.Open(*conf)
@@ -61,7 +73,7 @@ func main() {
 
 	genconf := reference.GeneratorConfig{}
 	if err = yaml.NewDecoder(conffile).Decode(&genconf); err != nil {
-		fmt.Fprintf(os.Stderr, "Could not parse the configuration file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Could not parse the configuration file as YAML: %v\n", err)
 		os.Exit(1)
 	}
 
