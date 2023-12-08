@@ -265,7 +265,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
 	// to call it both here and in CompareAndSwapCertAuthority)
 	updated.SetRotation(ca.GetRotation())
-	if err := updated.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(updated); err != nil {
 		return trace.Wrap(err)
 	}
 

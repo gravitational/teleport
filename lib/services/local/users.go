@@ -1256,13 +1256,13 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
@@ -1272,9 +1272,53 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	return connector, nil
+}
+
+// UpdateGithubConnector updates an existing Github connector.
+func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
+	}
+	_, err = s.Update(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connector, nil
+}
+
+// CreateGithubConnector creates a new Github connector.
+func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalGithubConnector(connector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
+		ID:      connector.GetResourceID(),
+	}
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return connector, nil
 }
 
 // GetGithubConnectors returns all configured Github connectors

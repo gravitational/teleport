@@ -66,7 +66,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 
 // CreateWindowsDesktop creates a windows desktop resource.
 func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
-	if err := desktop.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(desktop); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalWindowsDesktop(desktop)
@@ -92,7 +92,7 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 
 // UpdateWindowsDesktop updates a windows desktop resource.
 func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
-	if err := desktop.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(desktop); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalWindowsDesktop(desktop)
@@ -118,7 +118,7 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 
 // UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
 func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
-	if err := desktop.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(desktop); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalWindowsDesktop(desktop)

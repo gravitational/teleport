@@ -398,8 +398,7 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 			trustedCluster := root.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 				{Remote: rootRole.GetName(), Local: []string{secondRole.GetName()}},
 			})
-			err = trustedCluster.CheckAndSetDefaults()
-			require.NoError(t, err)
+			require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 			options.trustedCluster = trustedCluster
 		}

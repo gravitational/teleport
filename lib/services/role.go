@@ -241,8 +241,8 @@ func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 		opt(&options)
 	}
 
-	if err := r.CheckAndSetDefaults(); err != nil {
-		return err
+	if err := CheckAndSetDefaults(r); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Expression parsers in new versions sometimes get smarter/more strict and

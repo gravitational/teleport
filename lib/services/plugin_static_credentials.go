@@ -43,15 +43,16 @@ type PluginStaticCredentials interface {
 
 // MarshalPluginStaticCredentials marshals PluginStaticCredentials resource to JSON.
 func MarshalPluginStaticCredentials(pluginStaticCredentials types.PluginStaticCredentials, opts ...MarshalOption) ([]byte, error) {
-	if err := pluginStaticCredentials.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch pluginStaticCredentials := pluginStaticCredentials.(type) {
 	case *types.PluginStaticCredentialsV1:
+		if err := pluginStaticCredentials.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *pluginStaticCredentials
 			copy.SetResourceID(0)

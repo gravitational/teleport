@@ -61,9 +61,10 @@ func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
-	if err = ca.CheckAndSetDefaults(); err != nil {
+	if err = CheckAndSetDefaults(ca); err != nil {
 		return trace.Wrap(err)
 	}
+
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)

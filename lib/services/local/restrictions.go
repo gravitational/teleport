@@ -38,7 +38,7 @@ func NewRestrictionsService(backend backend.Backend) *RestrictionsService {
 
 // SetNetworkRestrictions upserts NetworkRestrictions
 func (s *RestrictionsService) SetNetworkRestrictions(ctx context.Context, nr types.NetworkRestrictions) error {
-	if err := nr.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(nr); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalNetworkRestrictions(nr)

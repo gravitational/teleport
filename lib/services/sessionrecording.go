@@ -65,10 +65,6 @@ func UnmarshalSessionRecordingConfig(bytes []byte, opts ...MarshalOption) (types
 
 // MarshalSessionRecordingConfig marshals the SessionRecordingConfig resource to JSON.
 func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts ...MarshalOption) ([]byte, error) {
-	if err := recConfig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,6 +72,10 @@ func MarshalSessionRecordingConfig(recConfig types.SessionRecordingConfig, opts 
 
 	switch recConfig := recConfig.(type) {
 	case *types.SessionRecordingConfigV2:
+		if err := recConfig.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if version := recConfig.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched session recording config version %v and type %T", version, recConfig)
 		}

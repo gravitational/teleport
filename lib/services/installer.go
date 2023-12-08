@@ -54,15 +54,16 @@ func UnmarshalInstaller(data []byte, opts ...MarshalOption) (types.Installer, er
 
 // MarshalInstaller marshals the Installer resource to JSON.
 func MarshalInstaller(installer types.Installer, opts ...MarshalOption) ([]byte, error) {
-	if err := installer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch installer := installer.(type) {
 	case *types.InstallerV1:
+		if err := installer.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

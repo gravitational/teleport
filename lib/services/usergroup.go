@@ -43,10 +43,6 @@ type UserGroups interface {
 
 // MarshalUserGroup marshals the user group resource to JSON.
 func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, error) {
-	if err := group.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,6 +50,10 @@ func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, err
 
 	switch g := group.(type) {
 	case *types.UserGroupV1:
+		if err := g.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *g
 			copy.SetResourceID(0)

@@ -391,10 +391,6 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *auth.Client, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = role.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	if err := services.ValidateAccessPredicates(role); err != nil {
 		// check for syntax errors in predicates
@@ -725,15 +721,11 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *auth.Clie
 	}
 	fmt.Printf("ui_config %q has been set\n", uic.GetName())
 	return nil
-
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
 	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := server.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -762,9 +754,6 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *auth.Client, 
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := conn.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -807,9 +796,6 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *auth
 	// being injected into the backend.
 	if conn.GetSigningKeyPair() == nil && exists {
 		conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
-	}
-	if err := conn.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
@@ -867,9 +853,6 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	}
 
 	serviceProviderName := sp.GetName()
-	if err := sp.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	exists := false
 	if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
@@ -929,10 +912,6 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *auth.Client
 func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
 	importRule, err := services.UnmarshalOktaImportRule(raw.Raw)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := importRule.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 

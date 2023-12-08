@@ -302,7 +302,7 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 
 // MakeBackendItem will check and make the backend item.
 func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, error) {
-	if err := resource.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(resource); err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 

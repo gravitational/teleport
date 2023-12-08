@@ -27,9 +27,10 @@ import (
 
 // ValidateReverseTunnel validates the OIDC connector and sets default values
 func ValidateReverseTunnel(rt types.ReverseTunnel) error {
-	if err := rt.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(rt); err != nil {
 		return trace.Wrap(err)
 	}
+
 	for _, addr := range rt.GetDialAddrs() {
 		if _, err := utils.ParseAddr(addr); err != nil {
 			return trace.Wrap(err)

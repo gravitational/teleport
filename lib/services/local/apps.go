@@ -74,7 +74,7 @@ func (s *AppService) GetApp(ctx context.Context, name string) (types.Application
 
 // CreateApp creates a new application resource.
 func (s *AppService) CreateApp(ctx context.Context, app types.Application) error {
-	if err := app.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalApp(app)
@@ -100,7 +100,7 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 
 // UpdateApp updates an existing application resource.
 func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error {
-	if err := app.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalApp(app)

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -86,7 +87,7 @@ func (s *PresenceService) getInstance(ctx context.Context, serverID string) (typ
 
 // UpsertInstance creates or updates an instance resource.
 func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Instance) error {
-	if err := instance.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(instance); err != nil {
 		return trace.Wrap(err)
 	}
 

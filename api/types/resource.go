@@ -63,9 +63,6 @@ type Resource interface {
 	GetRevision() string
 	// SetRevision sets the revision
 	SetRevision(string)
-	// CheckAndSetDefaults validates the Resource and sets any empty fields to
-	// default values.
-	CheckAndSetDefaults() error
 }
 
 // IsSystemResource checks to see if the given resource is considered

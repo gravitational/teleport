@@ -777,21 +777,22 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 }
 
 func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI, lastRotation time.Time) error {
-	server, err := types.NewServer(a.HostUUID, types.KindNode, types.ServerSpecV2{
-		Addr:     a.OpenSSH.InstanceAddr,
-		Hostname: a.Hostname,
-		Rotation: types.Rotation{
-			LastRotated: lastRotation,
+	server, err := types.NewServerWithLabels(
+		a.HostUUID,
+		types.KindNode,
+		types.ServerSpecV2{
+			Addr:     a.OpenSSH.InstanceAddr,
+			Hostname: a.Hostname,
+			Rotation: types.Rotation{
+				LastRotated: lastRotation,
+			},
 		},
-	})
+		a.OpenSSH.Labels,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	server.SetSubKind(types.SubKindOpenSSHNode)
-	server.SetStaticLabels(a.OpenSSH.Labels)
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	if _, err := client.UpsertNode(ctx, server); err != nil {
 		return trace.Wrap(err)

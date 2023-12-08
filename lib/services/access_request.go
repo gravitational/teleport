@@ -51,9 +51,10 @@ const maxAccessDuration = 7 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
-	if err := ar.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
 	}
+
 	_, err := uuid.Parse(ar.GetName())
 	if err != nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
