@@ -71,8 +71,8 @@ const (
 	boolKind
 )
 
-// rawField contains information about a struct field required for downstream
-// processing to prevent passing around AST nodes and make testing easier.
+// rawField contains simplified information about a struct field type. This
+// prevents passing around AST nodes and makes testing easier.
 type rawField struct {
 	// Package that declares the field type
 	packageName string
@@ -90,15 +90,15 @@ type rawField struct {
 	tags string
 }
 
-// rawType contains information about a struct field required for downstream
-// processing. The intention is to limit raw AST handling to as small a part of
-// the source as possible.
+// rawType contains simplified information about a type, which may or may not be
+// a struct. This prevents passing around AST nodes and makes testing easier.
 type rawType struct {
 	// A declaration's GoDoc, including newline characters but not comment
 	// characters.
 	doc string
 	// The name of the type declaration.
-	name   string
+	name string
+	// Struct fields within the type. Empty if not a struct.
 	fields []rawField
 }
 
@@ -341,12 +341,15 @@ func getRawTypes(decl DeclarationInfo) (rawType, error) {
 }
 
 // makeYAMLExample creates an example YAML document illustrating the fields
-// within the declaration.
+// within a declaration. This appears at the end of a section within the
+// reference.
 func makeYAMLExample(fields []rawField) (string, error) {
 	var buf bytes.Buffer
 
 	for _, field := range fields {
 		var example string
+		// There is a predefined YAML example in the field comment, so
+		// use that.
 		if strings.Contains(field.doc, yamlExampleDelimeter) {
 			sides := strings.Split(field.doc, yamlExampleDelimeter)
 			if len(sides) != 2 {
@@ -363,17 +366,16 @@ func makeYAMLExample(fields []rawField) (string, error) {
 	return buf.String(), nil
 }
 
-// Key-value pair for the "json" tag within a struct tag. Keys and values are
-// separated by colons. Values are surrounded by double quotes.
-// See: https://pkg.go.dev/reflect#StructTag
+// Key-value pair for the "json" tag within a struct tag.  See:
+// https://pkg.go.dev/reflect#StructTag
 var jsonTagKeyValue = regexp.MustCompile(`json:"([^"]+)"`)
 
-// getYAMLTag returns the "json" tag value from the struct tag expression in
-// tags.
+// getYAMLTag returns the "json" tag value from the provided struct tag
+// expression.
 func getJSONTag(tags string) string {
 	kv := jsonTagKeyValue.FindStringSubmatch(tags)
 
-	// No "yaml" tag, or a "yaml" tag with no value.
+	// No "json" tag, or a "json" tag with no value.
 	if len(kv) != 2 {
 		return ""
 	}
@@ -455,11 +457,10 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 	default:
 		return nonYAMLKind{}, nil
 	}
-
 }
 
-// getYAMLType returns a name for field that is suitable for printing within the
-// resource reference.
+// getYAMLType returns YAML type information for a struct field so we can print
+// information about it in the resource reference.
 func getYAMLType(field *ast.Field, pkg string) (yamlKindNode, error) {
 	return getYAMLTypeForExpr(field.Type, pkg)
 }
@@ -511,12 +512,15 @@ func makeRawField(field *ast.Field, packageName string) (rawField, error) {
 }
 
 // makeFieldTableInfo assembles a slice of human-readable information about fields
-// within a Go struct.
+// within a Go struct to include within the resource reference.
 func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 	var result []Field
 	for _, field := range fields {
 		var desc string
 		var typ string
+		// If there is a predefined YAML example, we don't attempt to
+		// create a field table, since it will probably be inaccurate.
+		// Instead, refer readers to the YAML example.
 		if strings.Contains(field.doc, yamlExampleDelimeter) {
 			sides := strings.Split(field.doc, yamlExampleDelimeter)
 			if len(sides) != 2 {
