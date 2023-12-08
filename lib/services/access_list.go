@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -115,11 +117,27 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	return &accessList, nil
 }
 
+// ImplicitAccessListError indicates that an operation that only makes sense for
+// AccessLists with an explicit Member list has been attempted on an implicit-
+// membership AccessList
+type ImplicitAccessListError struct{}
+
+// Error implements the `error` interface for ImplicitAccessListError
+func (ImplicitAccessListError) Error() string {
+	return "requested AccessList does not have explicit member list"
+}
+
 // AccessListMembersGetter defines an interface for reading access list members.
 type AccessListMembersGetter interface {
 	// ListAccessListMembers returns a paginated list of all access list members.
-	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }
 
@@ -187,20 +205,23 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 
 // IsAccessListOwner will return true if the user is an owner for the current list.
 func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
-	isOwner := false
-	for _, owner := range accessList.Spec.Owners {
-		if owner.Name == identity.Username {
-			isOwner = true
-			break
-		}
-	}
-
 	// An opaque access denied error.
 	accessDenied := trace.AccessDenied("access denied")
 
-	// User is not an owner, so we'll access denied.
-	if !isOwner {
-		return accessDenied
+	if accessList.HasExplicitOwnership() {
+		isOwner := false
+
+		for _, owner := range accessList.GetOwners() {
+			if owner.Name == identity.Username {
+				isOwner = true
+				break
+			}
+		}
+
+		// User is not an owner, so we'll access denied.
+		if !isOwner {
+			return accessDenied
+		}
 	}
 
 	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
@@ -246,21 +267,24 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 		}
 	}
 
-	member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
-	if trace.IsNotFound(err) {
-		// The member has not been found, so we know they're not a member of this list.
-		return trace.NotFound("user %s is not a member of the access list", username)
-	} else if err != nil {
-		// Some other error has occurred
-		return trace.Wrap(err)
+	if accessList.HasExplicitMembership() {
+		member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
+		if trace.IsNotFound(err) {
+			// The member has not been found, so we know they're not a member of this list.
+			return trace.NotFound("user %s is not a member of the access list", username)
+		} else if err != nil {
+			// Some other error has occurred
+			return trace.Wrap(err)
+		}
+
+		expires := member.Spec.Expires
+		if !expires.IsZero() && !a.clock.Now().Before(expires) {
+			return trace.AccessDenied("user %s's membership has expired in the access list", username)
+		}
 	}
 
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
 		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
-	}
-
-	if !member.Spec.Expires.IsZero() && !a.clock.Now().Before(member.Spec.Expires) {
-		return trace.AccessDenied("user %s's membership has expired in the access list", username)
 	}
 
 	return nil

@@ -70,6 +70,8 @@ sets Deployment annotations when specified if action is Upgrade:
               readOnly: true
             - mountPath: /var/lib/teleport
               name: data
+          securityContext:
+            fsGroup: 9807
           serviceAccountName: RELEASE-NAME
           volumes:
           - configMap:
@@ -141,6 +143,8 @@ sets Deployment labels when specified if action is Upgrade:
             readOnly: true
           - mountPath: /var/lib/teleport
             name: data
+        securityContext:
+          fsGroup: 9807
         serviceAccountName: RELEASE-NAME
         volumes:
         - configMap:
@@ -199,6 +203,8 @@ sets Pod annotations when specified if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -257,6 +263,8 @@ sets Pod labels when specified if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -332,6 +340,8 @@ should add emptyDir for data when existingDataVolume is not set if action is Upg
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -391,6 +401,8 @@ should add insecureSkipProxyTLSVerify to args when set in values if action is Up
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -449,6 +461,8 @@ should correctly configure existingDataVolume when set if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: teleport-kube-agent-data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -505,6 +519,8 @@ should expose diag port if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -575,6 +591,8 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -645,6 +663,8 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -703,6 +723,8 @@ should have one replica when replicaCount is not set if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -763,6 +785,8 @@ should mount extraVolumes and extraVolumeMounts if action is Upgrade:
         name: data
       - mountPath: /path/to/mount
         name: my-mount
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -829,6 +853,8 @@ should mount tls.existingCASecretName and set environment when set in values if 
       - mountPath: /etc/teleport-tls-ca
         name: teleport-tls-ca
         readOnly: true
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -897,6 +923,8 @@ should mount tls.existingCASecretName and set extra environment when set in valu
       - mountPath: /etc/teleport-tls-ca
         name: teleport-tls-ca
         readOnly: true
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -994,6 +1022,8 @@ should provision initContainer correctly when set in values if action is Upgrade
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1052,6 +1082,8 @@ should set SecurityContext if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1130,6 +1162,8 @@ should set affinity when set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1188,6 +1222,8 @@ should set default serviceAccountName when not set in values if action is Upgrad
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1259,6 +1295,8 @@ should set environment when extraEnv set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1317,6 +1355,8 @@ should set image and tag correctly if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1375,6 +1415,8 @@ should set imagePullPolicy when set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1435,6 +1477,8 @@ should set nodeSelector if set in values if action is Upgrade:
         name: data
     nodeSelector:
       gravitational.io/k8s-role: node
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1493,6 +1537,8 @@ should set not set priorityClassName when not set in values if action is Upgrade
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1563,6 +1609,8 @@ should set preferred affinity when more than one replica is used if action is Up
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1622,6 +1670,8 @@ should set priorityClassName when set in values if action is Upgrade:
       - mountPath: /var/lib/teleport
         name: data
     priorityClassName: teleport-kube-agent
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1680,6 +1730,8 @@ should set probeTimeoutSeconds when set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1748,6 +1800,8 @@ should set required affinity when highAvailability.requireAntiAffinity is set if
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1813,6 +1867,8 @@ should set resources when set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     volumes:
     - configMap:
@@ -1871,6 +1927,8 @@ should set serviceAccountName when set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: teleport-kube-agent-sa
     volumes:
     - configMap:
@@ -1929,6 +1987,8 @@ should set tolerations when set in values if action is Upgrade:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    securityContext:
+      fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     tolerations:
     - effect: NoExecute

@@ -165,7 +165,7 @@ func TestFromProtoNils(t *testing.T) {
 
 		uut, err := FromProto(msg)
 		require.NoError(t, err)
-		require.Equal(t, accesslist.Explicit, uut.Spec.Membership)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
 	})
 
 	t.Run("ownership", func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestFromProtoNils(t *testing.T) {
 
 		uut, err := FromProto(msg)
 		require.NoError(t, err)
-		require.Equal(t, accesslist.Explicit, uut.Spec.Ownership)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
 	})
 }
 

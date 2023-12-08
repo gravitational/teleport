@@ -42,22 +42,6 @@ const (
 	twoWeeks = 24 * time.Hour * 14
 )
 
-// Inclusion values indicate how membership and ownership of an AccessList
-// should be applied.
-type Inclusion string
-
-const (
-	// Implicit inclusion indicates that a user need only meet a requirement set
-	// to be considered included in a list. Both list membership and ownership
-	// may be Implicit.
-	Implicit Inclusion = "implicit"
-
-	// Explicit inclusion indicates that a user must meet a requirement set AND
-	// be explicitly added to an access list to be included in it. Both list
-	// membership and ownership may be Explicit.
-	Explicit Inclusion = "explicit"
-)
-
 func (r ReviewFrequency) String() string {
 	switch r {
 	case OneMonth:
@@ -126,6 +110,28 @@ func parseReviewDayOfMonth(input string) ReviewDayOfMonth {
 	// We won't return an error here and we'll just let CheckAndSetDefaults handle the rest.
 	return 0
 }
+
+// Inclusion values indicate how membership and ownership of an AccessList
+// should be applied.
+type Inclusion string
+
+const (
+	// InclusionUnspecified is the default, un-set inclusion value used to
+	// detect when inclusion is not specified in an access list. The only times
+	// you should encounter this value in practice is when un-marshaling an
+	// AccessList that pre-dates the implementation of dynamic access lists.
+	InclusionUnspecified Inclusion = ""
+
+	// InclusionImplicit indicates that a user need only meet a requirement set
+	// to be considered included in a list. Both list membership and ownership
+	// may be Implicit.
+	InclusionImplicit Inclusion = "implicit"
+
+	// InclusionExplicit indicates that a user must meet a requirement set AND
+	// be explicitly added to an access list to be included in it. Both list
+	// membership and ownership may be Explicit.
+	InclusionExplicit Inclusion = "explicit"
+)
 
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
@@ -234,6 +240,11 @@ type Requires struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
+// IsEmpty returns true when no roles or traits are set
+func (r *Requires) IsEmpty() bool {
+	return len(r.Roles) == 0 && len(r.Traits) == 0
+}
+
 // Grants describes what access is granted by membership to the access list.
 type Grants struct {
 	// Roles are the roles that are granted to users who are members of the access list.
@@ -241,24 +252,6 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
-}
-
-// Member describes a member of an access list.
-type Member struct {
-	// Name is the name of the member of the access list.
-	Name string `json:"name" yaml:"name"`
-
-	// Joined is when the user joined the access list.
-	Joined time.Time `json:"joined" yaml:"joined"`
-
-	// expires is when the user's membership to the access list expires.
-	Expires time.Time `json:"expires" yaml:"expires"`
-
-	// reason is the reason this user was added to the access list.
-	Reason string `json:"reason" yaml:"reason"`
-
-	// added_by is the user that added this user to the access list.
-	AddedBy string `json:"added_by" yaml:"added_by"`
 }
 
 // NewAccessList will create a new access list.
@@ -279,14 +272,16 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 // set. Any other invalid value is an error.
 func checkInclusion(i Inclusion) (Inclusion, error) {
 	switch i {
-	case "":
-		return Explicit, nil
+	case InclusionUnspecified:
+		return InclusionExplicit, nil
 
-	case Explicit, Implicit:
+	case InclusionExplicit, InclusionImplicit:
 		return i, nil
 
 	default:
-		return Explicit, trace.BadParameter("invalid inclusion mode %q (must be %q or %q)", i, Explicit, Implicit)
+		return InclusionUnspecified,
+			trace.BadParameter("invalid inclusion mode %s (must be %s or %s)",
+				i, InclusionExplicit, InclusionImplicit)
 	}
 }
 
@@ -312,7 +307,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "membership")
 	}
 
-	if a.Spec.Ownership == Explicit && len(a.Spec.Owners) == 0 {
+	if a.Spec.Ownership != InclusionImplicit && len(a.Spec.Owners) == 0 {
 		return trace.BadParameter("owners are missing")
 	}
 
@@ -413,6 +408,30 @@ func (a *AccessList) CloneResource() types.ResourceWithLabels {
 	var copy *AccessList
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
+}
+
+// HasImplicitOwnership returns true if the supplied AccessList uses
+// implicit ownership
+func (a *AccessList) HasImplicitOwnership() bool {
+	return a.Spec.Ownership == InclusionImplicit
+}
+
+// HasExplicitOwnership returns true if the supplied AccessList uses
+// explicit ownership
+func (a *AccessList) HasExplicitOwnership() bool {
+	return a.Spec.Ownership == InclusionExplicit
+}
+
+// HasImplicitMembership returns true if the supplied AccessList uses
+// implicit membership
+func (a *AccessList) HasImplicitMembership() bool {
+	return a.Spec.Membership == InclusionImplicit
+}
+
+// HasExplicitMembership returns true if the supplied AccessList uses
+// explicit membership
+func (a *AccessList) HasExplicitMembership() bool {
+	return a.Spec.Membership == InclusionExplicit
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {

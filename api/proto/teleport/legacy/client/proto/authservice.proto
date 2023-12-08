@@ -595,6 +595,8 @@ message AccessListFeature {
 message AccessMonitoringFeature {
   // True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // Defines the max number of days to include in an access report.
+  int32 max_report_range_limit = 2 [(gogoproto.jsontag) = "max_report_range_limit,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2260,6 +2262,8 @@ message UpstreamInventoryHello {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 5;
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 6;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

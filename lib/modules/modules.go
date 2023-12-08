@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // package modules allows external packages override certain behavioral
 // aspects of teleport
@@ -89,10 +91,6 @@ type Features struct {
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
 
-	// IsTrialProduct is true if the cluster is in trial mode.
-	IsTrialProduct bool
-	// IsTeam is true if the cluster is a Teleport Team cluster.
-	IsTeamProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
@@ -144,6 +142,8 @@ type AccessListFeature struct {
 type AccessMonitoringFeature struct {
 	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
 	Enabled bool
+	// Defines the max number of days to include in an access report.
+	MaxReportRangeLimit int
 }
 
 // ToProto converts Features into proto.Features
@@ -177,7 +177,8 @@ func (f Features) ToProto() *proto.Features {
 		},
 		IdentityGovernance: f.IdentityGovernanceSecurity,
 		AccessMonitoring: &proto.AccessMonitoringFeature{
-			Enabled: f.AccessMonitoring.Enabled,
+			Enabled:             f.AccessMonitoring.Enabled,
+			MaxReportRangeLimit: int32(f.AccessMonitoring.MaxReportRangeLimit),
 		},
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
@@ -204,8 +205,13 @@ func (f Features) IsLegacy() bool {
 	return !f.IsUsageBasedBilling
 }
 
+// TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
-	return f.IdentityGovernanceSecurity
+	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
+}
+
+func (f Features) IsTeam() bool {
+	return f.ProductType == ProductTypeTeam
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
