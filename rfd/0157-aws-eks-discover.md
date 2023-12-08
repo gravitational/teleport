@@ -142,6 +142,13 @@ To access the target EKS cluster in API mode, we will generate an access token u
 That token will grant access to the `system:masters` group, so the Helm chart installation will be able to set up
 all the required infrastructure for the Teleport kube agent, including service accounts.
 
+AWS supports the association of only one OIDC identity provider with an EKS
+cluster at a time. Therefore, if a client's EKS cluster already has one associated, Teleport will not be able to
+proceed with API-only cluster enrollment. As a fallback, they can use the manual Helm command we generate.
+The client can authenticate through other means (AWS IAM or their own OIDC identity provider) to run this command.
+We will indicate in the table with the list of the available clusters if some of them cannot be automatically enrolled due
+to an already associated identity provider.
+
 ### Plan of implementation
 
 Implementation will be done in three main steps:
