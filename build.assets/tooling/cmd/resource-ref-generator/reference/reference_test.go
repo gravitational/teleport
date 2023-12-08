@@ -39,6 +39,28 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `
+	// Parse the fixture as an AST node so we can use it in shouldProcess.
+	fset := token.NewFileSet()
+	d, err := parser.ParseFile(fset,
+		"myfile.go",
+		src,
+		parser.ParseComments,
+	)
+	if err != nil {
+		t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+	}
+
+	if len(d.Decls) != 1 {
+		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
+
+	}
+
+	l, ok := d.Decls[0].(*ast.GenDecl)
+	if !ok {
+		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
+
+	}
+
 	cases := []struct {
 		description       string
 		requiredFields    []TypeInfo
@@ -127,27 +149,6 @@ type MyStruct struct{
 		},
 	}
 
-	fset := token.NewFileSet()
-	d, err := parser.ParseFile(fset,
-		"myfile.go",
-		src,
-		parser.ParseComments,
-	)
-	if err != nil {
-		t.Fatalf("test fixture contains invalid Go source: %v\n", err)
-	}
-
-	if len(d.Decls) != 1 {
-		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
-
-	}
-
-	l, ok := d.Decls[0].(*ast.GenDecl)
-	if !ok {
-		t.Fatal("the source fixture must contain a single *ast.GenDec (this is a problem with the test)")
-
-	}
-
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
 			assert.Equal(t, c.expected, shouldProcess(resource.DeclarationInfo{
@@ -159,14 +160,14 @@ type MyStruct struct{
 	}
 }
 
+// This test reads the file at the destination path and compares the
+// generated resource reference with it. The test does not regenerate
+// the file at the destination path. To do so, navigate to the
+// "docs-generators/resource-reference/reference" directory and run the
+// following command:
+//
+// go run gen-resource-ref -config=testdata/config.yaml
 func TestGenerate(t *testing.T) {
-	// This test reads the file at the destination path and compares the
-	// generated resource reference with it. The test does not regenerate
-	// the file at the destination path. To do so, navigate to the
-	// "docs-generators/resource-reference/reference" directory and run the
-	// following command:
-	//
-	// go run gen-resource-ref -config=testdata/config.yaml
 	cf, err := os.Open(path.Join("testdata", "config.yaml"))
 	if err != nil {
 		t.Fatal(err)
