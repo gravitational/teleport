@@ -124,7 +124,8 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 	var data accessrequest.SentMessages
 	var errors []error
 
-	// Fetch the user as a recipient.
+	// Fetch the user as a recipient. The user is expected to be an e-mail here, as should be
+	// the case with most SSO setups.
 	userRecipient, err := b.FetchRecipient(ctx, reqData.User)
 	if err != nil {
 		log.Warningf("Unable to find user %s in Slack, will not be able to notify.", reqData.User)
