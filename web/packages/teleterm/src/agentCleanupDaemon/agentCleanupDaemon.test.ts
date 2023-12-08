@@ -25,7 +25,7 @@ import process from 'node:process';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
-const stdio = 'pipe'; // Change to 'inherit' for easier debugging.
+const stdio = 'inherit'; // Change to 'inherit' for easier debugging.
 
 let logsDir: string;
 
