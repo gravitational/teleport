@@ -5761,6 +5761,20 @@ message SAMLIdPServiceProviderSpecV1 {
   // the entity ID in the entity descriptor at upsert time to avoid having to parse the
   // XML blob in the entity descriptor every time we need to use this resource.
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
+  // AttributeMapping is used to map Service Provider requested attributes to
+  // username, role and traits in Teleport.
+  repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+}
+
+// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// name, format and its values.
+message SAMLAttributeMapping {
+  //  name is an attribute name.
+  string name = 1 [(gogoproto.jsontag) = "name"];
+  //  name_format is an attribute name format.
+  string name_format = 2 [(gogoproto.jsontag) = "name_format"];
+  //  value is an attribute value definable with predicate expression.
+  string value = 3 [(gogoproto.jsontag) = "value"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.
