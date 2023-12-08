@@ -54,7 +54,6 @@ export function useUserPreferences(clusterUri: ClusterUri): {
         userPreferences: newPreferences,
       })
     );
-  appContext.workspacesService.useState();
 
   const getPreferencesPromise = useRef<ReturnType<typeof getPreferences>>();
   const getPreferences = useCallback(async () => {
