@@ -28,6 +28,7 @@ use ironrdp_rdpdr::pdu::esc::{
     WriteCacheCall,
 };
 use iso7816::Command as CardCommand;
+use log::{debug, warn};
 use std::collections::HashMap;
 use uuid::Uuid;
 

@@ -2,7 +2,7 @@
 name = "rdp-client"
 version = "0.1.0"
 authors = ["Andrew Lytvynov <andrew@goteleport.com>", "Zac Bergquist <zac@goteleport.com>"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["staticlib"]

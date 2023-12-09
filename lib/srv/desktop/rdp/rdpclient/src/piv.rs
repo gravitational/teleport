@@ -21,6 +21,7 @@ use iso7816::command::instruction::Instruction;
 use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
+use log::{debug, warn};
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use rsa::{BigUint, RsaPrivateKey};
