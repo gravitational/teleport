@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 
 members = [
     "lib/srv/desktop/rdp/rdpclient",
@@ -12,3 +13,27 @@ lto = "off"
 [profile.release]
 debug = 1
 codegen-units = 1
+
+[workspace.dependencies]
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
+
+# Uncomment the following lines to use local crates instead of the ones from github
+# ironrdp-connector = { path = "/path/to/local/IronRDP/crates/ironrdp-connector" }
+# ironrdp-tls = { path = "/path/to/local/IronRDP/crates/ironrdp-tls" }
+# ironrdp-session = { path = "/path/to/local/IronRDP/crates/ironrdp-session" }
+# ironrdp-pdu = { path = "/path/to/local/IronRDP/crates/ironrdp-pdu" }
+# ironrdp-tokio = { path = "/path/to/local/IronRDP/crates/ironrdp-tokio" }
+# ironrdp-rdpsnd = { path = "/path/to/local/IronRDP/crates/ironrdp-rdpsnd" }
+# ironrdp-rdpdr = { path = "/path/to/local/IronRDP/crates/ironrdp-rdpdr" }
+# ironrdp-svc = { path = "/path/to/local/IronRDP/crates/ironrdp-svc" }
+# ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
+# ironrdp-graphics = { path = "/path/to/local/IronRDP/crates/ironrdp-graphics" }
