@@ -85,150 +85,29 @@ hops from one side to the other.
 
 ### Go/Rust Interface
 
-The `Client` struct in Rust is the object we pass back and forth between Rust and Go,
-so that Go can decide when to call its methods. We do this by allocating it on the heap
-in Rust and then leaking the memory into a raw pointer which is passed back to Go:
+Each Go `rdpclient.Client` has a corresponding Rust `client::Client` (`client.rs`). The Go
+`rdpclient.Client` calls `client_run`, which calls `client::Client::run`, which creates the
+Rust `client::Client` in (Rust) memory where it fields incoming messages from the RDP server
+to convert to TDP and pass back into the Go `rdpclient.Client`, and waits for messages coming
+from Go (typically user input from the browser) which it sends on to the RDP server.
 
-```rust
-// Create the client
-let client = Client::new()
-// Move it to the heap
-let client = Box::new(client)
-// Convert it to a raw pointer, pass this back to Go.
-// Go is now responsible for the proper usage and
-// freeing of this memory.
-let client_ptr = Box::into_raw(client)
-```
+When the Rust [`client::Client` is created](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/client.rs#L92),
+it is passed a `CgoHandle`, which is the pointer to it's corresponding Go `rdpclient.Client`.
+It also calls [`ClientHandle::new`](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/client.rs#L112),
+which creates a `ClientHandle` (proxy to the `Sender` half of a channel) and `FunctionReceiver`
+(proxy to the `Receiver` half of a channel). It places this `ClientHandle` in a
+[global, static map](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/client/global.rs#L43-L47) of `ClientHandle`s indexed by `CgoHandle`, and spawns
+[a loop that waits to receive messages on the `FunctionReceiver`](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/client.rs#L300-L308).
 
-From that point on, the Client should be considered to be "owned" by Go (in Rust parlance),
-meaning that it's the Go side's responsibility to manage its memory. The two key elements
-of that responsibility are:
+Now, when the Go `rdpclient.Client` needs to call a function (such as communicate a mouse-click event) on it's corresponding Rust `client::Client`, it passes in it's own `CgoHandle`, which is used to find it's corresponding `ClientHandle` in the global
+cache, which is used to send the corresponding message (remember, `CgoHandle` is a proxy to a channel's `Sender` half) to the
+waiting `FunctionReceiver` (the channel's `Receiver` half), which then handles it accordingly. See [`client_write_rdp_pointer`](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/lib.rs#L377-L391)
+for an example.
 
-1. Freeing the memory (once and only once) after it's done using it.
-2. Ensuring that the object isn't used after it's been freed.
-
-#### Enforcing proper memory semantics in Rust
-
-We call back into Rust from Go using functions like
-
-```rust
-#[no_mangle]
-pub unsafe extern "C" fn call_into_rust_from_go(client_ptr: *const Client) -> CGOErrCode {
-  // Get immutable reference of Client
-  let client: &Client = client_ptr.as_ref().unwrap(); // unwrap for brevity, handle error in real code
-  // Do stuff with our immutable reference to Client
-  client.do_stuff()
-}
-```
-
-What's important here is that we stay disciplined in the following ways
-
-1. The `Client` itself is [`Sync`](https://doc.rust-lang.org/std/marker/trait.Sync.html)
-2. We access the client as an **immutable reference** (`&Client`).
-
-In order to understand why, its important to understand that when `call_into_rust_from_go`
-is called from Go, it can be:
-
-1. scheduled by the Go scheduler on any arbitrary thread, and
-2. can run concurrently with another thread also using the `Client`
-
-##### `Send + Sync`
-
-With these constraints in mind, we can determine that `Client` must be forced to remain `Sync`,
-because the very [definition of `Sync`](https://doc.rust-lang.org/std/marker/trait.Sync.html)
-is "[t]ypes for which it is safe to share references between threads."
-Because the `Client` is owned by Go (meaning logically, we can only have references in Rust), and
-per 1 and 2 above the references in Rust must be shared between threads, the `Client` must be safe to
-do so (aka it must be `Sync`).
-
-`Client` must also be `Send`, because we need to create it in one thread (one call from Go) and then drop it
-in another (another call from an arbitrary goroutine in Go), which in Rust semantics is equivalent to passing
-an owned object over thread boundaries, aka [the definition of `Send`](https://doc.rust-lang.org/std/marker/trait.Send.html).
-
-We enforce `Send + Sync` via this little Rust compiler hack
-
-```rust
-const _: () = {
-    const fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<Client>();
-};
-```
-
-<<<<<<< HEAD
-and tell the compiler the nature of `Client` in the `where` clause of each function signature at the FFI
-boundary:
-
-```rust
-#[no_mangle]
-pub unsafe extern "C" fn call_into_rust_from_go(client_ptr: *mut Client) -> CGOErrCode
-where
-    Client: Send + Sync, // Tell the compiler that `Client` is `Send + Sync`
-{
-    //...
-}
-```
-
-=======
-
-> > > > > > > ironrdp
-
-##### Immutable Reference (`&Client`)
-
-One of the foundational memory guarantees of the Rust compiler is that a mutable borrow (`&mut T`)
-is an _exclusive reference_, meaning that if you have an `&mut T` there can be no other references
-to the same object.
-
-Because every call from Go into Rust is `unsafe`, and it's possible to coerce that pointer into
-more or less whatever we want in `unsafe`, and you can do more with mutable references, there's
-a temptation to get a `&mut Client` at the top of `call_into_rust_from_go` like
-
-```rust
-#[no_mangle]
-pub unsafe extern "C" fn call_into_rust_from_go(client_ptr: *mut Client) -> CGOErrCode
-where
-    Client: Send + Sync,
-{
-    // Get immutable reference of Client
-    let client: &mut Client = Box::leak(Box::from_raw(client_ptr));
-    // Do stuff with our immutable reference to Client
-    client.do_mutable_stuff()
-}
-```
-
-Just because you can do something doesn't mean you should, and this is a thing you shouldn't do
-because it breaks all sorts of typical Rust semantics downstream. If you need mutable borrows then
-you'll need to use a `Mutex` and look out for deadlocks.
-
-#### An analogy to pure Rust
-
-Go "owns" the `Client`, and when it calls into Rust with `Client` it essentially is [locking that
-call onto a thread](https://stackoverflow.com/questions/28354141/c-code-and-goroutine-scheduling/28354879#28354879)
-with a `Client` ref (`&Client`) until it returns. A helpful way to reason about this is to imagine how these semantics
-would be instantiated in a pure Rust program.
-
-A naive way to try and do this is [like so](https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=91456b6198de6394ecc5b68f1210db70).
-However this doesn't work because
-
-```
-   Compiling playground v0.0.1 (/playground)
-error[E0373]: closure may outlive the current function, but it borrows `client`, which is owned by the current function
-  --> src/main.rs:26:32
-   |
-26 |     let handle = thread::spawn(|| {
-   |                                ^^ may outlive borrowed value `client`
-...
-31 |         println!("{}", client.get_some_field());
-   |                        ------ `client` is borrowed here
-   |
-note: function requires argument type to outlive `'static`
-```
-
-In other words, the compiler can't guarantee that the memory underlying the `&Client` wont be freed before the thread finishes,
-so it disallows this entirely.
-
-The solution for this in Rust is to use [scoped threads](https://doc.rust-lang.org/std/thread/fn.scope.html), which ensure the compiler
-that the threads are all joined by the end of the scope, allowing you to pass references into the threads. So semantically, what we should
-be aiming for is [a program analogous to this](https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=b31ad74edfeb4e2c90551f728fcbcb32).
-
-The key here is that everything at the top level scope of `main` must be implemented by Go; that is to say Go is responsible for ensuring that it drops
-the `Client` at the end of the program, and importantly that it doesn't do so until the threads it spawns (`call_into_rust_from_go`) have returned ("joined").
+While this may seem at first glance like a very indirect way of communicating between the Go and Rust halfs of the `Client`,
+it has the virtue of saving us a lot of Rust concurrency enforcement headaches as compared to passing a Rust pointer to the
+`client::Client` to and from Go. In this system, we only need a small piece of the global cache of channels to remain `Send + Sync` (see [the module level documentation for `global.rs`](https://github.com/gravitational/teleport/blob/acb22584f5423f7b184cb1a8e30e2ada62bafb16/lib/srv/desktop/rdp/rdpclient/src/client/global.rs#L15-L32)),
+and can use the "automatic" synchronization inherent to message passing over channels to take care of many downstream
+concurrency concerns. In a previous iteration of the system where the Rust `client::Client` was reconstructed from a pointer
+shared between Go and Rust, we needed the entire `Client` to be `Send + Sync`, and therefore to concern ourselves with the
+manual use of various `Mutex`es and other more error prone concurrency primitives.

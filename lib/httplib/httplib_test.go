@@ -426,7 +426,6 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
 		require.Contains(t, actualCsp, expectedCspSubString)
 	}
-
 }
 
 func TestOriginLocalRedirectURI(t *testing.T) {

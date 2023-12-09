@@ -19,11 +19,17 @@
 //!
 //! The primary constraint for maintainers to keep in mind is that these
 //! structures can in effect be accessed by multiple threads at any given
-//! time via Go. Therefore, typical Rust concurrency semantics must be
-//! carefully observed (the compiler will not necessarily catch violations).
+//! time via Go, which can call in via [`get_client_handle`] from a goroutine
+//! running on any thread, and may call from multiple goroutines (threads)
+//! at the same time. Therefore, typical Rust concurrency semantics must be
+//! carefully enforced by the programmer (the compiler will not necessarily
+//! catch violations that are caused by these structures being called by threads
+//! managed by Go).
 //!
-//! In practice this primarily means ensuring that such global, static
-//! structures are [`Send`] + [`Sync`] and are only mutated when locked.
+//! In practice this primarily means ensuring that any such global, static
+//! structures that might be accessed directly by a call from go are [`Send`]
+//! + [`Sync`] and thus are only mutated when locked. See [`assert_send_sync`]
+//! below for an example of how this is enforced.
 
 use super::ClientHandle;
 use crate::CgoHandle;
@@ -47,14 +53,13 @@ pub static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().un
 pub static CLIENT_HANDLES: ClientHandles = ClientHandles::new();
 
 const _: () = {
-    /// Immutable references to following types can be used directly by multiple
-    /// threads (goroutines) simultaneously, so we guarantee here that they are Send.
-    ///
-    /// These must be Sync as well, however this is already guaranteed by the compiler's
-    /// constraints for `static` variables. (See https://doc.rust-lang.org/reference/items/static-items.html)
-    const fn assert_send<T: Send>() {}
-    assert_send::<tokio::runtime::Runtime>();
-    assert_send::<ClientHandles>();
+    /// References to following types can be shared by multiple
+    /// threads (goroutines) simultaneously ([`Sync`]), and Go may
+    /// assign these types to be used on any arbitrary thread ([`Send`]),
+    /// so we guarantee here that they are [`Send`] + [`Sync`].
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<tokio::runtime::Runtime>();
+    assert_send_sync::<ClientHandles>();
 };
 
 /// A map of [`ClientHandle`] indexed by [`CgoHandle`].
