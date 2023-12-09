@@ -97,7 +97,7 @@ debug_mode="$(get_conf debug no)"
 upgrade_schedule="$(get_conf schedule none)"
 
 # installer kind is an enum representing the kind of installer to use (apt|yum|zypper|nop).
-installer_kind="$(get_conf installer nop)"
+installer_kind="$(get_conf installer none)"
 
 # log_info prints standard-verbosity messages to stderr.
 log_info() {
@@ -381,7 +381,16 @@ do_upgrade() {
     esac
 }
 
-log_debug "init: endpoint=$upgrade_endpoint, insecure=$insecure_mode, package=$package_name"
+
+# all our other config parameters have reasonable default values, but there really isn't a sane
+# default for installer_kind, and trying to guess is potentially problematic as some systems may
+# run multiple package managers.
+if [[ "$installer_kind" == "none" ]]; then
+    log_warn "missing required config '$conf_dir/installer' (typically set to one of 'apt', 'yum', or 'zypper')"
+    exit 1
+fi
+
+log_debug "init: endpoint=$upgrade_endpoint, insecure=$insecure_mode, package=$package_name, installer=$installer_kind"
 
 marked_unhealthy="$(pop_state unhealthy no)"
 

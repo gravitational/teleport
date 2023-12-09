@@ -91,6 +91,7 @@ func runUpgrader(subcommand string, configDir string) (output, error) {
 type testCase struct {
 	cmd, dir string
 	cfg      map[string]string
+	exclude  []string
 }
 
 func (t *testCase) Run() (output, error) {
@@ -100,6 +101,12 @@ func (t *testCase) Run() (output, error) {
 
 	for param, value := range t.cfg {
 		if err := t.set(param, value); err != nil {
+			return output{}, trace.Wrap(err)
+		}
+	}
+
+	for _, param := range t.exclude {
+		if err := t.del(param); err != nil {
 			return output{}, trace.Wrap(err)
 		}
 	}
@@ -131,6 +138,14 @@ func (t *testCase) setTestDefaults() error {
 
 func (t *testCase) set(name string, value string) error {
 	err := os.WriteFile(filepath.Join(t.dir, name), []byte(value), 0o644)
+	return trace.Wrap(err)
+}
+
+func (t *testCase) del(name string) error {
+	err := os.Remove(filepath.Join(t.dir, name))
+	if os.IsNotExist(err) {
+		return nil
+	}
 	return trace.Wrap(err)
 }
 
@@ -169,6 +184,36 @@ func currentSchedule() string {
 		now-1, now+99, // current window
 		now+120, now+180, // future window
 	)
+}
+
+// TestMissingInstaller verifies that the upgrader refuses to run without an explicitly
+// configured installer.
+func TestMissingInstaller(t *testing.T) {
+	// tc1 covers the case of installer file being empty (or containing only comments)
+	tc1 := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"installer": "",
+		},
+	}
+
+	out, err := tc1.Run()
+	require.NoError(t, err)
+	require.False(t, out.success)
+	require.Contains(t, out.stderr, "missing required config")
+
+	// tc2 covers the case of installer file being completely missing
+	tc2 := testCase{
+		dir: t.TempDir(),
+		exclude: []string{
+			"installer",
+		},
+	}
+
+	out, err = tc2.Run()
+	require.NoError(t, err)
+	require.False(t, out.success)
+	require.Contains(t, out.stderr, "missing required config")
 }
 
 // TestUpgraderBasics verifies the standard paths to upgrade.
