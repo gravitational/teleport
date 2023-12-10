@@ -1,45 +1,47 @@
 [package]
 name = "rdp-client"
 version = "0.1.0"
-authors = ["Andrew Lytvynov <andrew@goteleport.com>", "Zac Bergquist <zac@goteleport.com>"]
-edition = "2021"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
 
 [lib]
 crate-type = ["staticlib"]
 
 [dependencies]
 bitflags = "2.4.1"
-byteorder = "1.5.0"
+boring = { version = "3.1.0", optional = true }
+byteorder.workspace = true
+bytes.workspace = true
 env_logger = "0.10.1"
+ironrdp-cliprdr.workspace = true
+ironrdp-connector.workspace = true
+ironrdp-pdu.workspace = true
+ironrdp-rdpdr.workspace = true
+ironrdp-rdpsnd.workspace = true
+ironrdp-session.workspace = true
+ironrdp-svc.workspace = true
+ironrdp-tls.workspace = true
+ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
 iso7816-tlv = "0.4.3"
 libc = "0.2.150"
-log = "0.4.20"
+log.workspace = true
 num-derive = "0.4.1"
 num-traits = "0.2.17"
+parking_lot = "0.12.1"
+png = "0.17.10"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
-uuid = { version = "1.6.1", features = ["v4"] }
-utf16string = "0.2.0"
-png = "0.17.10"
-parking_lot = "0.12.1"
-bytes = "1"
-tokio = { version = "1.32", features = ["full"] }
-x509-parser = "0.14"
 sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
 static_init = "1.0.3"
-ironrdp-connector.workspace = true
-ironrdp-tls.workspace = true
-ironrdp-session.workspace = true
-ironrdp-pdu.workspace = true
-ironrdp-tokio.workspace = true
-ironrdp-rdpsnd.workspace = true
-ironrdp-rdpdr.workspace = true
-ironrdp-svc.workspace = true
-ironrdp-cliprdr.workspace = true
+tokio = { version = "1.32", features = ["full"] }
 tokio-boring = { version = "3.1.0", optional = true }
-boring = { version = "3.1.0", optional = true }
+utf16string = "0.2.0"
+uuid = { version = "1.6.1", features = ["v4"] }
+x509-parser = "0.14"
 
 [build-dependencies]
 cbindgen = "0.26.0"
