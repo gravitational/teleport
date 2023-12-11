@@ -30,8 +30,10 @@ since it must execute these commands in order to create transient users:
 
 First, create a role with `create_host_user_mode` set to `drop`, `insecure-drop`, or `keep`.
 
-  - `drop` will create transient users that are deleted once the session ends.
-  - `insecure-drop` is the same as `drop` except it does not create a home directory for the user. 
+  - `insecure-drop` will create transient users that are deleted once the session ends.
+  - `drop` is the same as `insecure-drop` except it also creates a home directory for the user.
+    It exists only for backwards compatibility; newly configured services should use
+    `insecure-drop` instead.
   - `keep` will create permanent users on the host at login time.
 
 Note that with the `drop` and `insecure-drop` modes, it is possible for a created
