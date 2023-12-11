@@ -93,7 +93,7 @@ func TestKubeLogin(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, k)
 
-		require.Equal(t, k.Clusters[k.Contexts[k.CurrentContext].Cluster].Server, "https://"+expectedAddr)
+		require.Equal(t, "https://"+expectedAddr, k.Clusters[k.Contexts[k.CurrentContext].Cluster].Server)
 	}
 
 	t.Run("kube login with multiplex mode", func(t *testing.T) {
