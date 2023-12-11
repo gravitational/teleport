@@ -3,7 +3,7 @@
 ## 14.2.2 (12/07/23)
 
 **Note**: `tsh` v14.2.2 has a known issue where `tsh kube login` uses an
-incorect port for clusters with multiplex mode enabled. If you use Kubernetes
+incorrect port for clusters with multiplex mode enabled. If you use Kubernetes
 access with multiplex mode, we recommend downgrading `tsh` to 14.2.1 until a fix
 is available.
 
