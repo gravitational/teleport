@@ -1004,7 +1004,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
 		}
 
-		driver, err := uw.NewDriver(upgraderKind)
+		driver, err := automaticupgrades.NewDriver(upgraderKind)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1024,6 +1024,20 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		})
 
 		process.log.Infof("Configured upgrade window exporter for external upgrader. kind=%s", upgraderKind)
+
+		driverTmp, err := automaticupgrades.NewDriver(upgraderKind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// export additional agent metadata
+		metadata := automaticupgrades.AgentMetadata{
+			UUID:     cfg.HostUUID,
+			Hostname: cfg.Hostname,
+			Version:  vc.Normalize(teleport.Version),
+		}
+		if err := driverTmp.SyncMetadata(process.GracefulExitContext(), metadata); err != nil {
+			process.log.Warnf("Failed to export agent metadata: %v", err)
+		}
 	}
 
 	if process.Config.Proxy.Enabled {

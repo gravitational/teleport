@@ -21,8 +21,6 @@ package upgradewindow
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -30,157 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/backend"
 )
-
-type fakeKubeBackend struct {
-	data map[string]string
-}
-
-func newFakeKubeBackend() *fakeKubeBackend {
-	return &fakeKubeBackend{
-		data: make(map[string]string),
-	}
-}
-
-func (b *fakeKubeBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
-	b.data[string(item.Key)] = string(item.Value)
-	return nil, nil
-}
-
-func TestKubeControllerDriver(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	bk := newFakeKubeBackend()
-
-	driver, err := NewKubeControllerDriver(KubeControllerDriverConfig{
-		Backend: bk,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, "kube", driver.Kind())
-
-	// verify basic schedule creation
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		KubeControllerSchedule: "fake-schedule",
-	})
-	require.NoError(t, err)
-
-	key := "agent-maintenance-schedule"
-
-	require.Equal(t, "fake-schedule", bk.data[key])
-
-	// verify overwrite of existing schedule
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		KubeControllerSchedule: "fake-schedule-2",
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, "fake-schedule-2", bk.data[key])
-
-	// verify reset of schedule
-	err = driver.Reset(ctx)
-	require.NoError(t, err)
-
-	require.Equal(t, "", bk.data[key])
-
-	// verify reset of empty schedule has no effect
-	err = driver.Reset(ctx)
-	require.NoError(t, err)
-
-	require.Equal(t, "", bk.data[key])
-
-	// setup another fake schedule
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		KubeControllerSchedule: "fake-schedule-3",
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, "fake-schedule-3", bk.data[key])
-
-	// verify that empty schedule is equivalent to reset
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
-	require.NoError(t, err)
-
-	require.Equal(t, "", bk.data[key])
-}
-
-// TestSystemdUnitDriver verifies the basic behavior of the systemd unit export driver.
-func TestSystemdUnitDriver(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// use a sub-directory of a temp dir in order to verify that
-	// driver creates dir when needed.
-	dir := filepath.Join(t.TempDir(), "config")
-
-	driver, err := NewSystemdUnitDriver(SystemdUnitDriverConfig{
-		ConfigDir: dir,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, "unit", driver.Kind())
-
-	// verify basic schedule creation
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		SystemdUnitSchedule: "fake-schedule",
-	})
-	require.NoError(t, err)
-
-	schedPath := filepath.Join(dir, "schedule")
-
-	sb, err := os.ReadFile(schedPath)
-	require.NoError(t, err)
-
-	require.Equal(t, "fake-schedule", string(sb))
-
-	// verify overwrite of existing schedule
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		SystemdUnitSchedule: "fake-schedule-2",
-	})
-	require.NoError(t, err)
-
-	sb, err = os.ReadFile(schedPath)
-	require.NoError(t, err)
-
-	require.Equal(t, "fake-schedule-2", string(sb))
-
-	// verify reset/deletion of schedule
-	err = driver.Reset(ctx)
-	require.NoError(t, err)
-
-	sb, err = os.ReadFile(schedPath)
-	require.NoError(t, err)
-	require.Equal(t, "", string(sb))
-
-	// verify that duplicate resets succeed
-	err = driver.Reset(ctx)
-	require.NoError(t, err)
-
-	// set up another schedule
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{
-		SystemdUnitSchedule: "fake-schedule-3",
-	})
-	require.NoError(t, err)
-
-	sb, err = os.ReadFile(schedPath)
-	require.NoError(t, err)
-
-	require.Equal(t, "fake-schedule-3", string(sb))
-
-	// verify that an empty schedule value is treated equivalent to a reset
-	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
-	require.NoError(t, err)
-
-	sb, err = os.ReadFile(schedPath)
-	require.NoError(t, err)
-	require.Equal(t, "", string(sb))
-}
 
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.
 type fakeDriver struct {
@@ -199,7 +47,7 @@ func (d *fakeDriver) Kind() string {
 	return "fake"
 }
 
-func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
+func (d *fakeDriver) SyncSchedule(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.sync != nil {
@@ -209,7 +57,7 @@ func (d *fakeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	return nil
 }
 
-func (d *fakeDriver) Reset(ctx context.Context) error {
+func (d *fakeDriver) ResetSchedule(ctx context.Context) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.reset != nil {

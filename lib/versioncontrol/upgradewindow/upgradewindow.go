@@ -21,7 +21,6 @@ package upgradewindow
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,25 +28,27 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/kubernetes"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
-const (
-	// kubeSchedKey is the key under which the kube controller schedule is exported
-	kubeSchedKey = "agent-maintenance-schedule"
+// Driver represents a type capable of exporting the maintenance window schedule to an external
+// upgrader, such as the teleport-upgrade systemd timer or the kube-updater controller.
+type Driver interface {
+	// Kind gets the upgrader kind associated with this export driver.
+	Kind() string
 
-	// unitScheduleFile is the name of the file to which the unit schedule is exported.
-	unitScheduleFile = "schedule"
+	// SyncSchedule exports the appropriate maintenance window schedule if one is present, or
+	// resets/clears the maintenance window if the schedule response returns no viable scheduling
+	// info.
+	SyncSchedule(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error
 
-	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
-	unitConfigDir = "/etc/teleport-upgrade.d"
-)
+	// ResetSchedule forcibly clears any previously exported maintenance window values. This should be
+	// called if teleport experiences prolonged loss of auth connectivity, which may be an indicator
+	// that the control plane has been upgraded s.t. this agent is no longer compatible.
+	ResetSchedule(ctx context.Context) error
+}
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
 type ExportFunc func(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error)
@@ -234,7 +235,7 @@ Outer:
 		case <-time.After(e.cfg.UnhealthyThreshold):
 			// if we lose connectivity with auth for too long, forcibly reset any existing schedule.
 			// this frees up the upgrader to attempt an upgrade at its discretion.
-			if err := e.cfg.Driver.Reset(ctx); err != nil {
+			if err := e.cfg.Driver.ResetSchedule(ctx); err != nil {
 				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
 			}
 			e.event(resetFromRun)
@@ -254,7 +255,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 		if time.Now().After(start.Add(e.cfg.UnhealthyThreshold)) {
 			// failure state appears persistent. reset and yield back
 			// to outer loop to wait for our next scheduled attempt.
-			if err := e.cfg.Driver.Reset(ctx); err != nil {
+			if err := e.cfg.Driver.ResetSchedule(ctx); err != nil {
 				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
 			}
 			e.event(resetFromExport)
@@ -288,7 +289,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 		}
 
 		// sync exported windows out to our upgrader
-		if err := e.cfg.Driver.Sync(ctx, rsp); err != nil {
+		if err := e.cfg.Driver.SyncSchedule(ctx, rsp); err != nil {
 			log.Warnf("Failed to sync %q maintenance window: %v", e.cfg.Driver.Kind(), err)
 			e.retry.Inc()
 			e.event(syncExportErr)
@@ -299,151 +300,4 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 		e.event(exportSuccess)
 		return
 	}
-}
-
-// Driver represents a type capable of exporting the maintenance window schedule to an external
-// upgrader, such as the teleport-upgrade systemd timer or the kube-updater controller.
-type Driver interface {
-	// Kind gets the upgrader kind associated with this export driver.
-	Kind() string
-
-	// Sync exports the appropriate maintenance window schedule if one is present, or
-	// resets/clears the maintenance window if the schedule response returns no viable scheduling
-	// info.
-	Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error
-
-	// Reset forcibly clears any previously exported maintenance window values. This should be
-	// called if teleport experiences prolonged loss of auth connectivity, which may be an indicator
-	// that the control plane has been upgraded s.t. this agent is no longer compatible.
-	Reset(ctx context.Context) error
-}
-
-// NewDriver sets up a new export driver corresponding to the specified upgrader kind.
-func NewDriver(kind string) (Driver, error) {
-	switch kind {
-	case types.UpgraderKindKubeController:
-		return NewKubeControllerDriver(KubeControllerDriverConfig{})
-	case types.UpgraderKindSystemdUnit:
-		return NewSystemdUnitDriver(SystemdUnitDriverConfig{})
-	default:
-		return nil, trace.BadParameter("unsupported upgrader kind: %q", kind)
-	}
-}
-
-type KubeControllerDriverConfig struct {
-	// Backend is an optional backend. Must be an instance of the kuberenets shared-state backend
-	// if not nil.
-	Backend KubernetesBackend
-}
-
-// KubernetesBackend interface for kube shared storage backend.
-type KubernetesBackend interface {
-	// Put puts value into backend (creates if it does not
-	// exists, updates it otherwise)
-	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
-}
-
-type kubeDriver struct {
-	cfg KubeControllerDriverConfig
-}
-
-func NewKubeControllerDriver(cfg KubeControllerDriverConfig) (Driver, error) {
-	if cfg.Backend == nil {
-		var err error
-		cfg.Backend, err = kubernetes.NewShared()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return &kubeDriver{cfg: cfg}, nil
-}
-
-func (e *kubeDriver) Kind() string {
-	return types.UpgraderKindKubeController
-}
-
-func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if rsp.KubeControllerSchedule == "" {
-		return e.Reset(ctx)
-	}
-
-	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
-		Value: []byte(rsp.KubeControllerSchedule),
-	})
-
-	return trace.Wrap(err)
-}
-
-func (e *kubeDriver) Reset(ctx context.Context) error {
-	// kube backend doesn't support deletes right now, so just set
-	// the key to empty.
-	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
-		Value: []byte{},
-	})
-
-	return trace.Wrap(err)
-}
-
-type SystemdUnitDriverConfig struct {
-	// ConfigDir is the directory from which the teleport-upgrade periodic loads its
-	// configuration parameters. Most notably, the 'schedule' file.
-	ConfigDir string
-}
-
-type systemdDriver struct {
-	cfg SystemdUnitDriverConfig
-}
-
-func NewSystemdUnitDriver(cfg SystemdUnitDriverConfig) (Driver, error) {
-	if cfg.ConfigDir == "" {
-		cfg.ConfigDir = unitConfigDir
-	}
-
-	return &systemdDriver{cfg: cfg}, nil
-}
-
-func (e *systemdDriver) Kind() string {
-	return types.UpgraderKindSystemdUnit
-}
-
-func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if len(rsp.SystemdUnitSchedule) == 0 {
-		// treat an empty schedule value as equivalent to a reset
-		return e.Reset(ctx)
-	}
-
-	// ensure config dir exists. if created it is set to 755, which is reasonably safe and seems to
-	// be the standard choice for config dirs like this in /etc/.
-	if err := os.MkdirAll(e.cfg.ConfigDir, defaults.DirectoryPermissions); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// export schedule file. if created it is set to 644, which is reasonable for a sensitive but non-secret config value.
-	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), defaults.FilePermissions); err != nil {
-		return trace.Errorf("failed to write schedule file: %v", err)
-	}
-
-	return nil
-}
-
-func (e *systemdDriver) Reset(_ context.Context) error {
-	if _, err := os.Stat(e.scheduleFile()); os.IsNotExist(err) {
-		return nil
-	}
-
-	// note that we blank the file rather than deleting it, this is intended to allow us to
-	// preserve custom file permissions, such as those that might be used in a scenario where
-	// teleport is operating with limited privileges.
-	if err := os.WriteFile(e.scheduleFile(), []byte{}, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.Errorf("failed to reset schedule file: %v", err)
-	}
-
-	return nil
-}
-
-func (e *systemdDriver) scheduleFile() string {
-	return filepath.Join(e.cfg.ConfigDir, unitScheduleFile)
 }
