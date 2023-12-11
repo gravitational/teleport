@@ -225,8 +225,8 @@ func TestShowRequestTable(t *testing.T) {
 	expiresTime := time.Now().Add(time.Hour)
 	assumeStartTime := createdAtTime.Add(30 * time.Minute)
 	tests := []struct {
-		name      string
-		reqs      []types.AccessRequest
+		name        string
+		reqs        []types.AccessRequest
 		wantPresent []string
 	}{
 		{
@@ -234,7 +234,7 @@ func TestShowRequestTable(t *testing.T) {
 			reqs: []types.AccessRequest{
 				&types.AccessRequestV3{
 					Metadata: types.Metadata{
-						Name: "someName",
+						Name:    "someName",
 						Expires: &expiresTime,
 					},
 					Spec: types.AccessRequestSpecV3{
@@ -254,17 +254,17 @@ func TestShowRequestTable(t *testing.T) {
 			reqs: []types.AccessRequest{
 				&types.AccessRequestV3{
 					Metadata: types.Metadata{
-						Name: "someName",
+						Name:    "someName",
 						Expires: &expiresTime,
 					},
 					Spec: types.AccessRequestSpecV3{
 						User:  "someUser",
 						Roles: []string{"role1", "role2"},
 
-						Expires:    expiresTime,
-						SessionTTL: expiresTime,
+						Expires:         expiresTime,
+						SessionTTL:      expiresTime,
 						AssumeStartTime: &assumeStartTime,
-						Created:    createdAtTime,
+						Created:         createdAtTime,
 					},
 				},
 			},

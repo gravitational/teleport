@@ -2186,7 +2186,7 @@ message AccessReview {
   google.protobuf.Timestamp AssumeStartTime = 10 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_start_time"
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 }
 
@@ -2359,7 +2359,7 @@ message AccessRequestSpecV3 {
   google.protobuf.Timestamp AssumeStartTime = 21 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_start_time"
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 }
 

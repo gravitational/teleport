@@ -359,7 +359,7 @@ message RequestStateSetter {
   google.protobuf.Timestamp AssumeStartTime = 7 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_start_time"
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 }
 

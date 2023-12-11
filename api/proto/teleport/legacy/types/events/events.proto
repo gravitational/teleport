@@ -1412,7 +1412,7 @@ message AccessRequestCreate {
   google.protobuf.Timestamp AssumeStartTime = 16 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "assume_start_time"
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 }
 
