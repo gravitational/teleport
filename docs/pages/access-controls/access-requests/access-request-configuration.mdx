@@ -191,8 +191,9 @@ privileges:
 
 ### Setting when the elevated privileges can be assumed
 
-When creating or reviewing access requests the earliest time the elevated privileges
-can be set using the `--assume-start-time` flag. This flag is available for the
+When creating or reviewing access requests, you can specify the earliest time
+at which the elevated privileges can be assumed using the `--assume-start-time`
+flag. This flag is available for the
 [`tsh request create`](../../reference/cli/tsh.mdx#tsh-request-create) and [`tsh request
 review`](../../reference/cli/tsh.mdx#tsh-request-review) commands. The format accepted
 is RFC3339 e.g `2023-12-12T23:20:50.52Z`
