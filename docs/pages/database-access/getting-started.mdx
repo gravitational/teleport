@@ -116,7 +116,8 @@ $ sudo teleport db configure create \
   --proxy=<Var name="teleport.example.com" />:443 \
   --protocol=postgres \
   --uri=<Var name="postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com"/>:5432 \
-  --aws-region=<Var name="us-west-1" />
+  --aws-region=<Var name="us-west-1" /> \
+  --output file:///etc/teleport.yaml
 ```
 
 </TabItem>
@@ -134,7 +135,8 @@ $ sudo teleport db configure create  \
   --proxy=<Var name="mytenant.teleport.sh" />:443 \
   --protocol=postgres \
   --uri=<Var name="postgres-aurora-instance-1.abcdefghijklm.us-west-1.rds.amazonaws.com"/>:5432 \
-  --aws-region=<Var name="us-west-1" />
+  --aws-region=<Var name="us-west-1" /> \
+  --output file:///etc/teleport.yaml
 ```
 
 </TabItem>
