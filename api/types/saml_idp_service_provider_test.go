@@ -63,7 +63,6 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			entityDescriptor: "",
 			acsURL:           "https:/test.com/acs",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
 				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndEntityID)
 			},
 		},
@@ -72,7 +71,6 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			entityDescriptor: "",
 			entityID:         "IAMShowcase",
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
 				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndACSURL)
 			},
 		},
