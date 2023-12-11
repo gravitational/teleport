@@ -30,6 +30,7 @@ export default function Select(props: Props) {
     hasError = false,
     elevated = false,
     stylesConfig,
+    closeMenuOnSelect = false,
     ...restOfProps
   } = props;
   return (
@@ -41,6 +42,7 @@ export default function Select(props: Props) {
         clearable={false}
         isMulti={false}
         isSearchable={true}
+        closeMenuOnSelect={closeMenuOnSelect}
         placeholder="Select..."
         styles={stylesConfig}
         {...restOfProps}
