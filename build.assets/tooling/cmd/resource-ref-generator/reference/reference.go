@@ -146,31 +146,28 @@ func (c GeneratorConfig) Validate() error {
 	}
 }
 
-// shouldProcess indicates whether we should generate reference entries from d,
-// that is, whether s has any field types in
+// shouldProcess indicates whether we should generate reference entries from the
+// type declaration represented in d (i.e., whether this is a dynamic resource
+// type). To do so, it checks whether d:
+//   - is a struct type
+//   - has fields with the required types
+//   - does not belong to the list of excluded resources
 func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources []TypeInfo) bool {
-	// The declaration cannot be a type declaration, so we can't process it.
+	// We expect the declaration to be a type declaration with one spec.
 	gendecl, ok := d.Decl.(*ast.GenDecl)
 	if !ok {
 		return false
 	}
-	if len(gendecl.Specs) == 0 {
+
+	if len(gendecl.Specs) != 1 {
 		return false
 	}
 
-	// We expect there to be one type spec.
-	var t *ast.TypeSpec
-	for _, s := range gendecl.Specs {
-		ts, ok := s.(*ast.TypeSpec)
-		if !ok {
-			continue
-		}
-		// There is more than one TypeSpec
-		if t != nil {
-			return false
-		}
-		t = ts
+	t, ok := gendecl.Specs[0].(*ast.TypeSpec)
+	if !ok {
+		return false
 	}
+
 	if t == nil {
 		return false
 	}
@@ -201,18 +198,20 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 		}
 	}
 
-	// Only process types with a required field, indicating a dynamic
-	// resource.
+	// Compare the types of fields in the struct type with the required
+	// fields types. Only one required field type must be present.
 	var m bool
 	for _, fld := range str.Fields.List {
 		if len(fld.Names) != 1 {
 			continue
 		}
 
-		// If the field type does not have a package name, it
-		// must come from the package where d was declared. This is the
-		// initial assumption.
-		gotpkg := d.PackageName
+		// Identify a package for the field type so we can check it
+		// against the required field list. Begin by assuming the field
+		// comes from the same package as the outer struct type, then
+		// assign a package name depending on the expression used to
+		// declare the field type.
+		gopkg := d.PackageName
 		var fldname string
 		switch t := fld.Type.(type) {
 		case *ast.SelectorExpr:
@@ -220,7 +219,7 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 			// it's of the form <package>.<type name>.
 			g, ok := t.X.(*ast.Ident)
 			if ok {
-				gotpkg = g.Name
+				gopkg = g.Name
 			}
 			fldname = t.Sel.Name
 
@@ -230,7 +229,7 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 		}
 
 		for _, ti := range finalTypes {
-			if gotpkg == ti.Package && fldname == ti.Name {
+			if gopkg == ti.Package && fldname == ti.Name {
 				m = true
 				break
 			}
@@ -240,6 +239,8 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 	return m
 }
 
+// Generate uses the provided user-facing configuration to write the resource
+// reference to out.
 func Generate(out io.Writer, conf GeneratorConfig) error {
 	typeDecls := make(map[resource.PackageInfo]resource.DeclarationInfo)
 	possibleFuncDecls := []resource.DeclarationInfo{}
@@ -250,16 +251,17 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 	// individual file names, which we need so contributors who want to edit
 	// the resulting docs page know which files to modify.
 	err := filepath.WalkDir(conf.SourcePath, func(path string, info fs.DirEntry, err error) error {
+		// There is an error with the path, so we can't load Go source.
+		if err != nil {
+			return err
+		}
+
 		if info.IsDir() {
 			return nil
 		}
 
 		if filepath.Ext(info.Name()) != ".go" {
 			return nil
-		}
-		// There is an error with the path, so we can't load Go source
-		if err != nil {
-			return err
 		}
 
 		fset := token.NewFileSet()
