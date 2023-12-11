@@ -50,7 +50,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewSAMLIdPServiceProviderService(backend, nil /* http client */)
+	service, err := NewSAMLIdPServiceProviderService(backend)
 	require.NoError(t, err)
 
 	// Create a couple service providers.
@@ -381,7 +381,7 @@ func TestCreateSAMLIdPServiceProvider_fetchOrGenerateEntityDescriptor(t *testing
 		})
 	require.NoError(t, err)
 
-	service, err := NewSAMLIdPServiceProviderService(backend, testSPServer.Client())
+	service, err := NewSAMLIdPServiceProviderService(backend, WithHTTPClient(testSPServer.Client()))
 	require.NoError(t, err)
 
 	err = service.CreateSAMLIdPServiceProvider(ctx, sp)
@@ -412,7 +412,7 @@ func TestCreateSAMLIdPServiceProvider_fetchOrGenerateEntityDescriptor(t *testing
 		})
 	require.NoError(t, err)
 
-	service2, err := NewSAMLIdPServiceProviderService(backend, nil)
+	service2, err := NewSAMLIdPServiceProviderService(backend)
 	require.NoError(t, err)
 
 	err = service2.CreateSAMLIdPServiceProvider(ctx, sp2)
@@ -484,7 +484,7 @@ func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) 
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			idpSPService, err := NewSAMLIdPServiceProviderService(backend, testSPServer.Client())
+			idpSPService, err := NewSAMLIdPServiceProviderService(backend, WithHTTPClient(testSPServer.Client()))
 			require.NoError(t, err)
 
 			sp, err := types.NewSAMLIdPServiceProvider(

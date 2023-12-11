@@ -822,7 +822,7 @@ func New(config Config) (*Cache, error) {
 	}
 
 	//nolint:revive // Because we want this to be IdP.
-	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend, nil /* http client */)
+	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

@@ -215,7 +215,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
 	if cfg.SAMLIdPServiceProviders == nil {
-		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend, nil /* http client */)
+		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

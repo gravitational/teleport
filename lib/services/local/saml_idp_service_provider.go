@@ -55,19 +55,17 @@ type SAMLIdPServiceProviderService struct {
 	httpClient *http.Client
 }
 
-// NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
-func NewSAMLIdPServiceProviderService(backend backend.Backend, httpClient *http.Client) (*SAMLIdPServiceProviderService, error) {
-	var idpHTTPClient *http.Client
-	if httpClient != nil {
-		idpHTTPClient = httpClient
-	} else {
-		idpHTTPClient = &http.Client{
-			Timeout: defaults.HTTPRequestTimeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+type SAMLIdPOption func(*SAMLIdPServiceProviderService)
+
+func WithHTTPClient(httpClient *http.Client) SAMLIdPOption {
+	return func(s *SAMLIdPServiceProviderService) {
+		s.httpClient = httpClient
 	}
+}
+
+// NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
+func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOption) (*SAMLIdPServiceProviderService, error) {
+
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
 		Backend:       backend,
 		PageLimit:     samlIDPServiceProviderMaxPageSize,
@@ -80,11 +78,25 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend, httpClient *http.
 		return nil, trace.Wrap(err)
 	}
 
-	return &SAMLIdPServiceProviderService{
-		svc:        *svc,
-		log:        logrus.WithFields(logrus.Fields{trace.Component: "saml-idp"}),
-		httpClient: idpHTTPClient,
-	}, nil
+	samlSPService := &SAMLIdPServiceProviderService{
+		svc: *svc,
+		log: logrus.WithFields(logrus.Fields{trace.Component: "saml-idp"}),
+	}
+
+	for _, opt := range opts {
+		opt(samlSPService)
+	}
+
+	if samlSPService.httpClient == nil {
+		samlSPService.httpClient = &http.Client{
+			Timeout: defaults.HTTPRequestTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	}
+
+	return samlSPService, nil
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -230,6 +242,9 @@ func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 // from remote metadata endpoint (Entity ID) and sets it to sp if the xml format
 // is a valid Service Provider metadata format.
 func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
+	if s.httpClient == nil {
+		return trace.BadParameter("missing http client")
+	}
 	resp, err := s.httpClient.Get(sp.GetEntityID())
 	if err != nil {
 		return trace.Wrap(err)
