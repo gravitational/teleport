@@ -18,22 +18,12 @@ RUN git clone --branch llvmorg-${CLANG_VERSION} --depth=1 https://github.com/llv
     cd llvm-project/ && \
     mkdir build && cd build/ && \
     cmake3 \
-        -DCLANG_BUILD_TOOLS=ON \
-        -DCLANG_ENABLE_ARCMT=OFF \
-        -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/llvm \
-        -DLLVM_BUILD_TOOLS=ON \
-        -DLLVM_BUILD_UTILS=OFF \
-        -DLLVM_ENABLE_BINDINGS=OFF \
         -DLLVM_ENABLE_PROJECTS=clang \
-        -DLLVM_INCLUDE_BENCHMARKS=OFF \
-        -DLLVM_INCLUDE_GO_TESTS=OFF \
-        -DLLVM_INCLUDE_TESTS=OFF \
-        -DLLVM_TOOL_LLI_BUILD=OFF \
+        -DLLVM_BUILD_TOOLS=ON \
         -G "Unix Makefiles" ../llvm && \
-    make -j$(grep -c processor /proc/cpuinfo) &&  \
-    make install && \
+    make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang && \
     cd ../.. && \
     rm -rf llvm-project
 
