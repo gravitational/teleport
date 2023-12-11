@@ -7,7 +7,7 @@ state: draft
 
 ## What
 
-This RFD addresses a flaw from a prior RFD [0029-account-lifecycle.md](0029-account-lifecycle.md) when an account is under a targeted attack.  This RFD clarifies how accounts are recovered when they are being targeted to by an attacker trying to prevent authentication.
+This RFD addresses a flaw from a prior RFD [0029-account-lifecycle.md](0029-account-lifecycle.md) when an account is under a targeted attack.  This RFD clarifies how accounts are recovered when they are being targeted to by an attacker trying to prevent authentication.  In order to accomplish this we only need a small change in the product behavior, the removal of the account lock on failed recovery attempts.
 
 ## Why
 
