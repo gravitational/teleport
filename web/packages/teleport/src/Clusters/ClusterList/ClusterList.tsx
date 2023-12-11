@@ -71,7 +71,7 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
     flags.showApps ||
     flags.showKubes ||
     flags.showDatabases ||
-    flgas.showDesktops;
+    flags.showDesktops;
 
   if (showResourcesLink) {
     $items.push(
