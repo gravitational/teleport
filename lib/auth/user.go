@@ -64,7 +64,7 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) error {
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user.GetCreatedBy().User.Name),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -141,31 +141,6 @@ func (a *Server) UpsertUser(user types.User) error {
 	err = a.Services.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	var connectorName string
-	if user.GetCreatedBy().Connector == nil {
-		connectorName = constants.LocalConnector
-	} else {
-		connectorName = user.GetCreatedBy().Connector.ID
-	}
-
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.UserCreate{
-		Metadata: apievents.Metadata{
-			Type: events.UserCreateEvent,
-			Code: events.UserCreateCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User: user.GetName(),
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:    user.GetName(),
-			Expires: user.Expiry(),
-		},
-		Connector: connectorName,
-		Roles:     user.GetRoles(),
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit user upsert event.")
 	}
 
 	var prevRoles []string

@@ -1,5 +1,25 @@
 # Changelog
 
+## 14.2.2 (12/07/23)
+
+* Prevent panic when dialing a deleted Application Server. [#35525](https://github.com/gravitational/teleport/pull/35525)
+* Fixed regression issue with arm32 binaries in 14.2.1 having higher glibc requirements. [#35539](https://github.com/gravitational/teleport/pull/35539)
+* Fixed GCP VM auto-discovery not using instances' internal IP address. [#35521](https://github.com/gravitational/teleport/pull/35521)
+* Calculate latency of Web SSH sessions and report it to users. [#35516](https://github.com/gravitational/teleport/pull/35516)
+* Fix bot's unable to view or approve access requests issue. [#35512](https://github.com/gravitational/teleport/pull/35512)
+* Fix querying of large audit events with Athena backend. [#35483](https://github.com/gravitational/teleport/pull/35483)
+* Fix panic on potential nil value when requesting `/webapi/presetroles`. [#35463](https://github.com/gravitational/teleport/pull/35463)
+* Add `insecure-drop` host user creation mode. [#35403](https://github.com/gravitational/teleport/pull/35403)
+* IAM permissions for `rds:DescribeDBProxyTargets` are no longer required for RDS Proxy discovery. [#35389](https://github.com/gravitational/teleport/pull/35389)
+* Update Go to `1.21.5`. [#35371](https://github.com/gravitational/teleport/pull/35371)
+* Desktop connections default to RDP port 3389 if not otherwise specified. [#35343](https://github.com/gravitational/teleport/pull/35343)
+* Add `cluster_auth_preferences` to the shortcuts for `cluster_auth_preference`. [#35329](https://github.com/gravitational/teleport/pull/35329)
+* Make the `podSecurityPolicy` configurable in the `teleport-kube-agent` chart. [#35320](https://github.com/gravitational/teleport/pull/35320)
+* Prevent EKS fetcher not having correct IAM permissions from stopping whole Discovery service start up. [#35319](https://github.com/gravitational/teleport/pull/35319)
+* Add database automatic user provisioning support for self-hosted MongoDB. [#35317](https://github.com/gravitational/teleport/pull/35317)
+* Improve the resilience of `tbot` to misconfiguration of auth connectors when generating a Kubernetes output. [#35309](https://github.com/gravitational/teleport/pull/35309)
+* Fix crash when writing kubeconfig with `tctl auth sign --tar`. [#34874](https://github.com/gravitational/teleport/pull/34874)
+
 ## 14.2.1 (11/30/23)
 
 * Fixed issue that could cause app and desktop session recording events to be written to the audit log. [#35183](https://github.com/gravitational/teleport/pull/35183)
