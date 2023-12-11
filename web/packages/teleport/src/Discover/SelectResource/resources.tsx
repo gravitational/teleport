@@ -119,7 +119,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     platform: Platform.Windows,
   },
   {
-    name: 'Local users',
+    name: 'Local Users',
     kind: ResourceKind.Desktop,
     keywords: 'windows desktop non-ad local',
     icon: 'Windows',
