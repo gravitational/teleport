@@ -29,6 +29,8 @@ import {
   ChevronDown,
   SquaresFour,
   Rows,
+  ArrowsIn,
+  ArrowsOut,
 } from 'design/Icon';
 
 import { ViewMode } from 'shared/services/unifiedResourcePreferences';
@@ -59,7 +61,9 @@ interface FilterPanelProps {
   selected: boolean;
   BulkActions?: React.ReactElement;
   currentViewMode: ViewMode;
-  onSelectViewMode: (viewMode: ViewMode) => void;
+  setCurrentViewMode: (viewMode: ViewMode) => void;
+  expandAllLabels: boolean;
+  setExpandAllLabels: (expandAllLabels: boolean) => void;
 }
 
 export function FilterPanel({
@@ -70,7 +74,9 @@ export function FilterPanel({
   selected,
   BulkActions,
   currentViewMode,
-  onSelectViewMode,
+  setCurrentViewMode,
+  expandAllLabels,
+  setExpandAllLabels,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -114,10 +120,34 @@ export function FilterPanel({
         />
       </Flex>
       <Flex gap={2} alignItems="center">
-        <Box mr={4}>{BulkActions}</Box>
+        <Box mr={1}>{BulkActions}</Box>
+        {currentViewMode === ViewMode.VIEW_MODE_LIST && (
+          <ButtonBorder
+            size="small"
+            css={`
+              border: none;
+              color: ${props => props.theme.colors.text.slightlyMuted};
+              text-transform: none;
+              padding-left: ${props => props.theme.space[2]}px;
+              padding-right: ${props => props.theme.space[2]}px;
+              height: 22px;
+              width: 128px;
+            `}
+            onClick={() => setExpandAllLabels(!expandAllLabels)}
+          >
+            <Flex alignItems="center" width="100%">
+              {expandAllLabels ? (
+                <ArrowsIn size="small" mr={1} />
+              ) : (
+                <ArrowsOut size="small" mr={1} />
+              )}
+              {expandAllLabels ? 'Collapse ' : 'Expand '} All Labels
+            </Flex>
+          </ButtonBorder>
+        )}
         <ViewModeSwitch
           currentViewMode={currentViewMode}
-          onSelectViewMode={onSelectViewMode}
+          setCurrentViewMode={setCurrentViewMode}
         />
         <SortMenu
           onDirChange={onSortOrderButtonClicked}
@@ -417,10 +447,10 @@ function kindArraysEqual(arr1: string[], arr2: string[]) {
 
 function ViewModeSwitch({
   currentViewMode,
-  onSelectViewMode,
+  setCurrentViewMode,
 }: {
   currentViewMode: ViewMode;
-  onSelectViewMode: (viewMode: ViewMode) => void;
+  setCurrentViewMode: (viewMode: ViewMode) => void;
 }) {
   return (
     <ViewModeSwitchContainer>
@@ -428,7 +458,7 @@ function ViewModeSwitch({
         className={
           currentViewMode === ViewMode.VIEW_MODE_CARD ? 'selected' : ''
         }
-        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_CARD)}
+        onClick={() => setCurrentViewMode(ViewMode.VIEW_MODE_CARD)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -442,7 +472,7 @@ function ViewModeSwitch({
         className={
           currentViewMode === ViewMode.VIEW_MODE_LIST ? 'selected' : ''
         }
-        onClick={() => onSelectViewMode(ViewMode.VIEW_MODE_LIST)}
+        onClick={() => setCurrentViewMode(ViewMode.VIEW_MODE_LIST)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;
