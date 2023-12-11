@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { waitFor } from '@testing-library/react';
+
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
 
@@ -163,4 +165,73 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
 
   expect(actionToRetry).toHaveBeenCalledTimes(2);
   expect(actualReturnValue).toEqual(expectedReturnValue);
+});
+
+it('concurrent requests wait for the single login modal to resolve', async () => {
+  const appContext = new MockAppContext();
+
+  let logIn: () => void;
+  jest
+    .spyOn(appContext.modalsService, 'openRegularDialog')
+    .mockImplementation(dialog => {
+      if (dialog.kind === 'cluster-connect') {
+        logIn = () => dialog.onSuccess('/clusters/foo');
+      } else {
+        throw new Error(`Got unexpected dialog ${dialog.kind}`);
+      }
+
+      // Dialog cancel function.
+      return {
+        closeDialog: () => {},
+      };
+    });
+
+  jest
+    .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
+    .mockImplementation(() => true);
+
+  const firstExpectedReturnValue = Symbol('firstExpectedReturnValue');
+  const secondExpectedReturnValue = Symbol('secondExpectedReturnValue');
+  const firstActionToRetry = jest
+    .fn()
+    .mockRejectedValueOnce(makeRetryableError())
+    .mockResolvedValueOnce(firstExpectedReturnValue);
+  const secondActionToRetry = jest
+    .fn()
+    .mockRejectedValueOnce(makeRetryableError())
+    .mockResolvedValueOnce(secondExpectedReturnValue);
+
+  const firstAction = retryWithRelogin(
+    appContext,
+    '/clusters/foo/servers/bar',
+    firstActionToRetry
+  );
+  const secondAction = retryWithRelogin(
+    appContext,
+    '/clusters/foo/servers/xyz',
+    secondActionToRetry
+  );
+
+  const openRegularDialogSpy = appContext.modalsService.openRegularDialog;
+  await waitFor(() => {
+    expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
+  });
+  expect(openRegularDialogSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'cluster-connect',
+      clusterUri: '/clusters/foo',
+    })
+  );
+
+  logIn();
+
+  const firstActionExpectedReturnValue = await firstAction;
+  const secondActionExpectedReturnValue = await secondAction;
+
+  expect(firstActionToRetry).toHaveBeenCalledTimes(2);
+  expect(secondActionToRetry).toHaveBeenCalledTimes(2);
+  expect(firstActionExpectedReturnValue).toEqual(firstExpectedReturnValue);
+  expect(secondActionExpectedReturnValue).toEqual(secondExpectedReturnValue);
+
+  expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
 });
