@@ -57,7 +57,7 @@ jobs:
           corepack enable yarn
 
       - name: Install Go Toolchain
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           cache: false
           go-version: ${{ env.GOLANG_VERSION }}
