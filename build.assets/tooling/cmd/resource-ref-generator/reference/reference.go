@@ -324,6 +324,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
 	}
 
+	allEntries := make(map[resource.PackageInfo]resource.ReferenceEntry)
 	for k, decl := range typeDecls {
 		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
 			continue
@@ -338,63 +339,66 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		if err != nil {
 			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.DeclName, decl.FilePath, err)
 		}
-
-		// Add each reference entry to its appropriate place in the
-		// reference, either as a resource or as a field. Resources
-		// require a version number and `kind` value, so we search the
-		// methods of the resource type for the one that specifies these
-		// values.
 		for pi, e := range entries {
-			entryMethods, ok := methods[pi]
-			// Can't be a resource since it does not have methods.
-			if !ok {
-				content.Fields[pi] = e
+			allEntries[pi] = e
+		}
+	}
+
+	// Add each reference entry to its appropriate place in the
+	// reference, either as a resource or as a field. Resources
+	// require a version number and `kind` value, so we search the
+	// methods of the resource type for the one that specifies these
+	// values.
+	for pi, e := range allEntries {
+		entryMethods, ok := methods[pi]
+		// Can't be a resource since it does not have methods.
+		if !ok {
+			content.Fields[pi] = e
+			continue
+		}
+		var foundMethods bool
+		for _, method := range entryMethods {
+			if method.Name != conf.FieldAssignmentMethodName {
 				continue
 			}
-			var foundMethods bool
-			for _, method := range entryMethods {
-				if method.Name != conf.FieldAssignmentMethodName {
-					continue
-				}
 
-				ver, ok1 := method.FieldAssignments["Version"]
-				kind, ok2 := method.FieldAssignments["Kind"]
+			ver, ok1 := method.FieldAssignments["Version"]
+			kind, ok2 := method.FieldAssignments["Kind"]
 
-				// The version and kind weren't assigned
-				if !ok1 || !ok2 {
-					continue
-				}
-
-				// So far, all values of "Kind" and "Version"
-				// are declared in the same package as the types
-				// that include these fields.
-				verName, ok1 := stringAssignments[resource.PackageInfo{
-					DeclName:    ver,
-					PackageName: pi.PackageName,
-				}]
-
-				kindName, ok2 := stringAssignments[resource.PackageInfo{
-					DeclName:    kind,
-					PackageName: pi.PackageName,
-				}]
-
-				if !ok1 || !ok2 {
-					continue
-				}
-
-				ref := resourceSection{
-					ReferenceEntry: e,
-					Version:        verName,
-					Kind:           kindName,
-				}
-
-				content.Resources[pi] = ref
-				foundMethods = true
-				break
+			// The version and kind weren't assigned
+			if !ok1 || !ok2 {
+				continue
 			}
-			if !foundMethods {
-				content.Fields[pi] = e
+
+			// So far, all values of "Kind" and "Version"
+			// are declared in the same package as the types
+			// that include these fields.
+			verName, ok1 := stringAssignments[resource.PackageInfo{
+				DeclName:    ver,
+				PackageName: pi.PackageName,
+			}]
+
+			kindName, ok2 := stringAssignments[resource.PackageInfo{
+				DeclName:    kind,
+				PackageName: pi.PackageName,
+			}]
+
+			if !ok1 || !ok2 {
+				continue
 			}
+
+			ref := resourceSection{
+				ReferenceEntry: e,
+				Version:        verName,
+				Kind:           kindName,
+			}
+
+			content.Resources[pi] = ref
+			foundMethods = true
+			break
+		}
+		if !foundMethods {
+			content.Fields[pi] = e
 		}
 	}
 
