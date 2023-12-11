@@ -537,6 +537,12 @@ func GetOrigin(v any) string {
 	switch r := v.(type) {
 	case ResourceWithOrigin:
 		return r.Origin()
+	case ResourceMetadata:
+		meta := r.GetMetadata()
+		if meta.Labels == nil {
+			return ""
+		}
+		return meta.Labels[OriginLabel]
 	}
 
 	return ""
