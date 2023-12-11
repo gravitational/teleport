@@ -57,12 +57,13 @@ type TestConnectionRequest struct {
 	// Used in Connect My Computer where the principal is picked automatically if the Connect My
 	// Computer role contains only a single login.
 	//
-	// Supported values: "manual", "auto".
+	// Valid values: manual, auto.
 	SSHPrincipalSelectionMode string `json:"ssh_principal_selection_mode,omitempty"`
 	// SSHNodeOS is an optional field which describes the OS the agent runs on.
 	// Valid values: windows, darwin, linux.
 	SSHNodeOS string `json:"ssh_node_os,omitempty"`
 	// SSHNodeSetupMethod is an optional field which describes how an SSH agent was installed.
+	// Valid values: script, connect_my_computer.
 	SSHNodeSetupMethod string `json:"ssh_node_setup_method,omitempty"`
 
 	// KubernetesNamespace is the Kubernetes Namespace to List the Pods in.
