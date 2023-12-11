@@ -73,7 +73,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
     cd openssl && \
     [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
-    ./config --release --libdir=/usr/local/lib64 && \
+    ./config --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw
 # Necessary for libfido2 to find the correct libcrypto.
@@ -88,6 +88,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DCMAKE_BUILD_TYPE=Release . && \
     grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
