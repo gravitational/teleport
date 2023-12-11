@@ -108,7 +108,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
     cd openssl && \
     [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
-    ./config --release --libdir=/usr/local/lib64 && \
+    ./config --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw
 # Necessary for libfido2 to find the correct libcrypto.
@@ -125,6 +125,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
           -DBUILD_EXAMPLES=OFF \
           -DBUILD_MANPAGES=OFF \
           -DBUILD_TOOLS=OFF \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
           -DCMAKE_BUILD_TYPE=Release . && \
       grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
       make" && \
@@ -164,12 +165,15 @@ RUN yum install --nogpgcheck -y \
     yum clean all
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
+# BUILD_STATIC_ONLY - builds only static libraries without shared ones
+# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
+# DESTDIR - where to install the library
+# V=1 - verbose build
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable ${DEVTOOLSET} "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers"
+    scl enable ${DEVTOOLSET} "BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers"
 
 ## LIBPCSCLITE #####################################################################
 

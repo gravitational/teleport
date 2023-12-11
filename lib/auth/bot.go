@@ -32,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
@@ -116,34 +114,7 @@ func createBotUser(
 		return nil, trace.Wrap(err)
 	}
 
-	uls, err := ulsFromUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := s.UserLoginStates.UpsertUserLoginState(ctx, uls); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return user, nil
-}
-
-func ulsFromUser(user types.User) (*userloginstate.UserLoginState, error) {
-	uls, err := userloginstate.New(header.Metadata{
-		Name: user.GetName(),
-		Labels: map[string]string{
-			types.BotLabel:           user.GetMetadata().Labels[types.BotLabel],
-			types.BotGenerationLabel: user.GetMetadata().Labels[types.BotGenerationLabel],
-		},
-	}, userloginstate.Spec{
-		Roles:  user.GetRoles(),
-		Traits: user.GetTraits(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return uls, nil
 }
 
 // createBot creates a new certificate renewal bot from a bot request.
@@ -439,22 +410,6 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 			// write. The request should be tried again - if it's malicious,
 			// someone will get a generation mismatch and trigger a lock.
 			return trace.CompareFailed("Database comparison failed, try the request again")
-		}
-
-		uls, err := a.GetUserLoginState(ctx, user.GetName())
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		if uls == nil {
-			uls, err = ulsFromUser(user)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		uls.ResourceHeader.Metadata.Labels[types.BotGenerationLabel] = generation
-		if _, err := a.UpsertUserLoginState(ctx, uls); err != nil {
-			return trace.Wrap(err)
 		}
 
 		return nil

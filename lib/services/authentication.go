@@ -21,7 +21,6 @@
 package services
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -130,8 +129,24 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 
 // MarshalAuthPreference marshals the AuthPreference resource to JSON.
 func MarshalAuthPreference(c types.AuthPreference, opts ...MarshalOption) ([]byte, error) {
-	if err := c.CheckAndSetDefaults(); err != nil {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return json.Marshal(c)
+	switch c := c.(type) {
+	case *types.AuthPreferenceV2:
+		if err := c.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !cfg.PreserveResourceID {
+			copy := *c
+			copy.SetResourceID(0)
+			copy.SetRevision("")
+			c = &copy
+		}
+		return utils.FastMarshal(c)
+	default:
+		return nil, trace.BadParameter("unsupported type for auth preference: %T", c)
+	}
 }
