@@ -72,10 +72,6 @@ func UnmarshalClusterAuditConfig(bytes []byte, opts ...MarshalOption) (types.Clu
 
 // MarshalClusterAuditConfig marshals the ClusterAuditConfig resource to JSON.
 func MarshalClusterAuditConfig(auditConfig types.ClusterAuditConfig, opts ...MarshalOption) ([]byte, error) {
-	if err := auditConfig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -83,6 +79,10 @@ func MarshalClusterAuditConfig(auditConfig types.ClusterAuditConfig, opts ...Mar
 
 	switch auditConfig := auditConfig.(type) {
 	case *types.ClusterAuditConfigV2:
+		if err := auditConfig.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

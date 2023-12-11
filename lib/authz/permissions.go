@@ -196,6 +196,12 @@ type Context struct {
 	adminActionAuthorized bool
 }
 
+// GetUserMetadata returns information about the authenticated identity
+// to be included in audit events.
+func (c *Context) GetUserMetadata() apievents.UserMetadata {
+	return c.Identity.GetIdentity().GetUserMetadata()
+}
+
 // LockTargets returns a list of LockTargets inferred from the context's
 // Identity and UnmappedIdentity.
 func (c *Context) LockTargets() []types.LockTarget {
