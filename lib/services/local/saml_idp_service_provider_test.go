@@ -341,7 +341,6 @@ const samlspMetadata = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:met
 
 func TestCreateSAMLIdPServiceProvider_fetchOrGenerateEntityDescriptor(t *testing.T) {
 	ctx := context.Background()
-
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
@@ -435,7 +434,6 @@ func TestCreateSAMLIdPServiceProvider_fetchOrGenerateEntityDescriptor(t *testing
 		cmpopts.IgnoreFields(saml.EntityDescriptor{}, "ValidUntil"),
 		cmpopts.IgnoreFields(saml.SPSSODescriptor{}, "ValidUntil"),
 	))
-
 }
 
 func TestCreateSAMLIdPServiceProvider_fetchAndSetEntityDescriptor(t *testing.T) {
