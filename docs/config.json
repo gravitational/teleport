@@ -99,6 +99,11 @@
               "forScopes": ["cloud"]
             },
             {
+              "title": "External Audit Storage",
+              "slug": "/choose-an-edition/teleport-cloud/external-audit-storage/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Downloads",
               "slug": "/choose-an-edition/teleport-cloud/downloads/",
               "forScopes": ["cloud"]
@@ -1618,6 +1623,10 @@
           "title": "Storage Backends",
           "slug": "/reference/backends/",
           "forScopes": ["oss", "enterprise"]
+        },
+        {
+          "title": "Join Methods",
+          "slug": "/reference/join-methods/"
         },
         {
           "title": "Networking",
