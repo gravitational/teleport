@@ -177,8 +177,7 @@ func NewDraftConfigurator(ctx context.Context, ecaSvc ExternalAuditStorageGetter
 
 func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAuditStorageSpec, integrationSvc services.IntegrationsGetter, alertService ClusterAlertService, optFns ...func(*Options)) (*Configurator, error) {
 	// ExternalAuditStorage is only available in Cloud Enterprise
-	// (IsUsageBasedBilling indicates Teleport Team, where this is not supported)
-	if !modules.GetModules().Features().Cloud || modules.GetModules().Features().IsUsageBasedBilling {
+	if !modules.GetModules().Features().Cloud || modules.GetModules().Features().IsTeam() {
 		return &Configurator{isUsed: false}, nil
 	}
 

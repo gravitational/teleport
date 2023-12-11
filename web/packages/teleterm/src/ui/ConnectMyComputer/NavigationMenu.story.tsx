@@ -157,7 +157,6 @@ function ShowState({
   autoStart?: boolean;
 }) {
   const cluster = makeRootCluster({
-    features: { isUsageBasedBilling: true, advancedAccessWorkflows: false },
     proxyVersion: '17.0.0',
   });
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);

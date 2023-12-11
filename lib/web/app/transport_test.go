@@ -15,17 +15,22 @@
 package app
 
 import (
+	"context"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -193,5 +198,58 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 
 			require.Equal(t, tt.wantLocation, response.Header.Get("Location"))
 		})
+	}
+}
+
+type fakeTunnel struct {
+	reversetunnelclient.Tunnel
+
+	fakeSite *reversetunnelclient.FakeRemoteSite
+	err      error
+}
+
+func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
+	return f.fakeSite, f.err
+}
+
+func TestTransport_DialContextNoServersAvailable(t *testing.T) {
+	tp := transport{
+		c: &transportConfig{
+			proxyClient: fakeTunnel{
+				err: trace.ConnectionProblem(errors.New(reversetunnelclient.NoApplicationTunnel), ""),
+			},
+			identity: &tlsca.Identity{},
+			servers: []types.AppServer{
+				&types.AppServerV3{},
+				&types.AppServerV3{},
+				&types.AppServerV3{},
+			},
+			log: utils.NewLoggerForTests(),
+		},
+	}
+
+	ctx := context.Background()
+	type dialRes struct {
+		conn net.Conn
+		err  error
+	}
+
+	count := len(tp.c.servers) + 1
+	resC := make(chan dialRes, count)
+
+	for i := 0; i < count; i++ {
+		go func() {
+			conn, err := tp.DialContext(ctx, "", "")
+			resC <- dialRes{
+				conn: conn,
+				err:  err,
+			}
+		}()
+	}
+
+	for i := 0; i < count; i++ {
+		res := <-resC
+		require.Error(t, res.err)
+		require.Nil(t, res.conn)
 	}
 }

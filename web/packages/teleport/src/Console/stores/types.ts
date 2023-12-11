@@ -36,6 +36,12 @@ export interface DocumentSsh extends DocumentBase {
   mode?: ParticipantMode;
   serverId: string;
   login: string;
+  latency:
+    | {
+        client: number;
+        server: number;
+      }
+    | undefined;
 }
 
 export interface DocumentNodes extends DocumentBase {

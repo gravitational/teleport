@@ -45,6 +45,9 @@ import (
 // sshUser is the user to log in as on GCP VMs.
 const sshUser = "teleport"
 
+// sshDefaultTimeout is the default timeout for dialing an instance.
+const sshDefaultTimeout = 10 * time.Second
+
 // convertAPIError converts an error from the GCP API into a trace error.
 func convertAPIError(err error) error {
 	var googleError *googleapi.Error
@@ -447,10 +450,6 @@ type RunCommandRequest struct {
 	Script string
 	// SSHPort is the ssh server port to connect to. Defaults to 22.
 	SSHPort string
-	// UseExternalIP, if true, connects to the instance with an external IP
-	// address instead of the internal one. This is necessary if the instance
-	// isn't in the same VPC as this client.
-	UseExternalIP bool
 
 	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -466,7 +465,9 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 		req.SSHPort = "22"
 	}
 	if req.dialContext == nil {
-		dialer := net.Dialer{}
+		dialer := net.Dialer{
+			Timeout: sshDefaultTimeout,
+		}
 		req.dialContext = dialer.DialContext
 	}
 	return nil
@@ -507,11 +508,14 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 		return trace.NotFound(`Instance %v is missing host keys. Did you enable guest attributes on the instance?
 https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enabling_guest_attributes`, req.Name)
 	}
-	ipAddress := instance.internalIPAddress
-	if req.UseExternalIP {
-		ipAddress = instance.externalIPAddress
+	var ipAddrs []string
+	if instance.externalIPAddress != "" {
+		ipAddrs = append(ipAddrs, instance.externalIPAddress)
 	}
-	if ipAddress == "" {
+	if instance.internalIPAddress != "" {
+		ipAddrs = append(ipAddrs, instance.internalIPAddress)
+	}
+	if len(ipAddrs) == 0 {
 		return trace.NotFound("Instance %v is missing an IP address.", req.Name)
 	}
 	keyReq := &SSHKeyRequest{
@@ -548,15 +552,25 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		},
 		HostKeyCallback: callback,
 	}
-	addr := net.JoinHostPort(instance.externalIPAddress, req.SSHPort)
 
-	out, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
-	if err != nil {
-		logrus.WithError(err).Debugf("Command exited with error.")
-		if errors.Is(err, &ssh.ExitError{}) {
-			logrus.Debugf(string(out))
+	var errs []error
+	for _, ip := range ipAddrs {
+		addr := net.JoinHostPort(ip, req.SSHPort)
+		stdout, stderr, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
+		logrus.Debug(string(stdout))
+		logrus.Debug(string(stderr))
+		if err == nil {
+			return nil
 		}
-		return trace.Wrap(err)
+
+		// An exit error means the connection was successful, so don't try another address.
+		if errors.Is(err, &ssh.ExitError{}) {
+			return trace.Wrap(err)
+		}
+		errs = append(errs, err)
 	}
-	return nil
+
+	err = trace.NewAggregate(errs...)
+	logrus.WithError(err).Debug("Command exited with error.")
+	return err
 }
