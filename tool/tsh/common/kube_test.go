@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"os"
 	"os/exec"
 	"os/user"
 	"path"
@@ -30,6 +32,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
@@ -58,9 +62,52 @@ func TestKube(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
-	pack := setupKubeTestPack(t)
+	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
+}
+
+func TestKubeLogin(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
+		// Set default kubeconfig to a non-exist file to avoid loading other things.
+		t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+
+		// Test "tsh proxy kube root-cluster1".
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		t.Cleanup(cancel)
+
+		err := Run(
+			ctx,
+			[]string{"kube", "login", kubeCluster, "--insecure"},
+		)
+		require.NoError(t, err)
+
+		k, err := kubeconfig.Load(os.Getenv("KUBECONFIG"))
+		require.NoError(t, err)
+		require.NotNil(t, k)
+
+		require.Equal(t, k.Clusters[k.Contexts[k.CurrentContext].Cluster].Server, "https://"+expectedAddr)
+	}
+
+	t.Run("kube login with multiplex mode", func(t *testing.T) {
+		pack := setupKubeTestPack(t, true /* withMultiplexMode */)
+		webProxyAddr, err := pack.root.ProxyWebAddr()
+		require.NoError(t, err)
+		testKubeLogin(t, pack.rootKubeCluster1, webProxyAddr.String())
+	})
+
+	t.Run("kube login without multiplex mode", func(t *testing.T) {
+		pack := setupKubeTestPack(t, false /* withMultiplexMode */)
+		proxyAddr, err := pack.root.ProxyKubeAddr()
+		require.NoError(t, err)
+		addr := net.JoinHostPort("localhost", fmt.Sprintf("%d", proxyAddr.Port(defaults.KubeListenPort)))
+		testKubeLogin(t, pack.rootKubeCluster1, addr)
+	})
 }
 
 type kubeTestPack struct {
@@ -73,7 +120,7 @@ type kubeTestPack struct {
 	leafKubeCluster  string
 }
 
-func setupKubeTestPack(t *testing.T) *kubeTestPack {
+func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	t.Helper()
 
 	ctx := context.Background()
@@ -94,16 +141,22 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			if withMultiplexMode {
+				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			}
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = rootLabels
+			cfg.Proxy.Kube.Enabled = true
+			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
 			func(cfg *servicecfg.Config) {
-				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				if withMultiplexMode {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
