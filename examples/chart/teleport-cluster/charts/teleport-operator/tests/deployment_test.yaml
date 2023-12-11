@@ -10,6 +10,8 @@ tests:
           count: 0
 
   - it: creates a deployment when operator is enabled
+    values:
+      - ../.lint/cloud-join.yaml
     asserts:
       - containsDocument:
           kind: Deployment
@@ -19,6 +21,8 @@ tests:
   - it: shortens fullname if .Release.Name == .Chart.Name
     release:
       name: teleport-operator
+    values:
+      - ../.lint/cloud-join.yaml
     asserts:
       - containsDocument:
           kind: Deployment
@@ -28,6 +32,8 @@ tests:
   - it: respects the nameOverride
     set:
       nameOverride: operator
+    values:
+      - ../.lint/cloud-join.yaml
     asserts:
       - containsDocument:
           kind: Deployment
@@ -75,10 +81,9 @@ tests:
             name: SSL_CERT_FILE
             value: /etc/teleport-tls-ca/ca.pem
 
-  - it: mounts tokens through projected volumes on newer Kubernetes versions
-    capabilities:
-      majorVersion: 1
-      minorVersion: 21
+  - it: mounts tokens through projected volumes
+    values:
+      - ../.lint/cloud-join.yaml
     asserts:
       - equal:
           path: spec.template.spec.automountServiceAccountToken
@@ -108,16 +113,9 @@ tests:
             name: operator-serviceaccount-token
             readOnly: true
 
-  - it: mounts regular tokens on older Kubernetes versions
-    capabilities:
-      majorVersion: 1
-      minorVersion: 18
-    asserts:
-      - notEqual:
-          path: spec.template.spec.automountServiceAccountToken
-          value: false
-
   - it: should set imagePullPolicy when set in values
+    values:
+      - ../.lint/cloud-join.yaml
     set:
       imagePullPolicy: Always
     asserts:
@@ -143,6 +141,8 @@ tests:
           value: 2Gi
 
   - it: should set security contexts by default
+    values:
+      - ../.lint/cloud-join.yaml
     asserts:
       - equal:
           path: spec.template.spec.containers[0].securityContext
@@ -155,8 +155,45 @@ tests:
       - equal:
           path: spec.template.spec.securityContext
           value:
-            seccompProfile: RuntimeDefault
+            seccompProfile:
+              type: RuntimeDefault
             runAsUser: 65532
             runAsGroup: 65532
             fsGroup: 65532
             runAsNonRoot: true
+
+  - it: configures a dedicated token when kube JWKS joining
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: bot-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    audience: example.teleport.sh
+                    expirationSeconds: 600
+                    path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - fieldRef:
+                          fieldPath: metadata.namespace
+                        path: namespace
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/teleport/serviceaccount
+            name: bot-serviceaccount-token
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/teleport/serviceaccount/token

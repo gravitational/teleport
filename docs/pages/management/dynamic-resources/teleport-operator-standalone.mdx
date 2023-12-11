@@ -39,8 +39,8 @@ In this step we create the role the operator uses to interact with Teleport reso
 
 Download and apply the operator role manifest:
 
-```bash
-$ curl -L -O https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/integrations/operator/hack/fixture-operator-role.yaml
+```code
+$ curl -L -O https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/integrations/operator/hack/fixture-operator-role.yaml -o operator-role.yaml
 $ tctl create -f operator-role.yaml
 ```
 
@@ -57,11 +57,11 @@ The join token is used by the operator on each startup to join the Teleport clus
 To establish trust between the connecting operator and Teleport, we are delegating the authentication to Kubernetes. Kubernetes has its own internal CA which signs the ServiceAccount tokens that are mounted in the pods. In the following setup, Teleport will trust SA tokens signed by Kubernetes to join the cluster.
 
 1. Retrieve the Kubernetes JWKS (the keys Teleport can use to validate Kubernetes SA tokens)
-   ```shell
+   ```code
    $ export JWKS="$(kubectl get --raw /openid/v1/jwks)"
    ```
 1. Create the token manifest that allows serviceaccount teleport-iac-operator from the namespace teleport-iac to join the cluster as the operator.
-   ```shell
+   ```code
    $ cat <<EOF > operator-token.yaml   
    kind: token
    version: v2
@@ -78,12 +78,16 @@ To establish trust between the connecting operator and Teleport, we are delegati
          jwks: |
            $JWKS
        allow:
-       - service_account: "teleport-iac:teleport-iac-operator" # namespace:serviceaccount
+       - service_account: "teleport-iac:teleport-operator" # namespace:serviceaccount
    EOF
    ```
 1. Then, apply the token manifest:
-   ```shell
+   ```code
    $ tctl create -f operator-token.yaml
+   ```
+1. Finally, retrieve the Teleport cluster name that will be required to use the token:
+   ```code
+   $ export CLUSTER_NAME="$(tctl status | grep Cluster | sed 's/Cluster[[:space:]]*//)"'
    ```
 
 ### Step 3/4 - Create the operator bot
@@ -91,8 +95,8 @@ To establish trust between the connecting operator and Teleport, we are delegati
 In Teleport, a bot is a resource allowing a machine to access Teleport.
 Create a bot for the operator with the following command:
 
-```shell
-$ tctl bots add operator --token operator-bot --role operator
+```code
+$ tctl bots add operator --token operator-bot --roles operator
 ```
 
 ### Step 4/4 - Deploy the operator in the Kubernetes cluster
@@ -102,19 +106,19 @@ At this point you can configure and run the operator:
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 1. Create the Kubernetes namespace that will contain both the operator Pods and the CustomResources to configure Teleport:
-   ```shell
+   ```code
    $ kubectl create namespace teleport-iac
    ```
 1. Apply the strictest Pod Security Standard on the namespace:
-   ```shell
+   ```code
    $ kubectl label namespace teleport-iac 'pod-security.kubernetes.io/enforce=restricted'
    ```
 1. Deploy the operator with Helm:
-   ```shell
-   $ helm install teleport-iac teleport/teleport-operator -n teleport-iac --set authAddr=teleport.example.com:443 --set token operator-bot
+   ```code
+   $ helm install teleport-operator teleport/teleport-operator -n teleport-iac --set teleportAddress=teleport.example.com:443 --set "teleportClusterName=$CLUSTER_NAME" --set token=operator-bot 
    ```
 1. Validate that operator is running properly (the operator might take a few seconds to start):
-   ```
+   ```code
    $ kubectl get pods -n teleport-iac
    ```
 
