@@ -23,6 +23,12 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 )
 
+// ResourceMetadata is the smallest interface that defines a Teleport resource.
+type ResourceMetadata interface {
+	// GetMetadata returns the generic resource metadata.
+	GetMetadata() *headerv1.Metadata
+}
+
 // Resource153 is a resource that follows RFD 153.
 //
 // It exists as a weak guideline for fields that resource protos must provide
@@ -50,6 +56,64 @@ type Resource153 interface {
 
 	// GetMetadata returns the generic resource metadata.
 	GetMetadata() *headerv1.Metadata
+}
+
+// LegacyToResource153 converts a legacy [Resource] into a [Resource153].
+//
+// Useful to handle old and new resources uniformly. If you can, consider
+// further "downgrading" the Resource153 interface into the smallest subset that
+// works for you (for example, [ResourceMetadata]).
+func LegacyToResource153(r Resource) Resource153 {
+	return &legacyToResource153Adapter{inner: r}
+}
+
+type legacyToResource153Adapter struct {
+	inner Resource
+}
+
+// Unwrap is an escape hatch for Resource instances that are piped down into the
+// codebase as a legacy Resource.
+//
+// Ideally you shouldn't depend on this.
+func (r *legacyToResource153Adapter) Unwrap() Resource {
+	return r.inner
+}
+
+// MarshalJSON adds support for marshaling the wrapped resource (instead of
+// marshaling the adapter itself).
+func (r *legacyToResource153Adapter) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.inner)
+}
+
+func (r *legacyToResource153Adapter) GetKind() string {
+	return r.inner.GetKind()
+}
+
+func (r *legacyToResource153Adapter) GetMetadata() *headerv1.Metadata {
+	md := r.inner.GetMetadata()
+
+	var expires *timestamppb.Timestamp
+	if md.Expires != nil {
+		expires = timestamppb.New(*md.Expires)
+	}
+
+	return &headerv1.Metadata{
+		Name:        md.Name,
+		Namespace:   md.Namespace,
+		Description: md.Description,
+		Labels:      md.Labels,
+		Expires:     expires,
+		Id:          md.ID,
+		Revision:    md.Revision,
+	}
+}
+
+func (r *legacyToResource153Adapter) GetSubKind() string {
+	return r.inner.GetSubKind()
+}
+
+func (r *legacyToResource153Adapter) GetVersion() string {
+	return r.inner.GetVersion()
 }
 
 // Resource153ToLegacy transforms an RFD 153 style resource into a legacy
