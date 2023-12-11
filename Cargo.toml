@@ -10,14 +10,6 @@ edition = "2021"
 license = "AGPL-3.0-only"
 homepage = "https://github.com/gravitational/teleport"
 repository = "https://github.com/gravitational/teleport"
-authors = [
-    "Teleport <goteleport.com>",
-    "Andrew Lytvynov <andrew@awly.dev>",
-    "Zac Bergquist <zac@goteleport.com>",
-    "Isaiah Becker-Mayer <isaiah@goteleport.com>",
-    "Przemko Robakowski <przemko.robakowski@goteleport.com>"
-]
-keywords = ["teleport", "rdp", "desktop"]
 publish = false
 
 [profile.dev]
@@ -29,8 +21,8 @@ debug = 1
 codegen-units = 1
 
 [workspace.dependencies]
-byteorder = "1.5.0"
-bytes = "1.4.0"
+# Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
+# ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
 ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
 ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
 ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
@@ -41,15 +33,3 @@ ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f
 ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
 ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
 ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
-# Uncomment the following lines to use local crates instead of the ones from github
-# ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-# ironrdp-connector = { path = "/path/to/local/IronRDP/crates/ironrdp-connector" }
-# ironrdp-graphics = { path = "/path/to/local/IronRDP/crates/ironrdp-graphics" }
-# ironrdp-pdu = { path = "/path/to/local/IronRDP/crates/ironrdp-pdu" }
-# ironrdp-rdpdr = { path = "/path/to/local/IronRDP/crates/ironrdp-rdpdr" }
-# ironrdp-rdpsnd = { path = "/path/to/local/IronRDP/crates/ironrdp-rdpsnd" }
-# ironrdp-session = { path = "/path/to/local/IronRDP/crates/ironrdp-session" }
-# ironrdp-svc = { path = "/path/to/local/IronRDP/crates/ironrdp-svc" }
-# ironrdp-tls = { path = "/path/to/local/IronRDP/crates/ironrdp-tls" }
-# ironrdp-tokio = { path = "/path/to/local/IronRDP/crates/ironrdp-tokio" }
-log = "0.4.20"
