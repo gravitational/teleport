@@ -154,9 +154,23 @@ spec:
     - arn:aws:iam::1234567890:role/ExampleReadOnlyAccess
 ```
 
+<Details title="Configuring aws_role_arns">
+
 The `aws_role_arns` field supports template variables so they can be populated
-dynamically based on your users' identity provider attributes. See [Role
-Templates](../../access-controls/guides/role-templates.mdx) for details.
+dynamically when a user authenticates to Teleport.
+
+For example, you can configure your identity provider to define a SAML attribute
+or OIDC claim called `aws_role_arns`, then use this field to list each user's
+permitted AWS role ARNs on your IdP. If you define a Teleport role to mention
+the `{{external.aws_role_arns}}` variable, the Auth Service will fill in the
+user's permitted ARNs based on data from the IdP:
+
+```yaml
+    aws_role_arns:
+    - {{external.aws_role_arns}}
+```
+
+</Details>
 
 (!docs/pages/includes/add-role-to-user.mdx role="aws-console-access"!)
 
