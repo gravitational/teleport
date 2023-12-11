@@ -29,7 +29,8 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ \
         ${DEVTOOLSET}-make && \
     yum clean all
 
@@ -97,7 +98,8 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ \
         ${DEVTOOLSET}-make && \
     yum clean all
 
