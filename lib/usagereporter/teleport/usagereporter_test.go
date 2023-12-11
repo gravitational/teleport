@@ -467,6 +467,54 @@ func TestConvertUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name: "access list review create event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListReviewCreate{
+				AccessListReviewCreate: &usageeventsv1.AccessListReviewCreate{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+					DaysPastNextAuditDate:   5,
+					ReviewFrequencyChanged:  true,
+					ReviewDayOfMonthChanged: false,
+					NumberOfRemovedMembers:  20,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListReviewCreate{
+				AccessListReviewCreate: &prehogv1a.AccessListReviewCreateEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+					DaysPastNextAuditDate:   5,
+					ReviewFrequencyChanged:  true,
+					ReviewDayOfMonthChanged: false,
+					NumberOfRemovedMembers:  20,
+				},
+			}},
+		},
+		{
+			name: "access list review delete event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListReviewDelete{
+				AccessListReviewDelete: &usageeventsv1.AccessListReviewDelete{
+					Metadata: &usageeventsv1.AccessListMetadata{
+						Id: "someid",
+					},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListReviewDelete{
+				AccessListReviewDelete: &prehogv1a.AccessListReviewDeleteEvent{
+					UserName: expectedAnonymizedUserString,
+					Metadata: &prehogv1a.AccessListMetadata{
+						Id: expectedAnonymizedAccessListIDString,
+					},
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
