@@ -6065,6 +6065,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		roles           []types.Role
 		resourceName    string
 		nodeUser        string
+		nodeOS          string
 		stopNode        bool
 		expectedSuccess bool
 		expectedMessage string
@@ -6102,11 +6103,12 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			},
 		},
 		{
-			name:            "node not found",
-			roles:           roleWithFullAccess("nodenotfound", osUsername),
-			teleportUser:    "nodenotfound",
+			name:            "Linux node not found",
+			roles:           roleWithFullAccess("nodenotfound-linux", osUsername),
+			teleportUser:    "nodenotfound-linux",
 			resourceName:    "notanode",
 			nodeUser:        osUsername,
+			nodeOS:          constants.LinuxOS,
 			expectedSuccess: false,
 			expectedMessage: "failed",
 			expectedTraces: []types.ConnectionDiagnosticTrace{
@@ -6114,6 +6116,24 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Error:   "direct dialing to nodes not found in inventory is not supported",
+				},
+			},
+		},
+		{
+			name:            "Darwin node not found",
+			roles:           roleWithFullAccess("nodenotfound-darwin", osUsername),
+			teleportUser:    "nodenotfound-darwin",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			nodeOS:          constants.DarwinOS,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "launchctl print 'system/Teleport Service'".`,
 					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
@@ -6205,6 +6225,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				ResourceKind: types.KindNode,
 				ResourceName: tt.resourceName,
 				SSHPrincipal: tt.nodeUser,
+				SSHNodeOS:    tt.nodeOS,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
