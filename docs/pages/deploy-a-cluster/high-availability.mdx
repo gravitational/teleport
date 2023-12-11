@@ -45,57 +45,7 @@ Infrastructure components include:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
-{/*
-The block of &nbsp is there to push the subgraph label out of the way of the
-diagram lines. This is a hacky solution to https://github.com/mermaid-js/mermaid/issues/1209
-*/}
-
-```mermaid
-flowchart
-   subgraph public[Public Network]
-     Developers
-   end
-
-   subgraph private[Private Network]
-     server1[Teleport Service]
-     server2[Teleport Service]
-     server3[Teleport Service]
-   end
-
-   Developers & server1 & server2 & server3 --> lb1[Load Balancer]
-   lb1 --> proxies
-
-   subgraph teleport[Private Network &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp]
-     subgraph proxies[Proxy Service Pool]
-       tp1[Teleport Proxy Service]
-       tp2[Teleport Proxy Service]
-     end
-
-     proxies --> lb2[Load Balancer]
-
-     subgraph auth[Auth Service Pool]
-       ta1[Teleport Auth Service]
-       ta2[Teleport Auth Service]
-    end
-
-    lb2-->auth
-
-    auth-->kv[Key/Value Store]
-    auth-->os[Object Store]
-   end
-
-classDef teleportColor fill:#844cff,color:#fff
-classDef nestedSub fill:#fff
-class proxies nestedSub
-class auth nestedSub
-class server1 teleportColor
-class server2 teleportColor
-class server3 teleportColor
-class tp1 teleportColor
-class tp2 teleportColor
-class ta1 teleportColor
-class ta2 teleportColor
-```
+![Architecture of a high availability Teleport deployment](../../img/ha-diagram.png)
 
 ## Layer 4 load balancers
 
