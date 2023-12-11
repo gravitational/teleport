@@ -854,7 +854,7 @@ func (c *Config) ParseProxyHost(proxyHost string) error {
 
 // KubeProxyHostPort returns the host and port of the Kubernetes proxy.
 func (c *Config) KubeProxyHostPort() (string, int) {
-	if c.KubeProxyAddr != "" && !c.TLSRoutingEnabled {
+	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
 			return addr.Host(), addr.Port(defaults.KubeListenPort)
@@ -4315,8 +4315,8 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 					proxySettings.Kube.PublicAddr)
 			}
 			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
-		// ListenAddr is the second preference.
-		case proxySettings.Kube.ListenAddr != "":
+		// ListenAddr is the second preference unless TLS routing is enabled.
+		case proxySettings.Kube.ListenAddr != "" && !proxySettings.TLSRoutingEnabled:
 			addr, err := utils.ParseAddr(proxySettings.Kube.ListenAddr)
 			if err != nil {
 				return trace.BadParameter(
