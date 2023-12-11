@@ -243,6 +243,9 @@ type Role interface {
 	GetGroupLabels(RoleConditionType) Labels
 	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
 	SetGroupLabels(RoleConditionType, Labels)
+
+	// String provides a safe to log representation of the role
+	String() string
 }
 
 // NewRole constructs new standard V7 role.

@@ -41,4 +41,7 @@ type Subsystem interface {
 
 	// Wait is returned by subsystem when it's completed
 	Wait() error
+
+	// String provides a safe to log representation of the subsystem
+	String() string
 }

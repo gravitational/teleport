@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -178,6 +179,10 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	}()
 
 	return nil
+}
+
+func (s *sftpSubsys) String() string {
+	return fmt.Sprintf("sftp(%s)", s.serverCtx.String())
 }
 
 func (s *sftpSubsys) Wait() error {

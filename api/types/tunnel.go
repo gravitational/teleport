@@ -39,6 +39,8 @@ type ReverseTunnel interface {
 	SetType(TunnelType)
 	// GetDialAddrs returns list of dial addresses for this cluster
 	GetDialAddrs() []string
+	// String returns a safe to log representation of the tunnel
+	String() string
 }
 
 // NewReverseTunnel returns new version of reverse tunnel

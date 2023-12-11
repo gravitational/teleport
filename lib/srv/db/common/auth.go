@@ -186,7 +186,7 @@ func (a *dbAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (stri
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx.String())
 	token, err := rdsutils.BuildAuthToken(
 		sessionCtx.Database.GetURI(),
 		meta.Region,
@@ -250,7 +250,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 	}
 
 	// Now make the API call to generate the temporary credentials.
-	a.cfg.Log.Debugf("Generating Redshift IAM role auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating Redshift IAM role auth token for %s.", sessionCtx.String())
 	resp, err := client.GetClusterCredentialsWithIAMWithContext(ctx, &redshift.GetClusterCredentialsWithIAMInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbName:            aws.String(sessionCtx.DatabaseName),
@@ -281,7 +281,7 @@ func (a *dbAuth) getRedshiftDBUserAuthToken(ctx context.Context, sessionCtx *Ses
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx.String())
 	resp, err := redshiftClient.GetClusterCredentialsWithContext(ctx, &redshift.GetClusterCredentialsInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbUser:            aws.String(sessionCtx.DatabaseUser),
@@ -346,7 +346,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 	}
 
 	// Now make the API call to generate the temporary credentials.
-	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx.String())
 	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
 		WorkgroupName: aws.String(meta.RedshiftServerless.WorkgroupName),
 		DbName:        aws.String(sessionCtx.DatabaseName),
@@ -375,7 +375,7 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx.String())
 	resp, err := gcpIAM.GenerateAccessToken(ctx,
 		&gcpcredentialspb.GenerateAccessTokenRequest{
 			// From GenerateAccessToken docs:
@@ -416,7 +416,7 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating GCP user password for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating GCP user password for %s.", sessionCtx.String())
 	token, err := utils.CryptoRandomHex(libauth.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -462,7 +462,7 @@ Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role, or
 
 // GetAzureAccessToken generates Azure database access token.
 func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (string, error) {
-	a.cfg.Log.Debugf("Generating Azure access token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating Azure access token for %s.", sessionCtx.String())
 	cred, err := a.cfg.Clients.GetAzureCredential()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -489,7 +489,7 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Sessi
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating ElastiCache Redis auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating ElastiCache Redis auth token for %s.", sessionCtx.String())
 	tokenReq := &awsRedisIAMTokenRequest{
 		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
 		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
@@ -514,7 +514,7 @@ func (a *dbAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (str
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating MemoryDB auth token for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating MemoryDB auth token for %s.", sessionCtx.String())
 	tokenReq := &awsRedisIAMTokenRequest{
 		userID:      sessionCtx.DatabaseUser,
 		targetID:    meta.MemoryDB.ClusterName,
@@ -865,7 +865,7 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 	}
 	// TODO(r0mant): Cache database certificates to avoid expensive generate
 	// operation on each connection.
-	a.cfg.Log.Debugf("Generating client certificate for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating client certificate for %s.", sessionCtx.String())
 	resp, err := a.cfg.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: csr,
 		TTL: proto.Duration(sessionCtx.Identity.Expires.Sub(a.cfg.Clock.Now())),

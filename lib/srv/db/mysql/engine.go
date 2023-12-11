@@ -356,7 +356,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			// We do not want to allow changing the connection user and instead
 			// force users to go through normal reconnect flow so log the
 			// attempt and close the client connection.
-			log.Warnf("Rejecting attempt to change user to %q for session %v.", pkt.User(), sessionCtx)
+			log.Warnf("Rejecting attempt to change user to %q for session %v.", pkt.User(), sessionCtx.String())
 			return
 		case *protocol.Quit:
 			return

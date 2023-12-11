@@ -251,6 +251,9 @@ type AccessChecker interface {
 	//
 	// - types.KindWindowsDesktop
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
+
+	// String returns an identifier without any secrets for logging.
+	String() string
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

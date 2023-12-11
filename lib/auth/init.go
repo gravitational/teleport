@@ -355,7 +355,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		if _, err := asrv.UpsertRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Created role: %v.", role)
+		log.Infof("Created role: %v.", role.String())
 	}
 	for i := range cfg.Authorities {
 		ca := cfg.Authorities[i]
@@ -380,7 +380,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Created reverse tunnel: %v.", tunnel)
+		log.Infof("Created reverse tunnel: %v.", tunnel.String())
 	}
 
 	g, gctx := errgroup.WithContext(ctx)

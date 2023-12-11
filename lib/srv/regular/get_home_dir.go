@@ -63,6 +63,10 @@ func (h *homeDirSubsys) Start(_ context.Context, serverConn *ssh.ServerConn, ch 
 	return trace.Wrap(err)
 }
 
+func (h *homeDirSubsys) String() string {
+	return "homeDir()"
+}
+
 func (h *homeDirSubsys) Wait() error {
 	<-h.done
 	return nil

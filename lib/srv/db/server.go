@@ -1145,7 +1145,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		LockTargets: authContext.LockTargets(),
 	}
 
-	s.log.Debugf("Session context: %+v.", sessionCtx)
+	s.log.Debugf("Session context: %+v.", sessionCtx.String())
 	return sessionCtx, nil
 }
 

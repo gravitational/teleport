@@ -1875,17 +1875,17 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
 	}
-	serverContext.Debugf("Subsystem request: %v.", sb)
+	serverContext.Debugf("Subsystem request: %v.", sb.String())
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.Start(ctx, serverContext.ServerConn, ch, req, serverContext); err != nil {
-		serverContext.Warnf("Subsystem request %v failed: %v.", sb, err)
+		serverContext.Warnf("Subsystem request %v failed: %v.", sb.String(), err)
 		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
-		s.Logger.Debugf("Subsystem %v finished with result: %v.", sb, err)
+		s.Logger.Debugf("Subsystem %v finished with result: %v.", sb.String(), err)
 		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
