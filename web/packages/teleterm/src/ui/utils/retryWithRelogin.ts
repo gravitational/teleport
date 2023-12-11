@@ -20,6 +20,8 @@ import Logger from 'teleterm/logger';
 
 const logger = new Logger('retryWithRelogin');
 
+let pendingLogin: Promise<void> | undefined;
+
 /**
  * `retryWithRelogin` executes `actionToRetry`. If `actionToRetry` throws an error, it checks if the
  * error can be resolved by the user logging in, according to metadata returned from the tshd
@@ -28,6 +30,10 @@ const logger = new Logger('retryWithRelogin');
  * If that's the case, it checks if the user is still looking at the relevant UI (the `isUiActive`
  * argument) and if so, it shows a login modal. After the user successfully logs in, it calls
  * `actionToRetry` again.
+ *
+ * `retryWithRelogin` supports concurrent requests.
+ * If multiple actions need to show a login modal at the same time,
+ * it will be displayed only once, and other actions will wait for it to be resolved.
  *
  * Each place using `retryWithRelogin` must be able to show the error to the user in case the
  * relogin attempt fails. Each place should also offer the user a way to manually retry the action
@@ -79,7 +85,13 @@ export async function retryWithRelogin<T>(
 
   const rootClusterUri = routing.ensureRootClusterUri(resourceUri);
 
-  await login(appContext, rootClusterUri);
+  if (!pendingLogin) {
+    pendingLogin = login(appContext, rootClusterUri).finally(() => {
+      pendingLogin = undefined;
+    });
+  }
+
+  await pendingLogin;
 
   return await actionToRetry();
 }
