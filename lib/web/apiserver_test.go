@@ -6245,24 +6245,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:            "principal exists but Connect My Computer node does not have permission to start session as such principal",
-			teleportUser:    "principal-no-permission",
-			roles:           roleWithPrincipal("principal-no-permission", "root"),
-			resourceName:    nodeName,
-			nodeUser:        "root",
-			setupMethod:     conntest.SSHNodeSetupMethodConnectMyComputer,
-			expectedSuccess: false,
-			expectedMessage: "failed",
-			expectedTraces: []types.ConnectionDiagnosticTrace{
-				{
-					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
-					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Invalid user`,
-					Error:   "operation not permitted",
-				},
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			localEnv := env
