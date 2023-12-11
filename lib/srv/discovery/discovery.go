@@ -442,6 +442,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 		fetcher, err := fetchers.NewKubeAppsFetcher(fetchers.KubeAppsFetcherConfig{
 			KubernetesClient: kubeClient,
 			FilterLabels:     matcher.Labels,
+			StaticLabels:     matcher.StaticLabels,
 			Namespaces:       matcher.Namespaces,
 			Log:              s.Log,
 			ClusterName:      s.DiscoveryGroup,

@@ -1547,9 +1547,10 @@ kubernetes matchers are present`)
 	}
 	for _, matcher := range fc.Discovery.KubernetesMatchers {
 		serviceMatcher := types.KubernetesMatcher{
-			Types:      matcher.Types,
-			Namespaces: matcher.Namespaces,
-			Labels:     matcher.Labels,
+			Types:        matcher.Types,
+			Namespaces:   matcher.Namespaces,
+			Labels:       matcher.Labels,
+			StaticLabels: matcher.StaticLabels,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
