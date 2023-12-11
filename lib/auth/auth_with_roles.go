@@ -2037,12 +2037,21 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 		return trace.BadParameter("unexpected token type %T", token)
 	}
 
-	if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+	switch v.Spec.JoinMethod {
+	case types.JoinMethodGitHub:
+		if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
+			return fmt.Errorf(
+				"github enterprise server joining: %w",
+				ErrRequiresEnterprise,
+			)
+		}
+	case types.JoinMethodSpacelift:
 		return fmt.Errorf(
-			"github enterprise server joining: %w",
+			"spacelift joining: %w",
 			ErrRequiresEnterprise,
 		)
 	}
+
 	return nil
 }
 
@@ -3432,15 +3441,20 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // ValidateSAMLResponse validates SAML auth response.
-func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+	if !isProxy {
+		clientIP = "" // We only trust IP information coming from the Proxy.
+	}
+
 	// auth callback is it's own authz, no need to check extra permissions
-	resp, err := a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
+	resp, err := a.authServer.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Only the Proxy service can create web sessions via SAML connector.
-	if resp.Session != nil && !a.hasBuiltinRole(types.RoleProxy) {
+	if resp.Session != nil && !isProxy {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
