@@ -111,7 +111,7 @@ export const APPLICATIONS: ResourceSpec[] = [
 
 export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
-    name: 'Active Directory users',
+    name: 'Active Directory Users',
     kind: ResourceKind.Desktop,
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
