@@ -2,6 +2,11 @@
 
 ## 14.2.2 (12/07/23)
 
+**Note**: `tsh` v14.2.2 has a known issue where `tsh kube login` uses an
+incorrect port for clusters with multiplex mode enabled. If you use Kubernetes
+access with multiplex mode, we recommend downgrading `tsh` to 14.2.1 until a fix
+is available.
+
 * Prevent panic when dialing a deleted Application Server. [#35525](https://github.com/gravitational/teleport/pull/35525)
 * Fixed regression issue with arm32 binaries in 14.2.1 having higher glibc requirements. [#35539](https://github.com/gravitational/teleport/pull/35539)
 * Fixed GCP VM auto-discovery not using instances' internal IP address. [#35521](https://github.com/gravitational/teleport/pull/35521)
@@ -88,8 +93,8 @@ Teleport plugins will support dynamic credential reloading, allowing them to tak
 
 #### [Medium] Arbitrary code execution with `LD_PRELOAD` and `SFTP`
 
-Teleport implements SFTP using a subcommand. Prior to this release it was 
-possible to inject environment variables into the execution of this 
+Teleport implements SFTP using a subcommand. Prior to this release it was
+possible to inject environment variables into the execution of this
 subcommand, via shell init scripts or via the SSH environment request.
 
 This is addressed by preventing `LD_PRELOAD` and other dangerous environment
@@ -108,7 +113,7 @@ own proxy headers.
 
 [#33729](https://github.com/gravitational/teleport/pull/33729)
 
-### Other Fixes & Improvements 
+### Other Fixes & Improvements
 
 * Fixed issue where tbot would select the wrong address for Kubernetes Access when in ports separate mode [#34283](https://github.com/gravitational/teleport/pull/34283)
 * Added post-review state of Access Request in audit log description [#34213](https://github.com/gravitational/teleport/pull/34213)
