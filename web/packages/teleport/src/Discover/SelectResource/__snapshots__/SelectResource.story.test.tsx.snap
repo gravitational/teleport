@@ -983,7 +983,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            Active Directory users
+            Active Directory Users
           </div>
         </div>
       </div>
@@ -2028,7 +2028,7 @@ exports[`render with all access 1`] = `
             class="c18"
             color="text.main"
           >
-            Local users
+            Local Users
           </div>
         </div>
       </div>
@@ -2776,7 +2776,7 @@ exports[`render with no access 1`] = `
           <div
             class="c17"
           >
-            Active Directory users
+            Active Directory Users
           </div>
         </div>
       </div>
@@ -3643,7 +3643,7 @@ exports[`render with no access 1`] = `
             class="c19"
             color="text.main"
           >
-            Local users
+            Local Users
           </div>
         </div>
       </div>
@@ -4815,7 +4815,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            Active Directory users
+            Active Directory Users
           </div>
         </div>
       </div>
@@ -5163,7 +5163,7 @@ exports[`render with partial access 1`] = `
             class="c18"
             color="text.main"
           >
-            Local users
+            Local Users
           </div>
         </div>
       </div>
