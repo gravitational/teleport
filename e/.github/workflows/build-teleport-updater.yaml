@@ -128,6 +128,21 @@ jobs:
           else
             echo "Updater version number matches the artifact version ($ARTIFACT_VERSION)"
           fi
+      - name: Set the TELEPORT_EXT_UPGRADER_VERSION env variable
+        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        env:
+          ENV_CONFIG_PATH: "etc/systemd/system/teleport.service.d/teleport-upgrader-env.conf"
+          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
+        run: |
+          sed -e "s/TELEPORT_EXT_UPGRADER_VERSION=.*-unset/TELEPORT_EXT_UPGRADER_VERSION=$ARTIFACT_VERSION/" -i "$ENV_CONFIG_PATH"
+          UPGRADER_VERSION=$(grep TELEPORT_EXT_UPGRADER_VERSION "$ENV_CONFIG_PATH" | sed -e "s/.*TELEPORT_EXT_UPGRADER_VERSION=\($ARTIFACT_VERSION\).*/\1/")
+
+          if [ "$UPGRADER_VERSION" != "$ARTIFACT_VERSION" ]; then
+            echo "Error: updater version does not match artifact version ($ARTIFACT_VERSION)!"
+            exit 1
+          else
+            echo "Updater version matches the artifact version ($ARTIFACT_VERSION)"
+          fi
       - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
         working-directory: ./assets/systemd-unit-upgrader/
         id: build-package
