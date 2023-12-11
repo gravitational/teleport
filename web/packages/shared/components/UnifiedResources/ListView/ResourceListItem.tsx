@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
@@ -43,11 +43,17 @@ export function ResourceListItem({
   pinResource,
   selectResource,
   selected,
+  expandAllLabels,
 }: Omit<ResourceItemProps, 'cardViewProps'>) {
   const { description, resourceType, addr } = listViewProps;
 
-  const [showLabels, setShowLabels] = useState(false);
+  const [showLabels, setShowLabels] = useState(expandAllLabels);
   const [hovered, setHovered] = useState(false);
+
+  // Update whether this item's labels are shown if the `expandAllLabels` preference is updated.
+  useEffect(() => {
+    setShowLabels(expandAllLabels);
+  }, [expandAllLabels]);
 
   const showLabelsButton = labels.length > 0 && (hovered || showLabels);
 

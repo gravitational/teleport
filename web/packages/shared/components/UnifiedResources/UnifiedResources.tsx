@@ -36,6 +36,7 @@ import {
   DefaultTab,
   ViewMode,
   UnifiedResourcePreferences,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
@@ -292,6 +293,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     });
   };
 
+  const setLabelsViewMode = (labelsViewMode: LabelsViewMode) => {
+    updateUnifiedResourcesPreferences({
+      ...unifiedResourcePreferences,
+      labelsViewMode,
+    });
+  };
+
   const getSelectedResources = () => {
     return resources
       .filter(({ resource }) =>
@@ -325,6 +333,10 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       },
     ];
   };
+
+  const expandAllLabels =
+    unifiedResourcePreferences.labelsViewMode ===
+    LabelsViewMode.LABELS_VIEW_MODE_EXPANDED;
 
   const ViewComponent =
     unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
@@ -380,7 +392,15 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         selectVisible={toggleSelectVisible}
         selected={allSelected}
         currentViewMode={unifiedResourcePreferences.viewMode}
-        onSelectViewMode={selectViewMode}
+        setCurrentViewMode={selectViewMode}
+        expandAllLabels={expandAllLabels}
+        setExpandAllLabels={expandAllLabels => {
+          setLabelsViewMode(
+            expandAllLabels
+              ? LabelsViewMode.LABELS_VIEW_MODE_EXPANDED
+              : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED
+          );
+        }}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -462,6 +482,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             item: mapResourceToViewItem(unifiedResource),
             key: generateUnifiedResourceKey(unifiedResource.resource),
           }))}
+          expandAllLabels={expandAllLabels}
         />
       )}
       <div ref={setTrigger} />

@@ -59,7 +59,7 @@ export function ResourceCard({
   pinResource,
   selectResource,
   selected,
-}: Omit<ResourceItemProps, 'listViewProps'>) {
+}: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
