@@ -328,8 +328,10 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
 			continue
 		}
+
+		// decl is a dynamic resource type, so get data for the type and
+		// its dependencies.
 		entries, err := resource.ReferenceDataFromDeclaration(decl, typeDecls, methods)
-		// Skip to the next declaration
 		if errors.Is(err, resource.NotAGenDeclError{}) {
 			continue
 		}
