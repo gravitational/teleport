@@ -34,11 +34,10 @@ import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
-import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
-export default function Container(props: AgentStepProps) {
-  const state = useUserTraits(props);
+export default function Container() {
+  const state = useUserTraits();
   return <SetupAccess {...state} />;
 }
 
@@ -95,7 +94,17 @@ export function SetupAccess(props: State) {
   }
 
   function handleOnProceed() {
-    onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
+    let numStepsToSkip;
+    // Skip test connection since test connection currently
+    // only supports one resource testing and auto enrolling
+    // enrolls resources > 1.
+    if (agentMeta.autoDiscoveryConfig) {
+      numStepsToSkip = 2;
+    }
+    onProceed(
+      { databaseNames: selectedNames, databaseUsers: selectedUsers },
+      numStepsToSkip
+    );
   }
 
   const { engine, location } = resourceSpec.dbMeta;
@@ -124,6 +133,13 @@ export function SetupAccess(props: State) {
       // service got skipped or user auto deployed the db service.
       onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
     >
+      {agentMeta.autoDiscoveryConfig && (
+        <Text mb={3}>
+          Since auto-discovery is enabled, ensure to include all database users
+          and names that you will be using to connect to the discovered
+          databased.
+        </Text>
+      )}
       <Box mb={4}>
         Database Users
         <SelectCreatable
