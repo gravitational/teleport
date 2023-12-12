@@ -322,20 +322,18 @@ func TestCreateBot(t *testing.T) {
 			},
 		},
 		{
-			name: "validation - no roles",
+			name: "validation - nil spec",
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
 					Metadata: &headerv1.Metadata{
-						Name: "foo",
+						Name: "terminator",
 					},
-					Spec: &machineidv1pb.BotSpec{
-						Roles: []string{},
-					},
+					Spec: nil,
 				},
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "must be non-empty")
+				require.ErrorContains(t, err, "spec: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
@@ -552,9 +550,31 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: nil,
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"spec.roles"},
+				},
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot: must be non-nil")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation - nil bot spec",
+			user: botUpdaterUser.GetName(),
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "bernard-lowe",
+					},
+					Spec: nil,
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"spec.roles"},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "bot.spec: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
@@ -566,6 +586,9 @@ func TestUpdateBot(t *testing.T) {
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
 					},
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"spec.roles"},
 				},
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
@@ -585,9 +608,52 @@ func TestUpdateBot(t *testing.T) {
 						Roles: []string{beforeRole.GetName()},
 					},
 				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"spec.roles"},
+				},
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot.metadata.name: must be non-empty")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation - no update mask",
+			user: botUpdaterUser.GetName(),
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "foo",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{beforeRole.GetName()},
+					},
+				},
+				UpdateMask: nil,
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "update_mask: must be non-nil")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation - no update mask paths",
+			user: botUpdaterUser.GetName(),
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "foo",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{beforeRole.GetName()},
+					},
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "update_mask.paths: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
@@ -875,24 +941,6 @@ func TestUpsertBot(t *testing.T) {
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
-					},
-				},
-			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "must be non-empty")
-				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
-			},
-		},
-		{
-			name: "validation - no roles",
-			user: botCreator.GetName(),
-			req: &machineidv1pb.UpsertBotRequest{
-				Bot: &machineidv1pb.Bot{
-					Metadata: &headerv1.Metadata{
-						Name: "foo",
-					},
-					Spec: &machineidv1pb.BotSpec{
-						Roles: []string{},
 					},
 				},
 			},
@@ -1195,6 +1243,17 @@ func TestDeleteBot(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// Create a user/role with a bot-like name but that isn't a bot to ensure we
+	// don't delete it
+	_, err = auth.CreateUser(
+		ctx, srv.Auth(), "bot-not-bot", testRole,
+	)
+	require.NoError(t, err)
+	_, err = auth.CreateRole(
+		ctx, srv.Auth(), "bot-not-bot", types.RoleSpecV6{},
+	)
+	require.NoError(t, err)
+
 	client, err := srv.NewClient(auth.TestAdmin())
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(
@@ -1283,6 +1342,28 @@ func TestDeleteBot(t *testing.T) {
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+		{
+			name: "non-bot role",
+			user: botDeleterUser.GetName(),
+			req: &machineidv1pb.DeleteBotRequest{
+				BotName: "not-bot",
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "missing bot label matching bot name")
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+		{
+			name: "validation - no bot name",
+			user: botDeleterUser.GetName(),
+			req: &machineidv1pb.DeleteBotRequest{
+				BotName: "",
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "bot_name: must be non-empty")
+				require.True(t, trace.IsBadParameter(err), "error should be access denied")
 			},
 		},
 	}

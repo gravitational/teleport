@@ -580,9 +580,6 @@ func validateBot(b *pb.Bot) error {
 	if b.Spec == nil {
 		return trace.BadParameter("spec: must be non-nil")
 	}
-	if len(b.Spec.Roles) == 0 {
-		return trace.BadParameter("spec.roles: must be non-empty")
-	}
 	return nil
 }
 

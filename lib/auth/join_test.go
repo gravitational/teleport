@@ -303,16 +303,12 @@ func TestRegister_Bot(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	testRole, err := CreateRole(
-		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
-	)
-	require.NoError(t, err)
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 		Metadata: &headerv1.Metadata{
 			Name: "test",
 		},
 		Spec: &machineidv1pb.BotSpec{
-			Roles: []string{testRole.GetName()},
+			Roles: []string{},
 		},
 	})
 	require.NoError(t, err)
@@ -433,10 +429,6 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 	require.NoError(t, err)
 	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
-	testRole, err := CreateRole(
-		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
-	)
-	require.NoError(t, err)
 
 	validExpires := srv.Clock().Now().Add(time.Hour * 6)
 	tooGreatExpires := srv.Clock().Now().Add(time.Hour * 24 * 365)
@@ -473,9 +465,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 					Name: botName,
 				},
 				Spec: &machineidv1pb.BotSpec{
-					Roles: []string{
-						testRole.GetName(),
-					},
+					Roles:  []string{},
 					Traits: []*machineidv1pb.Trait{},
 				},
 			})
