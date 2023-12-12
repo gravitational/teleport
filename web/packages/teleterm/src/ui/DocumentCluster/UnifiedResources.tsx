@@ -87,7 +87,7 @@ export function UnifiedResources(props: {
     query: props.queryParams.advancedSearchEnabled
       ? props.queryParams.search
       : '',
-    };
+  };
 
   return (
     <Resources
