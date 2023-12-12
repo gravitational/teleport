@@ -270,7 +270,7 @@ var (
 	}
 	// dynamodbActions contains IAM actions for static AWS DynamoDB databases.
 	dynamodbActions = databaseActions{
-		authBoundary: stsActions,
+		authBoundary: append(stsActions, "sts:TagSession"),
 	}
 	// opensearchActions contains IAM actions for types.AWSMatcherOpenSearch
 	opensearchActions = databaseActions{
