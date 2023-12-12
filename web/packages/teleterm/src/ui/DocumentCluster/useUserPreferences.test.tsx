@@ -113,7 +113,7 @@ describe('updating preferences works correctly', () => {
       .mockImplementation();
   });
 
-  test('when the preferences are already fetched', async () => {
+  test('when the initial preferences were fetched', async () => {
     const getUserPreferencesPromise = Promise.resolve(preferences);
 
     jest
@@ -161,11 +161,13 @@ describe('updating preferences works correctly', () => {
     });
   });
 
-  test('when the request for fetching preferences is in-flight', async () => {
-    let resolveGetUserPreferencesPromise: (u: UserPreferences) => void;
-    const getUserPreferencesPromise = new Promise<UserPreferences>(resolve => {
-      resolveGetUserPreferencesPromise = resolve;
-    });
+  test('when the initial preferences have not been fetched yet', async () => {
+    let rejectGetUserPreferencesPromise: (error: Error) => void;
+    const getUserPreferencesPromise = new Promise<UserPreferences>(
+      (resolve, reject) => {
+        rejectGetUserPreferencesPromise = reject;
+      }
+    );
     let resolveUpdateUserPreferencesPromise: (u: UserPreferences) => void;
     const updateUserPreferencesPromise = new Promise(resolve => {
       resolveUpdateUserPreferencesPromise = resolve;
@@ -173,7 +175,12 @@ describe('updating preferences works correctly', () => {
 
     jest
       .spyOn(appContext.tshd, 'getUserPreferences')
-      .mockImplementation(() => getUserPreferencesPromise);
+      .mockImplementation((requestParams, abortSignal) => {
+        abortSignal.addEventListener(() =>
+          rejectGetUserPreferencesPromise(new Error('Aborted'))
+        );
+        return getUserPreferencesPromise;
+      });
     jest
       .spyOn(appContext.tshd, 'updateUserPreferences')
       .mockImplementation(() => updateUserPreferencesPromise);
@@ -215,9 +222,26 @@ describe('updating preferences works correctly', () => {
       userPreferences: newPreferences,
     });
 
-    act(() => resolveGetUserPreferencesPromise(null));
-    await act(() => getUserPreferencesPromise);
-    act(() => resolveUpdateUserPreferencesPromise(null));
+    // suddenly, the request returns other preferences than what we wanted
+    // (e.g., because they were changed it in the browser in the meantime)
+    act(() =>
+      resolveUpdateUserPreferencesPromise({
+        clusterPreferences: { pinnedResources: { resourceIdsList: ['abc'] } },
+        unifiedResourcePreferences: {
+          viewMode: ViewMode.VIEW_MODE_CARD,
+          defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
+        },
+      })
+    );
     await act(() => updateUserPreferencesPromise);
+
+    // but our view preferences are still the same as what we sent in the update request!
+    expect(result.current.userPreferences.unifiedResourcePreferences).toEqual(
+      newPreferences.unifiedResourcePreferences
+    );
+    expect(
+      result.current.userPreferences.clusterPreferences.pinnedResources
+        .resourceIdsList
+    ).toEqual(['abc']);
   });
 });
