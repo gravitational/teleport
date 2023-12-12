@@ -53,6 +53,7 @@ func TestAdminActionMFA(t *testing.T) {
 	s := newAdminActionTestSuite(t)
 
 	t.Run("Users", s.testAdminActionMFA_Users)
+	t.Run("Bots", s.testAdminActionMFA_Bots)
 	t.Run("Roles", s.testAdminActionMFA_Roles)
 }
 
@@ -99,6 +100,44 @@ func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
 		resource:       user,
 		resourceCreate: createUser,
 		resourceDelete: deleteUser,
+	})
+}
+
+func (s *adminActionTestSuite) testAdminActionMFA_Bots(t *testing.T) {
+	ctx := context.Background()
+
+	botReq := &proto.CreateBotRequest{
+		Name:  "bot",
+		Roles: []string{teleport.PresetAccessRoleName},
+	}
+
+	createBot := func() error {
+		_, err := s.authServer.CreateBot(ctx, botReq)
+		return trace.Wrap(err)
+	}
+
+	deleteBot := func() error {
+		return s.authServer.DeleteBot(ctx, botReq.Name)
+	}
+
+	t.Run("BotCommands", func(t *testing.T) {
+		for name, tc := range map[string]adminActionTestCase{
+			"tctl bots add": {
+				command:    fmt.Sprintf("bots add --roles=%v %v", teleport.PresetAccessRoleName, botReq.Name),
+				cliCommand: &tctl.BotsCommand{},
+				cleanup:    deleteBot,
+			},
+			"tctl bots rm": {
+				command:    fmt.Sprintf("bots rm %v", botReq.Name),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				s.runTestCase(t, ctx, tc)
+			})
+		}
 	})
 }
 
