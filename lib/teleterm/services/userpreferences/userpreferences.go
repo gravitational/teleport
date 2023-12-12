@@ -117,6 +117,7 @@ func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedR
 
 	updated.DefaultTab = newPreferences.DefaultTab
 	updated.ViewMode = newPreferences.ViewMode
+	updated.LabelsViewMode = newPreferences.LabelsViewMode
 
 	return updated
 }

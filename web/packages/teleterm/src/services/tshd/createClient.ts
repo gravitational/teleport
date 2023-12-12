@@ -911,6 +911,9 @@ export default function createClient(
             .setViewMode(
               params.userPreferences.unifiedResourcePreferences.viewMode
             )
+            .setLabelsViewMode(
+              params.userPreferences.unifiedResourcePreferences.labelsViewMode
+            )
         );
       }
 

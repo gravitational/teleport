@@ -13,6 +13,9 @@ export class UnifiedResourcePreferences extends jspb.Message {
     getViewMode(): ViewMode;
     setViewMode(value: ViewMode): UnifiedResourcePreferences;
 
+    getLabelsViewMode(): LabelsViewMode;
+    setLabelsViewMode(value: LabelsViewMode): UnifiedResourcePreferences;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UnifiedResourcePreferences.AsObject;
@@ -28,6 +31,7 @@ export namespace UnifiedResourcePreferences {
     export type AsObject = {
         defaultTab: DefaultTab,
         viewMode: ViewMode,
+        labelsViewMode: LabelsViewMode,
     }
 }
 
@@ -41,4 +45,10 @@ export enum ViewMode {
     VIEW_MODE_UNSPECIFIED = 0,
     VIEW_MODE_CARD = 1,
     VIEW_MODE_LIST = 2,
+}
+
+export enum LabelsViewMode {
+    LABELS_VIEW_MODE_UNSPECIFIED = 0,
+    LABELS_VIEW_MODE_EXPANDED = 1,
+    LABELS_VIEW_MODE_COLLAPSED = 2,
 }

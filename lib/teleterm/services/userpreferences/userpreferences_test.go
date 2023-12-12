@@ -34,8 +34,9 @@ var rootPreferencesMock = &userpreferencesv1.UserPreferences{
 		},
 	},
 	UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-		DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
-		ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+		DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+		ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+		LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 	},
 }
 
@@ -103,8 +104,9 @@ func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
 			},
 		},
 		UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-			DefaultTab: userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
-			ViewMode:   userpreferencesv1.ViewMode_VIEW_MODE_LIST,
+			DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_PINNED,
+			ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_LIST,
+			LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_EXPANDED,
 		},
 	}
 

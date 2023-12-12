@@ -16,6 +16,7 @@ var goog = jspb;
 var global = (function() { return this || window || global || self || Function('return this')(); }).call(null);
 
 goog.exportSymbol('proto.teleport.userpreferences.v1.DefaultTab', null, global);
+goog.exportSymbol('proto.teleport.userpreferences.v1.LabelsViewMode', null, global);
 goog.exportSymbol('proto.teleport.userpreferences.v1.UnifiedResourcePreferences', null, global);
 goog.exportSymbol('proto.teleport.userpreferences.v1.ViewMode', null, global);
 /**
@@ -72,7 +73,8 @@ proto.teleport.userpreferences.v1.UnifiedResourcePreferences.prototype.toObject 
 proto.teleport.userpreferences.v1.UnifiedResourcePreferences.toObject = function(includeInstance, msg) {
   var f, obj = {
     defaultTab: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    viewMode: jspb.Message.getFieldWithDefault(msg, 2, 0)
+    viewMode: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    labelsViewMode: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -117,6 +119,10 @@ proto.teleport.userpreferences.v1.UnifiedResourcePreferences.deserializeBinaryFr
       var value = /** @type {!proto.teleport.userpreferences.v1.ViewMode} */ (reader.readEnum());
       msg.setViewMode(value);
       break;
+    case 3:
+      var value = /** @type {!proto.teleport.userpreferences.v1.LabelsViewMode} */ (reader.readEnum());
+      msg.setLabelsViewMode(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -160,6 +166,13 @@ proto.teleport.userpreferences.v1.UnifiedResourcePreferences.serializeBinaryToWr
       f
     );
   }
+  f = message.getLabelsViewMode();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -200,6 +213,24 @@ proto.teleport.userpreferences.v1.UnifiedResourcePreferences.prototype.setViewMo
 
 
 /**
+ * optional LabelsViewMode labels_view_mode = 3;
+ * @return {!proto.teleport.userpreferences.v1.LabelsViewMode}
+ */
+proto.teleport.userpreferences.v1.UnifiedResourcePreferences.prototype.getLabelsViewMode = function() {
+  return /** @type {!proto.teleport.userpreferences.v1.LabelsViewMode} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.teleport.userpreferences.v1.LabelsViewMode} value
+ * @return {!proto.teleport.userpreferences.v1.UnifiedResourcePreferences} returns this
+ */
+proto.teleport.userpreferences.v1.UnifiedResourcePreferences.prototype.setLabelsViewMode = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
  * @enum {number}
  */
 proto.teleport.userpreferences.v1.DefaultTab = {
@@ -215,6 +246,15 @@ proto.teleport.userpreferences.v1.ViewMode = {
   VIEW_MODE_UNSPECIFIED: 0,
   VIEW_MODE_CARD: 1,
   VIEW_MODE_LIST: 2
+};
+
+/**
+ * @enum {number}
+ */
+proto.teleport.userpreferences.v1.LabelsViewMode = {
+  LABELS_VIEW_MODE_UNSPECIFIED: 0,
+  LABELS_VIEW_MODE_EXPANDED: 1,
+  LABELS_VIEW_MODE_COLLAPSED: 2
 };
 
 goog.object.extend(exports, proto.teleport.userpreferences.v1);
