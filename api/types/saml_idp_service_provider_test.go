@@ -89,15 +89,15 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			attributeMapping: []*SAMLAttributeMapping{
 				{
 					Name:  "username",
-					Value: "user.tratis.name",
+					Value: "user.traits.name",
 				},
 				{
 					Name:  "user1",
-					Value: "user.tratis.firstname",
+					Value: "user.traits.firstname",
 				},
 				{
 					Name:  "username",
-					Value: "user.tratis.givenname",
+					Value: "user.traits.givenname",
 				},
 			},
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
@@ -112,11 +112,11 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			attributeMapping: []*SAMLAttributeMapping{
 				{
 					Name:  "username",
-					Value: "user.tratis.name",
+					Value: "user.traits.name",
 				},
 				{
 					Name:  "user1",
-					Value: "user.tratis.givenname",
+					Value: "user.traits.givenname",
 				},
 			},
 			errAssertion: require.NoError,
@@ -129,12 +129,12 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			attributeMapping: []*SAMLAttributeMapping{
 				{
 					Name:       "username",
-					Value:      "user.tratis.name",
+					Value:      "user.traits.name",
 					NameFormat: "emailAddress",
 				},
 				{
 					Name:  "user1",
-					Value: "user.tratis.givenname",
+					Value: "user.traits.givenname",
 				},
 			},
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
