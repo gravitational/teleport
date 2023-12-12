@@ -104,7 +104,7 @@ test('unified resources fallback preferences are taken from a workspace', async 
   await act(() => getUserPreferencesPromise);
 });
 
-describe('updating preferences works correctly', () => {
+describe('updating preferences', () => {
   const appContext = new MockAppContext();
   beforeEach(() => {
     jest
@@ -115,7 +115,7 @@ describe('updating preferences works correctly', () => {
       .mockImplementation();
   });
 
-  test('when the initial preferences were fetched', async () => {
+  it('works correctly when the initial preferences were fetched', async () => {
     const getUserPreferencesPromise = Promise.resolve(preferences);
 
     jest
@@ -164,7 +164,7 @@ describe('updating preferences works correctly', () => {
     });
   });
 
-  test('when the initial preferences have not been fetched yet', async () => {
+  it('works correctly when the initial preferences have not been fetched yet', async () => {
     let rejectGetUserPreferencesPromise: (error: Error) => void;
     const getUserPreferencesPromise = new Promise<UserPreferences>(
       (resolve, reject) => {
