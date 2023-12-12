@@ -3,6 +3,10 @@ authors: Mike Jensen (mike.jensen@goteleport.com)
 state: draft
 ---
 
+# Required Approvers
+* Engineering @zmb3 && (@codingllama || @nklaassen)
+* Product: (@xinding33 || @klizhentas || @russjones)
+
 # RFD 0158 - Account Recovery Protections
 
 ## What
