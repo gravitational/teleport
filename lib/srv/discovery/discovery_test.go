@@ -114,20 +114,35 @@ func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEve
 }
 
 type mockUsageReporter struct {
-	mu          sync.Mutex
-	eventsCount int
+	mu                       sync.Mutex
+	resourceAddedEventCount  int
+	discoveryFetchEventCount int
 }
 
 func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.eventsCount++
+	for _, e := range events {
+		switch e.(type) {
+		case *usagereporter.ResourceCreateEvent:
+			m.resourceAddedEventCount++
+		case *usagereporter.DiscoveryFetchEvent:
+			fmt.Printf("EVENT\n %+v\n\n", e)
+			m.discoveryFetchEventCount++
+		}
+	}
 }
 
-func (m *mockUsageReporter) EventsCount() int {
+func (m *mockUsageReporter) ResourceCreateEventCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.eventsCount
+	return m.resourceAddedEventCount
+}
+
+func (m *mockUsageReporter) DiscoveryFetchEventCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.discoveryFetchEventCount
 }
 
 type mockEC2Client struct {
@@ -504,13 +519,14 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
 				}, 5000*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
+			require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
 		})
 	}
 }
@@ -1047,11 +1063,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
+					return reporter.ResourceCreateEventCount() == tc.wantEvents
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
+					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
 			}
 		})
@@ -1785,11 +1801,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
+					return reporter.ResourceCreateEventCount() == tc.wantEvents
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
+					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
 			}
 		})
@@ -1866,6 +1882,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		t.Fatal("Didn't receive reconcile event after 1s")
 	}
 
+	require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is not fetchers actually being called")
+
 	// Adding a Dynamic Matcher for a different Discovery Group, should not bring any new resources.
 	t.Run("DiscoveryGroup does not match: matcher is not loaded", func(t *testing.T) {
 		// Create a Dynamic matcher
@@ -1902,6 +1920,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("Didn't receive reconcile event after 1s")
 		}
+
+		require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is not fetchers actually being called")
 	})
 
 	t.Run("New DiscoveryConfig with valid Group", func(t *testing.T) {
@@ -1927,6 +1947,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			return len(srv.dynamicDatabaseFetchers) > 0
 		}, 1*time.Second, 100*time.Millisecond)
 
+		require.Equal(t, 0, reporter.DiscoveryFetchEventCount())
 		// Advance clock to trigger a poll.
 		clock.Advance(5 * time.Minute)
 
@@ -1943,6 +1964,18 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("Didn't receive reconcile event after 1s")
 		}
+		require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
+
+		// Advance clock to trigger a poll.
+		clock.Advance(5 * time.Minute)
+		// Wait for the cycle to complete
+		select {
+		case <-waitForReconcile:
+		case <-time.After(time.Second):
+			t.Fatal("Didn't receive reconcile event after 1s")
+		}
+		// A new DiscoveryFetch event must have been emitted.
+		require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
 			// Remove DiscoveryConfig
@@ -1966,6 +1999,9 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("Didn't receive reconcile event after 1s")
 			}
+
+			// Given that no Fetch was issued, the counter should not increment.
+			require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
 		})
 	})
 }
@@ -2314,11 +2350,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 		})
@@ -2567,11 +2603,11 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 
@@ -2671,20 +2707,20 @@ func TestEmitUsageEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, 0, reporter.EventsCount())
+	require.Equal(t, 0, reporter.ResourceCreateEventCount())
 	// Check that events are emitted for new instances.
 	event := &usageeventsv1.ResourceCreateEvent{}
 	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		"inst1": event,
 		"inst2": event,
 	}))
-	require.Equal(t, 2, reporter.EventsCount())
+	require.Equal(t, 2, reporter.ResourceCreateEventCount())
 	// Check that events for duplicate instances are discarded.
 	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		"inst1": event,
 		"inst3": event,
 	}))
-	require.Equal(t, 3, reporter.EventsCount())
+	require.Equal(t, 3, reporter.ResourceCreateEventCount())
 }
 
 type fakeAccessPoint struct {

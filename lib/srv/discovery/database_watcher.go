@@ -105,7 +105,11 @@ func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 	}
 	s.muDynamicDatabaseFetchers.RUnlock()
 
-	return append(allFetchers, s.databaseFetchers...)
+	allFetchers = append(allFetchers, s.databaseFetchers...)
+
+	s.submitFetchersEvent(allFetchers)
+
+	return allFetchers
 }
 
 func (s *Server) getCurrentDatabases() types.ResourcesWithLabelsMap {
