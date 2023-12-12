@@ -31,6 +31,7 @@ import {
   UnifiedResourcePreferences,
   DefaultTab,
   ViewMode,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
 import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
@@ -95,6 +96,7 @@ const story = ({
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
       defaultTab: DefaultTab.DEFAULT_TAB_ALL,
       viewMode: ViewMode.VIEW_MODE_CARD,
+      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
