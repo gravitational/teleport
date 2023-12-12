@@ -139,6 +139,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
+
+  DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -628,6 +630,18 @@ message SecurityReportGetResultEvent {
   int32 days = 2;
 }
 
+// DiscoveryFetchEvent is emitted when a DiscoveryService polls for new resources of a given type
+message DiscoveryFetchEvent {
+  // cloud_provider is the cloud provider used to fetch resources
+  // Eg, AWS, Azure, GCP, Kubernetes
+  string cloud_provider = 1;
+
+  // resource_type is the type of resource that this fetch is polling.
+  // It depends on the Cloud Provider (defined above).
+  // Eg, rds, ec2, vm, aks, gce, app
+  string resource_type = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -684,6 +698,7 @@ message UsageEventOneOf {
     SecurityReportGetResultEvent security_report_get_result = 51;
     AccessListReviewCreate access_list_review_create = 52;
     AccessListReviewDelete access_list_review_delete = 53;
+    DiscoveryFetchEvent discovery_fetch_event = 54;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
