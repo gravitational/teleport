@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
@@ -100,8 +101,10 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      config.metricsAddr,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: config.metricsAddr,
+		},
 		HealthProbeBindAddress:  config.probeAddr,
 		LeaderElection:          true,
 		LeaderElectionID:        config.leaderElectionID,
@@ -109,7 +112,9 @@ func main() {
 		PprofBindAddress:        config.pprofAddr,
 		Cache: cache.Options{
 			SyncPeriod: &config.syncPeriod,
-			Namespaces: []string{config.namespace},
+			DefaultNamespaces: map[string]cache.Config{
+				config.namespace: {},
+			},
 		},
 	})
 	if err != nil {

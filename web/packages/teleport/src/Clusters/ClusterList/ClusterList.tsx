@@ -68,22 +68,17 @@ function renderRootLabelCell({ clusterId }: Cluster) {
 function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
   const $items = [] as React.ReactNode[];
 
-  if (flags.showNodes) {
-    $items.push(renderMenuItem('Servers', cfg.getNodesRoute(clusterId)));
-  }
-  if (flags.showApps) {
-    $items.push(renderMenuItem('Applications', cfg.getAppsRoute(clusterId)));
-  }
-  if (flags.showKubes) {
+  const showResourcesLink =
+    flags.showNodes ||
+    flags.showApps ||
+    flags.showKubes ||
+    flags.showDatabases ||
+    flags.showDesktops;
+
+  if (showResourcesLink) {
     $items.push(
-      renderMenuItem('Kubernetes', cfg.getKubernetesRoute(clusterId))
+      renderMenuItem('Resources', cfg.getUnifiedResourcesRoute(clusterId))
     );
-  }
-  if (flags.showDatabases) {
-    $items.push(renderMenuItem('Databases', cfg.getDatabasesRoute(clusterId)));
-  }
-  if (flags.showDesktops) {
-    $items.push(renderMenuItem('Desktops', cfg.getDesktopsRoute(clusterId)));
   }
   if (flags.showAudit) {
     $items.push(renderMenuItem('Audit Log', cfg.getAuditRoute(clusterId)));
