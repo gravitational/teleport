@@ -30,6 +30,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -229,7 +230,7 @@ Please note:
 func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) error {
 	roles := splitRoles(c.botRoles)
 	if len(roles) == 0 {
-		return trace.BadParameter("at least one role must be specified with --roles")
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 
 	traits := map[string][]string{
@@ -297,7 +298,9 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	roles := splitRoles(c.botRoles)
-
+	if len(roles) == 0 {
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
+	}
 	var token types.ProvisionToken
 	var err error
 	if c.tokenID == "" {
