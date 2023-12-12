@@ -54,8 +54,6 @@ func prepareUserActivityReports(
 	clusterName, reporterHostID []byte,
 	startTime time.Time, records []*prehogv1.UserActivityRecord,
 ) (reports []*prehogv1.UserActivityReport, err error) {
-	recordsTail := make([]*prehogv1.UserActivityRecord, 0)
-
 	for len(records) > 0 {
 		reportUUID := uuid.New()
 		report := &prehogv1.UserActivityReport{
@@ -71,11 +69,10 @@ func prepareUserActivityReports(
 				return nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
 			}
 
-			recordsTail = append(recordsTail, report.Records[len(report.Records)/2:]...)
 			report.Records = report.Records[:len(report.Records)/2]
 		}
 
-		records = recordsTail
+		records = records[len(report.Records):]
 		reports = append(reports, report)
 	}
 
