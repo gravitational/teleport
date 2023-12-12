@@ -2929,20 +2929,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				},
 			},
 		},
-		{
-			desc: "AWS DynamoDB with dynamic session tags",
-			inFlags: CommandLineFlags{
-				DatabaseName:             "ddb",
-				DatabaseProtocol:         defaults.ProtocolDynamoDB,
-				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
-				DatabaseAWSAccountID:     "123456789012",
-				DatabaseAWSRegion:        "us-east-1",
-				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-				DatabaseAWSExternalID:    "externalID123",
-				DatabaseAWSSessionTags:   "database_name=hello,something=[1h:/bin/uname -m]",
-			},
-			outError: "database AWS Session tags cannot include dynamic labels",
-		},
 	}
 
 	for _, tt := range tests {

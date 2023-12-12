@@ -65,7 +65,9 @@ func TestCachedCredentialsGetter(t *testing.T) {
 		SessionName: "test-session",
 		RoleARN:     "test-role",
 		Tags: map[string]string{
-			"test": "true",
+			"one":   "1",
+			"two":   "2",
+			"three": "3",
 		},
 	})
 	require.NoError(t, err)
@@ -85,7 +87,20 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			sessionName: "test-session",
 			roleARN:     "test-role",
 			tags: map[string]string{
-				"test": "true",
+				"one":   "1",
+				"two":   "2",
+				"three": "3",
+			},
+			compareCred1: require.Same,
+		},
+		{
+			name:        "cached different tags order",
+			sessionName: "test-session",
+			roleARN:     "test-role",
+			tags: map[string]string{
+				"three": "3",
+				"two":   "2",
+				"one":   "1",
 			},
 			compareCred1: require.Same,
 		},
@@ -94,7 +109,9 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			sessionName: "test-session-2",
 			roleARN:     "test-role",
 			tags: map[string]string{
-				"test": "true",
+				"one":   "1",
+				"two":   "2",
+				"three": "3",
 			},
 			compareCred1: require.NotSame,
 		},
@@ -103,7 +120,9 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			sessionName: "test-session",
 			roleARN:     "test-role-2",
 			tags: map[string]string{
-				"test": "true",
+				"one":   "1",
+				"two":   "2",
+				"three": "3",
 			},
 			compareCred1: require.NotSame,
 		},
@@ -113,7 +132,9 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			roleARN:     "test-role",
 			externalID:  "test-id",
 			tags: map[string]string{
-				"test": "true",
+				"one":   "1",
+				"two":   "2",
+				"three": "3",
 			},
 			compareCred1: require.NotSame,
 		},
@@ -122,7 +143,8 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			sessionName: "test-session",
 			roleARN:     "test-role",
 			tags: map[string]string{
-				"test": "false",
+				"four": "4",
+				"five": "5",
 			},
 			compareCred1: require.NotSame,
 		},
@@ -131,7 +153,9 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			sessionName: "test-session",
 			roleARN:     "test-role",
 			tags: map[string]string{
-				"test": "true",
+				"one":   "1",
+				"two":   "2",
+				"three": "3",
 			},
 			advanceClock: time.Hour,
 			compareCred1: require.NotSame,

@@ -2229,16 +2229,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 		var sessionTags map[string]string
 		if clf.DatabaseAWSSessionTags != "" {
-			var (
-				sessionTagsDynamic services.CommandLabels
-				err                error
-			)
-			sessionTags, sessionTagsDynamic, err = parseLabels(clf.DatabaseAWSSessionTags)
+			var err error
+			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
 			if err != nil {
 				return trace.Wrap(err)
-			}
-			if len(sessionTagsDynamic) > 0 {
-				return trace.BadParameter("database AWS Session tags cannot include dynamic labels")
 			}
 		}
 		db := servicecfg.Database{

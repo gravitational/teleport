@@ -20,6 +20,8 @@ package aws
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -128,9 +130,12 @@ func newCredentialRequestCacheKey(req GetCredentialsRequest) credentialRequestCa
 		externalID:  req.ExternalID,
 	}
 
+	tags := make([]string, 0, len(req.Tags))
 	for key, value := range req.Tags {
-		k.tags += key + "=" + value + ","
+		tags = append(tags, key+"="+value+",")
 	}
+	sort.Strings(tags)
+	k.tags = strings.Join(tags, ",")
 
 	return k
 }
