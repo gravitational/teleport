@@ -25,6 +25,13 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+var (
+	// ErrMissingEntityDescriptorAndEntityID is returned when both entity descriptor and entity ID is empty.
+	ErrEmptyEntityDescriptorAndEntityID = trace.BadParameter("either entity_descriptor or entity_id must be provided")
+	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and ACS URL is empty.
+	ErrEmptyEntityDescriptorAndACSURL = trace.BadParameter("either entity_descriptor or acs_url must be provided")
+)
+
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
 //
 // Note: The EntityID is the entity ID for the entity descriptor. This ID is checked that it
@@ -40,6 +47,10 @@ type SAMLIdPServiceProvider interface {
 	GetEntityID() string
 	// SetEntityID sets the entity ID.
 	SetEntityID(string)
+	// GetACSURL returns the ACS URL.
+	GetACSURL() string
+	// SetACSURL sets the ACS URL.
+	SetACSURL(string)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
 	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
@@ -82,6 +93,16 @@ func (s *SAMLIdPServiceProviderV1) SetEntityID(entityID string) {
 	s.Spec.EntityID = entityID
 }
 
+// GetACSURL returns the ACS URL.
+func (s *SAMLIdPServiceProviderV1) GetACSURL() string {
+	return s.Spec.ACSURL
+}
+
+// SetACSURL sets the ACS URL.
+func (s *SAMLIdPServiceProviderV1) SetACSURL(acsURL string) {
+	s.Spec.ACSURL = acsURL
+}
+
 // String returns the SAML IdP service provider string representation.
 func (s *SAMLIdPServiceProviderV1) String() string {
 	return fmt.Sprintf("SAMLIdPServiceProviderV1(Name=%v)",
@@ -117,7 +138,13 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if s.Spec.EntityDescriptor == "" {
-		return trace.BadParameter("missing entity descriptor")
+		if s.Spec.EntityID == "" {
+			return ErrEmptyEntityDescriptorAndEntityID
+		}
+
+		if s.Spec.ACSURL == "" {
+			return ErrEmptyEntityDescriptorAndACSURL
+		}
 	}
 
 	if s.Spec.EntityID == "" {
