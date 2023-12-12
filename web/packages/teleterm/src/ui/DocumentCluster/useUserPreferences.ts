@@ -114,7 +114,10 @@ export function useUserPreferences(clusterUri: ClusterUri): {
 
   useEffect(() => {
     const fetchPreferences = async () => {
-      if (supersededInitialFetchAttempt.status === '') {
+      if (
+        initialFetchAttempt.status === '' &&
+        supersededInitialFetchAttempt.status === ''
+      ) {
         const [prefs, error] = await runInitialFetchAttempt();
         if (!error) {
           updateUnifiedResourcePreferencesStateAndWorkspace(
@@ -130,6 +133,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     supersededInitialFetchAttempt.status,
     runInitialFetchAttempt,
     updateUnifiedResourcePreferencesStateAndWorkspace,
+    initialFetchAttempt.status,
   ]);
 
   const hasUpdateSupersededInitialFetch =
