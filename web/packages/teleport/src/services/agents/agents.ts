@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { platformToGOOS } from 'design/platform';
+
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
@@ -33,6 +35,9 @@ export const agentService = {
         resource_kind: req.resourceKind,
         resource_name: req.resourceName,
         ssh_principal: req.sshPrincipal,
+        ssh_principal_selection_mode: req.sshPrincipalSelectionMode,
+        ssh_node_os: req.sshNodeOS && platformToGOOS(req.sshNodeOS),
+        ssh_node_setup_method: req.sshNodeSetupMethod,
         kubernetes_namespace: req.kubeImpersonation?.namespace,
         kubernetes_impersonation: {
           kubernetes_user: req.kubeImpersonation?.user,

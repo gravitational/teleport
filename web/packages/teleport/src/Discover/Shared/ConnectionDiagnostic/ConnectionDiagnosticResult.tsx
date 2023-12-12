@@ -153,17 +153,26 @@ export const ErrorWithDetails = ({
     <TextIcon>
       <Icons.CircleCross size="medium" mr={1} color="error.main" />
       <div>
-        <div>{details}</div>
+        <TextWithLineBreaksPreserved>{details}</TextWithLineBreaksPreserved>
         <div>
           <ButtonShowMore onClick={() => setShowMore(p => !p)}>
             {showMore ? 'Hide' : 'Click for extra'} details
           </ButtonShowMore>
-          {showMore && <div>{error}</div>}
+          {showMore && (
+            <TextWithLineBreaksPreserved>{error}</TextWithLineBreaksPreserved>
+          )}
         </div>
       </div>
     </TextIcon>
   );
 };
+
+/**
+ * Preserves line breaks in traces returned from connection diagnostic.
+ */
+const TextWithLineBreaksPreserved = styled(Text)`
+  white-space: pre-wrap;
+`;
 
 const ButtonShowMore = styled(ButtonText)`
   min-height: auto;
