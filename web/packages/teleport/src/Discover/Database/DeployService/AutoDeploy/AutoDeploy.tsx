@@ -126,7 +126,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   }
 
   function handleOnProceed() {
-    nextStep(2); // skip the IAM policy view
+    // Auto discover skips the IAM policy view since
+    // we ask them to configure it as first step.
+    nextStep(2);
     emitEvent(
       { stepStatus: DiscoverEventStatus.Success },
       {
@@ -158,6 +160,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const isDeploying = isProcessing && !!deploySvcResp;
   const hasError = attempt.status === 'failed';
 
+  const wantAutoDiscover = !!dbMeta.autoDiscoveryConfig;
+
   return (
     <Box>
       <Validation>
@@ -178,24 +182,30 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               validator={validator}
             />
 
-            {/* step two */}
-            <StyledBox mb={5}>
-              <Box>
-                <Text bold>Step 2 (Optional)</Text>
-                <Labels
-                  labels={labels}
-                  setLabels={setLabels}
-                  disableBtns={attempt.status === 'processing'}
-                  showLabelMatchErr={showLabelMatchErr}
-                  dbLabels={dbLabels}
-                  autoFocus={false}
-                  region={dbMeta.awsRegion}
-                />
-              </Box>
-            </StyledBox>
+            {/* step two
+             * for auto discover, this step is disabled atm since
+             * user's can't supply custom label matchers
+             */}
+            {!wantAutoDiscover && (
+              <StyledBox mb={5}>
+                <Box>
+                  <Text bold>Step 2 (Optional)</Text>
+                  <Labels
+                    labels={labels}
+                    setLabels={setLabels}
+                    disableBtns={attempt.status === 'processing'}
+                    showLabelMatchErr={showLabelMatchErr}
+                    dbLabels={dbLabels}
+                    autoFocus={false}
+                    region={dbMeta.selectedAwsRdsDb?.region}
+                  />
+                </Box>
+              </StyledBox>
+            )}
 
             {/* step three */}
             <StyledBox mb={5}>
+              <Text bold>Step {wantAutoDiscover ? 2 : 3} (Optional)</Text>
               <SelectSecurityGroups
                 selectedSecurityGroups={selectedSecurityGroups}
                 setSelectedSecurityGroups={setSelectedSecurityGroups}
@@ -206,7 +216,13 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <Text bold>Step 4</Text>
-              <Text mb={2}>Deploy the Teleport Database Service.</Text>
+              <Text>Deploy the Teleport Database Service.</Text>
+              {wantAutoDiscover && (
+                <Box mb={2}>
+                  For auto-enrollment, default wildcard label matcher will be
+                  used to match any databases.
+                </Box>
+              )}
               <ButtonSecondary
                 width="215px"
                 type="submit"
