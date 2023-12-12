@@ -72,11 +72,12 @@ submodule in the teleport repo at `master` will be used.
         repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
         repo-access-app-key: ${{ secrets.DEPLOY_APP_KEY }}
 
-This requires that a GitHub App be installed in the
-`gravitational/teleport-private` repo (the `oss-teleport-repo`) with the App ID
-and App private key specified in the secrets `DEPLOY_APP_ID` and
-`DEPLOY_APP_KEY`. This App installation will be used to get a temporary token to
-access the `gravitational/teleport-private` repository.
+This requires that a GitHub App be installed in the `gravitational/teleport.e`
+repo with the App ID and App private key specified in the secrets
+`DEPLOY_APP_ID` and `DEPLOY_APP_KEY`. This App installation must have
+`repo:read` on the repository specified in the `oss-teleport-repo` input
+(`gravitational/teleport-private` in this instance). It will be used to get a
+temporary token to access the `gravitational/teleport-private` repository.
 
 ### Checkout Teleport branch corresponding to Enterprise PR base branch
 

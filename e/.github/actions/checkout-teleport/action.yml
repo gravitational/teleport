@@ -45,28 +45,33 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # Unfortunately composite actions do not verify required input variables are set by default
-    # See https://github.com/actions/runner/issues/1070 for details
-    # despite the misleading `required` field
-    # This will fail if a required input variable is not set. Input variables will be available as
-    # environment variables for the rest of the action as well.
-    # TODO this was pulled from https://github.com/gravitational/cloud-terraform/blob/57453/.github/actions/setup-flux-cli/action.yaml#L18,
-    # extract to share-workflows repository once https://github.com/gravitational/shared-workflows/pull/157 is merged
-    - name: Ensure that the required variables are set
+    # Composite actions do not validate required inputs. We need to do it manually.
+    # https://github.com/actions/runner/issues/1070
+    - name: Validate and Setup
+      id: setup
       env:
-        # The `core` module requires input variables to start with `INPUT_`
-        INPUT_OSS-TELEPORT-REPO: ${{ inputs.oss-teleport-ref }}
+        # INPUT_* env vars are not set on composite actions. Do so explicitly.
+        # https://github.com/actions/runner/issues/665
+        INPUT_OSS-TELEPORT-REF: ${{ inputs.oss-teleport-ref }}
+        INPUT_OSS-TELEPORT-REPO: ${{ inputs.oss-teleport-repo }}
         INPUT_EDITION: ${{ inputs.edition }}
       uses: actions/github-script@v6
       with:
         script: |
-          ["INPUT_OSS-TELEPORT-REPO", "INPUT_EDITION"].forEach(
-            environmentVariableName => {
-              const inputVariableName = environmentVariableName.replace(/^INPUT_/, "")
-              const actionVariableName = inputVariableName.replace(/-/g, "_").toUpperCase();
-              core.exportVariable(actionVariableName, core.getInput(inputVariableName, { required: true }));
-            }
-          )
+          // Validate required inputs
+          core.getInput("oss-teleport-ref", {required: true})
+          const edition = core.getInput("edition", {required: true})
+          if (edition !== "oss" && edition !== "enterprise") {
+            throw new Error(`edition input must be 'oss' or 'enterprise': ${edition}`)
+          }
+
+          // Extract repo name from org/repo input for use with fetch-token
+          const orgRepo = core.getInput("oss-teleport-repo")
+          parts = orgRepo.split("/")
+          if (parts.length !== 2) {
+            throw new Error(`repo input must be of the form 'org/repo': ${orgRepo}`)
+          }
+          core.setOutput("repo-name", parts[1])
 
     # Attempt to fetch a token from the GitHub App we use to broker
     # access to private repositories. If this fails, we are in one of two
@@ -92,7 +97,7 @@ runs:
       with:
         app-id: ${{ inputs.repo-access-app-id }}
         private-key: ${{ inputs.repo-access-app-key }}
-        repositories: ${{ inputs.oss-teleport-repo }}
+        repositories: ${{ steps.setup.outputs.repo-name }}
 
     - id: select-access-token
       name: Select access token
