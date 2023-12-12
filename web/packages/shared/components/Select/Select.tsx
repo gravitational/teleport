@@ -28,7 +28,7 @@ export default function Select(props: Props) {
     hasError = false,
     elevated = false,
     stylesConfig,
-    closeMenuOnSelect = false,
+    closeMenuOnSelect = true,
     ...restOfProps
   } = props;
   return (
