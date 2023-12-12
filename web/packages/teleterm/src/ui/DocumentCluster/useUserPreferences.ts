@@ -50,6 +50,8 @@ export function useUserPreferences(clusterUri: ClusterUri): {
 } {
   const appContext = useAppContext();
   const initialFetchAttemptAbortController = useRef(createAbortController());
+  // Consider storing the unified resource view preferences on the document.
+  // https://github.com/gravitational/teleport/pull/35251#discussion_r1424116275
   const [unifiedResourcePreferences, setUnifiedResourcePreferences] = useState<
     UserPreferences['unifiedResourcePreferences']
   >(
