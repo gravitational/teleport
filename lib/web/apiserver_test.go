@@ -6111,7 +6111,11 @@ See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more 
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "launchctl print 'system/Teleport Service'".`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error: `Direct dialing to nodes not found in the inventory is not supported.
+If you want to connect to a node without installing Teleport on it, consider registering it with
+your cluster with 'teleport join openssh'.
+
+See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more details.`,
 				},
 			},
 		},
@@ -6130,7 +6134,11 @@ See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more 
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running.`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error: `Direct dialing to nodes not found in the inventory is not supported.
+If you want to connect to a node without installing Teleport on it, consider registering it with
+your cluster with 'teleport join openssh'.
+
+See https://goteleport.com/docs/ver/14.x/server-access/guides/openssh/ for more details.`,
 				},
 			},
 		},
