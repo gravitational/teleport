@@ -152,7 +152,7 @@ export interface UnifiedResourcesProps {
    * while the unified resources component is visible.
    */
   unifiedResourcePreferencesAttempt?: AsyncAttempt<void>;
-  unifiedResourcePreferences?: UnifiedResourcePreferences;
+  unifiedResourcePreferences: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
