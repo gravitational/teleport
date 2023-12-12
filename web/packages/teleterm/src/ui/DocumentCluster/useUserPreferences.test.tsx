@@ -18,6 +18,7 @@ import { renderHook, act } from '@testing-library/react';
 import {
   ViewMode,
   DefaultTab,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -34,6 +35,7 @@ const preferences: UserPreferences = {
   unifiedResourcePreferences: {
     viewMode: ViewMode.VIEW_MODE_CARD,
     defaultTab: DefaultTab.DEFAULT_TAB_ALL,
+    labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
   },
 };
 
@@ -138,6 +140,7 @@ describe('updating preferences works correctly', () => {
       unifiedResourcePreferences: {
         viewMode: ViewMode.VIEW_MODE_LIST,
         defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
+        labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
       },
     };
 
@@ -198,6 +201,7 @@ describe('updating preferences works correctly', () => {
       unifiedResourcePreferences: {
         viewMode: ViewMode.VIEW_MODE_LIST,
         defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
+        labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
       },
     };
 
@@ -230,6 +234,7 @@ describe('updating preferences works correctly', () => {
         unifiedResourcePreferences: {
           viewMode: ViewMode.VIEW_MODE_CARD,
           defaultTab: DefaultTab.DEFAULT_TAB_PINNED,
+          labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
         },
       })
     );

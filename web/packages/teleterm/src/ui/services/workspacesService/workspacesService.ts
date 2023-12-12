@@ -28,6 +28,7 @@ import {
   UnifiedResourcePreferences,
   DefaultTab,
   ViewMode,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -525,6 +526,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 const unifiedResourcePreferencesSchema = z.object({
   defaultTab: z.nativeEnum(DefaultTab),
   viewMode: z.nativeEnum(ViewMode),
+  labelsViewMode: z.nativeEnum(LabelsViewMode),
 });
 
 export type PendingAccessRequest = {

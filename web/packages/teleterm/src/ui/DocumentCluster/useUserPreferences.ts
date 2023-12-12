@@ -32,6 +32,7 @@ import {
   DefaultTab,
   ViewMode,
   UnifiedResourcePreferences,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -59,6 +60,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     ) || {
       defaultTab: DefaultTab.DEFAULT_TAB_ALL,
       viewMode: ViewMode.VIEW_MODE_CARD,
+      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     }
   );
   const [clusterPreferences, setClusterPreferences] = useState<
@@ -211,5 +213,11 @@ function mergeWithDefaultUnifiedResourcePreferences(
       unifiedResourcePreferences.viewMode !== ViewMode.VIEW_MODE_UNSPECIFIED
         ? unifiedResourcePreferences.viewMode
         : ViewMode.VIEW_MODE_CARD,
+    labelsViewMode:
+      unifiedResourcePreferences &&
+      unifiedResourcePreferences.labelsViewMode !==
+        LabelsViewMode.LABELS_VIEW_MODE_UNSPECIFIED
+        ? unifiedResourcePreferences.labelsViewMode
+        : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
   };
 }
