@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -30,6 +31,9 @@ var (
 	ErrEmptyEntityDescriptorAndEntityID = trace.BadParameter("either entity_descriptor or entity_id must be provided")
 	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and ACS URL is empty.
 	ErrEmptyEntityDescriptorAndACSURL = trace.BadParameter("either entity_descriptor or acs_url must be provided")
+	// ErrDuplicateAttributeName is returned when attribute mapping declares two or more
+	// attributes with the same name.
+	ErrDuplicateAttributeName = trace.BadParameter("duplicate attribute name not allowed.")
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
@@ -51,6 +55,10 @@ type SAMLIdPServiceProvider interface {
 	GetACSURL() string
 	// SetACSURL sets the ACS URL.
 	SetACSURL(string)
+	// GetAttributeMapping returns Attribute Mapping.
+	GetAttributeMapping() []*SAMLAttributeMapping
+	// SetAttributeMapping sets Attribute Mapping.
+	SetAttributeMapping([]*SAMLAttributeMapping)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
 	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
@@ -101,6 +109,16 @@ func (s *SAMLIdPServiceProviderV1) GetACSURL() string {
 // SetACSURL sets the ACS URL.
 func (s *SAMLIdPServiceProviderV1) SetACSURL(acsURL string) {
 	s.Spec.ACSURL = acsURL
+}
+
+// GetAttributeMapping returns the Attribute Mapping.
+func (s *SAMLIdPServiceProviderV1) GetAttributeMapping() []*SAMLAttributeMapping {
+	return s.Spec.AttributeMapping
+}
+
+// SetEntityID sets Attribute Mapping.
+func (s *SAMLIdPServiceProviderV1) SetAttributeMapping(attrMaps []*SAMLAttributeMapping) {
+	s.Spec.AttributeMapping = attrMaps
 }
 
 // String returns the SAML IdP service provider string representation.
@@ -159,6 +177,17 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		}
 
 		s.Spec.EntityID = ed.EntityID
+	}
+
+	if len(s.GetAttributeMapping()) > 0 {
+		// check for duplicate attribute names
+		attrNames := make([]string, 0)
+		for _, v := range s.GetAttributeMapping() {
+			if slices.Contains(attrNames, v.Name) {
+				return ErrDuplicateAttributeName
+			}
+			attrNames = append(attrNames, v.Name)
+		}
 	}
 
 	return nil
