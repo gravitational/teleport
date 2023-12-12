@@ -1669,6 +1669,14 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	}
 	// proxy.Close closes the underlying connection and releases the resources.
 	defer proxy.Close()
+
+	f.log.WithFields(logrus.Fields{
+		"interactive":     request.tty,
+		"debug":           "true",
+		"no_audit_events": sess.noAuditEvents,
+		"pod":             request.podName,
+	}).Infof("Executing command %q in pod %q/%q.", request.cmd, request.podNamespace, request.podName)
+
 	if sess.noAuditEvents {
 		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
 		return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
@@ -1696,6 +1704,12 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	f.setSession(session.id, session)
 	// When Teleport attaches the original session creator terminal streams to the
 	// session, we don't wan't to emmit session.join event since it won't be required.
+	f.log.WithFields(logrus.Fields{
+		"interactive":     request.tty,
+		"debug":           "true",
+		"no_audit_events": sess.noAuditEvents,
+	}).Info("Creator is joining the session.")
+
 	err = session.join(party, false /* emitSessionJoinEvent */)
 	if err != nil {
 		// This error must be forwarded to SPDY error stream, otherwise the client

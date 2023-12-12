@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/remotecommand"
@@ -386,6 +388,12 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
+	policy, _ := json.Marshal(policySets)
+	log.WithFields(logrus.Fields{
+		"podNamespace": q.Get("podNamespace"),
+		"podName":      q.Get("podName"),
+		"policySets":   string(policy),
+	}).Debug("Creating session with following access evaluation policy sets.")
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 
 	io := srv.NewTermManager()
@@ -929,9 +937,20 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		return trace.Wrap(err)
 	}
 
+	s.log.WithFields(logrus.Fields{
+		"debug":     "true",
+		"can_start": canStart,
+		"pod":       s.podName,
+	}).Info("Session can_start evaluation.")
+
 	if !s.started {
 		if canStart {
 			go func() {
+				s.log.WithFields(logrus.Fields{
+					"debug":     "true",
+					"can_start": canStart,
+					"pod":       s.podName,
+				}).Info("Session launch executed. Session will start now")
 				if err := s.launch(); err != nil {
 					s.log.WithError(err).Warning("Failed to launch Kubernetes session.")
 				}
@@ -1127,6 +1146,11 @@ func (s *session) allParticipants() []string {
 // canStart checks if a session can start with the current set of participants.
 func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 	var participants []auth.SessionAccessContext
+	b, _ := json.Marshal(s.parties)
+	s.log.WithFields(logrus.Fields{
+		"parties": string(b),
+		"pod":     s.podName,
+	}).Info("CanStart evaluation")
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
 			continue
@@ -1144,8 +1168,14 @@ func (s *session) canStart() (bool, auth.PolicyOptions, error) {
 			Mode:     party.Mode,
 		})
 	}
-
+	part, _ := json.Marshal(participants)
 	yes, options, err := s.accessEvaluator.FulfilledFor(participants)
+	s.log.WithFields(logrus.Fields{
+		"can_start":    yes,
+		"pod":          s.podName,
+		"options":      options,
+		"participants": string(part),
+	}).Info("CanStart evaluated")
 	return yes, options, trace.Wrap(err)
 }
 
