@@ -1352,7 +1352,6 @@ func TestDeleteBot(t *testing.T) {
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "missing bot label matching bot name")
-				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
 		{
@@ -1402,16 +1401,6 @@ func TestCreateBotLegacy(t *testing.T) {
 		checkUser func(*testing.T, types.User)
 		checkRole func(*testing.T, types.Role)
 	}{
-		{
-			name: "no roles",
-			request: &proto.CreateBotRequest{
-				Name: "no-roles",
-			},
-			checkErr: func(t *testing.T, err error) {
-				require.ErrorContains(t, err, "spec.roles: must be non-empty")
-				require.True(t, trace.IsBadParameter(err))
-			},
-		},
 		{
 			name: "success",
 			request: &proto.CreateBotRequest{

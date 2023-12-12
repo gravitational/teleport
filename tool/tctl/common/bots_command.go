@@ -73,7 +73,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	c.botsAdd = bots.Command("add", "Add a new certificate renewal bot to the cluster.")
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
-	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").Required().StringVar(&c.botRoles)
+	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").StringVar(&c.botRoles)
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
@@ -297,9 +297,6 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	roles := splitRoles(c.botRoles)
-	if len(roles) == 0 {
-		return trace.BadParameter("at least one role must be specified with --roles")
-	}
 
 	var token types.ProvisionToken
 	var err error
