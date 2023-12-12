@@ -40,6 +40,7 @@ import {
   UnifiedResourcePreferences,
   DefaultTab,
   ViewMode,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
@@ -74,6 +75,7 @@ export function UnifiedResources(props: {
     useState<UnifiedResourcePreferences>({
       defaultTab: DefaultTab.DEFAULT_TAB_ALL,
       viewMode: ViewMode.VIEW_MODE_CARD,
+      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     });
 
   return (
@@ -189,6 +191,7 @@ function Resources(props: {
       queryParams.resourceKinds =
         newParams.kinds as DocumentClusterResourceKind[];
       queryParams.search = newParams.search || newParams.query;
+      queryParams.advancedSearchEnabled = !!newParams.query;
     });
   }
 
@@ -198,7 +201,6 @@ function Resources(props: {
       setParams={onParamsChange}
       unifiedResourcePreferences={props.userPreferences}
       updateUnifiedResourcesPreferences={props.setUserPreferences}
-      onLabelClick={() => alert('Not implemented')}
       pinning={{ kind: 'hidden' }}
       resources={resources.map(mapToSharedResource)}
       resourcesFetchAttempt={attempt}

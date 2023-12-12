@@ -203,11 +203,11 @@ func TestRootHostUsers(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 	presence := local.NewPresenceService(bk)
 
-	t.Run("test create temporary user and close", func(t *testing.T) {
+	t.Run("test create temporary user without home dir", func(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -216,6 +216,7 @@ func TestRootHostUsers(t *testing.T) {
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)
 		requireUserInGroups(t, u, testGroups)
+		require.NoDirExists(t, u.HomeDir)
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)
@@ -232,7 +233,7 @@ func TestRootHostUsers(t *testing.T) {
 		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
 
 		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{
-			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 			UID:  testUID,
 			GID:  testGID,
 		})
@@ -249,8 +250,6 @@ func TestRootHostUsers(t *testing.T) {
 
 		require.Equal(t, u.Uid, testUID)
 		require.Equal(t, u.Gid, testGID)
-
-		require.FileExists(t, filepath.Join("/home", testuser, ".bashrc"))
 
 		require.NoError(t, closer.Close())
 		_, err = user.Lookup(testuser)
@@ -275,7 +274,7 @@ func TestRootHostUsers(t *testing.T) {
 		})
 		closer, err := users.CreateUser(testuser,
 			&services.HostUsersInfo{
-				Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+				Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 			})
 		require.NoError(t, err)
 		err = sudoers.WriteSudoers(testuser, []string{"ALL=(ALL) ALL"})
@@ -304,7 +303,7 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
+			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 			require.NoError(t, err)
 		}
 

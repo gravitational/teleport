@@ -65,6 +65,14 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // featureLimits define limits for features.
+  // Typically used with feature teasers if feature is not enabled for the
+  // product type eg: Team product contains teasers to upgrade to Enterprise.
+  featureLimits: {
+    accessListCreateLimit: 0,
+    accessMonitoringMaxReportRangeLimit: 0,
+  },
+
   ui: {
     scrollbackLines: 1000,
   },

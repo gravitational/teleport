@@ -20,12 +20,15 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
-import TeleportContext from 'teleport/teleportContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+
 import { ContextProvider } from 'teleport/index';
 import cfg from 'teleport/config';
 import { clusters } from 'teleport/Clusters/fixtures';
 
 import { storageService } from 'teleport/services/storageService';
+
+import { getAcl } from 'teleport/mocks/contexts';
 
 import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
@@ -34,15 +37,21 @@ describe('externalAuditStorageCta', () => {
     jest.clearAllMocks();
   });
 
-  const setup = (isCloud: boolean, losckedFeature: boolean) => {
-    const ctx = new TeleportContext();
+  type SetupParams = {
+    isCloud: boolean;
+    lockedFeature: boolean;
+    hasPermission;
+  };
+  const setup = ({ isCloud, lockedFeature, hasPermission }: SetupParams) => {
+    const noPermAcl = { customAcl: getAcl({ noAccess: true }) };
+    const ctx = createTeleportContext(hasPermission ? null : noPermAcl);
     ctx.storeUser.setState({
       username: 'joe@example.com',
       cluster: clusters[0],
     });
 
     cfg.isCloud = isCloud;
-    ctx.lockedFeatures.externalCloudAudit = losckedFeature;
+    ctx.lockedFeatures.externalCloudAudit = lockedFeature;
 
     jest
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
@@ -60,20 +69,37 @@ describe('externalAuditStorageCta', () => {
   };
 
   test('renders the CTA', () => {
-    setup(true, false);
+    setup({ isCloud: true, lockedFeature: false, hasPermission: true });
     expect(screen.getByText(/External Audit Storage/)).toBeInTheDocument();
+    expect(screen.getByText(/Connect your AWS storage/)).toBeEnabled();
   });
 
   test('renders nothing on cfg.isCloud=false', () => {
-    const { container } = setup(false, true);
+    const { container } = setup({
+      isCloud: false,
+      lockedFeature: true,
+      hasPermission: true,
+    });
     expect(container).toBeEmptyDOMElement();
   });
 
   test('renders button based on lockedFeatures', () => {
-    setup(true, false);
+    setup({ isCloud: true, lockedFeature: false, hasPermission: true });
     expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
+    expect(screen.getByText(/Connect your AWS storage/)).toBeEnabled();
 
-    setup(true, true);
+    setup({ isCloud: true, lockedFeature: true, hasPermission: true });
     expect(screen.getByText(/Contact Sales/)).toBeInTheDocument();
+  });
+
+  test('renders disabled button if no permissions', () => {
+    setup({ isCloud: true, lockedFeature: false, hasPermission: false });
+    expect(screen.getByText(/Connect your AWS storage/)).toBeInTheDocument();
+    // eslint wants us to use `toBeDisabled` instead of toHaveAttribute
+    // but this causes the test to fail, since the button is rendered as an anchor tag
+    // eslint-disable-next-line
+    expect(screen.getByText(/Connect your AWS storage/)).toHaveAttribute(
+      'disabled'
+    );
   });
 });

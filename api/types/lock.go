@@ -29,6 +29,8 @@ import (
 // Lock configures locking out of a particular access vector.
 type Lock interface {
 	Resource
+	ResourceWithOrigin
+	ResourceWithLabels
 
 	// Target returns the lock's target.
 	Target() LockTarget
@@ -216,6 +218,45 @@ func (c *LockV2) CheckAndSetDefaults() error {
 		c.Spec.Target.Node = c.Spec.Target.ServerID
 	}
 	return nil
+}
+
+// Origin fetches the lock's origin, if any. Returns the empty string if no
+// origin is set.
+func (c *LockV2) Origin() string {
+	return c.Metadata.Labels[OriginLabel]
+}
+
+func (c *LockV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
+}
+
+// GetLabel fetches the given user label, with the same semantics
+// as a map read
+func (c *LockV2) GetLabel(key string) (value string, ok bool) {
+	value, ok = c.Metadata.Labels[key]
+	return
+}
+
+// GetAllLabels fetches all the user labels.
+func (c *LockV2) GetAllLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+// GetStaticLabels fetches all the user labels.
+func (c *LockV2) GetStaticLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+// SetStaticLabels sets the entire label set for the user.
+func (c *LockV2) SetStaticLabels(sl map[string]string) {
+	c.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (c *LockV2) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(c.Metadata.Labels), c.GetName())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // IntoMap returns the target attributes in the form of a map.

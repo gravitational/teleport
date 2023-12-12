@@ -20,6 +20,7 @@ package transportv1
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/netip"
@@ -315,7 +316,11 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// copy data to/from the host/user
-	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
+	err = utils.ProxyConn(monitorCtx, hostConn, userConn)
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return trace.Wrap(err)
 }
 
 // getDestinationAddress is used to get client destination for connection coming from gRPC. We don't have a way to get

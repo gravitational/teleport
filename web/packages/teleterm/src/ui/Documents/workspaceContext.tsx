@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
@@ -30,14 +30,16 @@ const WorkspaceContext = React.createContext<{
   accessRequestsService: AccessRequestsService;
 }>(null);
 
-export const WorkspaceContextProvider: React.FC<{
-  value: {
-    rootClusterUri: RootClusterUri;
-    localClusterUri: ClusterUri;
-    documentsService: DocumentsService;
-    accessRequestsService: AccessRequestsService;
-  };
-}> = props => {
+export const WorkspaceContextProvider: React.FC<
+  PropsWithChildren<{
+    value: {
+      rootClusterUri: RootClusterUri;
+      localClusterUri: ClusterUri;
+      documentsService: DocumentsService;
+      accessRequestsService: AccessRequestsService;
+    };
+  }>
+> = props => {
   return <WorkspaceContext.Provider {...props} />;
 };
 

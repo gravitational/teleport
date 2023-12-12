@@ -36,51 +36,18 @@ import {
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { Node } from 'teleport/services/nodes';
 
+import { userEventService } from 'teleport/services/userEvent';
+
 import { EnrollEc2Instance } from './EnrollEc2Instance';
 
 describe('test EnrollEc2Instance.tsx', () => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'node-name',
-      agentMatcherLabels: [],
-      db: {} as any,
-      selectedAwsRdsDb: {} as any,
-      node: {} as any,
-      integration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'test-oidc',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn-123',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
-    },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {} as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   beforeEach(() => {
-    jest.spyOn(ctx.nodeService, 'fetchNodes').mockResolvedValue({ agents: [] });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   test('a cloudshell script should be shown if there is an aws permissions error', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
     jest
       .spyOn(integrationService, 'fetchAwsEc2Instances')
       .mockRejectedValue(
@@ -107,6 +74,8 @@ describe('test EnrollEc2Instance.tsx', () => {
   });
 
   test('an instance that is already enrolled should be disabled', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
     jest
       .spyOn(integrationService, 'fetchAwsEc2Instances')
       .mockResolvedValue({ instances: mockEc2Instances });
@@ -146,8 +115,9 @@ describe('test EnrollEc2Instance.tsx', () => {
     expect(disabledRowElements).toHaveLength(1);
   });
 
-  // TODO: Fix flaky network error failure in this test
-  test.skip('there should be no disabled rows if the fetchNodes response is empty', async () => {
+  test('there should be no disabled rows if the fetchNodes response is empty', async () => {
+    const { ctx, discoverCtx } = getMockedContexts();
+
     jest
       .spyOn(integrationService, 'fetchAwsEc2Instances')
       .mockResolvedValue({ instances: mockEc2Instances });
@@ -174,6 +144,48 @@ describe('test EnrollEc2Instance.tsx', () => {
     ).toBeUndefined();
   });
 });
+
+function getMockedContexts() {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'node-name',
+      agentMatcherLabels: [],
+      db: {} as any,
+      selectedAwsRdsDb: {} as any,
+      node: {} as any,
+      integration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'test-oidc',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn-123',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+    },
+    currentStep: 0,
+    nextStep: () => null,
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {} as any,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
+
+  jest.spyOn(ctx.nodeService, 'fetchNodes').mockResolvedValue({ agents: [] });
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(undefined as never);
+
+  return { ctx, discoverCtx };
+}
 
 function renderEc2Instances(
   ctx: TeleportContext,

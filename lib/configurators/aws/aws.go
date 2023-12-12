@@ -194,7 +194,6 @@ var (
 		discovery: []string{
 			"rds:DescribeDBProxies",
 			"rds:DescribeDBProxyEndpoints",
-			"rds:DescribeDBProxyTargets",
 			"rds:ListTagsForResource",
 		},
 		metadata: []string{

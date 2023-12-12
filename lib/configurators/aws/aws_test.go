@@ -21,6 +21,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"testing"
 
@@ -621,7 +622,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			statements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -629,7 +630,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
@@ -653,7 +654,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			statements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -661,7 +662,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
@@ -856,7 +857,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			statements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -864,7 +865,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
@@ -977,7 +978,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource"},
 					},
 				},
 				wantInlineAsBoundary: true,
@@ -1092,7 +1093,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1114,7 +1115,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -2333,7 +2334,20 @@ type SSMMock struct {
 func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDocumentInput, opts ...request.Option) (*ssm.CreateDocumentOutput, error) {
 
 	m.t.Helper()
-	require.Equal(m.t, m.expectedInput, input)
+
+	// UUID's are unpredictable, so we remove them from the content
+	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	replacedExpected := uuidRegex.ReplaceAllString(*m.expectedInput.Content, "")
+	m.expectedInput.Content = &replacedExpected
+	replacedInput := uuidRegex.ReplaceAllString(*input.Content, "")
+	input.Content = &replacedInput
+	// Diff content first for a nicer error message.
+	require.Empty(m.t,
+		cmp.Diff(m.expectedInput.Content, input.Content),
+		"Document content diff (-want +got)")
+	require.Empty(m.t,
+		cmp.Diff(m.expectedInput, input, cmpopts.IgnoreFields(ssm.CreateDocumentInput{}, "Content")),
+		"Document diff (-want +got)")
 
 	return nil, nil
 }

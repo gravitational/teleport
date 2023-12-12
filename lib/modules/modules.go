@@ -91,10 +91,6 @@ type Features struct {
 	// CustomTheme holds the name of WebUI custom theme.
 	CustomTheme string
 
-	// IsTrialProduct is true if the cluster is in trial mode.
-	IsTrialProduct bool
-	// IsTeam is true if the cluster is a Teleport Team cluster.
-	IsTeamProduct bool
 	// AccessGraph enables the usage of access graph.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
@@ -146,6 +142,8 @@ type AccessListFeature struct {
 type AccessMonitoringFeature struct {
 	// True if enabled in the auth service config: [auth_service.access_monitoring.enabled].
 	Enabled bool
+	// Defines the max number of days to include in an access report.
+	MaxReportRangeLimit int
 }
 
 // ToProto converts Features into proto.Features
@@ -179,7 +177,8 @@ func (f Features) ToProto() *proto.Features {
 		},
 		IdentityGovernance: f.IdentityGovernanceSecurity,
 		AccessMonitoring: &proto.AccessMonitoringFeature{
-			Enabled: f.AccessMonitoring.Enabled,
+			Enabled:             f.AccessMonitoring.Enabled,
+			MaxReportRangeLimit: int32(f.AccessMonitoring.MaxReportRangeLimit),
 		},
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
@@ -206,8 +205,13 @@ func (f Features) IsLegacy() bool {
 	return !f.IsUsageBasedBilling
 }
 
+// TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
-	return f.IdentityGovernanceSecurity
+	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
+}
+
+func (f Features) IsTeam() bool {
+	return f.ProductType == ProductTypeTeam
 }
 
 // AccessResourcesGetter is a minimal interface that is used to get access lists
