@@ -211,6 +211,13 @@ export function NewRequest(props: State) {
   );
 
   useEffect(() => {
+    if (dryRunAttempt.status === 'failed') {
+      setCurrResourceOpt(roleOption);
+      updateResourceKind('role');
+    }
+  }, [dryRunAttempt]);
+
+  useEffect(() => {
     const newOption = resourceOptions[resourceOptions.length - 1];
     // if resourceOptions have changed, then unified support has changed.
     // We need to reset the selected resource
