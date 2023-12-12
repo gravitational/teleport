@@ -59,6 +59,8 @@ type ReporterConfig struct {
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
+	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
+	AnonymizationKey string
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -80,6 +82,9 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
+	if cfg.AnonymizationKey == "" {
+		cfg.AnonymizationKey = cfg.ClusterName.GetClusterID()
+	}
 	return nil
 }
 
@@ -91,7 +96,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.ClusterName.GetClusterID())
+	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
