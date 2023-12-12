@@ -496,9 +496,6 @@ type CLIConf struct {
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
-
-	// ExcludeTableColumns is a list of columns to hide when printing tables.
-	ExcludeTableColumns []string
 }
 
 // Stdout returns the stdout writer.
@@ -855,7 +852,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
-	dbList.Flag("exclude-column", "Exclude columns from table (e.g --exclude-column Labels -E Description).").Short('E').StringsVar(&cf.ExcludeTableColumns)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
@@ -2917,7 +2913,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 
 // TODO(greedy52) more refactoring on db printing and move them to db_print.go.
 
-func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
+func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) databaseTableRow {
 	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
@@ -2936,24 +2932,23 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		}
 	}
 
-	// Must match printDatabaseTableConfig.allColumnTitles().
-	return []string{
-		proxy,
-		cluster,
-		displayName,
-		database.GetDescription(),
-		database.GetProtocol(),
-		database.GetType(),
-		database.GetURI(),
-		formatUsersForDB(database, accessChecker),
-		formatDatabaseRolesForDB(database, accessChecker),
-		common.FormatLabels(database.GetAllLabels(), verbose),
-		connect,
+	return databaseTableRow{
+		Proxy:         proxy,
+		Cluster:       cluster,
+		DisplayName:   displayName,
+		Description:   database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		URI:           database.GetURI(),
+		AllowedUsers:  formatUsersForDB(database, accessChecker),
+		DatabaseRoles: formatDatabaseRolesForDB(database, accessChecker),
+		Labels:        common.FormatLabels(database.GetAllLabels(), verbose),
+		Connect:       connect,
 	}
 }
 
 func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
-	var rows [][]string
+	var rows []databaseTableRow
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
 			cf.SiteName,
@@ -2963,15 +2958,14 @@ func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, a
 			verbose))
 	}
 	printDatabaseTable(printDatabaseTableConfig{
-		writer:         w,
-		rows:           rows,
-		verbose:        verbose,
-		excludeColumns: cf.ExcludeTableColumns,
+		writer:  w,
+		rows:    rows,
+		verbose: verbose,
 	})
 }
 
 func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
-	var rows [][]string
+	var rows []databaseTableRow
 	for _, listing := range dbListings {
 		rows = append(rows, getDatabaseRow(
 			listing.Proxy,
@@ -2987,7 +2981,6 @@ func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, activ
 		rows:                rows,
 		showProxyAndCluster: true,
 		verbose:             cf.Verbose,
-		excludeColumns:      cf.ExcludeTableColumns,
 	})
 }
 

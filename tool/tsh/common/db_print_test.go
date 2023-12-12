@@ -32,9 +32,31 @@ import (
 func Test_printDatabaseTable(t *testing.T) {
 	t.Parallel()
 
-	rows := [][]string{
-		{"proxy", "cluster1", "db1", "describe db1", "postgres", "self-hosted", "localhost:5432", "[*]", "", "Env=dev", "tsh db connect db1"},
-		{"proxy", "cluster1", "db2", "describe db2", "mysql", "self-hosted", "localhost:3306", "[alice]", "[readonly]", "Env=prod", ""},
+	rows := []databaseTableRow{
+		databaseTableRow{
+			Proxy:        "proxy",
+			Cluster:      "cluster1",
+			DisplayName:  "db1",
+			Description:  "describe db1",
+			Protocol:     "postgres",
+			Type:         "self-hosted",
+			URI:          "localhost:5432",
+			AllowedUsers: "[*]",
+			Labels:       "Env=dev",
+			Connect:      "tsh db connect db1",
+		},
+		databaseTableRow{
+			Proxy:         "proxy",
+			Cluster:       "cluster1",
+			DisplayName:   "db2",
+			Description:   "describe db2",
+			Protocol:      "mysql",
+			Type:          "self-hosted",
+			URI:           "localhost:3306",
+			AllowedUsers:  "[alice]",
+			DatabaseRoles: "[readonly]",
+			Labels:        "Env=prod",
+		},
 	}
 
 	tests := []struct {
@@ -58,22 +80,7 @@ db2  describe db2 [alice]       Env=prod
 `,
 		},
 		{
-			name: "tsh db ls -E Description -E Labels -E Connect",
-			cfg: printDatabaseTableConfig{
-				rows:                rows,
-				showProxyAndCluster: false,
-				verbose:             false,
-				excludeColumns:      []string{"Description", "Labels", "Connect"},
-			},
-			expect: `Name Allowed Users 
----- ------------- 
-db1  [*]           
-db2  [alice]       
-
-`,
-		},
-		{
-			name: "tsh db ls -v",
+			name: "tsh db ls --verbose",
 			cfg: printDatabaseTableConfig{
 				rows:                rows,
 				showProxyAndCluster: false,
@@ -87,17 +94,16 @@ db2  describe db2 mysql    self-hosted localhost:3306 [alice]       [readonly]  
 `,
 		},
 		{
-			name: "tsh db ls -v -R -E 'Database Roles'",
+			name: "tsh db ls --verbose --all",
 			cfg: printDatabaseTableConfig{
 				rows:                rows,
 				showProxyAndCluster: true,
 				verbose:             true,
-				excludeColumns:      []string{"Database Roles"},
 			},
-			expect: `Proxy Cluster  Name Description  Protocol Type        URI            Allowed Users Labels   Connect            
------ -------- ---- ------------ -------- ----------- -------------- ------------- -------- ------------------ 
-proxy cluster1 db1  describe db1 postgres self-hosted localhost:5432 [*]           Env=dev  tsh db connect db1 
-proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]       Env=prod                    
+			expect: `Proxy Cluster  Name Description  Protocol Type        URI            Allowed Users Database Roles Labels   Connect            
+----- -------- ---- ------------ -------- ----------- -------------- ------------- -------------- -------- ------------------ 
+proxy cluster1 db1  describe db1 postgres self-hosted localhost:5432 [*]                          Env=dev  tsh db connect db1 
+proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]       [readonly]     Env=prod                    
 
 `,
 		},

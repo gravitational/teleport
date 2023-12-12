@@ -21,43 +21,90 @@ package common
 import (
 	"fmt"
 	"io"
-	"slices"
+	"reflect"
+	"regexp"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type printDatabaseTableConfig struct {
-	writer              io.Writer
-	rows                [][]string
-	showProxyAndCluster bool
-	verbose             bool
-	excludeColumns      []string
+type databaseTableRow struct {
+	Proxy         string
+	Cluster       string
+	DisplayName   string `title:"Name"`
+	Description   string
+	Protocol      string
+	Type          string
+	URI           string
+	AllowedUsers  string
+	DatabaseRoles string
+	Labels        string
+	Connect       string
 }
 
-func (cfg printDatabaseTableConfig) allColumnTitles() []string {
-	return []string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Database Roles", "Labels", "Connect"}
+func makeTableColumnTitles(row any) (out []string) {
+	// Regular expression to convert from "DatabaseRoles" to "Database Roles" etc.
+	re := regexp.MustCompile(`([a-z])([A-Z])`)
+
+	t := reflect.TypeOf(row)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		title := field.Tag.Get("title")
+		if title == "" {
+			title = re.ReplaceAllString(field.Name, "${1} ${2}")
+		}
+		out = append(out, title)
+	}
+	return out
+}
+
+func makeTableRows[T any](rows []T) [][]string {
+	out := make([][]string, 0, len(rows))
+	for _, row := range rows {
+		var columnValues []string
+		v := reflect.ValueOf(row)
+		for i := 0; i < v.NumField(); i++ {
+			columnValues = append(columnValues, fmt.Sprintf("%v", v.Field(i)))
+		}
+		out = append(out, columnValues)
+	}
+	return out
+}
+
+type printDatabaseTableConfig struct {
+	writer              io.Writer
+	rows                []databaseTableRow
+	showProxyAndCluster bool
+	verbose             bool
+}
+
+func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
+	if !cfg.showProxyAndCluster {
+		out = append(out, "Proxy", "Cluster")
+	}
+	if !cfg.verbose {
+		out = append(out, "Protocol", "Type", "URI", "Database Roles")
+	}
+	return out
 }
 
 func printDatabaseTable(cfg printDatabaseTableConfig) {
-	if !cfg.showProxyAndCluster {
-		cfg.excludeColumns = append(cfg.excludeColumns, "Proxy", "Cluster")
-	}
-	if !cfg.verbose {
-		cfg.excludeColumns = append(cfg.excludeColumns, "Protocol", "Type", "URI", "Database Roles")
-	}
+	allColumns := makeTableColumnTitles(databaseTableRow{})
+	rowsWithAllColumns := makeTableRows(cfg.rows)
+	excludeColumns := cfg.excludeColumns()
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
-
-	for columnIndex, column := range cfg.allColumnTitles() {
-		if slices.Contains(cfg.excludeColumns, column) {
+	for columnIndex, column := range allColumns {
+		if slices.Contains(excludeColumns, column) {
 			continue
 		}
 
 		printColumns = append(printColumns, column)
-		for rowIndex, row := range cfg.rows {
+		for rowIndex, row := range rowsWithAllColumns {
 			printRows[rowIndex] = append(printRows[rowIndex], row[columnIndex])
 		}
 	}
