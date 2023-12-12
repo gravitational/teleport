@@ -122,7 +122,7 @@ func (s *SAMLIdPServiceProviderV1) GetAttributeMapping() []*SAMLAttributeMapping
 	return s.Spec.AttributeMapping
 }
 
-// SetEntityID sets Attribute Mapping.
+// SetAttributeMapping sets Attribute Mapping.
 func (s *SAMLIdPServiceProviderV1) SetAttributeMapping(attrMaps []*SAMLAttributeMapping) {
 	s.Spec.AttributeMapping = attrMaps
 }
@@ -186,19 +186,22 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if len(s.GetAttributeMapping()) > 0 {
-		// check for duplicate attribute names
 		attrNames := make([]string, 0)
 		for _, v := range s.GetAttributeMapping() {
+			// check for duplicate attribute names
 			if slices.Contains(attrNames, v.Name) {
 				return ErrDuplicateAttributeName
 			}
 			attrNames = append(attrNames, v.Name)
 
-			urnNameFormat, err := getURNNameFormat(v.NameFormat)
+			// validate input name format. If it is using one of the
+			// supported values "unspecified", "basic" or "uri", update
+			// the value with respective uri format.
+			uriNameFormat, err := validateAndGetURNNameFormat(v.NameFormat)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			v.NameFormat = urnNameFormat
+			v.NameFormat = uriNameFormat
 		}
 	}
 
@@ -226,10 +229,10 @@ func (s SAMLIdPServiceProviders) Less(i, j int) bool { return s[i].GetName() < s
 // Swap swaps two service providers.
 func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// getURNNameFormat checks if the configured name format is one of the supported
+// validateAndGetURNNameFormat checks if the configured name format is one of the supported
 // formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
 // and returns the urn value of that format.
-func getURNNameFormat(nameFormat string) (string, error) {
+func validateAndGetURNNameFormat(nameFormat string) (string, error) {
 	switch nameFormat {
 	case "", "unspecified", unspecifiedNameFormat:
 		return unspecifiedNameFormat, nil
