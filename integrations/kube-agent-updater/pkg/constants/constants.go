@@ -29,4 +29,8 @@ const (
 	VersionPath   = "version"
 	HTTPTimeout   = 10 * time.Second
 	CacheDuration = time.Minute
+
+	// NoVersion is returned by the version endpoint when there is no valid target version.
+	// This can be caused by the target version being incompatible with the cluster version.
+	NoVersion = "none"
 )

@@ -113,25 +113,6 @@ updates:
       - rosstimothy
       - zmb3
 
-  - package-ecosystem: gomod
-    directory: "/integrations/kube-agent-updater"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - hugoShaka
-      - jentfoo
-      - rosstimothy
-      - zmb3
-
   - package-ecosystem: cargo
     directory: "/"
     schedule:

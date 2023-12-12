@@ -21,25 +21,25 @@ import (
 	"strings"
 )
 
-// GetterMock is a fake version.Getter that return a static answer. This is used
+// StaticGetter is a fake version.Getter that return a static answer. This is used
 // for testing purposes.
-type GetterMock struct {
+type StaticGetter struct {
 	version string
 	err     error
 }
 
 // GetVersion returns the statically defined version.
-func (v GetterMock) GetVersion(_ context.Context) (string, error) {
+func (v StaticGetter) GetVersion(_ context.Context) (string, error) {
 	return v.version, v.err
 }
 
-// NewGetterMock creates a GetterMock
-func NewGetterMock(version string, err error) Getter {
+// NewStaticGetter creates a StaticGetter
+func NewStaticGetter(version string, err error) Getter {
 	semVersion := version
 	if semVersion != "" && !strings.HasPrefix(semVersion, "v") {
 		semVersion = "v" + version
 	}
-	return GetterMock{
+	return StaticGetter{
 		version: semVersion,
 		err:     err,
 	}

@@ -44,6 +44,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2001,6 +2002,11 @@ type Proxy struct {
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
 	// balancers or reverse proxies.
 	TrustXForwardedFor types.Bool `yaml:"trust_x_forwarded_for,omitempty"`
+
+	// AutomaticUpgradesChannels is a map of all version channels used by the
+	// proxy built-in version server to retrieve target versions. This is part
+	// of the automatic upgrades.
+	AutomaticUpgradesChannels automaticupgrades.Channels `yaml:"automatic_upgrades_channels,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

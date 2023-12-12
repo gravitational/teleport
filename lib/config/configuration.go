@@ -1079,6 +1079,13 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
 	}
 
+	if fc.Proxy.AutomaticUpgradesChannels != nil {
+		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
+		if err := cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "failed to set up automatic update channels")
+		}
+	}
+
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
