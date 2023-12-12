@@ -1792,7 +1792,7 @@ type DatabaseAWS struct {
 	// RedshiftServerless contains RedshiftServerless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
 	// SessionTags is a list of AWS STS session tags.
-	SessionTags map[string]string `yaml:"session_tags"`
+	SessionTags map[string]string `yaml:"session_tags,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
