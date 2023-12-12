@@ -14,7 +14,6 @@ VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
-NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
 
@@ -23,6 +22,7 @@ ARCH ?= amd64
 
 UID := $$(id -u)
 GID := $$(id -g)
+NOROOT := -u $(UID):$(GID)
 
 HOST_ARCH := $(shell uname -m)
 RUNTIME_ARCH_x86_64 := amd64
@@ -221,6 +221,9 @@ endif
 buildbox-node:
 	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_NODE) 2>&1 >/dev/null; then docker pull $(BUILDBOX_NODE) || true; fi; \
 	DOCKER_BUILDKIT=1 docker build \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
@@ -232,8 +235,7 @@ buildbox-node:
 #
 .PHONY:teleterm
 teleterm: buildbox-node
-	# Always run this image as user 1000, as the Node base image assumes that.
-	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_NODE) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
@@ -391,7 +393,7 @@ enter/grpcbox: grpcbox
 #
 # Starts shell inside the node build container
 #
-.PHONY:enter
+.PHONY:enter/node
 enter/node: buildbox-node
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
@@ -621,8 +623,8 @@ build-multiarch:
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg UID=$(shell id -u) \
-		--build-arg GID=$(shell id -g) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--tag $(BUILDBOX) \
 		--file Dockerfile-multiarch .
 

@@ -16,6 +16,10 @@
 ARG NODE_VERSION
 FROM node:${NODE_VERSION}-buster AS buildbox
 
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
+
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
 ENV LANGUAGE="en_US.UTF-8" \
@@ -41,12 +45,21 @@ RUN apt-get -y update && \
     # Used during tag builds to build the RPM package of Connect.
     rpm \
     && \
+    # Manually install the wasm-opt binary on ARM64.
+    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Do not create the ci user as we do on other images, as node image
-# already has node user with UID:GID 1000:1000 user.
+# The node image already has a "node" user with UID:GID 1000:1000.
+# For consistency with the other images, we are going to remove this user
+# (to prevent UID/GID conflicts) and create the typical "ci" user.
+# Add the CI user.
+RUN userdel -r node
+ARG UID
+ARG GID
+RUN groupadd ci --gid=$GID -o && \
+    useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh
 
 # Install Rust.
 ARG RUST_VERSION
@@ -56,6 +69,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     RUST_VERSION=$RUST_VERSION
 RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
     mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+USER ci
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
     cargo --version && \
