@@ -45,8 +45,8 @@ jobs:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
           edition: oss
-          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
-          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       # Note: the artifact-version value for tag events is NOT based on the makefile VERSION variable,
       # rather, it is the name of the tag. This prevents a pre-release or dev build from accidentally 
       # overwriting a release asset in the event that the makefile variable is not updated. This does 

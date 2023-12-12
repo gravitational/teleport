@@ -284,8 +284,8 @@ jobs:
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
           edition: "enterprise"
           ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
-          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
-          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       - name: Build the artifacts
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-version }}
