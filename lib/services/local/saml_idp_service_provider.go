@@ -55,8 +55,10 @@ type SAMLIdPServiceProviderService struct {
 	httpClient *http.Client
 }
 
+// SAMLIdPOption adds optional arguments to NewSAMLIdPServiceProviderService.
 type SAMLIdPOption func(*SAMLIdPServiceProviderService)
 
+// WithHTTPClient configures SAMLIdPServiceProviderService with given http client.
 func WithHTTPClient(httpClient *http.Client) SAMLIdPOption {
 	return func(s *SAMLIdPServiceProviderService) {
 		s.httpClient = httpClient
@@ -65,7 +67,6 @@ func WithHTTPClient(httpClient *http.Client) SAMLIdPOption {
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
 func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOption) (*SAMLIdPServiceProviderService, error) {
-
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
 		Backend:       backend,
 		PageLimit:     samlIDPServiceProviderMaxPageSize,
