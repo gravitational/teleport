@@ -17,12 +17,12 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text } from 'design';
+import { Box, Link, Text, Toggle } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { getErrMessage } from 'shared/utils/errorType';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
@@ -36,13 +36,15 @@ import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { Database } from 'teleport/services/databases';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
+import cfg from 'teleport/config';
 
-import { ActionButtons, Header } from '../../Shared';
+import { ActionButtons, Header, Mark } from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 
 import { DatabaseList } from './RdsDatabaseList';
+import { AutoEnrollDialog } from './AutoEnrollDialog';
 
 type TableData = {
   items: CheckedAwsRdsDatabase[];
@@ -74,6 +76,7 @@ export function EnrollRdsDatabase() {
     clearAttempt: clearRegisterAttempt,
     nextStep,
     fetchDatabaseServers,
+    enableAutoDiscovery,
   } = useCreateDatabase();
 
   const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
@@ -86,6 +89,7 @@ export function EnrollRdsDatabase() {
     fetchStatus: 'disabled',
   });
   const [selectedDb, setSelectedDb] = useState<CheckedAwsRdsDatabase>();
+  const [wantAutoDiscover, setWantAutoDiscover] = useState(true);
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -189,23 +193,53 @@ export function EnrollRdsDatabase() {
   }
 
   function handleOnProceed() {
-    registerDatabase(
-      {
-        name: selectedDb.name,
-        protocol: selectedDb.engine,
-        uri: selectedDb.uri,
-        labels: selectedDb.labels,
-        awsRds: selectedDb,
-        awsRegion: tableData.currRegion,
-      },
-      // Corner case where if registering db fails a user can:
-      //   1) change region, which will list new databases or
-      //   2) select a different database before re-trying.
-      selectedDb.name !== createdDb?.name
-    );
+    if (wantAutoDiscover) {
+      enableAutoDiscovery({ selectedRegion: tableData.currRegion });
+    } else {
+      registerDatabase(
+        {
+          name: selectedDb.name,
+          protocol: selectedDb.engine,
+          uri: selectedDb.uri,
+          labels: selectedDb.labels,
+          awsRds: selectedDb,
+        },
+        // Corner case where if registering db fails a user can:
+        //   1) change region, which will list new databases or
+        //   2) select a different database before re-trying.
+        selectedDb.name !== createdDb?.name
+      );
+    }
   }
 
   const hasIamPermError = isIamPermError(fetchDbAttempt);
+  let DialogComponent;
+  if (registerAttempt.status !== '') {
+    if (wantAutoDiscover) {
+      DialogComponent = (
+        <AutoEnrollDialog
+          attempt={registerAttempt}
+          next={nextStep}
+          close={clearRegisterAttempt}
+          retry={handleOnProceed}
+          region={tableData.currRegion}
+        />
+      );
+    } else {
+      DialogComponent = (
+        <CreateDatabaseDialog
+          pollTimeout={pollTimeout}
+          attempt={registerAttempt}
+          next={nextStep}
+          close={clearRegisterAttempt}
+          retry={handleOnProceed}
+          dbName={selectedDb.name}
+        />
+      );
+    }
+  }
+
+  const showTable = !hasIamPermError && tableData.currRegion;
 
   return (
     <Box maxWidth="800px">
@@ -222,14 +256,46 @@ export function EnrollRdsDatabase() {
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
       />
-      {!hasIamPermError && tableData.currRegion && (
-        <DatabaseList
-          items={tableData.items}
-          fetchStatus={tableData.fetchStatus}
-          selectedDatabase={selectedDb}
-          onSelectDatabase={setSelectedDb}
-          fetchNextPage={fetchNextPage}
-        />
+      {showTable && (
+        <>
+          <Box mb={2}>
+            <Toggle
+              isToggled={wantAutoDiscover}
+              onToggle={() => setWantAutoDiscover(p => !p)}
+              disabled={tableData.items.length === 0}
+            >
+              <Box ml={2} mr={1}>
+                Auto-Enroll all Databases for selected region
+              </Box>
+              <ToolTipInfo>
+                Auto-Enroll will automatically identify all RDS databases from
+                the selected region and register them as database resources in
+                your infrastructure.
+              </ToolTipInfo>
+            </Toggle>
+            {!cfg.isCloud && wantAutoDiscover && (
+              <Box mt={2} mb={3}>
+                Auto-enrolling requires you to setup a{' '}
+                <Mark>Discovery Service</Mark>. <br /> Follow{' '}
+                <Link
+                  target="_blank"
+                  href="https://goteleport.com/docs/database-access/guides/aws-discovery/"
+                >
+                  this guide
+                </Link>{' '}
+                to configure one before going to the next step.
+              </Box>
+            )}
+          </Box>
+          <DatabaseList
+            wantAutoDiscover={wantAutoDiscover}
+            items={tableData.items}
+            fetchStatus={tableData.fetchStatus}
+            selectedDatabase={selectedDb}
+            onSelectDatabase={setSelectedDb}
+            fetchNextPage={fetchNextPage}
+          />
+        </>
       )}
       {hasIamPermError && (
         <Box mb={5}>
@@ -242,24 +308,21 @@ export function EnrollRdsDatabase() {
           />
         </Box>
       )}
+      {showTable && wantAutoDiscover && (
+        <Text mt={4} mb={-3}>
+          <b>Note:</b> Auto-Enroll will enroll <Mark>all</Mark> database engines
+          in this region (eg: postgres, mysql, aurora etc.)
+        </Text>
+      )}
       <ActionButtons
         onProceed={handleOnProceed}
         disableProceed={
           fetchDbAttempt.status === 'processing' ||
-          !selectedDb ||
+          (!wantAutoDiscover && !selectedDb) ||
           hasIamPermError
         }
       />
-      {registerAttempt.status !== '' && (
-        <CreateDatabaseDialog
-          pollTimeout={pollTimeout}
-          attempt={registerAttempt}
-          next={nextStep}
-          close={clearRegisterAttempt}
-          retry={handleOnProceed}
-          dbName={selectedDb.name}
-        />
-      )}
+      {DialogComponent}
     </Box>
   );
 }
