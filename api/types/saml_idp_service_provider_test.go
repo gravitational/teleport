@@ -121,6 +121,26 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			name:             "invalid attribute mapping name format",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:       "username",
+					Value:      "user.tratis.name",
+					NameFormat: "emailAddress",
+				},
+				{
+					Name:  "user1",
+					Value: "user.tratis.givenname",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid name format")
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -138,7 +158,6 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			if sp != nil {
 				require.Equal(t, test.expectedEntityID, sp.GetEntityID())
 				if len(sp.GetAttributeMapping()) > 0 {
-					t.Log("===========", sp.GetAttributeMapping())
 					require.Equal(t, test.attributeMapping, sp.GetAttributeMapping())
 				}
 			}

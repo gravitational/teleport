@@ -26,6 +26,12 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+const (
+	unspecifiedNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"
+	uriNameFormat         = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+	basicNameFormat       = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+)
+
 var (
 	// ErrMissingEntityDescriptorAndEntityID is returned when both entity descriptor and entity ID is empty.
 	ErrEmptyEntityDescriptorAndEntityID = trace.BadParameter("either entity_descriptor or entity_id must be provided")
@@ -187,6 +193,12 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 				return ErrDuplicateAttributeName
 			}
 			attrNames = append(attrNames, v.Name)
+
+			urnNameFormat, err := getURNNameFormat(v.NameFormat)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			v.NameFormat = urnNameFormat
 		}
 	}
 
@@ -213,3 +225,19 @@ func (s SAMLIdPServiceProviders) Less(i, j int) bool { return s[i].GetName() < s
 
 // Swap swaps two service providers.
 func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// getURNNameFormat checks if the configured name format is one of the supported
+// formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
+// and returns the urn value of that format.
+func getURNNameFormat(nameFormat string) (string, error) {
+	switch nameFormat {
+	case "", "unspecified", unspecifiedNameFormat:
+		return unspecifiedNameFormat, nil
+	case "basic", basicNameFormat:
+		return basicNameFormat, nil
+	case "uri", uriNameFormat:
+		return uriNameFormat, nil
+	default:
+		return "", trace.BadParameter("invalid name format: %s", nameFormat)
+	}
+}
