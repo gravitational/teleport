@@ -137,6 +137,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/system"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2664,27 +2665,18 @@ func (process *TeleportProcess) initSSH() error {
 
 			log.Infof("Service %s:%s is starting on %v %v.", teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr, process.Config.CachePolicy)
 
-			// Use multiplexer to leverage support for signed PROXY protocol headers.
-			mux, err := multiplexer.New(multiplexer.Config{
-				Context:             process.ExitContext(),
-				PROXYProtocolMode:   multiplexer.PROXYProtocolOff,
-				Listener:            listener,
-				ID:                  teleport.Component(teleport.ComponentNode, process.id),
-				CertAuthorityGetter: authClient.GetCertAuthority,
-				LocalClusterName:    conn.ServerIdentity.ClusterName,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			wrapper := multiplexer.NewListener(process.ExitContext(), listener.Addr())
+			defer wrapper.Close()
 
-			go func() {
-				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-					mux.Entry.WithError(err).Error("node ssh multiplexer terminated unexpectedly")
-				}
-			}()
-			defer mux.Close()
+			go multiplexer.RunSingleplexer(process.ExitContext(),
+				listener,
+				func(c net.Conn) { wrapper.HandleConnection(process.ExitContext(), c) },
+				sshutils.SSHVersionPrefix+"\r\n",
+				authClient.GetCertAuthority, conn.ServerIdentity.ClusterName,
+				limiter,
+			)
 
-			go s.Serve(limiter.WrapListener(mux.SSH()))
+			go s.Serve(wrapper)
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.

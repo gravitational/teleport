@@ -118,6 +118,13 @@ func newListener(parent context.Context, addr net.Addr) *Listener {
 	}
 }
 
+// NewListener returns an artificial [net.Listener] that pretends to be
+// listening the given address and that receives connections through its
+// HandleConnection method.
+func NewListener(parent context.Context, addr net.Addr) *Listener {
+	return newListener(parent, addr)
+}
+
 // Listener is a listener that receives
 // connections from multiplexer based on the connection type
 type Listener struct {
