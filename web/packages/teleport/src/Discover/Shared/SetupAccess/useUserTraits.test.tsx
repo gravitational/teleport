@@ -47,19 +47,19 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(null as never); // return value does not matter but required by ts
 
-  let wrapper;
-
-  beforeEach(() => {
-    wrapper = ({ children }) => (
+  function wrapperFn(discoverCtx) {
+    return ({ children }) => (
       <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
         <ContextProvider ctx={ctx}>
           <FeaturesContextProvider value={[]}>
-            <DiscoverProvider>{children}</DiscoverProvider>
+            <DiscoverProvider mockCtx={discoverCtx}>
+              {children}
+            </DiscoverProvider>
           </FeaturesContextProvider>
         </ContextProvider>
       </MemoryRouter>
     );
-  });
+  }
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -73,8 +73,8 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       resourceSpec: { kind: ResourceKind.Kubernetes } as any,
     };
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(props),
     });
 
     await waitFor(() =>
@@ -156,8 +156,8 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       resourceSpec: { kind: ResourceKind.Database } as any,
     };
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(props),
     });
 
     await waitFor(() =>
@@ -227,6 +227,74 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
+  test('database with auto discover preserves existing + new dynamic traits', async () => {
+    const props = {
+      agentMeta: {
+        ...getMeta(ResourceKind.Database),
+        autoDiscoveryConfig: {},
+      } as AgentMeta,
+      updateAgentMeta: jest.fn(x => x),
+      nextStep: () => null,
+      resourceSpec: { kind: ResourceKind.Database } as any,
+    };
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(props),
+    });
+
+    await waitFor(() =>
+      expect(result.current.dynamicTraits.databaseNames).toHaveLength(2)
+    );
+
+    expect(result.current.dynamicTraits.databaseUsers).toHaveLength(2);
+
+    // Should not be setting statics.
+    expect(result.current.staticTraits.databaseNames).toHaveLength(0);
+    expect(result.current.staticTraits.databaseUsers).toHaveLength(0);
+
+    const addedTraitsOpts = {
+      databaseNames: [
+        {
+          isFixed: true,
+          label: 'banana',
+          value: 'banana',
+        },
+        {
+          isFixed: true,
+          label: 'carrot',
+          value: 'carrot',
+        },
+      ],
+      databaseUsers: [
+        {
+          isFixed: false,
+          label: 'apple',
+          value: 'apple',
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.onProceed(addedTraitsOpts);
+    });
+
+    await waitFor(() => {
+      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    const { databaseUsers, databaseNames } = result.current.dynamicTraits;
+    expect(ctx.userService.updateUser).toHaveBeenCalledWith({
+      ...mockUser,
+      traits: {
+        ...result.current.dynamicTraits,
+        databaseNames: [...databaseNames, 'banana', 'carrot'],
+        databaseUsers: [...databaseUsers, 'apple'],
+      },
+    });
+  });
+
   test('node', async () => {
     const props = {
       agentMeta: getMeta(ResourceKind.Server) as AgentMeta,
@@ -235,8 +303,8 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       resourceSpec: { kind: ResourceKind.Server } as any,
     };
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(props),
     });
 
     await waitFor(() =>
@@ -314,18 +382,22 @@ describe('static and dynamic traits are correctly separated and correctly create
       resourceSpec: { kind: resourceKind } as any,
     };
 
-    const wrapper = ({ children }) => (
-      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={[]}>
-            <DiscoverProvider>{children}</DiscoverProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </MemoryRouter>
-    );
+    function wrapperFn(discoverCtx) {
+      return ({ children }) => (
+        <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+          <ContextProvider ctx={ctx}>
+            <FeaturesContextProvider value={[]}>
+              <DiscoverProvider mockCtx={discoverCtx}>
+                {children}
+              </DiscoverProvider>
+            </FeaturesContextProvider>
+          </ContextProvider>
+        </MemoryRouter>
+      );
+    }
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(props),
     });
 
     await waitFor(() => expect(ctx.userService.fetchUser).toHaveBeenCalled());
