@@ -197,7 +197,7 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 			// validate input name format. If it is using one of the
 			// supported values "unspecified", "basic" or "uri", update
 			// the value with respective uri format.
-			uriNameFormat, err := validateAndGetURNNameFormat(v.NameFormat)
+			uriNameFormat, err := validateAndGetURINameFormat(v.NameFormat)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -229,10 +229,10 @@ func (s SAMLIdPServiceProviders) Less(i, j int) bool { return s[i].GetName() < s
 // Swap swaps two service providers.
 func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// validateAndGetURNNameFormat checks if the configured name format is one of the supported
+// validateAndGetURINameFormat checks if the configured name format is one of the supported
 // formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
 // and returns the urn value of that format.
-func validateAndGetURNNameFormat(nameFormat string) (string, error) {
+func validateAndGetURINameFormat(nameFormat string) (string, error) {
 	switch nameFormat {
 	case "", "unspecified", unspecifiedNameFormat:
 		return unspecifiedNameFormat, nil
