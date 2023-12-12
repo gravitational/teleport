@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,4 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Popup } from './Popup';
+package version
+
+import "fmt"
+
+// NoNewVersionError indicates that no new version was found and the controller did not reconcile.
+type NoNewVersionError struct {
+	Message        string `json:"message"`
+	CurrentVersion string `json:"currentVersion"`
+	NextVersion    string `json:"nextVersion"`
+}
+
+// Error returns log friendly description of an error
+func (e *NoNewVersionError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return fmt.Sprintf("no new version (current: %q, next: %q)", e.CurrentVersion, e.NextVersion)
+}

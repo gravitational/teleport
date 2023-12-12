@@ -213,12 +213,12 @@ func (s *Service) GetUser(ctx context.Context, req *userspb.GetUserRequest) (*us
 }
 
 func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest) (*userspb.CreateUserResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate)
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindUser, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
+	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -232,7 +232,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 
 	if req.User.GetCreatedBy().IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: authz.ClientUsername(ctx)},
+			User: types.UserRef{Name: authzCtx.User.GetName()},
 			Time: s.clock.Now().UTC(),
 		})
 	}
@@ -252,7 +252,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, created.GetCreatedBy().User.Name),
+		UserMetadata: authzCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    created.GetName(),
 			Expires: created.Expiry(),
@@ -292,6 +292,11 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		omitEditorEvent = true
 	}
 
+	if prevUser != nil {
+		// Preserve the users' created by information.
+		req.User.SetCreatedBy(prevUser.GetCreatedBy())
+	}
+
 	if err = okta.CheckAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,7 +316,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: authz.ClientUserMetadata(ctx),
+		UserMetadata: authzCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    updated.GetName(),
 			Expires: updated.Expiry(),
@@ -383,7 +388,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, upserted.GetCreatedBy().User.Name),
+		UserMetadata: authzCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),

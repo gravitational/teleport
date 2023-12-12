@@ -178,7 +178,7 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 		if err := data.Update(params); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := data.CheckAndSetDefaults(); err != nil {
+		if err := services.CheckAndSetDefaults(data); err != nil {
 			return trace.Wrap(err)
 		}
 		newItem, err := itemFromPluginData(data)

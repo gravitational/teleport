@@ -16,6 +16,41 @@
           "title": "Installation",
           "slug": "/installation/"
         },
+	{
+	  "title": "Upgrading",
+	  "slug": "/upgrading/",
+	  "entries": [
+	    {
+	      "title": "Compatibility Overview",
+	      "slug": "/upgrading/overview/"
+	    },
+	    {
+	      "title": "Teleport Cloud Agents (Linux)",
+	      "slug": "/upgrading/cloud-linux/",
+	      "forScopes": ["cloud", "team"]
+	    },
+	    {
+	      "title": "Teleport Cloud Agents (Kubernetes)",
+	      "slug": "/upgrading/cloud-kubernetes/",
+	      "forScopes": ["cloud", "team"]
+	    },
+            {
+              "title": "Self-Hosted Linux",
+              "slug": "/upgrading/self-hosted-linux/",
+              "forScopes": ["enterprise", "oss"]
+            },
+	    {
+	      "title": "Self-Hosted Kubernetes",
+	      "slug": "/upgrading/self-hosted-kubernetes/",
+	      "forScopes": ["enterprise", "oss"]
+	    },
+            {
+              "title": "Self-Hosted Automatic Upgrades",
+              "slug": "/upgrading/self-hosted-automatic-agent-updates/",
+              "forScopes": ["enterprise"]
+            }
+	  ]
+	},
         {
           "title": "FAQ",
           "slug": "/faq/"
@@ -61,6 +96,11 @@
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
+              "forScopes": ["cloud"]
+            },
+            {
+              "title": "External Audit Storage",
+              "slug": "/choose-an-edition/teleport-cloud/external-audit-storage/",
               "forScopes": ["cloud"]
             },
             {
@@ -420,6 +460,11 @@
           ]
         },
         {
+          "title": "Access Graph",
+          "slug": "/access-graph/",
+          "forScopes": ["team"]
+        },
+        {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
           "forScopes": ["oss", "enterprise", "cloud"],
@@ -573,10 +618,6 @@
               "slug": "/management/admin/troubleshooting/"
             },
             {
-              "title": "Upgrading the Teleport Binary",
-              "slug": "/management/admin/upgrading-the-teleport-binary/"
-            },
-            {
               "title": "Run Teleport as a Daemon",
               "slug": "/management/admin/daemon/"
             },
@@ -601,10 +642,6 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Upgrading a Cluster",
-              "slug": "/management/operations/upgrading/"
-            },
-            {
               "title": "Backup and Restore",
               "slug": "/management/operations/backup-restore/"
             },
@@ -621,16 +658,6 @@
               "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
-            },
-            {
-              "title": "Self-Hosted Automatic Updates",
-              "slug": "/management/operations/self-hosted-automatic-agent-updates/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "Enroll Agents in Automatic Updates",
-              "slug": "/management/operations/enroll-agent-into-automatic-updates/",
-              "forScopes": ["enterprise", "cloud", "team"]
             }
           ]
         },
@@ -1598,6 +1625,10 @@
           "forScopes": ["oss", "enterprise"]
         },
         {
+          "title": "Join Methods",
+          "slug": "/reference/join-methods/"
+        },
+        {
           "title": "Networking",
           "slug": "/reference/networking/"
         },
@@ -2131,11 +2162,6 @@
       "permanent": true
     },
     {
-      "source": "/setup/admin/graceful-restarts/",
-      "destination": "/management/admin/upgrading-the-teleport-binary/",
-      "permanent": true
-    },
-    {
       "source": "/enterprise/workflow/",
       "destination": "/access-controls/access-requests/",
       "permanent": true
@@ -2401,11 +2427,6 @@
       "permanent": true
     },
     {
-      "source": "/setup/admin/upgrading-the-teleport-binary/",
-      "destination": "/management/admin/upgrading-the-teleport-binary/",
-      "permanent": true
-    },
-    {
       "source": "/setup/admin/users/",
       "destination": "/management/admin/users/",
       "permanent": true
@@ -2487,7 +2508,7 @@
     },
     {
       "source": "/setup/operations/upgrading/",
-      "destination": "/management/operations/upgrading/",
+      "destination": "/upgrading/",
       "permanent": true
     },
     {
@@ -3003,6 +3024,26 @@
     {
       "source": "/management/dynamic-resources/spacelift/",
       "destination": "/machine-id/deployment/spacelift/",
+      "permanent": true
+    },
+    {
+      "source": "/management/operations/enroll-agent-into-automatic-updates/",
+      "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/management/operations/self-hosted-automatic-agent-updates/",
+      "destination": "/upgrading/self-hosted-automatic-agent-updates/",
+      "permanent": true
+    },
+    {
+      "source": "/management/operations/upgrading/",
+      "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/management/admin/upgrading-the-teleport-binary/",
+      "destination": "/upgrading/",
       "permanent": true
     }
   ]

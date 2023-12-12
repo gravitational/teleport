@@ -50,10 +50,6 @@ type SAMLIdPServiceProviders interface {
 
 // MarshalSAMLIdPServiceProvider marshals the SAMLIdPServiceProvider resource to JSON.
 func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider, opts ...MarshalOption) ([]byte, error) {
-	if err := serviceProvider.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -61,6 +57,10 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 
 	switch sp := serviceProvider.(type) {
 	case *types.SAMLIdPServiceProviderV1:
+		if err := sp.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *sp
 			copy.SetResourceID(0)
