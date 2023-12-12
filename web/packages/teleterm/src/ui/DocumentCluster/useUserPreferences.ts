@@ -25,6 +25,7 @@ import {
   makeSuccessAttempt,
   mapAttempt,
   CanceledError,
+  hasFinished,
 } from 'shared/hooks/useAsync';
 
 import {
@@ -126,6 +127,9 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     updateUnifiedResourcePreferencesStateAndWorkspace,
   ]);
 
+  const hasUpdateSupersededInitialFetch =
+    initialFetchAttempt.status !== 'success' &&
+    !hasFinished(supersededInitialFetchAttempt);
   const updateUserPreferences = useCallback(
     async (newPreferences: Partial<UserPreferences>): Promise<void> => {
       if (newPreferences.unifiedResourcePreferences) {
@@ -134,9 +138,6 @@ export function useUserPreferences(clusterUri: ClusterUri): {
         );
       }
 
-      const hasUpdateSupersededInitialFetch =
-        initialFetchAttempt.status !== 'success' &&
-        supersededInitialFetchAttempt.status === '';
       if (hasUpdateSupersededInitialFetch) {
         setSupersededInitialFetchAttempt(makeProcessingAttempt());
         initialFetchAttemptAbortController.current.abort();
@@ -146,21 +147,26 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       if (!error) {
         // wa always try to update pinned resources
         setClusterPreferences(prefs?.clusterPreferences);
-      }
-
-      if (hasUpdateSupersededInitialFetch) {
-        if (error && !(error instanceof CanceledError)) {
-          setSupersededInitialFetchAttempt(makeErrorAttempt(error));
-          return;
+        if (hasUpdateSupersededInitialFetch) {
+          setSupersededInitialFetchAttempt(makeSuccessAttempt(undefined));
         }
-        setSupersededInitialFetchAttempt(makeSuccessAttempt(undefined));
+        return;
+      }
+      if (!(error instanceof CanceledError)) {
+        if (hasUpdateSupersededInitialFetch) {
+          setSupersededInitialFetchAttempt(makeErrorAttempt(error));
+        }
+        appContext.notificationsService.notifyWarning({
+          title: 'Failed to update user preferences',
+          description: error.message,
+        });
       }
     },
     [
-      initialFetchAttempt.status,
-      supersededInitialFetchAttempt.status,
+      hasUpdateSupersededInitialFetch,
       runUpdateAttempt,
       updateUnifiedResourcePreferencesStateAndWorkspace,
+      appContext.notificationsService,
     ]
   );
 
