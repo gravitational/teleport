@@ -373,7 +373,15 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		}
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
-		buf = append(buf, C.GoString(argv))
+		argvStr := C.GoString(argv)
+		// Large arguments come in multiple events, those are tracked with a
+		// sequence number.
+		if event.Seq > 0 && len(buf) > 0 {
+			buf[len(buf)-1] += argvStr
+		} else {
+			buf = append(buf, argvStr)
+		}
+
 		s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:

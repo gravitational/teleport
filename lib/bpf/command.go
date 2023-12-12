@@ -68,6 +68,10 @@ type rawExecEvent struct {
 
 	// CgroupID is the internal cgroupv2 ID of the event.
 	CgroupID uint64
+
+	// Seq is the argument sequence number. This is used to keep track of large
+	// arguments.
+	Seq int32
 }
 
 type exec struct {

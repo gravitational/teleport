@@ -31,6 +31,7 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -519,6 +520,85 @@ func TestRootBPFCounter(t *testing.T) {
 	require.Equal(t, float64(gentleBumps+poundingBumps), testutil.ToFloat64(promCounter))
 
 	counter.Close()
+}
+
+func TestLargeCommandArguments(t *testing.T) {
+	// TODO(gabrielcorado): This test is very similar to TestRootWatch, when it
+	// gets enabled we can enable this too.
+	t.Skip("this test always fails when running inside a CGroup/Docker")
+
+	// This test must be run as root and the host has to be capable of running
+	// BPF programs.
+	if !bpfTestEnabled() {
+		t.Skip("BPF testing is disabled")
+	}
+	if !isRoot() {
+		t.Skip("Tests for package bpf can only be run as root.")
+	}
+
+	cgroupPath := t.TempDir()
+	service, err := New(&servicecfg.BPFConfig{
+		Enabled:    true,
+		CgroupPath: cgroupPath,
+	}, &servicecfg.RestrictedSessionConfig{})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, service.Close(false))
+	})
+
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	sessionID := uuid.New().String()
+	cgroupID, err := service.OpenSession(&SessionContext{
+		Namespace:      apidefaults.Namespace,
+		SessionID:      sessionID,
+		ServerID:       uuid.New().String(),
+		ServerHostname: "ip-172-31-11-148",
+		Login:          "foo",
+		User:           "foo@example.com",
+		PID:            os.Getpid(),
+		Emitter:        emitter,
+		Events: map[string]bool{
+			constants.EnhancedRecordingCommand: true,
+			constants.EnhancedRecordingDisk:    true,
+			constants.EnhancedRecordingNetwork: true,
+		},
+	})
+	require.NoError(t, err)
+	require.Greater(t, cgroupID, uint64(0))
+
+	largeCmdStr := "/opt/path" + strings.Repeat("/path", ArgvMax/len("/path"))
+	largeCmdArgvStr, err := utils.CryptoRandomHex(ArgvMax + 1)
+	require.NoError(t, err)
+	cmdArgStr, err := utils.CryptoRandomHex(ArgvMax - 1)
+	require.NoError(t, err)
+
+	fileName := filepath.Join(t.TempDir(), "test-file")
+	require.NoError(t, os.WriteFile(fileName, []byte(fmt.Sprintf("#!/bin/sh\n%s %s %s", largeCmdStr, largeCmdArgvStr, cmdArgStr)), 0700))
+	cmd := osexec.Command(fileName)
+	require.NoError(t, cmd.Start())
+
+	require.Error(t, cmd.Wait())
+	require.NoError(t, service.CloseSession(&SessionContext{SessionID: sessionID}))
+
+	var commandEvents int
+	for _, e := range emitter.Events() {
+		switch ev := e.(type) {
+		case *apievents.SessionCommand:
+			commandEvents++
+			if strings.Contains(ev.Path, "test-file") {
+				continue
+			}
+
+			require.Len(t, ev.Argv, 2)
+			require.Equal(t, largeCmdStr, ev.Path)
+			require.Equal(t, largeCmdArgvStr, ev.Argv[0])
+			require.Equal(t, cmdArgStr, ev.Argv[1])
+		default:
+		}
+	}
+	require.Equal(t, 2, commandEvents)
 }
 
 // waitForEvent will wait for an event to arrive over the perf buffer and

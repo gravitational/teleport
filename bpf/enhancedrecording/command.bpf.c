@@ -6,7 +6,8 @@
 #include "./common.h"
 #include "../helpers.h"
 
-#define ARGSIZE  128
+#define ARGSIZE 128
+#define MAX_ARGSIZE 1024
 #define MAXARGS 20
 
 // Size, in bytes, of the ring buffer used to report
@@ -34,6 +35,7 @@ struct data_t {
     char argv[ARGSIZE];
     int retval;
     u64 cgroup;
+    int seq;
 };
 
 BPF_RING_BUF(execve_events, EVENTS_BUF_SIZE);
@@ -42,9 +44,20 @@ BPF_COUNTER(lost);
 
 static int __submit_arg(void *ptr, struct data_t *data)
 {
-    bpf_probe_read_user(data->argv, sizeof(data->argv), ptr);
-    if (bpf_ringbuf_output(&execve_events, data, sizeof(struct data_t), 0) != 0)
-        INCR_COUNTER(lost);
+    long read = 0;
+    long total_read = 0;
+    do {
+        read = bpf_probe_read_user_str(data->argv, sizeof(data->argv), (void *)ptr+total_read);
+        if (bpf_ringbuf_output(&execve_events, data, sizeof(struct data_t), 0) != 0)
+            INCR_COUNTER(lost);
+        // If the read is not enough, it replaces the last character with a
+        // null character. So we need to read one additional char on the next
+        // read.
+        total_read += read - 1;
+        data->seq += 1;
+    } while (read == ARGSIZE && total_read < MAX_ARGSIZE);
+    // Reset seq so future events don't reuse its value.
+    data->seq = 0;
     return 1;
 }
 
