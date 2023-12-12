@@ -219,7 +219,7 @@ endif
 #
 .PHONY:buildbox-node
 buildbox-node:
-	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_NODE) 2>&1 >/dev/null; then docker pull $(BUILDBOX_NODE) || true; fi; \
+	$(call PULL_ON_CI,$(BUILDBOX_NODE))
 	DOCKER_BUILDKIT=1 docker build \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
