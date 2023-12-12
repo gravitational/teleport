@@ -156,10 +156,11 @@ export function useUserPreferences(clusterUri: ClusterUri): {
 
       const [prefs, error] = await runUpdateAttempt(newPreferences);
       if (!error) {
-        // We always try to update cluster preferences,
-        // so the user sees the recent pinned resources.
-        // We don't do it for unified resources preferences
-        // because we don't want to suddenly change the view.
+        // We always try to update cluster preferences based on the cluster response so that the
+        // the pinned resources are up-to-date.
+        // We don't do it for unified resources preferences because if the view mode got updated on
+        // the server while the user, say, updated a pin, we don't want to suddenly change the view
+        // mode.
         setClusterPreferences(prefs?.clusterPreferences);
         if (hasUpdateSupersededInitialFetch) {
           setSupersededInitialFetchAttempt(makeSuccessAttempt(undefined));
