@@ -40,6 +40,7 @@ import {
   UnifiedResourcePreferences,
   DefaultTab,
   ViewMode,
+  LabelsViewMode,
 } from 'shared/services/unifiedResourcePreferences';
 
 import { UnifiedResourceResponse } from 'teleterm/services/tshd/types';
@@ -74,6 +75,7 @@ export function UnifiedResources(props: {
     useState<UnifiedResourcePreferences>({
       defaultTab: DefaultTab.DEFAULT_TAB_ALL,
       viewMode: ViewMode.VIEW_MODE_CARD,
+      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     });
 
   return (

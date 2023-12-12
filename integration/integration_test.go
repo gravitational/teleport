@@ -2880,8 +2880,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3214,8 +3213,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3452,8 +3450,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster while disabled
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3591,8 +3588,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
@@ -3693,8 +3689,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3878,8 +3873,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Start())
 	require.NoError(t, leaf.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
@@ -7529,7 +7523,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	require.NoError(t, leaf.Start())
 	t.Cleanup(func() { leaf.StopAll() })
 
-	require.NoError(t, trustedCluster.CheckAndSetDefaults())
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 

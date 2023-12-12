@@ -49,8 +49,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
-	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3145,11 +3145,11 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := usersv1.CheckOktaOrigin(&a.context, user); err != nil {
+	if err := okta.CheckOrigin(&a.context, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkOktaAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
+	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3165,11 +3165,11 @@ func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.U
 		return nil, trace.Wrap(err)
 	}
 
-	if err := usersv1.CheckOktaOrigin(&a.context, u); err != nil {
+	if err := okta.CheckOrigin(&a.context, u); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkOktaAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
+	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3191,7 +3191,7 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 		return trace.Wrap(err)
 	}
 
-	if err := usersv1.CheckOktaOrigin(&a.context, new); err != nil {
+	if err := okta.CheckOrigin(&a.context, new); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3200,7 +3200,7 @@ func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing 
 	// different then the `CompareAndSwap()` will fail anyway, and this way we
 	// save ourselves a backend user lookup.
 
-	if err := usersv1.CheckOktaAccess(&a.context, existing, types.VerbUpdate); err != nil {
+	if err := okta.CheckAccess(&a.context, existing, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5357,6 +5357,18 @@ func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error
 		return trace.Wrap(err)
 	}
 
+	if err := okta.CheckOrigin(&a.context, lock); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkOktaLockTarget(ctx, &a.context, a.authServer, lock); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkOktaLockAccess(ctx, &a.context, a.authServer, lock.GetName(), types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if lock.CreatedBy() == "" {
 		hasAdmin := a.hasBuiltinRole(types.RoleAdmin)
 		createdBy := string(types.RoleAdmin)
@@ -5378,6 +5390,11 @@ func (a *ServerWithRoles) DeleteLock(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := checkOktaLockAccess(ctx, &a.context, a.authServer, name, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteLock(ctx, name)
 }
 
@@ -6766,17 +6783,62 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 	return verbs
 }
 
-// checkOktaAccess gates access to update operations on user records based
+// checkOktaUserAccess gates access to update operations on user records based
 // on the origin label on the supplied user record.
 //
-// # See usersv1.CheckOktaAccess() for the actual access rules
+// # See okta.CheckAccess() for the actual access rules
 //
 // TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
-func checkOktaAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
+func checkOktaUserAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
 	existingUser, err := users.GetUser(ctx, existingUsername, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	return usersv1.CheckOktaAccess(authzCtx, existingUser, verb)
+	return okta.CheckAccess(authzCtx, existingUser, verb)
+}
+
+// checkOktaLockTarget prevents the okta service from locking users that are not
+// controlled by the Okta service.
+func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users services.UserGetter, lock types.Lock) error {
+	const errorMsg = "Okta service may only lock okta user"
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleOkta)) {
+		return nil
+	}
+
+	target := lock.Target()
+	switch {
+	case !target.Equals(types.LockTarget{User: target.User}):
+		return trace.BadParameter(errorMsg)
+
+	case target.User == "":
+		return trace.BadParameter(errorMsg)
+	}
+
+	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.AccessDenied(errorMsg)
+		}
+		return trace.Wrap(err)
+	}
+
+	if targetUser.Origin() != types.OriginOkta {
+		return trace.AccessDenied(errorMsg)
+	}
+
+	return nil
+}
+
+// checkOktaLockAccess gates access to update operations on lock records based
+// on the origin label on the supplied user record.
+func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
+
+	existingLock, err := locks.GetLock(ctx, existingLockName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	return okta.CheckAccess(authzCtx, existingLock, verb)
 }

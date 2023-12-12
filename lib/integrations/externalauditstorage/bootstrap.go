@@ -146,7 +146,7 @@ func createLTSBucket(ctx context.Context, clt BootstrapS3Client, bucketName stri
 			ObjectLockEnabled: s3types.ObjectLockEnabledEnabled,
 			Rule: &s3types.ObjectLockRule{
 				DefaultRetention: &s3types.DefaultRetention{
-					Years: defaultObjectLockRetentionYears,
+					Years: aws.Int32(defaultObjectLockRetentionYears),
 					// Modification is prohibited without IAM S3:BypassGovernancePermission
 					Mode: s3types.ObjectLockRetentionModeGovernance,
 				},
@@ -176,7 +176,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireQueryResults"),
 					Expiration: &s3types.LifecycleExpiration{
-						Days: 1,
+						Days: aws.Int32(1),
 					},
 					Filter: &s3types.LifecycleRuleFilterMemberPrefix{
 						Value: "/query_results",
@@ -186,14 +186,14 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireNonCurrentVersionsAndDeleteMarkers"),
 					NoncurrentVersionExpiration: &s3types.NoncurrentVersionExpiration{
-						NewerNoncurrentVersions: 0,
-						NoncurrentDays:          1,
+						NewerNoncurrentVersions: aws.Int32(0),
+						NoncurrentDays:          aws.Int32(1),
 					},
 					AbortIncompleteMultipartUpload: &s3types.AbortIncompleteMultipartUpload{
-						DaysAfterInitiation: 7,
+						DaysAfterInitiation: aws.Int32(7),
 					},
 					Expiration: &s3types.LifecycleExpiration{
-						ExpiredObjectDeleteMarker: true,
+						ExpiredObjectDeleteMarker: aws.Bool(true),
 					},
 					Filter: &s3types.LifecycleRuleFilterMemberPrefix{},
 				},
@@ -207,7 +207,7 @@ func createBucket(ctx context.Context, clt BootstrapS3Client, bucketName string,
 	_, err := clt.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket:                     &bucketName,
 		CreateBucketConfiguration:  createBucketConfiguration(region),
-		ObjectLockEnabledForBucket: objectLock,
+		ObjectLockEnabledForBucket: aws.Bool(objectLock),
 		ACL:                        s3types.BucketCannedACLPrivate,
 		ObjectOwnership:            s3types.ObjectOwnershipBucketOwnerEnforced,
 	})
