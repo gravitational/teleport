@@ -48,9 +48,14 @@ import (
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
 
-func TestAdminActionMFA_Users(t *testing.T) {
-	ctx := context.Background()
+func TestAdminActionMFA(t *testing.T) {
 	s := newAdminActionTestSuite(t)
+
+	t.Run("Users", s.testAdminActionMFA_Users)
+}
+
+func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
+	ctx := context.Background()
 
 	user, err := types.NewUser("teleuser")
 	require.NoError(t, err)
@@ -83,16 +88,58 @@ func TestAdminActionMFA_Users(t *testing.T) {
 			},
 		} {
 			t.Run(tc.command, func(t *testing.T) {
-				s.runTestCase(t, tc)
+				s.runTestCase(t, ctx, tc)
 			})
 		}
 	})
 
 	t.Run("ResourceCommands", func(t *testing.T) {
-		s.testAdminActionMFA_ResourceCommand(t, resourceCommandTestCase{
+		s.testAdminActionMFA_ResourceCommand(t, ctx, resourceCommandTestCase{
 			resource:       user,
 			resourceCreate: createUser,
 			resourceDelete: deleteUser,
+		})
+	})
+}
+
+type resourceCommandTestCase struct {
+	resource       types.Resource
+	resourceCreate func() error
+	resourceDelete func() error
+}
+
+func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
+	t.Helper()
+
+	resourceYamlPath := filepath.Join(t.TempDir(), fmt.Sprintf("%v.yaml", tc.resource.GetKind()))
+	f, err := os.Create(resourceYamlPath)
+	require.NoError(t, err)
+	require.NoError(t, utils.WriteYAML(f, tc.resource))
+
+	t.Run(fmt.Sprintf("create %v.yaml", tc.resource.GetKind()), func(t *testing.T) {
+		s.runTestCase(t, ctx, adminActionTestCase{
+			command:    fmt.Sprintf("create %v", resourceYamlPath),
+			cliCommand: &tctl.ResourceCommand{},
+			cleanup:    tc.resourceDelete,
+		})
+	})
+
+	t.Run(fmt.Sprintf("create -f %v.yaml", tc.resource.GetKind()), func(t *testing.T) {
+		s.runTestCase(t, ctx, adminActionTestCase{
+			command:    fmt.Sprintf("create -f %v", resourceYamlPath),
+			cliCommand: &tctl.ResourceCommand{},
+			setup:      tc.resourceCreate,
+			cleanup:    tc.resourceDelete,
+		})
+	})
+
+	rmCommand := fmt.Sprintf("rm %v", getResourceRef(tc.resource))
+	t.Run(rmCommand, func(t *testing.T) {
+		s.runTestCase(t, ctx, adminActionTestCase{
+			command:    rmCommand,
+			cliCommand: &tctl.ResourceCommand{},
+			setup:      tc.resourceCreate,
+			cleanup:    tc.resourceDelete,
 		})
 	})
 }
@@ -106,6 +153,7 @@ type adminActionTestSuite struct {
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
+	t.Helper()
 	ctx := context.Background()
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -204,41 +252,16 @@ type adminActionTestCase struct {
 	cleanup    func() error
 }
 
-func (s *adminActionTestSuite) runTestCase(t *testing.T, tc adminActionTestCase) {
-	ctx := context.Background()
-
-	runTest := func(t *testing.T, client auth.ClientI, tc adminActionTestCase) error {
-		if tc.setup != nil {
-			require.NoError(t, tc.setup(), "unexpected error during setup")
-		}
-		if tc.cleanup != nil {
-			t.Cleanup(func() {
-				if err := tc.cleanup(); err != nil && !trace.IsNotFound(err) {
-					t.Errorf("unexpected error during cleanup: %v", err)
-				}
-			})
-		}
-
-		app := utils.InitCLIParser("tctl", tctl.GlobalHelpString)
-		cfg := servicecfg.MakeDefaultConfig()
-		tc.cliCommand.Initialize(app, cfg)
-
-		args := strings.Split(tc.command, " ")
-		commandName, err := app.Parse(args)
-		require.NoError(t, err)
-
-		match, err := tc.cliCommand.TryRun(ctx, commandName, client)
-		require.True(t, match)
-		return err
-	}
+func (s *adminActionTestSuite) runTestCase(t *testing.T, ctx context.Context, tc adminActionTestCase) {
+	t.Helper()
 
 	t.Run("OK with MFA", func(t *testing.T) {
-		err := runTest(t, s.userClientWithMFA, tc)
+		err := runTestSubCase(t, ctx, s.userClientWithMFA, tc)
 		require.NoError(t, err)
 	})
 
 	t.Run("NOK without MFA", func(t *testing.T) {
-		err := runTest(t, s.userClientNoMFA, tc)
+		err := runTestSubCase(t, ctx, s.userClientNoMFA, tc)
 		require.ErrorContains(t, err, mfa.ErrAdminActionMFARequired.Message)
 	})
 
@@ -249,7 +272,7 @@ func (s *adminActionTestSuite) runTestCase(t *testing.T, tc adminActionTestCase)
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 
-		err = runTest(t, s.userClientNoMFA, adminActionTestCase{
+		err = runTestSubCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
 			command:    tc.command,
 			cliCommand: tc.cliCommand,
 			setup: func() error {
@@ -275,46 +298,31 @@ func (s *adminActionTestSuite) runTestCase(t *testing.T, tc adminActionTestCase)
 	})
 }
 
-type resourceCommandTestCase struct {
-	resource       types.Resource
-	resourceCreate func() error
-	resourceDelete func() error
-}
-
-func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, tc resourceCommandTestCase) {
+func runTestSubCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
 	t.Helper()
 
-	resourceYamlPath := filepath.Join(t.TempDir(), fmt.Sprintf("%v.yaml", tc.resource.GetKind()))
-	f, err := os.Create(resourceYamlPath)
+	if tc.setup != nil {
+		require.NoError(t, tc.setup(), "unexpected error during setup")
+	}
+	if tc.cleanup != nil {
+		t.Cleanup(func() {
+			if err := tc.cleanup(); err != nil && !trace.IsNotFound(err) {
+				t.Errorf("unexpected error during cleanup: %v", err)
+			}
+		})
+	}
+
+	app := utils.InitCLIParser("tctl", tctl.GlobalHelpString)
+	cfg := servicecfg.MakeDefaultConfig()
+	tc.cliCommand.Initialize(app, cfg)
+
+	args := strings.Split(tc.command, " ")
+	commandName, err := app.Parse(args)
 	require.NoError(t, err)
-	require.NoError(t, utils.WriteYAML(f, tc.resource))
 
-	t.Run(fmt.Sprintf("create %v.yaml", tc.resource.GetKind()), func(t *testing.T) {
-		s.runTestCase(t, adminActionTestCase{
-			command:    fmt.Sprintf("create %v", resourceYamlPath),
-			cliCommand: &tctl.ResourceCommand{},
-			cleanup:    tc.resourceDelete,
-		})
-	})
-
-	t.Run(fmt.Sprintf("create -f %v.yaml", tc.resource.GetKind()), func(t *testing.T) {
-		s.runTestCase(t, adminActionTestCase{
-			command:    fmt.Sprintf("create -f %v", resourceYamlPath),
-			cliCommand: &tctl.ResourceCommand{},
-			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceDelete,
-		})
-	})
-
-	rmCommand := fmt.Sprintf("rm %v", getResourceRef(tc.resource))
-	t.Run(rmCommand, func(t *testing.T) {
-		s.runTestCase(t, adminActionTestCase{
-			command:    rmCommand,
-			cliCommand: &tctl.ResourceCommand{},
-			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceDelete,
-		})
-	})
+	match, err := tc.cliCommand.TryRun(ctx, commandName, client)
+	require.True(t, match)
+	return err
 }
 
 func getResourceRef(r types.Resource) string {
