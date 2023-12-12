@@ -80,6 +80,11 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       [appContext, clusterUri]
     )
   );
+
+  // In a situation where the initial fetch attempt is still in progress,
+  // but the user has changed the preferences, we want
+  // to abort the previous attempt and replace it with the update attempt.
+  // This is done through `supersededInitialFetchAttempt`.
   const [supersededInitialFetchAttempt, setSupersededInitialFetchAttempt] =
     useState<Attempt<void>>(makeEmptyAttempt());
 
@@ -145,7 +150,10 @@ export function useUserPreferences(clusterUri: ClusterUri): {
 
       const [prefs, error] = await runUpdateAttempt(newPreferences);
       if (!error) {
-        // wa always try to update pinned resources
+        // We always try to update cluster preferences,
+        // so the user sees the recent pinned resources.
+        // We don't do it for unified resources preferences
+        // because we don't want to suddenly change the view.
         setClusterPreferences(prefs?.clusterPreferences);
         if (hasUpdateSupersededInitialFetch) {
           setSupersededInitialFetchAttempt(makeSuccessAttempt(undefined));

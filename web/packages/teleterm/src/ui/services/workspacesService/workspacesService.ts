@@ -400,7 +400,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
   }
 
-  // Parsing should be extended to the entire state read from disk.
+  // TODO(gzdunek): Parse the entire workspace state read from disk like below.
   private parseUnifiedResourcePreferences(
     unifiedResourcePreferences: unknown
     // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.

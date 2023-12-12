@@ -145,6 +145,12 @@ export interface UnifiedResourcesProps {
   setParams(params: UnifiedResourcesQueryParams): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
+  /**
+   * It is an attempt for initial fetch of preferences.
+   * When it is in progress, the component shows loading skeleton.
+   * Used only in Connect, where we fetch user preferences
+   * while the unified resources component is visible.
+   */
   unifiedResourcePreferencesAttempt?: AsyncAttempt<void>;
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
