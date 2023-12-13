@@ -32,12 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
+	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -925,6 +927,88 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the preferences for a given user.
+func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.ResourceURI) (*api.UserPreferences, error) {
+	_, rootClusterClient, err := s.ResolveClusterURI(clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leafClusterName := clusterURI.GetLeafClusterName()
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		var leafAuthClient auth.ClientI
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer leafAuthClient.Close()
+		}
+
+		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
+		return trace.Wrap(err)
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpdateUserPreferences updates the preferences for a given user.
+func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.ResourceURI, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
+	_, rootClusterClient, err := s.ResolveClusterURI(clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leafClusterName := clusterURI.GetLeafClusterName()
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		var leafAuthClient auth.ClientI
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer leafAuthClient.Close()
+		}
+
+		preferences, err = userpreferences.Update(ctx, rootAuthClient, leafAuthClient, newPreferences)
+		return trace.Wrap(err)
+	})
+
+	return preferences, trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
