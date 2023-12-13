@@ -1393,7 +1393,13 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		return priorityA - priorityB
 	})
 	for _, resource := range resources {
-		switch r := resource.(type) {
+		// Unwrap "new style" resources.
+		// We always want to switch over the underlying type.
+		var res any = resource
+		if w, ok := res.(interface{ Unwrap() types.Resource153 }); ok {
+			res = w.Unwrap()
+		}
+		switch r := res.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
 		case types.User:
@@ -1408,15 +1414,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
-		case interface{ Unwrap() types.Resource153 }:
-			switch r := r.Unwrap().(type) {
-			case *machineidv1pb.Bot:
-				_, err := machineidv1.UpsertBot(ctx, service, r)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
+		case *machineidv1pb.Bot:
+			_, err = machineidv1.UpsertBot(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
