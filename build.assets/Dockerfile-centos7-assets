@@ -41,7 +41,8 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ \
         ${DEVTOOLSET}-make && \
     yum clean all
 
@@ -64,22 +65,12 @@ RUN git clone --branch llvmorg-12.0.0 --depth=1 https://github.com/llvm/llvm-pro
     [ "$(git rev-parse HEAD)" = 'd28af7c654d8db0b68c175db5ce212d74fb5e9bc' ] && \
     mkdir build && cd build/ && \
     scl enable ${DEVTOOLSET} 'bash -c "cmake3 \
-    -DCLANG_BUILD_TOOLS=ON \
-    -DCLANG_ENABLE_ARCMT=OFF \
-    -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/opt/llvm \
-    -DLLVM_BUILD_TOOLS=ON \
-    -DLLVM_BUILD_UTILS=OFF \
-    -DLLVM_ENABLE_BINDINGS=OFF \
-    -DLLVM_ENABLE_PROJECTS=clang \
-    -DLLVM_INCLUDE_BENCHMARKS=OFF \
-    -DLLVM_INCLUDE_GO_TESTS=OFF \
-    -DLLVM_INCLUDE_TESTS=OFF \
-    -DLLVM_TOOL_LLI_BUILD=OFF \
-    -G \"Unix Makefiles\" ../llvm && \
-    make -j$(grep -c processor /proc/cpuinfo) &&  \
-    make install"' && \
+-DCMAKE_BUILD_TYPE=Release \
+-DCMAKE_INSTALL_PREFIX=/opt/llvm \
+-DLLVM_ENABLE_PROJECTS=clang \
+-DLLVM_BUILD_TOOLS=ON \
+-G \"Unix Makefiles\" ../llvm && \
+make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang"' && \
     cd ../.. && \
     rm -rf llvm-project
 
