@@ -210,42 +210,15 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@1fc5bd396d372bee37d608f955b336615edf79c8 # v3.2.0
 
-      # Attempt to fetch a deploy token from the GitHub App we use to broker
-      # access to private repositories. If this fails, we are in one of 2
-      # situations:
-      #
-      # 1. The App is not installed on the target repo (e.g. public Teleport), or
-      # 2. Something is wrong with GitHub
-      #
-      # In either case, the workflow will carry on and attempt to use the
-      # default workflow token to check out the target repo, which will be
-      # fine if that repo is public.
-      #
-      - name: Fetch GitHub deploy token
-        uses: actions/create-github-app-token@v1
-        id: fetch-token
-        continue-on-error: true
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
-          app-id: ${{ secrets.deploy-access-app-id }}
-          private-key: ${{ secrets.deploy-access-app-key }}
-          repositories: ${{ inputs.oss-teleport-repo }}
-
-      - name: Select GitHub deploy token
-        id: select-deploy-token
-        run: |
-          TOKEN=${{ github.token }}
-          if [[ -n "${{ steps.fetch-token.outputs.token }}" ]]; then
-            TOKEN=${{ steps.fetch-token.outputs.token }}
-          fi
-          echo oss_teleport=$TOKEN >> $GITHUB_OUTPUT
-
-      - name: Checkout OSS Teleport
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.oss-teleport-repo }}
-          ref: ${{ inputs.oss-teleport-ref }}
-          token: ${{ steps.select-deploy-token.outputs.oss_teleport }}
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
           path: ./teleport
+          repo-access-app-id: ${{ secrets.deploy-access-app-id }}
+          repo-access-app-key: ${{ secrets.deploy-access-app-key }}
 
       - name: Copy Docker Image context
         run: |
