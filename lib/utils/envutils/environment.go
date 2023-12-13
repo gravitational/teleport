@@ -88,6 +88,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 
 var unsafeEnvironmentVars = map[string]struct{}{
 	// Linux
+	// values taken from 'man ld.so' https://man7.org/linux/man-pages/man8/ld.so.8.html
 	"LD_ASSUME_KERNEL":         {},
 	"LD_AUDIT":                 {},
 	"LD_BIND_NOW":              {},
@@ -103,8 +104,17 @@ var unsafeEnvironmentVars = map[string]struct{}{
 	"LD_RPATH":                 {},
 	"LD_USE_LOAD_BIAS":         {},
 	// macOS
-	"DYLD_INSERT_LIBRARIES": {},
-	"DYLD_LIBRARY_PATH":     {},
+	// values taken from 'man dyld' https://www.manpagez.com/man/1/dyld/
+	"DYLD_FRAMEWORK_PATH":           {},
+	"DYLD_FALLBACK_FRAMEWORK_PATH":  {},
+	"DYLD_VERSIONED_FRAMEWORK_PATH": {},
+	"DYLD_LIBRARY_PATH":             {},
+	"DYLD_FALLBACK_LIBRARY_PATH":    {},
+	"DYLD_VERSIONED_LIBRARY_PATH":   {},
+	"DYLD_IMAGE_SUFFIX":             {},
+	"DYLD_INSERT_LIBRARIES":         {},
+	"DYLD_SHARED_REGION":            {},
+	"DYLD_SHARED_CACHE_DIR:":        {},
 }
 
 // SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
@@ -127,7 +137,7 @@ func (e *SafeEnv) AddUnique(k, v string) {
 func (e *SafeEnv) add(preventDuplicates bool, k, v string) {
 	k = strings.TrimSpace(k)
 	v = strings.TrimSpace(v)
-	if e.unsafeKey(preventDuplicates, k) {
+	if e.isUnsafeKey(preventDuplicates, k) {
 		return
 	}
 
@@ -153,7 +163,7 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 		kv = strings.TrimSpace(kv)
 
 		key := strings.SplitN(kv, "=", 2)[0]
-		if e.unsafeKey(preventDuplicates, key) {
+		if e.isUnsafeKey(preventDuplicates, key) {
 			continue
 		}
 
@@ -161,7 +171,7 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 	}
 }
 
-func (e *SafeEnv) unsafeKey(preventDuplicates bool, key string) bool {
+func (e *SafeEnv) isUnsafeKey(preventDuplicates bool, key string) bool {
 	if key == "" || key == "=" {
 		return false
 	}
