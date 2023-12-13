@@ -171,7 +171,7 @@ func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity, certPath, keyPath string) {
 	t.Helper()
 
-	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
+	tlsCert := MustGenCertSignedWithCA(t, ca, identity)
 	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
 	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
 
@@ -185,6 +185,7 @@ func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority
 }
 
 func mustGenCACert(t *testing.T) *tlsca.CertAuthority {
+	t.Helper()
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
 	}, []string{"localhost"}, defaults.CATTL)
@@ -195,7 +196,8 @@ func mustGenCACert(t *testing.T) *tlsca.CertAuthority {
 	return ca
 }
 
-func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) tls.Certificate {
+func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) tls.Certificate {
+	t.Helper()
 	clock := clockwork.NewRealClock()
 	subj, err := identity.Subject()
 	require.NoError(t, err)
