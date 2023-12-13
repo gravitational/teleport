@@ -12,6 +12,13 @@ rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
 
+#### `drop` host user creation mode
+
+The `drop` host user creation mode has been removed in Teleport 15. It is replaced
+by `insecure-drop`, which still creates temporary users but does not create a
+home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
+or use PAM.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:

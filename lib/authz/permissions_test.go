@@ -446,10 +446,13 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	ctx := context.Background()
 	client, watcher, _ := newTestResources(t)
 
-	// Enable OTP.
+	// Enable Webauthn.
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.SetAuthPreference(ctx, authPreference))

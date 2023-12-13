@@ -88,3 +88,24 @@ export function getPlatform(): Platform {
 
   throw new Error('Expected either window or process to be defined');
 }
+
+/**
+ * Converts Platform to a string used in Go as runtime.GOOS.
+ * https://pkg.go.dev/runtime#GOOS
+ */
+export function platformToGOOS(platform: Platform) {
+  switch (platform) {
+    case Platform.Windows:
+      return 'windows';
+    case Platform.macOS:
+      return 'darwin';
+    case Platform.Linux:
+      return 'linux';
+    default:
+      assertUnreachable(platform);
+  }
+}
+
+function assertUnreachable(x: never): never {
+  throw new Error(`Unhandled case: ${x}`);
+}

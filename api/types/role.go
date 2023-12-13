@@ -1815,7 +1815,6 @@ var LabelMatcherKinds = []string{
 
 const (
 	createHostUserModeOffString          = "off"
-	createHostUserModeDropString         = "drop"
 	createHostUserModeKeepString         = "keep"
 	createHostUserModeInsecureDropString = "insecure-drop"
 )
@@ -1826,8 +1825,6 @@ func (h CreateHostUserMode) encode() (string, error) {
 		return "", nil
 	case CreateHostUserMode_HOST_USER_MODE_OFF:
 		return createHostUserModeOffString, nil
-	case CreateHostUserMode_HOST_USER_MODE_DROP:
-		return createHostUserModeDropString, nil
 	case CreateHostUserMode_HOST_USER_MODE_KEEP:
 		return createHostUserModeKeepString, nil
 	case CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
@@ -1865,8 +1862,6 @@ func (h *CreateHostUserMode) decode(val any) error {
 		*h = CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED
 	case createHostUserModeOffString:
 		*h = CreateHostUserMode_HOST_USER_MODE_OFF
-	case createHostUserModeDropString:
-		*h = CreateHostUserMode_HOST_USER_MODE_DROP
 	case createHostUserModeKeepString:
 		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
 	case createHostUserModeInsecureDropString:
