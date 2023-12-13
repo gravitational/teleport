@@ -27,7 +27,7 @@ import * as types from './types';
  */
 export function mapUsageEvent(event: types.ReportUsageEventRequest) {
   return new api.ReportUsageEventRequest()
-    .setAuthClusterId(event.authClusterId)
+    .setAnonymizationKey(event.anonymizationKey)
     .setPrehogReq(mapPrehogBody(event.prehogReq));
 }
 

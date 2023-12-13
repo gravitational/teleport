@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -60,9 +61,8 @@ type ClusterWithDetails struct {
 	*Cluster
 	// Auth server features
 	Features *proto.Features
-	// AuthClusterID is the unique cluster ID that is set once
-	// during the first auth server startup.
-	AuthClusterID string
+	// AnonymizationKey used to anonymize the cluster user and resource names for collecting usage statistics.
+	AnonymizationKey string
 	// SuggestedReviewers for the given user.
 	SuggestedReviewers []string
 	// RequestableRoles for the given user.
@@ -87,7 +87,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 	var (
 		authPingResponse proto.PingResponse
 		caps             *types.AccessCapabilities
-		authClusterID    string
+		anonymizationKey string
 		acl              *api.ACL
 		user             types.User
 	)
@@ -127,7 +127,20 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authClusterID = clusterName.GetClusterID()
+
+		// get anonymization key from license file if available, fallback to cluster ID
+		pem, err := authClient.GetLicense(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		licenseFile, err := licensefile.FromPEM([]byte(pem))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		anonymizationKey = licenseFile.License.GetAnonymizationKey()
+		if anonymizationKey == "" {
+			anonymizationKey = clusterName.GetClusterID()
+		}
 
 		user, err = authClient.GetCurrentUser(ctx)
 		if err != nil {
@@ -168,7 +181,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		SuggestedReviewers: caps.SuggestedReviewers,
 		RequestableRoles:   caps.RequestableRoles,
 		Features:           authPingResponse.ServerFeatures,
-		AuthClusterID:      authClusterID,
+		AnonymizationKey:   anonymizationKey,
 		ACL:                acl,
 		UserType:           user.GetUserType(),
 		ProxyVersion:       clusterPingResponse.ServerVersion,

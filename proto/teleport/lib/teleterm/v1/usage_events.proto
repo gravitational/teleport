@@ -25,8 +25,6 @@ import "prehog/v1alpha/connect.proto";
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 message ReportUsageEventRequest {
-  // Deprecated: Use anonymization_key key instead.
-  string auth_cluster_id = 1 [deprecated = true];
+  string anonymization_key = 1;
   prehog.v1alpha.SubmitConnectEventRequest prehog_req = 2;
-  string anonymization_key = 3;
 }

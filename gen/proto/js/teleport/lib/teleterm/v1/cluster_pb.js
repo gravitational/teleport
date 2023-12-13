@@ -165,7 +165,7 @@ proto.teleport.lib.teleterm.v1.Cluster.toObject = function(includeInstance, msg)
     leaf: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
     loggedInUser: (f = msg.getLoggedInUser()) && proto.teleport.lib.teleterm.v1.LoggedInUser.toObject(includeInstance, f),
     features: (f = msg.getFeatures()) && proto.teleport.lib.teleterm.v1.Features.toObject(includeInstance, f),
-    authClusterId: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    anonymizationKey: jspb.Message.getFieldWithDefault(msg, 9, ""),
     proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
@@ -235,7 +235,7 @@ proto.teleport.lib.teleterm.v1.Cluster.deserializeBinaryFromReader = function(ms
       break;
     case 9:
       var value = /** @type {string} */ (reader.readString());
-      msg.setAuthClusterId(value);
+      msg.setAnonymizationKey(value);
       break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
@@ -321,7 +321,7 @@ proto.teleport.lib.teleterm.v1.Cluster.serializeBinaryToWriter = function(messag
       proto.teleport.lib.teleterm.v1.Features.serializeBinaryToWriter
     );
   }
-  f = message.getAuthClusterId();
+  f = message.getAnonymizationKey();
   if (f.length > 0) {
     writer.writeString(
       9,
@@ -503,10 +503,10 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.hasFeatures = function() {
 
 
 /**
- * optional string auth_cluster_id = 9;
+ * optional string anonymization_key = 9;
  * @return {string}
  */
-proto.teleport.lib.teleterm.v1.Cluster.prototype.getAuthClusterId = function() {
+proto.teleport.lib.teleterm.v1.Cluster.prototype.getAnonymizationKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
 };
 
@@ -515,7 +515,7 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.getAuthClusterId = function() {
  * @param {string} value
  * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
  */
-proto.teleport.lib.teleterm.v1.Cluster.prototype.setAuthClusterId = function(value) {
+proto.teleport.lib.teleterm.v1.Cluster.prototype.setAnonymizationKey = function(value) {
   return jspb.Message.setProto3StringField(this, 9, value);
 };
 

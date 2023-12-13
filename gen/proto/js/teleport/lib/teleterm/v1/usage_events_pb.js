@@ -71,9 +71,8 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.toObject = func
  */
 proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    authClusterId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    prehogReq: (f = msg.getPrehogReq()) && prehog_v1alpha_connect_pb.SubmitConnectEventRequest.toObject(includeInstance, f),
-    anonymizationKey: jspb.Message.getFieldWithDefault(msg, 3, "")
+    anonymizationKey: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    prehogReq: (f = msg.getPrehogReq()) && prehog_v1alpha_connect_pb.SubmitConnectEventRequest.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -112,16 +111,12 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.deserializeBinaryFromRead
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setAuthClusterId(value);
+      msg.setAnonymizationKey(value);
       break;
     case 2:
       var value = new prehog_v1alpha_connect_pb.SubmitConnectEventRequest;
       reader.readMessage(value,prehog_v1alpha_connect_pb.SubmitConnectEventRequest.deserializeBinaryFromReader);
       msg.setPrehogReq(value);
-      break;
-    case 3:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setAnonymizationKey(value);
       break;
     default:
       reader.skipField();
@@ -152,7 +147,7 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.serializeBinary
  */
 proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getAuthClusterId();
+  f = message.getAnonymizationKey();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -167,21 +162,14 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.serializeBinaryToWriter =
       prehog_v1alpha_connect_pb.SubmitConnectEventRequest.serializeBinaryToWriter
     );
   }
-  f = message.getAnonymizationKey();
-  if (f.length > 0) {
-    writer.writeString(
-      3,
-      f
-    );
-  }
 };
 
 
 /**
- * optional string auth_cluster_id = 1;
+ * optional string anonymization_key = 1;
  * @return {string}
  */
-proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.getAuthClusterId = function() {
+proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.getAnonymizationKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -190,7 +178,7 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.getAuthClusterI
  * @param {string} value
  * @return {!proto.teleport.lib.teleterm.v1.ReportUsageEventRequest} returns this
  */
-proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.setAuthClusterId = function(value) {
+proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.setAnonymizationKey = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -229,24 +217,6 @@ proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.clearPrehogReq 
  */
 proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.hasPrehogReq = function() {
   return jspb.Message.getField(this, 2) != null;
-};
-
-
-/**
- * optional string anonymization_key = 3;
- * @return {string}
- */
-proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.getAnonymizationKey = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.lib.teleterm.v1.ReportUsageEventRequest} returns this
- */
-proto.teleport.lib.teleterm.v1.ReportUsageEventRequest.prototype.setAnonymizationKey = function(value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 

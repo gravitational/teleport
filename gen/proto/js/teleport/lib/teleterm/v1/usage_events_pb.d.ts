@@ -8,17 +8,14 @@ import * as jspb from "google-protobuf";
 import * as prehog_v1alpha_connect_pb from "../../../../prehog/v1alpha/connect_pb";
 
 export class ReportUsageEventRequest extends jspb.Message { 
-    getAuthClusterId(): string;
-    setAuthClusterId(value: string): ReportUsageEventRequest;
+    getAnonymizationKey(): string;
+    setAnonymizationKey(value: string): ReportUsageEventRequest;
 
 
     hasPrehogReq(): boolean;
     clearPrehogReq(): void;
     getPrehogReq(): prehog_v1alpha_connect_pb.SubmitConnectEventRequest | undefined;
     setPrehogReq(value?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest): ReportUsageEventRequest;
-
-    getAnonymizationKey(): string;
-    setAnonymizationKey(value: string): ReportUsageEventRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -33,8 +30,7 @@ export class ReportUsageEventRequest extends jspb.Message {
 
 export namespace ReportUsageEventRequest {
     export type AsObject = {
-        authClusterId: string,
-        prehogReq?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
         anonymizationKey: string,
+        prehogReq?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
     }
 }
