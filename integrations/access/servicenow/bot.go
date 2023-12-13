@@ -57,7 +57,7 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipi
 }
 
 // BroadcastAccessRequestMessage creates a ServiceNow incident.
-func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
+func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, _ []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
 	serviceNowReqData := RequestData{
 		User:               reqData.User,
 		Roles:              reqData.Roles,
