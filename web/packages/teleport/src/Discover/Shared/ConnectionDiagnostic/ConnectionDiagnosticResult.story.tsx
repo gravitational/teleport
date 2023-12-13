@@ -128,8 +128,10 @@ const diagnosisFailed = {
     {
       traceType: 'rbac principal',
       status: 'failed',
-      details: 'Why rbac principal check failed',
-      error: 'Some extra error log',
+      details:
+        'Long explanation with line breaks as to why rbac principal check failed.\nThis sentence should start after a line break. Morbi sollicitudin nisi at sem iaculis porta. Cras fringilla, nunc a rhoncus convallis, mauris lacus cursus nibh, quis posuere sem sapien vitae turpis. Integer vitae nulla et nulla varius placerat sed quis magna.\nNunc rhoncus justo sit amet lorem euismod condimentum.',
+      error:
+        'And here is a multiline error message.\nThis is another sentence which should start after a line break. Maecenas gravida, mauris in tincidunt rutrum, odio arcu ullamcorper elit, quis pretium sapien dui quis nibh. Pellentesque suscipit at erat in tempus. Morbi id neque vel turpis egestas eleifend. Phasellus consectetur commodo luctus. Fusce tempor eleifend tempus. Aenean posuere consequat nisl.\nAnother line break, oh my.',
     },
     {
       traceType: 'node ssh session',

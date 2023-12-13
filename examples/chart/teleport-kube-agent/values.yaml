@@ -160,7 +160,8 @@ updater:
   # `updater.versionServer` is the URL of the version server the agent fetches
   # the target version from. The complete version endpoint is built by
   # concatenating `versionServer` and `releaseChannel`.
-  versionServer: "https://updates.releases.teleport.dev/v1/"
+  # This field supports gotemplate.
+  versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
   # Release channel the agent subscribes to.
   releaseChannel: "stable/cloud"
   image: public.ecr.aws/gravitational/teleport-kube-agent-updater

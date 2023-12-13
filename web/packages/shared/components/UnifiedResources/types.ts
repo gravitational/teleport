@@ -147,6 +147,7 @@ export type ResourceItemProps = {
   selected: boolean;
   pinned: boolean;
   pinningSupport: PinningSupport;
+  expandAllLabels: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -187,4 +188,5 @@ export type ResourceViewProps = {
   pinningSupport: PinningSupport;
   isProcessing: boolean;
   mappedResources: { item: UnifiedResourceViewItem; key: string }[];
+  expandAllLabels: boolean;
 };
