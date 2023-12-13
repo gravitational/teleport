@@ -156,15 +156,21 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		Webauthn: &types.Webauthn{
-			RPID: "127.0.0.1",
+			RPID: "localhost",
 		},
 	})
 	require.NoError(t, err)
 	authPref.SetOrigin(types.OriginDefaults)
 
-	process := testserver.MakeTestServer(t, testserver.WithAuthPreference(authPref))
-	proxyAddr, err := process.ProxyWebAddr()
-	require.NoError(t, err)
+	var proxyPublicAddr utils.NetAddr
+	process := testserver.MakeTestServer(t,
+		testserver.WithAuthPreference(authPref),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			proxyPublicAddr = cfg.Proxy.WebAddr
+			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
+		}),
+	)
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
 	authServer := process.GetAuthServer()
@@ -193,7 +199,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	mockWebauthnLogin := setupWebAuthn(t, authServer, username)
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
-		promptCfg := libmfa.NewPromptConfig(proxyAddr.String(), opts...)
+		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
 		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
 	}
@@ -205,7 +211,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		"--insecure",
 		"--debug",
 		"--user", username,
-		"--proxy", proxyAddr.String(),
+		"--proxy", proxyPublicAddr.String(),
 		"--auth", constants.PasswordlessConnector,
 	},
 		setHomePath(tshHome),
@@ -319,7 +325,7 @@ func setupWebAuthn(t *testing.T, authServer *auth.Server, username string) libcl
 	t.Helper()
 	ctx := context.Background()
 
-	const origin = "https://127.0.0.1"
+	const origin = "https://localhost"
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
