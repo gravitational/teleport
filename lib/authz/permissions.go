@@ -400,8 +400,8 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	// Admin actions do not require MFA when MFA is not enabled.
-	if authpref.GetSecondFactor() == constants.SecondFactorOff {
+	// Admin actions do not require MFA when Webauthn is not enabled.
+	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
 		return nil
 	}
 
@@ -1042,7 +1042,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLock, services.RW()),
 					},
 				},
 			})
