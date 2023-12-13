@@ -102,7 +102,7 @@ const migrationFunctions = {
   relativeLink: (page) => page.replace(/\(.\//, '(').replace(/\.mdx\)/g, ')'),
   tab: (page) =>
     page
-      .replace(/<TabItem label=/g, '<Tab title=')
+      .replace(/<TabItem[\S\s]*label=/g, '<Tab title=')
       .replace(/<\/TabItem>/g, '</Tab>'),
   tipAdmonition: (page) =>
     page.replace(
