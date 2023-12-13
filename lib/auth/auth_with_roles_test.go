@@ -4916,6 +4916,82 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	}
 }
 
+type fakeAuditLog struct {
+	Emitter *eventstest.MockEmitter
+	events.IAuditLog
+}
+
+func (f fakeAuditLog) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	return f.Emitter.EmitAuditEvent(ctx, e)
+}
+
+func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m := &fakeAuditLog{Emitter: &eventstest.MockEmitter{}}
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir(), AuditLog: m})
+	require.NoError(t, err)
+
+	// Server used to create users and roles.
+	setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
+	require.NoError(t, err)
+	setupServer := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *setupAuthContext,
+	}
+
+	user, err := types.NewUser("some-user")
+	require.NoError(t, err)
+
+	localUser := authz.LocalUser{Username: "test", Identity: tlsca.Identity{Username: "test"}}
+
+	// test create user, happy path
+	err = setupServer.CreateUser(authz.ContextWithUser(ctx, localUser), user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+
+	// test create user with existing user
+	err = setupServer.CreateUser(ctx, user)
+	require.True(t, trace.IsAlreadyExists(err))
+	require.Nil(t, m.Emitter.LastEvent())
+
+	// test createdBy gets set to default
+	user2, err := types.NewUser("some-other-user")
+	require.NoError(t, err)
+	err = setupServer.CreateUser(ctx, user2)
+	require.NoError(t, err)
+	require.Equal(t, teleport.UserSystem, m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+
+	// test update on non-existent user
+	user3, err := types.NewUser("non-existent-user")
+	require.NoError(t, err)
+	err = setupServer.UpdateUser(ctx, user3)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, m.Emitter.LastEvent())
+
+	// test update user
+	err = setupServer.UpdateUser(authz.ContextWithUser(ctx, localUser), user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserUpdatedEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+
+	err = setupServer.UpsertUser(authz.ContextWithUser(ctx, localUser), user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+
+	err = setupServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, teleport.UserSystem, m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+}
+
 func TestCreateSnowflakeSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
