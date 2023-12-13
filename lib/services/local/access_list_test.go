@@ -1055,8 +1055,7 @@ func TestDynamicAccessListMembersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	t.Run("inserting without set member conditions is an error", func(t *testing.T) {
 		// Given an access list with implicit ownership AND no ownership
@@ -1218,8 +1217,7 @@ func TestChangingMembershipModeIsAnError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	upsert := func(l *accesslist.AccessList) error {
 		_, err := service.UpsertAccessList(ctx, l)
@@ -1290,8 +1288,7 @@ func TestChangingOwnershipModeIsAnError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	upsert := func(l *accesslist.AccessList) error {
 		_, err := service.UpsertAccessList(ctx, l)
