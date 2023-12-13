@@ -58,7 +58,7 @@ import {
   getResourceId,
   ResourceKind,
 } from './useNewRequest';
-import { RequestButton } from './RequestButton';
+import { AppRequestButton, RequestButton } from './RequestButton';
 
 import type { TransitionStatus } from 'react-transition-group';
 
@@ -357,17 +357,27 @@ export function NewRequest(props: State) {
           resources={resources.map(resource => ({
             resource,
             ui: {
-              ActionButton: (
-                <RequestButton
-                  disabled={resourceRequestsDisabled}
-                  isAgentAdded={Boolean(
-                    addedResources[resource.kind][getResourceId(resource)]
-                  )}
-                  toggleAgent={() =>
-                    addOrRemoveResource(resource.kind, getResourceId(resource))
-                  }
-                />
-              ),
+              ActionButton:
+                resource.kind === 'app' ? (
+                  <AppRequestButton
+                    agent={resource}
+                    addedResources={addedResources}
+                    addOrRemoveResource={addOrRemoveResource}
+                  />
+                ) : (
+                  <RequestButton
+                    disabled={resourceRequestsDisabled}
+                    isAgentAdded={Boolean(
+                      addedResources[resource.kind][getResourceId(resource)]
+                    )}
+                    onClick={() =>
+                      addOrRemoveResource(
+                        resource.kind,
+                        getResourceId(resource)
+                      )
+                    }
+                  />
+                ),
             },
           }))}
           fetchResources={unifiedFetch}
