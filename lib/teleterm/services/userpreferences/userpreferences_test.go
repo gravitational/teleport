@@ -114,10 +114,10 @@ func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
 	require.NoError(t, err)
 	// ClusterPreferences field has been updated with the leaf cluster value.
 	require.Equal(t, updatedPreferences.ClusterPreferences, mockedLeafClient.upsertCalledWith.ClusterPreferences)
-	require.Equal(t, updatedPreferences.ClusterPreferences, updatedPreferences.ClusterPreferences)
-	// ClusterPreferences field has been updated with the root cluster value.
+	require.Equal(t, newPreferences.ClusterPreferences, updatedPreferences.ClusterPreferences)
+	// UnifiedResourcePreferences field has been updated with the root cluster value.
 	require.Equal(t, updatedPreferences.UnifiedResourcePreferences, mockedRootClient.upsertCalledWith.UnifiedResourcePreferences)
-	require.Equal(t, updatedPreferences.UnifiedResourcePreferences, updatedPreferences.UnifiedResourcePreferences)
+	require.Equal(t, newPreferences.UnifiedResourcePreferences, updatedPreferences.UnifiedResourcePreferences)
 	// Other user preferences have not been touched.
 	require.Equal(t, rootPreferencesMock.Theme, mockedRootClient.upsertCalledWith.Theme)
 }
