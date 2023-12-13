@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -220,7 +222,12 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 		ClientAuth:       tls.RequireAndVerifyClientCert,
 		ClientCAs:        m.certPool(),
 	})
-	go http.Serve(tlsListener, mockKubeAPIHandler())
+	go func() {
+		err := http.Serve(tlsListener, mockKubeAPIHandler(t))
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err)
+		}
+	}()
 	return m
 }
 
@@ -248,11 +255,11 @@ func mustGenCAForProxyKubeAddr(t *testing.T, key *keys.PrivateKey, hostAddr stri
 	return tlsCert, ca
 }
 
-func mockKubeAPIHandler() http.Handler {
+func mockKubeAPIHandler(t *testing.T) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/namespaces/default/pods", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(rw).Encode(&v1.PodList{
+		err := json.NewEncoder(rw).Encode(&v1.PodList{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "PodList",
 				APIVersion: "v1",
@@ -266,6 +273,7 @@ func mockKubeAPIHandler() http.Handler {
 				},
 			},
 		})
+		assert.NoError(t, err)
 	})
 	return mux
 }
