@@ -83,7 +83,7 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing HostID")
 	}
 	if cfg.AnonymizationKey == "" {
-		cfg.AnonymizationKey = cfg.ClusterName.GetClusterID()
+		return trace.BadParameter("missing AnonymizationKey")
 	}
 	return nil
 }

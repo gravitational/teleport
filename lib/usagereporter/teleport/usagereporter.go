@@ -126,12 +126,11 @@ func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.Cluster
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
-	anonKey := anonymizationKey
-	if anonKey == "" {
-		anonKey = clusterName.GetClusterID()
-	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(anonKey)
+	if anonymizationKey == "" {
+		return nil, trace.BadParameter("anonymization key is required")
+	}
+	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
