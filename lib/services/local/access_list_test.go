@@ -50,8 +50,7 @@ func TestAccessListCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -151,8 +150,7 @@ func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -176,15 +174,6 @@ func TestAccessListCreate_UpsertAccessList_WithoutLimit(t *testing.T) {
 // is limited to the limit defined in feature if IGS is NOT enabled.
 // Also tests "upserting" and deleting is allowed despite "create" limit reached.
 func TestAccessListCreate_UpsertAccessList_WithLimit(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IsUsageBasedBilling: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -194,8 +183,7 @@ func TestAccessListCreate_UpsertAccessList_WithLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, false /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -232,14 +220,6 @@ func TestAccessListCreate_UpsertAccessList_WithLimit(t *testing.T) {
 // with members, is limited to the limit defined in feature if IGS is NOT enabled.
 // Also tests "upserting" and deleting is allowed despite "create" limit reached.
 func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IsUsageBasedBilling: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -249,8 +229,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, false /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -305,8 +284,7 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
@@ -339,8 +317,7 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Put an unduplicated owners access list in the backend.
 	accessListDuplicateOwners := newAccessList(t, "accessListDuplicateOwners", clock)
@@ -368,8 +345,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -444,8 +420,7 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -609,8 +584,7 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	// Create a couple access lists.
 	accessList1 := newAccessList(t, "accessList1", clock)
@@ -1383,4 +1357,22 @@ func TestChangingOwnershipModeIsAnError(t *testing.T) {
 				"Expected BadParameter, got %s", err.Error())
 		})
 	}
+}
+
+func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
+	t.Helper()
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IdentityGovernanceSecurity: igsEnabled,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 1,
+			},
+		},
+	})
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	return service
 }

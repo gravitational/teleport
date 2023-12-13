@@ -613,8 +613,7 @@ func lockName(accessListName string) string {
 // Returns error if limit has been reached.
 func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, targetAccessListName string) error {
 	feature := modules.GetModules().Features()
-	// TODO(lisa): checking for legacy is temporary until nearing v15.
-	if feature.IsLegacy() || feature.IGSEnabled() {
+	if feature.IGSEnabled() {
 		return nil // unlimited
 	}
 
