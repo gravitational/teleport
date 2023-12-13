@@ -11,7 +11,6 @@ description: Checkout a Teleport or Teleport+Enterprise repository
 inputs:
   oss-teleport-repo:
     description: "The name of the OSS teleport repo to checkout"
-    required: false
     default: "gravitational/teleport"
 
   oss-teleport-ref:
@@ -27,20 +26,19 @@ inputs:
       Git SHA, tag or branch of the revision of Enterprise Teleport to build.
       If no value is supplied, the submodule reference in the OSS Teleport
       repository checked-out will be used.
-    required: false
-    default: ""
+
+  path:
+    description: "Directory path into which to checkout Teleport"
 
   repo-access-app-id:
     description: |
       The GitHub App ID used to retrieve an application installation token for
       access to the repositories.
-    required: false
 
   repo-access-app-key:
     description: |
       The private key of the GitHub App used to retrieve an application installation
       token for access to the repositories.
-    required: false
 
 runs:
   using: "composite"
@@ -115,6 +113,7 @@ runs:
         repository: ${{ inputs.oss-teleport-repo }}
         ref: ${{ inputs.oss-teleport-ref }}
         token: ${{ steps.select-access-token.outputs.token }}
+        path: ${{ inputs.path }}
 
     - id: determine-enterprise-ref
       if: inputs.edition == 'enterprise'
@@ -132,10 +131,12 @@ runs:
       with:
         repository: gravitational/teleport.e
         ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
-        path: e
+        path: ${{ inputs.path || '.' }}/e
 
     - id: mark-workspace-safe
       name: Mark workspace as git safe.directory
       shell: bash
+      env:
+        CHECKOUT_DIR: ${{ inputs.path || github.workspace }}
       run: |
-        git config --global --add safe.directory ${GITHUB_WORKSPACE}
+        git config --global --add safe.directory "${CHECKOUT_DIR}"
