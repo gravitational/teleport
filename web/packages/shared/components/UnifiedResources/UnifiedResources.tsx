@@ -514,8 +514,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   }))
                 : []
             }
-          expandAllLabels={expandAllLabels}
-        />
+            expandAllLabels={expandAllLabels}
+          />
           <div ref={setTrigger} />
           <ListFooter>
             {resourcesFetchAttempt.status === 'failed' &&
