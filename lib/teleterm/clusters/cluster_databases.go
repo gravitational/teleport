@@ -162,31 +162,24 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 		return trace.BadParameter("the username must be present for MongoDB connections")
 	}
 
-	err := AddMetadataToRetryableError(ctx, func() error {
-		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-			RouteToCluster: c.clusterClient.SiteName,
-			AccessRequests: c.status.ActiveRequests.AccessRequests,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
+	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		// Fetch the certs for the database.
-		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-			RouteToCluster: c.clusterClient.SiteName,
-			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: routeToDatabase.ServiceName,
-				Protocol:    routeToDatabase.Protocol,
-				Username:    routeToDatabase.Username,
-			},
-			AccessRequests: c.status.ActiveRequests.AccessRequests,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+	// Fetch the certs for the database.
+	err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: routeToDatabase.ServiceName,
+			Protocol:    routeToDatabase.Protocol,
+			Username:    routeToDatabase.Username,
+		},
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)

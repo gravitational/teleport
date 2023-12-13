@@ -71,7 +71,10 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Username:    params.TargetUser,
 	}
 
-	if err := c.reissueDBCerts(ctx, routeToDatabase); err != nil {
+	err = AddMetadataToRetryableError(ctx, func() error {
+		return trace.Wrap(c.reissueDBCerts(ctx, routeToDatabase))
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
