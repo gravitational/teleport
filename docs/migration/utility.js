@@ -27,7 +27,6 @@ function* readAllFiles(dir) {
 
 const teleportMintConfig = {
   $schema: 'https://mintlify.com/schema.json',
-  versions: ['Version 13.x', 'Version 14.x'],
   name: 'Teleport',
   logo: {
     light: '/logo/light.png',
@@ -45,20 +44,15 @@ const teleportMintConfig = {
   },
   anchors: [
     {
-      name: 'Team',
-      icon: 'people-group',
-      url: 'team',
+      name: "Manage Access",
+      icon: "shield-halved",
+      url: "access-controls"
     },
     {
-      name: 'Cloud',
-      icon: 'cloud',
-      url: 'cloud',
-    },
-    {
-      name: 'Enterprise',
-      icon: 'list-dropdown',
-      url: 'enterprise',
-    },
+      name: "Management",
+      icon: "people-group",
+      url: "management"
+    }
   ],
   feedback: {
     thumbsRating: true,
@@ -166,10 +160,10 @@ function migrateConfigNavigation(navigation) {
   return navigation.map((nav) => {
     if (nav.slug) {
       if (nav.slug === '/') {
-        return '/index';
+        return 'index';
       }
-      // Remove trailing slash
-      return nav.slug.replace(/\/\s*$/, '');
+      // Remove leading and trailing slash
+      return nav.slug.replace(/^\/+/g, '').replace(/\/\s*$/, '');
     }
 
     let migratedNav = {
@@ -185,12 +179,18 @@ function migrateConfigNavigation(navigation) {
 }
 
 function migrateConfigRedirects(redirects) {
-  return redirects.map((redirect) => {
-    return {
-      source: redirect.source,
-      destination: redirect.destination,
-    };
+  // Preserve unique values
+  const redirectsMap = {};
+  redirects.forEach((redirect) => {
+    redirectsMap[redirect.source] = redirect.destination
   });
+
+  return Object.entries(redirectsMap).map(([source, destination]) => {
+    return {
+      source,
+      destination,
+    };
+  })
 }
 
 function migrateConfig() {
