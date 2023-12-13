@@ -1,5 +1,22 @@
 # Changelog
 
+## 12.4.29 (12/13/23)
+
+* Prevent Cloud tenants from being a leaf cluster. [#35689](https://github.com/gravitational/teleport/pull/35689)
+* Fixed bug where configuration errors with an individual SSO connector impacted other connectors. [#35574](https://github.com/gravitational/teleport/pull/35574)
+* Properly identify the Teleport user responsible for modifying user resources. [#35451](https://github.com/gravitational/teleport/pull/35451)
+* Added insecure-drop host user creation mode. [#35405](https://github.com/gravitational/teleport/pull/35405)
+* Updated Go to 1.20.12. [#35373](https://github.com/gravitational/teleport/pull/35373)
+* Desktop connections default to RDP port 3389 if not otherwise specified. [#35345](https://github.com/gravitational/teleport/pull/35345)
+* Added cluster_auth_preferences to the shortcuts for cluster_auth_preference. [#35327](https://github.com/gravitational/teleport/pull/35327)
+* OSS Teleport packages will now be published to OS package repos when private releases are cut. [#35225](https://github.com/gravitational/teleport/pull/35225)
+* Improved streaming event handling for Kubernetes API by flushing response after each event, ensuring complete, well-formed chunks. [#35197](https://github.com/gravitational/teleport/pull/35197)
+* Updated Teleport distroless OCI images to Debian 12. [#35110](https://github.com/gravitational/teleport/pull/35110)
+* Fixed FIPS distroless OCI image to run with the `--fips` flag. [#35110](https://github.com/gravitational/teleport/pull/35110)
+* Allow Teleport to complete abandoned uploads faster in HA deployments. [#35104](https://github.com/gravitational/teleport/pull/35104)
+* Fixed `tsh db connect <mongodb>` to give reason on connection errors. [#34908](https://github.com/gravitational/teleport/pull/34908)
+* The desktop name is used instead of the address in the audit log view. [#34836](https://github.com/gravitational/teleport/pull/34836)
+
 ## 12.4.28 (11/21/23)
 
 ### Security Fixes
