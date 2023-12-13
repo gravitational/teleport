@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/secret"
@@ -165,7 +166,11 @@ func (rd *Redirector) Start() error {
 	log.Infof("Waiting for response at: %v.", rd.server.URL)
 
 	// communicate callback redirect URL to the Teleport Proxy
-	u, err := url.Parse(rd.baseURL() + "/callback")
+	baseURL, err := rd.baseURL()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	u, err := url.Parse(baseURL + "/callback")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -220,18 +225,29 @@ func (rd *Redirector) Done() <-chan struct{} {
 }
 
 // ClickableURL returns a short clickable redirect URL
-func (rd *Redirector) ClickableURL() string {
+func (rd *Redirector) ClickableURL() (string, error) {
 	if rd.server == nil {
-		return "<undefined - server is not started>"
+		return "", trace.Errorf("server is not started")
 	}
-	return utils.ClickableURL(rd.baseURL() + rd.shortPath)
+	baseURL, err := rd.baseURL()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return utils.ClickableURL(baseURL + rd.shortPath), nil
 }
 
-func (rd *Redirector) baseURL() string {
-	if rd.CallbackAddr != "" {
-		return rd.CallbackAddr
+func (rd *Redirector) baseURL() (string, error) {
+	if rd.CallbackAddr == "" {
+		return rd.server.URL, nil
 	}
-	return rd.server.URL
+	callbackURL, err := apiutils.ParseURL(rd.CallbackAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if callbackURL.Scheme == "" {
+		callbackURL.Scheme = "http"
+	}
+	return callbackURL.String(), nil
 }
 
 // ResponseC returns a channel with response
