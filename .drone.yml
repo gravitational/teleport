@@ -2222,6 +2222,7 @@ steps:
       - cd /go/chart
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-cluster/charts/teleport-operator
       # copy index.html to root of the S3 bucket.
       - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
       # this will index all previous versions of the charts downloaded from the S3 bucket,
@@ -11347,6 +11348,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 726e2318bf863cbc7345206c6716db4fd7e96573bf418517267431409ca0f1ea
+hmac: 40eb5349c45d155829dd463233a1d3795c00c4ca7e97bb9bd81689f377c30416
 
 ...

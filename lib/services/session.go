@@ -96,10 +96,6 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
 func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, error) {
-	if err := webToken.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,6 +103,10 @@ func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, er
 
 	switch webToken := webToken.(type) {
 	case *types.WebTokenV3:
+		if err := webToken.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races

@@ -65,10 +65,6 @@ type Kubernetes interface {
 
 // MarshalKubeServer marshals the KubeServer resource to JSON.
 func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]byte, error) {
-	if err := kubeServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,6 +72,10 @@ func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]by
 
 	switch server := kubeServer.(type) {
 	case *types.KubernetesServerV3:
+		if err := server.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *server
 			copy.SetResourceID(0)
@@ -126,10 +126,6 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 
 // MarshalKubeCluster marshals the KubeCluster resource to JSON.
 func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([]byte, error) {
-	if err := kubeCluster.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -137,6 +133,10 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 
 	switch cluster := kubeCluster.(type) {
 	case *types.KubernetesClusterV3:
+		if err := cluster.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if !cfg.PreserveResourceID {
 			copy := *cluster
 			copy.SetResourceID(0)

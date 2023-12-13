@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 const (
@@ -131,9 +132,13 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	// attempt to preserve as much of the event as possible in case we add the
 	// ability to query very large events in the future.
 	if t, ok := in.(trimmableEvent); ok {
+		prevSize := in.Size()
 		// Trim to 3/4 the max size because base64 has 33% overhead.
 		// The TrimToMaxSize implementations have a 10% buffer already.
 		in = t.TrimToMaxSize(maxS3BasedSize - maxS3BasedSize/4)
+		if in.Size() != prevSize {
+			events.MetricStoredTrimmedEvents.Inc()
+		}
 	}
 
 	oneOf, err := apievents.ToOneOf(in)

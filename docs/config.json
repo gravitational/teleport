@@ -99,6 +99,11 @@
               "forScopes": ["cloud"]
             },
             {
+              "title": "External Audit Storage",
+              "slug": "/choose-an-edition/teleport-cloud/external-audit-storage/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Downloads",
               "slug": "/choose-an-edition/teleport-cloud/downloads/",
               "forScopes": ["cloud"]
@@ -453,6 +458,11 @@
               "forScopes": ["enterprise", "cloud"]
             }
           ]
+        },
+        {
+          "title": "Access Graph",
+          "slug": "/access-graph/",
+          "forScopes": ["team"]
         },
         {
           "title": "Access Requests",
@@ -1253,6 +1263,10 @@
             {
               "title": "Snowflake",
               "slug": "/database-access/guides/snowflake/"
+            },
+            {
+              "title": "Vitess (MySQL protocol)",
+              "slug": "/database-access/guides/vitess/"
             }
           ]
         },
@@ -1613,6 +1627,10 @@
           "title": "Storage Backends",
           "slug": "/reference/backends/",
           "forScopes": ["oss", "enterprise"]
+        },
+        {
+          "title": "Join Methods",
+          "slug": "/reference/join-methods/"
         },
         {
           "title": "Networking",
