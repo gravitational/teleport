@@ -34,12 +34,12 @@ const (
 
 var (
 	// ErrMissingEntityDescriptorAndEntityID is returned when both entity descriptor and entity ID is empty.
-	ErrEmptyEntityDescriptorAndEntityID = trace.BadParameter("either entity_descriptor or entity_id must be provided")
+	ErrEmptyEntityDescriptorAndEntityID = &trace.BadParameterError{Message: "either entity_descriptor or entity_id must be provided"}
 	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and ACS URL is empty.
-	ErrEmptyEntityDescriptorAndACSURL = trace.BadParameter("either entity_descriptor or acs_url must be provided")
+	ErrEmptyEntityDescriptorAndACSURL = &trace.BadParameterError{Message: "either entity_descriptor or acs_url must be provided"}
 	// ErrDuplicateAttributeName is returned when attribute mapping declares two or more
 	// attributes with the same name.
-	ErrDuplicateAttributeName = trace.BadParameter("duplicate attribute name not allowed.")
+	ErrDuplicateAttributeName = &trace.BadParameterError{Message: "duplicate attribute name not allowed"}
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
@@ -163,11 +163,11 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 
 	if s.Spec.EntityDescriptor == "" {
 		if s.Spec.EntityID == "" {
-			return ErrEmptyEntityDescriptorAndEntityID
+			return trace.Wrap(ErrEmptyEntityDescriptorAndEntityID)
 		}
 
 		if s.Spec.ACSURL == "" {
-			return ErrEmptyEntityDescriptorAndACSURL
+			return trace.Wrap(ErrEmptyEntityDescriptorAndACSURL)
 		}
 
 	}
@@ -190,7 +190,7 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		for _, v := range s.GetAttributeMapping() {
 			// check for duplicate attribute names
 			if slices.Contains(attrNames, v.Name) {
-				return ErrDuplicateAttributeName
+				return trace.Wrap(ErrDuplicateAttributeName)
 			}
 			attrNames = append(attrNames, v.Name)
 
