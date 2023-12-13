@@ -40,7 +40,7 @@ In this step we create the role the operator uses to interact with Teleport reso
 Download and apply the operator role manifest:
 
 ```code
-$ curl -L -O https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/integrations/operator/hack/fixture-operator-role.yaml -o operator-role.yaml
+$ curl -L https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/integrations/operator/hack/fixture-operator-role.yaml -o operator-role.yaml
 $ tctl create -f operator-role.yaml
 ```
 
@@ -87,7 +87,7 @@ To establish trust between the connecting operator and Teleport, we are delegati
    ```
 1. Finally, retrieve the Teleport cluster name that will be required to use the token:
    ```code
-   $ export CLUSTER_NAME="$(tctl status | grep Cluster | sed 's/Cluster[[:space:]]*//)"'
+   $ export CLUSTER_NAME="$(tctl status | awk '/Cluster/ {print $2}')"
    ```
 
 ### Step 3/4 - Create the operator bot
