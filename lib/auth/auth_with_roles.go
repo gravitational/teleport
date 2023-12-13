@@ -4366,6 +4366,11 @@ func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (t
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4374,9 +4379,9 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	// Don't allow leaf clusters if running in Cloud.
+	// Don't allow a leaf cluster to be added to a Cloud tenant.
 	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("cloud clusters do not support trusted cluster resources")
+		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
 	// the token provides it's own authorization and authentication
