@@ -1001,12 +1001,12 @@ func TestMongoDBMaxMessageSize(t *testing.T) {
 		expectedQueryError bool
 	}{
 		"default message size": {
-			messageSize: 300,
+			messageSize: 400,
 		},
 		"message size exceeded": {
 			// Set a value that will enable handshake message to complete
 			// successfully.
-			maxMessageSize:     300,
+			maxMessageSize:     400,
 			messageSize:        500,
 			expectedQueryError: true,
 		},
