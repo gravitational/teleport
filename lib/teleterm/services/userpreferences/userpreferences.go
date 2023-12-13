@@ -109,8 +109,15 @@ func Update(ctx context.Context, rootClient Client, leafClient Client, newPrefer
 	return updatedPreferences, nil
 }
 
+// updateUnifiedResourcePreferences updates DefaultTab, ViewMode,
+// and LabelsViewMode fields in UnifiedResourcePreferences.
+// The fields are updated one by one (instead of passing the entire struct as new preferences)
+// to prevent potential new fields from being overwritten.
+// Supports oldPreferences being nil.
 func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedResourcePreferences, newPreferences *userpreferencesv1.UnifiedResourcePreferences) *userpreferencesv1.UnifiedResourcePreferences {
 	updated := oldPreferences
+	// TODO(gzdunek): DELETE IN 16.0.0.
+	// We won't have to support old preferences being nil.
 	if oldPreferences == nil {
 		updated = &userpreferencesv1.UnifiedResourcePreferences{}
 	}
@@ -122,8 +129,14 @@ func updateUnifiedResourcePreferences(oldPreferences *userpreferencesv1.UnifiedR
 	return updated
 }
 
+// updateClusterPreferences updates pinned resources in ClusterUserPreferences.
+// The fields are updated one by one (instead of passing the entire struct as new preferences)
+// to prevent potential new fields from being overwritten.
+// Supports oldPreferences being nil.
 func updateClusterPreferences(oldPreferences *userpreferencesv1.ClusterUserPreferences, newPreferences *userpreferencesv1.ClusterUserPreferences) *userpreferencesv1.ClusterUserPreferences {
 	updated := oldPreferences
+	// TODO(gzdunek): DELETE IN 16.0.0.
+	// We won't have to support old preferences being nil.
 	if oldPreferences == nil {
 		updated = &userpreferencesv1.ClusterUserPreferences{}
 	}
