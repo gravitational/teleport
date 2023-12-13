@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -156,6 +157,11 @@ type ProxyConfig struct {
 	// as a label and used by reverse tunnel agents in proxy peering mode. Zero
 	// is a valid generation.
 	ProxyGroupGeneration uint64
+
+	// AutomaticUpgradesChannels is a map of all version channels used by the
+	// proxy built-in version server to retrieve target versions. This is part
+	// of the automatic upgrades.
+	AutomaticUpgradesChannels automaticupgrades.Channels
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that
