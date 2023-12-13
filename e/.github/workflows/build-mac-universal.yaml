@@ -72,14 +72,11 @@ jobs:
     steps:
       # --- Setup -------------------------------------------------------------
 
-      # This is necessary on macos arm64 runners because the .cache and
-      # .config dirs on the runner are owned by root not the "runner" user.
-      # And pkg-config is missing on MacOS 13+ runners
-      # TODO(camscale): Remove this when the runners are fixed.
-      - name: Fix beta runner
+      # https://github.com/actions/runner/issues/2996
+      # time.windows.com because github runners are in azure.
+      - name: Fix time sync
         run: |
-          sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
-          brew install pkg-config
+          sudo sntp -sS time.windows.com
 
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
