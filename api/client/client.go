@@ -1143,7 +1143,7 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 // CreateBot creates a new bot from the specified descriptor.
 //
 // TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1.BotService.CreateBot] instead.
+// Deprecated: use [machineidv1pb.BotServiceClient.CreateBot] instead.
 func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
 	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	response, err := c.grpc.CreateBot(ctx, req)
@@ -1157,7 +1157,7 @@ func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 // DeleteBot deletes a bot and associated resources.
 //
 // TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1.BotService.DeleteBot] instead.
+// Deprecated: use [machineidv1pb.BotServiceClient.DeleteBot] instead.
 func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
@@ -1169,7 +1169,7 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 // GetBotUsers fetches all bot users.
 //
 // TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1.BotService.ListBots] instead.
+// Deprecated: use [machineidv1pb.BotServiceClient.ListBots] instead.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
 	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{})
