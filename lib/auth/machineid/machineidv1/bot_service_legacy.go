@@ -150,6 +150,9 @@ func (bs *BotService) CreateBotLegacy(ctx context.Context, req *proto.CreateBotR
 		},
 	}
 	for k, v := range req.Traits {
+		if len(v) == 0 {
+			continue
+		}
 		newReq.Bot.Spec.Traits = append(newReq.Bot.Spec.Traits, &pb.Trait{
 			Name:   k,
 			Values: v,

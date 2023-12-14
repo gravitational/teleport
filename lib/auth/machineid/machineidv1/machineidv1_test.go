@@ -143,6 +143,10 @@ func TestCreateBot(t *testing.T) {
 								Name:   constants.TraitLogins,
 								Values: []string{"root"},
 							},
+							{
+								Name:   constants.TraitKubeUsers,
+								Values: []string{},
+							},
 						},
 					},
 				},

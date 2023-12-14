@@ -456,6 +456,9 @@ func (bs *BotService) UpdateBot(
 		case path == "spec.traits":
 			traits := map[string][]string{}
 			for _, t := range req.Bot.Spec.Traits {
+				if len(t.Values) == 0 {
+					continue
+				}
 				if traits[t.Name] == nil {
 					traits[t.Name] = []string{}
 				}
@@ -640,6 +643,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 	}
 
 	for k, v := range user.GetTraits() {
+		if len(v) == 0 {
+			continue
+		}
 		b.Spec.Traits = append(b.Spec.Traits, &pb.Trait{
 			Name:   k,
 			Values: v,
@@ -695,6 +701,9 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 
 	traits := map[string][]string{}
 	for _, t := range bot.Spec.Traits {
+		if len(t.Values) == 0 {
+			continue
+		}
 		if traits[t.Name] == nil {
 			traits[t.Name] = []string{}
 		}
