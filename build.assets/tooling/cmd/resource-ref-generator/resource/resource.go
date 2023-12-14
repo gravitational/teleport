@@ -890,6 +890,13 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 			result[pi] = []MethodInfo{}
 		}
 
+		// There is no method receiver name to assign to, so we
+		// won't track assignments made in this method.
+		if len(f.Recv.List[0].Names) != 1 {
+			result[pi] = append(a, mi)
+			continue
+		}
+
 		// Find all statements within the method that assign a value to
 		// one of the receiver's fields. We'll need this to collect
 		// information about dynamic resources, e.g., the kind and
@@ -927,12 +934,6 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 
 			id, ok := sel.X.(*ast.Ident)
 			if !ok {
-				continue
-			}
-
-			// There is no method receiver name to assign to, so we
-			// won't track assignments made in this method.
-			if len(f.Recv.List[0].Names) != 1 {
 				continue
 			}
 
