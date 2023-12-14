@@ -57,8 +57,8 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 type IdentityService struct {
 	backend.Backend
 	log logrus.FieldLogger
-	// clock is used in tests to desync the service clock from the backend clock.
-	clock clockwork.Clock
+	// desyncedClockForTesting is used in tests to desync the service clock from the backend clock.
+	desyncedClockForTesting clockwork.Clock
 }
 
 // NewIdentityService returns a new instance of IdentityService object
@@ -69,9 +69,9 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 	}
 }
 
-func (s *IdentityService) Clock() clockwork.Clock {
-	if s.clock != nil {
-		return s.clock
+func (s *IdentityService) getClock() clockwork.Clock {
+	if s.desyncedClockForTesting != nil {
+		return s.desyncedClockForTesting
 	}
 	return s.Backend.Clock()
 }
@@ -734,18 +734,21 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
 
+	key := sessionDataKey(user, sessionID)
 	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("item %q is not found", string(key))
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !s.Clock().Now().Before(item.Expires) {
+	if !s.getClock().Now().Before(item.Expires) {
 		// Webauthn session already expired. Some backends do not clean up expired
 		// items in a timely manner, force delete.
 		if err := s.Delete(ctx, item.Key); err != nil && !trace.IsNotFound(err) {
 			s.log.WithError(err).Debug("Failed to delete expired webauthn session")
 		}
-		return nil, trace.BadParameter("webauthn session expired")
+		return nil, trace.NotFound("item %q is not found", string(key))
 	}
 
 	sd := &wanpb.SessionData{}
