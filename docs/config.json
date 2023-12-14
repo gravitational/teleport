@@ -1526,6 +1526,10 @@
             {
               "title": "Snowflake",
               "slug": "/database-access/guides/snowflake/"
+            },
+            {
+              "title": "Vitess (MySQL protocol)",
+              "slug": "/database-access/guides/vitess/"
             }
           ]
         },
