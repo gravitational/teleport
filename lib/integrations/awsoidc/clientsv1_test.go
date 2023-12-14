@@ -22,6 +22,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -29,8 +30,9 @@ import (
 )
 
 type mockIntegrationsTokenGenerator struct {
-	proxies      []types.Server
-	integrations map[string]types.Integration
+	proxies         []types.Server
+	integrations    map[string]types.Integration
+	tokenCallsCount int
 }
 
 // GetIntegration returns the specified integration resources.
@@ -49,7 +51,8 @@ func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
-	return "token-goes-here", nil
+	m.tokenCallsCount++
+	return uuid.NewString(), nil
 }
 
 func TestNewSessionV1(t *testing.T) {
@@ -75,6 +78,7 @@ func TestNewSessionV1(t *testing.T) {
 		name             string
 		region           string
 		integration      string
+		tokenFetchCount  int
 		expectedErr      require.ErrorAssertionFunc
 		sessionValidator func(*testing.T, *session.Session)
 	}{
@@ -107,6 +111,7 @@ func TestNewSessionV1(t *testing.T) {
 			if tt.sessionValidator != nil {
 				tt.sessionValidator(t, awsSessionOut)
 			}
+			require.Zero(t, tt.tokenFetchCount)
 		})
 	}
 
