@@ -188,6 +188,10 @@ Initially, reuse will only be permitted for the following admin action RPCs:
 - `rpc UpsertTokenV2`
 - `rpc CreateTokenV2`
 - `rpc GenerateToken`
+- `rpc CreateBot`
+- `rpc UpdateBot`
+- `rpc UpsertBot`
+- `rpc DeleteBot`
 
 These RPCs are currently used for "bulk" requests such as:
 
@@ -226,13 +230,13 @@ endpoints:
   - `rpc CreateAccessRequest`
   - `rpc SetAccessRequestState`
   - `rpc SubmitAccessReview`
-  - `AccessRequestPromote`
-  - `CreateAccessListReview`
+  - `rpc AccessRequestPromote`
+  - `rpc CreateAccessListReview`
 - CA management
   - `http rotateCertAuthority`
   - `http rotateExternalCertAuthority`
-  - `rpc upsertCertAuthority`
-  - `rpc deleteCertAuthority`
+  - `rpc UpsertCertAuthority`
+  - `rpc DeleteCertAuthority`
   - `rpc DeleteCertAuthority`
 - Certificate generation
   - `rpc GenerateHostCert`
