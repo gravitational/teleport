@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.4.29 (12/13/23)
+## 12.4.30 (12/14/23)
 
 * Prevent Cloud tenants from being a leaf cluster. [#35689](https://github.com/gravitational/teleport/pull/35689)
 * Fixed bug where configuration errors with an individual SSO connector impacted other connectors. [#35574](https://github.com/gravitational/teleport/pull/35574)
