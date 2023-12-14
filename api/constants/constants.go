@@ -403,9 +403,9 @@ const (
 )
 
 const (
-	// MaxAssumeStartTime latest duration into the future an access request's assume
+	// MaxAssumeStartDuration latest duration into the future an access request's assume
 	// start time can be
-	MaxAssumeStartTime = time.Hour * 24 * 7
+	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
 const (

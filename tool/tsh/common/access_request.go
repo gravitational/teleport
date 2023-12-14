@@ -317,9 +317,9 @@ func onRequestReview(cf *CLIConf) error {
 			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
 		parsedAssumeStartTime = &assumeStartTime
-		if time.Until(*parsedAssumeStartTime) > constants.MaxAssumeStartTime {
+		if time.Until(*parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
 			return trace.BadParameter("assume-start-time too far in future: latest date %q",
-				parsedAssumeStartTime.Add(constants.MaxAssumeStartTime).Format(time.RFC3339))
+				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
 		}
 	}
 
