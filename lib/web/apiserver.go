@@ -2932,7 +2932,7 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(&req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2980,8 +2980,8 @@ func (h *Handler) siteNodeConnect(
 	terminalConfig := TerminalHandlerConfig{
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
-		AuthProvider:       clt,
-		LocalAuthProvider:  h.auth.accessPoint,
+		UserAuthClient:     clt,
+		LocalAccessPoint:   h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  keepAliveInterval,
@@ -3012,11 +3012,11 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
+func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
 	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	host, err := findByHost(ctx, clt, req.Server)
+	host, port, err := serverHostPort(req.Server)
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
 	}
@@ -3031,10 +3031,10 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	return session.Session{
 		Kind:           types.SSHSessionKind,
 		Login:          req.Login,
-		ServerID:       host.id,
+		ServerID:       host,
 		ClusterName:    clusterName,
-		ServerHostname: host.hostName,
-		ServerHostPort: host.port,
+		ServerHostname: host,
+		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
@@ -3091,35 +3091,6 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 	}
 
 	return hosts, nil
-}
-
-// findByHost return a host matching by the host name.
-func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
-	initialHost, initialPort, err := serverHostPort(serverName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-		Host: initialHost,
-		Port: strconv.Itoa(initialPort),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var host hostInfo
-	if len(rsp.Servers) == 1 {
-		host.hostName = rsp.Servers[0].GetHostname()
-		host.id = rsp.Servers[0].GetName()
-		host.port = 0
-	} else {
-		host.hostName = initialHost
-		host.id = initialHost
-		host.port = initialPort
-	}
-
-	return &host, nil
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.

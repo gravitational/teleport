@@ -1568,10 +1568,10 @@ func TestNewTerminalHandler(t *testing.T) {
 			H: 100,
 		},
 		SessionCtx: &SessionContext{},
-		AuthProvider: authProviderMock{
+		UserAuthClient: authProviderMock{
 			server: validNode,
 		},
-		LocalAuthProvider: authProviderMock{},
+		LocalAccessPoint: authProviderMock{},
 		SessionData: session.Session{
 			ID:       session.NewID(),
 			Login:    "root",
@@ -1588,7 +1588,7 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.NoError(t, err)
 	// passed through
 	require.Equal(t, validCfg.SessionCtx, term.ctx)
-	require.Equal(t, validCfg.AuthProvider, term.authProvider)
+	require.Equal(t, validCfg.UserAuthClient, term.userAuthClient)
 	require.Equal(t, validCfg.SessionData, term.sessionData)
 	require.Equal(t, validCfg.KeepAliveInterval, term.keepAliveInterval)
 	require.Equal(t, validCfg.ProxyHostPort, term.proxyHostPort)
@@ -7325,8 +7325,8 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
-func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Server, error) {
-	return []types.Server{&mock.server}, nil
+func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	return &mock.server, nil
 }
 
 func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int) ([]events.EventFields, error) {
