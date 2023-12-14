@@ -42,12 +42,19 @@ const (
 	eventMemberBatches = 50
 )
 
-// ignoreIDAndRevision will be used to ignore fields that are irrelevant to determining
-// equivalence of a resource.
-var ignoreIDAndRevision = []cmp.Option{
-	// ID is handled by the backend, so it'll be ignored here.
-	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
-}
+var (
+	// ignoreIDAndRevision will be used to ignore fields that are irrelevant to determining
+	// equivalence of a resource.
+	ignoreIDAndRevision = []cmp.Option{
+		// ID is handled by the backend, so it'll be ignored here.
+		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+	}
+
+	// reviewValidOwnerChanges lists the fields that owners are allowed to modify as part of a review.
+	reviewValidOwnerChanges = []cmp.Option{
+		cmpopts.IgnoreFields(accesslist.ReviewChanges{}, "RemovedMembers"),
+	}
+)
 
 type UsersService interface {
 	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
@@ -1491,17 +1498,13 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.authOrIsOwner(ctx, review.Spec.AccessList, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user, err := authz.UserFromContext(ctx)
+	authCtx, err := s.authOrIsOwner(ctx, review.Spec.AccessList, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	username := user.GetIdentity().Username
 
-	resp, updatedReview, createErr := s.createAccessListReview(ctx, review, username)
+	username := authCtx.Identity.GetIdentity().Username
+	resp, updatedReview, createErr := s.createAccessListReview(ctx, review, authCtx, username)
 
 	s.emitCreateAccessListReview(ctx, username, updatedReview, createErr)
 
@@ -1509,14 +1512,24 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 }
 
 // createAccessListReview is a helper for creating the access list review that returns the response and an error.
-func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review, username string) (*accesslistv1.CreateAccessListReviewResponse, *accesslist.Review, error) {
+// The updated access review will be returned on success, else the existing access review will be returned.
+func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review,
+	authCtx *authz.Context, username string) (*accesslistv1.CreateAccessListReviewResponse, *accesslist.Review, error) {
+	hasRBAC := s.hasAccessListRBAC(ctx, authCtx, types.VerbCreate, types.VerbUpdate)
+	accessListModified := !cmp.Equal(accesslist.ReviewChanges{}, review.Spec.Changes, reviewValidOwnerChanges...)
+
+	// Make sure the owner can't modify the access list.
+	if accessListModified && !hasRBAC {
+		return nil, review, trace.AccessDenied("user cannot modify the access list as part of the review")
+	}
+
 	// Make sure the reviewers reflect the current user and the review date is recorded as now.
 	review.Spec.Reviewers = []string{username}
 	review.Spec.ReviewDate = s.clock.Now()
 
 	updatedReview, nextAuditDate, err := s.accessListReviews.CreateAccessListReview(ctx, review)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, review, trace.Wrap(err)
 	}
 
 	return &accesslistv1.CreateAccessListReviewResponse{

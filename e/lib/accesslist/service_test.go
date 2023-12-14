@@ -1455,6 +1455,55 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 	}
 }
 
+func TestService_CreateAccessListReview(t *testing.T) {
+	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
+
+	a1 := newAccessList(t, "1", clock)
+
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
+
+	createAccessListsAndMembers(t, ctx, svc, emitter, nil, []*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
+
+	require.Empty(t, listAllAccessListReviews(ctx, t, svc, a1.GetName(), 1))
+
+	review1ForA1 := newAccessListReview(t, a1.GetName())
+
+	// RBAC user can create a review.
+	_, err := svc.CreateAccessListReview(ctx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review1ForA1),
+	})
+	require.NoError(t, err)
+
+	// Owner can only create reviews with member changes.
+	review := newAccessListReview(t, a1.GetName())
+	review.Spec.Changes.RemovedMembers = []string{a1m1.GetName()}
+
+	_, err = svc.CreateAccessListReview(ownerCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review),
+	})
+	require.NoError(t, err)
+
+	// Owner can't create reviews with any other changes.
+	review = newAccessListReview(t, a1.GetName())
+	review.Spec.Changes.ReviewDayOfMonthChanged = accesslist.LastDayOfMonth
+
+	_, err = svc.CreateAccessListReview(ownerCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review),
+	})
+	require.ErrorIs(t, err, trace.AccessDenied("user cannot modify the access list as part of the review"))
+
+	review = newAccessListReview(t, a1.GetName())
+	review.Spec.Changes.MembershipRequirementsChanged = &accesslist.Requires{
+		Roles: []string{"some-new-role"},
+	}
+
+	_, err = svc.CreateAccessListReview(ownerCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review),
+	})
+	require.ErrorIs(t, err, trace.AccessDenied("user cannot modify the access list as part of the review"))
+}
+
 func TestService_ListAccessListReviews(t *testing.T) {
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
@@ -1489,7 +1538,7 @@ func TestService_ListAccessListReviews(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA2, review2ForA2}, reviews, cmpOpts...))
 }
 
-func TestService_DeleteAccessListReviews(t *testing.T) {
+func TestService_DeleteAccessListReview(t *testing.T) {
 	ctx, ownerCtx, svc, clock, emitter, _ := initSvc(t)
 
 	a1 := newAccessList(t, "1", clock)
@@ -1503,11 +1552,8 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 	review1ForA1 := newAccessListReview(t, a1.GetName())
 	review2ForA1 := newAccessListReview(t, a1.GetName())
 	review3ForA1 := newAccessListReview(t, a1.GetName())
-	review1ForA2 := newAccessListReview(t, a2.GetName())
-	review2ForA2 := newAccessListReview(t, a2.GetName())
 
 	createReviews(ctx, t, svc, emitter, review1ForA1, review2ForA1, review3ForA1)
-	createReviews(ownerCtx, t, svc, emitter, review1ForA2, review2ForA2)
 
 	_, err := svc.DeleteAccessListReview(ownerCtx, &accesslistv1.DeleteAccessListReviewRequest{
 		AccessListName: review1ForA1.Spec.AccessList,
