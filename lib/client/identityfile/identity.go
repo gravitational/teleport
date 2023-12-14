@@ -222,7 +222,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 	// dump user identity into a single file:
 	case FormatFile:
 		filesWritten = append(filesWritten, cfg.OutputPath)
-		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -265,7 +265,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		keyPath := cfg.OutputPath
 		certPath := keypaths.IdentitySSHCertPath(keyPath)
 		filesWritten = append(filesWritten, keyPath, certPath)
-		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -283,7 +283,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		for k, cert := range cfg.Key.WindowsDesktopCerts {
 			certPath := cfg.OutputPath + "." + k + ".der"
 			filesWritten = append(filesWritten, certPath)
-			if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, certPath); err != nil {
+			if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, certPath); err != nil {
 				return nil, trace.Wrap(err)
 			}
 
@@ -306,7 +306,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
-		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -335,7 +335,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
 		filesWritten = append(filesWritten, certPath, casPath)
-		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
+		if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKeyPEM()...), identityfile.FilePermissions)
@@ -356,7 +356,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		pubPath := cfg.OutputPath + ".pub"
 		filesWritten = append(filesWritten, pubPath)
 
-		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, pubPath); err != nil {
+		if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, pubPath); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -401,7 +401,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		// If the user does not want to override, it will merge the previous kubeconfig
 		// with the new entry.
-		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
+		if err := CheckOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil && !trace.IsAlreadyExists(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
 			// Clean up the existing file, if it exists.
@@ -642,7 +642,7 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	return &buff, nil
 }
 
-func checkOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths ...string) error {
+func CheckOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths ...string) error {
 	var existingFiles []string
 	// Check if the destination file exists.
 	for _, path := range paths {

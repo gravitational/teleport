@@ -20,6 +20,7 @@ package web
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"compress/gzip"
@@ -3779,7 +3780,16 @@ func TestAuthExport(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil)
 
+	ctx := context.Background()
+	err := proxy.auth.Auth().RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.UserCA,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
 	validateTLSCertificateDERFunc := func(t *testing.T, b []byte) {
+		t.Helper()
 		cert, err := x509.ParseCertificate(b)
 		require.NoError(t, err)
 		require.NotNil(t, cert, "ParseCertificate failed")
@@ -3787,10 +3797,60 @@ func TestAuthExport(t *testing.T) {
 	}
 
 	validateTLSCertificatePEMFunc := func(t *testing.T, b []byte) {
+		t.Helper()
 		pemBlock, _ := pem.Decode(b)
 		require.NotNil(t, pemBlock, "pem.Decode failed")
 
 		validateTLSCertificateDERFunc(t, pemBlock.Bytes)
+	}
+
+	validateTarGzFileFunc := func(t *testing.T, b []byte) {
+		t.Helper()
+		gzipReader, err := gzip.NewReader(bytes.NewReader(b))
+		require.NoError(t, err)
+		defer gzipReader.Close()
+
+		tarReader := tar.NewReader(gzipReader)
+		tarContentFileNames := []string{}
+		for {
+			header, err := tarReader.Next()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			tarContentFileNames = append(tarContentFileNames, header.Name)
+
+			var contents bytes.Buffer
+			_, err = io.Copy(&contents, tarReader)
+			require.NoError(t, err)
+			require.Equal(t, header.Size, int64(contents.Len()))
+			validateTLSCertificateDERFunc(t, contents.Bytes())
+
+			require.Equal(t, byte(tar.TypeReg), header.Typeflag)
+			require.Equal(t, int64(0644), header.Mode)
+		}
+		wantFileNames := []string{"Teleport_CA_0.cer", "Teleport_CA_1.cer"}
+		require.ElementsMatch(t, wantFileNames, tarContentFileNames)
+	}
+
+	validateZipFileFunc := func(t *testing.T, b []byte) {
+		t.Helper()
+		reader := bytes.NewReader(b)
+		zipReader, err := zip.NewReader(reader, int64(len(b)))
+		require.NoError(t, err)
+		var fileNames []string
+		for _, f := range zipReader.File {
+			fileNames = append(fileNames, f.Name)
+			require.True(t, f.Mode().IsRegular())
+			fileReader, err := f.Open()
+			require.NoError(t, err)
+			contents, err := io.ReadAll(fileReader)
+			require.NoError(t, err)
+			validateTLSCertificateDERFunc(t, contents)
+		}
+
+		wantFileNames := []string{"Teleport_CA_0.cer", "Teleport_CA_1.cer"}
+		require.ElementsMatch(t, wantFileNames, fileNames)
 	}
 
 	for _, tt := range []struct {
@@ -3828,7 +3888,13 @@ func TestAuthExport(t *testing.T) {
 			name:           "windows",
 			authType:       "windows",
 			expectedStatus: http.StatusOK,
-			assertBody:     validateTLSCertificateDERFunc,
+			assertBody:     validateZipFileFunc,
+		},
+		{
+			name:           "tls-user-der",
+			authType:       "tls-user-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTarGzFileFunc,
 		},
 		{
 			name:           "db",

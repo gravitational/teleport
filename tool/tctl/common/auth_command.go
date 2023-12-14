@@ -229,7 +229,47 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) e
 		return trace.Wrap(err)
 	}
 
-	fmt.Println(authorities)
+	if a.output != "" {
+		writer := &identityfile.StandardConfigWriter{}
+		files := map[string][]byte{}
+		for i, data := range authorities {
+			filepath := a.output + ".cer"
+			if len(authorities) > 1 {
+				filepath = fmt.Sprintf("%s-%d.cer", a.output, i)
+			}
+			files[filepath] = data
+		}
+		err := identityfile.CheckOverwrite(ctx, writer, a.outputOverwrite, maps.Keys(files)...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var permissions os.FileMode = 0600
+		if !a.exportPrivateKeys {
+			// public certs should have less restrictive file permissions.
+			permissions = 0644
+		}
+		for path, data := range files {
+			err := writer.WriteFile(path, data, permissions)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}
+
+	if len(authorities) > 1 {
+		exportKind := "cert"
+		if a.exportPrivateKeys {
+			exportKind = "key"
+		}
+		return trace.BadParameter(
+			"exporting multiple CA %ss in DER format, specify an output file (--out=<file>) instead of piping to file",
+			exportKind,
+		)
+	}
+	for _, data := range authorities {
+		fmt.Fprintf(a.stdout, "%s\n", data)
+	}
 
 	return nil
 }

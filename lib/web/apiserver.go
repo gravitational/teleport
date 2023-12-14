@@ -21,6 +21,7 @@
 package web
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
@@ -74,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -4379,11 +4381,12 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 		http.Error(w, err.Error(), trace.ErrorToCode(err))
 		return
 	}
+	authType := r.URL.Query().Get("type")
 	authorities, err := client.ExportAuthorities(
 		r.Context(),
 		h.GetProxyClient(),
 		client.ExportAuthoritiesRequest{
-			AuthType: r.URL.Query().Get("type"),
+			AuthType: authType,
 		},
 	)
 	if err != nil {
@@ -4392,11 +4395,33 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 		return
 	}
 
-	reader := strings.NewReader(authorities)
+	if len(authorities) <= 1 {
+		var out []byte
+		for _, data := range authorities {
+			out = append(out, data...)
+		}
+		reader := strings.NewReader(string(out))
+
+		// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
+		// It also handles the Range negotiation
+		http.ServeContent(w, r, "CA.txt", time.Now(), reader)
+		return
+	}
+
+	buffer, fileExt, err := createCACertArchive(authorities, authType)
+	if err != nil {
+		h.log.WithError(err).Debug("Failed to create CA Cert archive.")
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
+		return
+	}
+
+	archiveName := "Teleport_CA" + fileExt
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%v"`, archiveName))
 
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
-	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
+	reader := bytes.NewReader(buffer.Bytes())
+	http.ServeContent(w, r, archiveName, time.Now(), reader)
 }
 
 // isDashboard returns a bool indicating if the cluster is a
@@ -4419,4 +4444,31 @@ func serveRobotsTxt(w http.ResponseWriter, r *http.Request, p httprouter.Params)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(robots))
 	return nil, nil
+}
+
+// createCACertArchive creates a .zip or tar.gz file archive in memory
+// which contains Teleport CA certs.
+// Zip format is only used for "windows" CA export, since Windows supports zip
+// files natively whereas .tar.gz requires 3rd party software.
+// Returns the appropriate archive file extension.
+func createCACertArchive(authorities [][]byte, authType string) (*bytes.Buffer, string, error) {
+	virtualFS := identityfile.NewInMemoryConfigWriter()
+	var filesWritten []string
+	for i, caCert := range authorities {
+		filePath := fmt.Sprintf("Teleport_CA_%d.cer", i)
+		// use 0644 permissions since this is a public CA cert.
+		if err := virtualFS.WriteFile(filePath, caCert, 0644); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		filesWritten = append(filesWritten, filePath)
+	}
+
+	if authType == "windows" {
+		// zip archives are natively supported on Windows, so use that.
+		buffer, err := utils.CompressZipArchive(filesWritten, virtualFS)
+		return buffer, ".zip", trace.Wrap(err)
+	}
+
+	buffer, err := utils.CompressTarGzArchive(filesWritten, virtualFS)
+	return buffer, ".tar.gz", trace.Wrap(err)
 }

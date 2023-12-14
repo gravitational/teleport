@@ -19,9 +19,9 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/pem"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -73,17 +73,17 @@ type ExportAuthoritiesRequest struct {
 // For example:
 // > @cert-authority *.cluster-a ssh-rsa AAA... type=host
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
-func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+func ExportAuthorities(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) ([][]byte, error) {
 	return exportAuth(ctx, client, req, false /* exportSecrets */)
 }
 
 // ExportAuthoritiesSecrets exports the Authority Certificate secrets (private keys).
 // See ExportAuthorities for more information.
-func ExportAuthoritiesSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) (string, error) {
+func ExportAuthoritiesSecrets(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest) ([][]byte, error) {
 	return exportAuth(ctx, client, req, true /* exportSecrets */)
 }
 
-func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) (string, error) {
+func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesRequest, exportSecrets bool) ([][]byte, error) {
 	var typesToExport []types.CertAuthType
 
 	// this means to export TLS authority
@@ -143,13 +143,13 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 	} else {
 		authType := types.CertAuthType(req.AuthType)
 		if err := authType.Check(); err != nil {
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		typesToExport = []types.CertAuthType{authType}
 	}
 	localAuthName, err := client.GetDomainName(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// fetch authorities via auth API (and only take local CAs, ignoring
@@ -158,7 +158,7 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 	for _, at := range typesToExport {
 		cas, err := client.GetCertAuthorities(ctx, at, exportSecrets)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		for _, ca := range cas {
 			if ca.GetClusterName() == localAuthName {
@@ -167,14 +167,14 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 		}
 	}
 
-	ret := strings.Builder{}
+	var ret bytes.Buffer
 	for _, ca := range authorities {
 		if exportSecrets {
 			for _, key := range ca.GetActiveKeys().SSH {
 				if req.ExportAuthorityFingerprint != "" {
 					fingerprint, err := sshutils.PrivateKeyFingerprint(key.PrivateKey)
 					if err != nil {
-						return "", trace.Wrap(err)
+						return nil, trace.Wrap(err)
 					}
 
 					if fingerprint != req.ExportAuthorityFingerprint {
@@ -192,7 +192,7 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			if req.ExportAuthorityFingerprint != "" {
 				fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
 				if err != nil {
-					return "", trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 
 				if fingerprint != req.ExportAuthorityFingerprint {
@@ -205,7 +205,7 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			if req.UseCompatVersion {
 				castr, err := hostCAFormat(ca, key.PublicKey, client)
 				if err != nil {
-					return "", trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 
 				ret.WriteString(castr)
@@ -220,10 +220,10 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			case types.HostCA:
 				castr, err = hostCAFormat(ca, key.PublicKey, client)
 			default:
-				return "", trace.BadParameter("unknown CA type: %q", ca.GetType())
+				return nil, trace.BadParameter("unknown CA type: %q", ca.GetType())
 			}
 			if err != nil {
-				return "", trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			// write the export friendly string
@@ -231,7 +231,10 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 		}
 	}
 
-	return ret.String(), nil
+	if ret.Len() == 0 {
+		return nil, nil
+	}
+	return [][]byte{ret.Bytes()}, nil
 }
 
 type exportTLSAuthorityRequest struct {
@@ -240,41 +243,62 @@ type exportTLSAuthorityRequest struct {
 	ExportPrivateKeys bool
 }
 
-func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSAuthorityRequest) (string, error) {
+func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSAuthorityRequest) ([][]byte, error) {
 	clusterName, err := client.GetDomainName(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	certAuthority, err := client.GetCertAuthority(
+	ca, err := client.GetCertAuthority(
 		ctx,
 		types.CertAuthID{Type: req.AuthType, DomainName: clusterName},
 		req.ExportPrivateKeys,
 	)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if l := len(certAuthority.GetActiveKeys().TLS); l != 1 {
-		return "", trace.BadParameter("expected one TLS key pair, got %v", l)
-	}
-	keyPair := certAuthority.GetActiveKeys().TLS[0]
-
-	bytesToExport := keyPair.Cert
-	if req.ExportPrivateKeys {
-		bytesToExport = keyPair.Key
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	if len(keypairs) == 0 {
+		return nil, trace.BadParameter(
+			"expected at least one TLS key pair, got %v",
+			len(keypairs),
+		)
 	}
 
-	if !req.UnpackPEM {
-		return string(bytesToExport), nil
+	outDER := make([][]byte, 0, len(keypairs))
+	var outPEM bytes.Buffer
+	for _, pair := range keypairs {
+		pemBytes := pair.Cert
+		if req.ExportPrivateKeys {
+			pemBytes = pair.Key
+		}
+		b, _ := pem.Decode(pemBytes)
+		if b == nil {
+			return nil, trace.BadParameter(
+				"invalid PEM data in %s CA trusted tls key pair",
+				ca.GetType(),
+			)
+		}
+		// DER outputs as multiple files.
+		outDER = append(outDER, b.Bytes)
+		// PEM output is concatenated as one file.
+		if _, err := outPEM.Write(pemBytes); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !bytes.HasSuffix(pemBytes, []byte("\n")) {
+			// sanity check for a trailing newline to ensure that a concatenated
+			// PEM file can be parsed later.
+			if err := outPEM.WriteByte('\n'); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 
-	b, _ := pem.Decode(bytesToExport)
-	if b == nil {
-		return "", trace.BadParameter("invalid PEM data")
+	if req.UnpackPEM {
+		return outDER, nil
 	}
-
-	return string(b.Bytes), nil
+	return [][]byte{outPEM.Bytes()}, nil
 }
 
 // userCAFormat returns the certificate authority public key exported as a single

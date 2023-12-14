@@ -19,6 +19,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -57,38 +58,91 @@ func TestExportAuthorities(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err, "failed to create auth.NewTestAuthServer")
+	// rotate DB CA so we can test when multiple TLS keypairs are trusted.
+	err = testAuth.AuthServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
 
-	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
-		cert, err := x509.ParseCertificate([]byte(s))
+	validateTLSCert := func(t *testing.T, certBytes []byte) {
+		t.Helper()
+		cert, err := x509.ParseCertificate(certBytes)
 		require.NoError(t, err, "failed to x509.ParseCertificate")
 		require.NotNil(t, cert, "x509.ParseCertificate returned a nil certificate")
 		require.Equal(t, localClusterName, cert.Subject.CommonName, "unexpected certificate subject CN")
 	}
-
-	validateTLSCertificatePEMFunc := func(t *testing.T, s string) {
-		pemBlock, rest := pem.Decode([]byte(s))
-		require.NotNil(t, pemBlock, "pem.Decode failed")
-		require.Empty(t, rest)
-
-		validateTLSCertificateDERFunc(t, string(pemBlock.Bytes))
+	validatePrivateKey := func(t *testing.T, keyBytes []byte) {
+		t.Helper()
+		privKey, err := x509.ParsePKCS1PrivateKey(keyBytes)
+		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
+		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil key")
 	}
 
-	validatePrivateKeyPEMFunc := func(t *testing.T, s string) {
-		pemBlock, rest := pem.Decode([]byte(s))
-		require.NotNil(t, pemBlock, "pem.Decode failed")
-		require.Empty(t, rest)
-
-		require.Equal(t, "RSA PRIVATE KEY", pemBlock.Type, "unexpected private key type")
-
-		privKey, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
-		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
-		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil certificate")
+	validateTLSCertificatesDERFunc := func(wantCount int) func(*testing.T, [][]byte) {
+		return func(t *testing.T, output [][]byte) {
+			t.Helper()
+			require.Equal(t, wantCount, len(output), "expected %v der encoded cert(s)", wantCount)
+			for _, cert := range output {
+				validateTLSCert(t, cert)
+			}
+		}
 	}
 
-	validatePrivateKeyDERFunc := func(t *testing.T, s string) {
-		privKey, err := x509.ParsePKCS1PrivateKey([]byte(s))
-		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
-		require.NotNil(t, privKey, "x509.ParsePKCS1PrivateKey returned a nil certificate")
+	validateTLSCertificatesPEMFunc := func(wantCount int) func(*testing.T, [][]byte) {
+		return func(t *testing.T, output [][]byte) {
+			t.Helper()
+			require.Len(t, output, 1)
+			remainingBytes := bytes.TrimSpace(output[0])
+			var count int
+			for {
+				count++
+				var pemBlock *pem.Block
+				pemBlock, remainingBytes = pem.Decode(remainingBytes)
+				require.NotNil(t, pemBlock, "pem.Decode failed for cert %d", count)
+				validateTLSCert(t, pemBlock.Bytes)
+				remainingBytes = bytes.TrimSpace(remainingBytes)
+				if len(remainingBytes) == 0 {
+					break
+				}
+			}
+			require.Equal(t, wantCount, count)
+		}
+	}
+
+	validatePrivateKeysDERFunc := func(wantCount int) func(*testing.T, [][]byte) {
+		return func(t *testing.T, output [][]byte) {
+			t.Helper()
+			require.Equal(t, wantCount, len(output), "expected %v der encoded private key(s)", wantCount)
+			for _, key := range output {
+				validatePrivateKey(t, key)
+			}
+		}
+	}
+
+	validatePrivateKeysPEMFunc := func(wantCount int) func(*testing.T, [][]byte) {
+		return func(t *testing.T, output [][]byte) {
+			t.Helper()
+			require.Len(t, output, 1)
+			remainingBytes := bytes.TrimSpace(output[0])
+			var count int
+			for {
+				count++
+				var pemBlock *pem.Block
+				pemBlock, remainingBytes = pem.Decode(remainingBytes)
+				require.NotNil(t, pemBlock, "pem.Decode failed for key %d. remaining: %s", count, remainingBytes)
+
+				require.Equal(t, "RSA PRIVATE KEY", pemBlock.Type, "unexpected private key type")
+				validatePrivateKey(t, pemBlock.Bytes)
+
+				remainingBytes = bytes.TrimSpace(remainingBytes)
+				if len(remainingBytes) == 0 {
+					break
+				}
+			}
+			require.Equal(t, wantCount, count)
+		}
 	}
 
 	for _, exportSecrets := range []bool{false, true} {
@@ -96,8 +150,8 @@ func TestExportAuthorities(t *testing.T) {
 			name            string
 			req             ExportAuthoritiesRequest
 			errorCheck      require.ErrorAssertionFunc
-			assertNoSecrets func(t *testing.T, output string)
-			assertSecrets   func(t *testing.T, output string)
+			assertNoSecrets func(t *testing.T, output [][]byte)
+			assertSecrets   func(t *testing.T, output [][]byte)
 		}{
 			{
 				name: "ssh host and user ca",
@@ -105,11 +159,14 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "",
 				},
 				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
-					require.Contains(t, output, "cert-authority ssh-rsa")
+				assertNoSecrets: func(t *testing.T, output [][]byte) {
+					require.Len(t, output, 1, "ssh host and user ca should be concatenated")
+					got := string(output[0])
+					require.Contains(t, got, "@cert-authority localcluster,*.localcluster ssh-rsa")
+					require.Contains(t, got, "cert-authority ssh-rsa")
 				},
-				assertSecrets: func(t *testing.T, output string) {},
+				// two keys should be present - one for host ca one for user ca.
+				assertSecrets: validatePrivateKeysPEMFunc(2),
 			},
 			{
 				name: "user",
@@ -117,10 +174,12 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "user",
 				},
 				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Contains(t, output, "cert-authority ssh-rsa")
+				assertNoSecrets: func(t *testing.T, output [][]byte) {
+					require.Len(t, output, 1, "ssh user ca should be concatenated")
+					got := string(output[0])
+					require.Contains(t, got, "cert-authority ssh-rsa")
 				},
-				assertSecrets: validatePrivateKeyPEMFunc,
+				assertSecrets: validatePrivateKeysPEMFunc(1),
 			},
 			{
 				name: "host",
@@ -128,10 +187,12 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "host",
 				},
 				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
+				assertNoSecrets: func(t *testing.T, output [][]byte) {
+					require.Len(t, output, 1)
+					got := string(output[0])
+					require.Contains(t, got, "@cert-authority localcluster,*.localcluster ssh-rsa")
 				},
-				assertSecrets: validatePrivateKeyPEMFunc,
+				assertSecrets: validatePrivateKeysPEMFunc(1),
 			},
 			{
 				name: "tls",
@@ -139,8 +200,8 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "tls",
 				},
 				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificatePEMFunc,
-				assertSecrets:   validatePrivateKeyPEMFunc,
+				assertNoSecrets: validateTLSCertificatesPEMFunc(1),
+				assertSecrets:   validatePrivateKeysPEMFunc(1),
 			},
 			{
 				name: "windows",
@@ -148,8 +209,8 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "windows",
 				},
 				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificateDERFunc,
-				assertSecrets:   validatePrivateKeyDERFunc,
+				assertNoSecrets: validateTLSCertificatesDERFunc(1),
+				assertSecrets:   validatePrivateKeysDERFunc(1),
 			},
 			{
 				name: "invalid",
@@ -157,6 +218,7 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "invalid",
 				},
 				errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
+					t.Helper()
 					require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
 				},
 			},
@@ -167,10 +229,12 @@ func TestExportAuthorities(t *testing.T) {
 					ExportAuthorityFingerprint: "fake fingerprint",
 				},
 				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output [][]byte) {
+					t.Helper()
 					require.Empty(t, output)
 				},
-				assertSecrets: func(t *testing.T, output string) {
+				assertSecrets: func(t *testing.T, output [][]byte) {
+					t.Helper()
 					require.Empty(t, output)
 				},
 			},
@@ -181,12 +245,14 @@ func TestExportAuthorities(t *testing.T) {
 					UseCompatVersion: true,
 				},
 				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
+				assertNoSecrets: func(t *testing.T, output [][]byte) {
 					// compat version (using 1.0) returns cert-authority to be used in the server
 					// even when asking for ssh authorized hosts / known hosts
-					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
+					require.Len(t, output, 1)
+					got := string(output[0])
+					require.Contains(t, got, "@cert-authority localcluster,*.localcluster ssh-rsa")
 				},
-				assertSecrets: validatePrivateKeyPEMFunc,
+				assertSecrets: validatePrivateKeysPEMFunc(1),
 			},
 			{
 				name: "db-der",
@@ -194,8 +260,18 @@ func TestExportAuthorities(t *testing.T) {
 					AuthType: "db-der",
 				},
 				errorCheck:      require.NoError,
-				assertNoSecrets: validateTLSCertificateDERFunc,
-				assertSecrets:   validatePrivateKeyDERFunc,
+				assertNoSecrets: validateTLSCertificatesDERFunc(2),
+				assertSecrets:   validatePrivateKeysDERFunc(2),
+			},
+			{
+				name: "db",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db",
+				},
+				errorCheck: require.NoError,
+				// during DB CA rotation, there should be two trusted CA keypairs.
+				assertNoSecrets: validateTLSCertificatesPEMFunc(2),
+				assertSecrets:   validatePrivateKeysPEMFunc(2),
 			},
 		} {
 			t.Run(fmt.Sprintf("%s_exportSecrets_%v", tt.name, exportSecrets), func(t *testing.T) {
@@ -204,7 +280,7 @@ func TestExportAuthorities(t *testing.T) {
 				}
 				var (
 					err      error
-					exported string
+					exported [][]byte
 				)
 				exportFunc := ExportAuthorities
 				checkFunc := tt.assertNoSecrets
