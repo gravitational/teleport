@@ -23,7 +23,7 @@ import "github.com/jonboulle/clockwork"
 // SessionDataLimiter exports sdLimiter for tests.
 var SessionDataLimiter = sdLimiter
 
-// SetClock sets the identity service clock for tests.
-func (s *IdentityService) SetClock(clock clockwork.Clock) {
-	s.clock = clock
+// SetDesyncedClockForTesting sets its namesake clock in the identity service.
+func (s *IdentityService) SetDesyncedClockForTesting(clock clockwork.Clock) {
+	s.desyncedClockForTesting = clock
 }
