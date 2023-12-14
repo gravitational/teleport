@@ -3657,7 +3657,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	}
 
 	if req.GetAssumeStartTime() != nil && req.GetAssumeStartTime().After(a.GetClock().Now()) {
-		return nil, trace.BadParameter("access request %q has future assumeStartTime", accessRequestID)
+		return nil, trace.BadParameter("access request %q can not be assumed until %v", accessRequestID, req.GetAssumeStartTime())
 	}
 
 	return req, nil
