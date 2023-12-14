@@ -27,7 +27,6 @@ use ironrdp_connector::{Config, ConnectorError, Credentials};
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
-use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
@@ -1030,7 +1029,8 @@ type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 fn create_config(width: u16, height: u16, pin: String) -> Config {
     Config {
         desktop_size: ironrdp_connector::DesktopSize { width, height },
-        security_protocol: SecurityProtocol::SSL,
+        enable_tls: true,
+        enable_credssp: false,
         credentials: Credentials::SmartCard { pin },
         domain: None,
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
