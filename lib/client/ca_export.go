@@ -220,7 +220,7 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			case types.HostCA:
 				castr, err = hostCAFormat(ca, key.PublicKey, client)
 			default:
-				return "", trace.BadParameter("unknown user type: %q", ca.GetType())
+				return "", trace.BadParameter("unknown CA type: %q", ca.GetType())
 			}
 			if err != nil {
 				return "", trace.Wrap(err)
