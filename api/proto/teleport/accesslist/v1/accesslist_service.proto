@@ -66,6 +66,9 @@ service AccessListService {
 
   // AccessRequestPromote promotes an access request to an access list.
   rpc AccessRequestPromote(AccessRequestPromoteRequest) returns (AccessRequestPromoteResponse);
+
+  // GetSuggestedAccessLists returns suggested access lists for an access request.
+  rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -259,4 +262,16 @@ message AccessRequestPromoteRequest {
 message AccessRequestPromoteResponse {
   // AccessRequest is the updated access request.
   types.AccessRequestV3 access_request = 1;
+}
+
+// GetSuggestedAccessListsRequest is the request for suggested access lists for an access request.
+message GetSuggestedAccessListsRequest {
+  // access_request_id is the unique ID of the request.
+  string access_request_id = 1;
+}
+
+// GetSuggestedAccessListsResponse is the response for suggested access lists for an access request.
+message GetSuggestedAccessListsResponse {
+  // access_lists is the list of suggested lists.
+  repeated AccessList access_lists = 1;
 }

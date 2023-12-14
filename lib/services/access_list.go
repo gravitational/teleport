@@ -49,9 +49,16 @@ type AccessListsGetter interface {
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
 }
 
+// AccessListsSuggestionsGetter defines an interface for reading access lists suggestions.
+type AccessListsSuggestionsGetter interface {
+	// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
+	GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error)
+}
+
 // AccessLists defines an interface for managing AccessLists.
 type AccessLists interface {
 	AccessListsGetter
+	AccessListsSuggestionsGetter
 	AccessListMembers
 	AccessListReviews
 
