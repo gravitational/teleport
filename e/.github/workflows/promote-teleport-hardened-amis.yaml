@@ -81,7 +81,7 @@ jobs:
           echo GOLANG_VERSION=$(make --no-print-directory -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
 
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GOLANG_VERSION }}
 
