@@ -1,4 +1,4 @@
-.version: &version "15.0.0-dev.isaiah.5"
+.version: &version "15.0.0-dev.isaiah.6"
 
 name: teleport-kube-agent
 apiVersion: v2
