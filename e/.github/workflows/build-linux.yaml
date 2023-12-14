@@ -81,10 +81,10 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
-          `build` or `build-stage`.
+          `build` or `promote`.
         required: false
         type: string
-        default: build
+        default: promote
 
 jobs:
   build-release-artifacts:

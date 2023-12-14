@@ -24,9 +24,9 @@ on:
       environment:
         description: |
           GitHub Actions environment in which to run the build. Should be either
-          `build` or `build-stage` (if `build-stage` is ready).
+          `build` or `promote`.
         type: string
-        default: build
+        default: promote
 
 jobs:
   build-image:
