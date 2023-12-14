@@ -2201,11 +2201,14 @@ func TestParseSubsystemRequest(t *testing.T) {
 	go func() {
 		for {
 			// accept connections, but don't do anything else except for closing the connection on cleanup.
-			conn, _ := agentlessListener.Accept()
+			conn, err := agentlessListener.Accept()
 			if conn != nil {
 				t.Cleanup(func() {
 					_ = conn.Close()
 				})
+			}
+			if err != nil {
+				return
 			}
 		}
 	}()
