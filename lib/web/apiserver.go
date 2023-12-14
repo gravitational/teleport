@@ -1604,6 +1604,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
+			AccessRequstMonthlyRequestLimit:     int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
 		},
 	}
 
