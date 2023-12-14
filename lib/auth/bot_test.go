@@ -256,7 +256,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	})
+	}, a.clock.Now(), "")
 	require.NoError(t, err)
 
 	remoteAddr := "42.42.42.42:42"
