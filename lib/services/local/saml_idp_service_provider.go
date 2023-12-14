@@ -321,19 +321,19 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 	}
 
 	// return if provided attributes are already embedded.
-	teleportEmbeddedSPSSODescriptorIndex, teleportEmbeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(ed.SPSSODescriptors)
-	if reflect.DeepEqual(sp.GetAttributeMapping(), teleportEmbeddedAttributes) {
+	embeddedSPSSODescriptorIndex, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(ed.SPSSODescriptors)
+	if reflect.DeepEqual(sp.GetAttributeMapping(), embeddedAttributes) {
 		return nil
 	}
 
-	newTeleportEmbeddedSPSSODescriptor := spSSODescriptorWithRequestedAttributes(sp.GetAttributeMapping())
-	// If there is existing Teleport embedded SPSSODescriptor, we'll replace it with newTeleportEmbeddedSPSSODescriptor
-	// to avoid duplication or possible fragmented SPSSODescriptor. This is checked with teleportEmbeddedSPSSODescriptorIndex
+	newEmbeddedSPSSODescriptor := spSSODescriptorWithRequestedAttributes(sp.GetAttributeMapping())
+	// If there is an existing embedded SPSSODescriptor, we'll replace it with newEmbeddedSPSSODescriptor
+	// to avoid duplication or possible fragmented SPSSODescriptor. This is checked with embeddedSPSSODescriptorIndex
 	// value greater than 0. Otherwise, simply append to ed.SPSSODescriptors.
-	if teleportEmbeddedSPSSODescriptorIndex == 0 {
-		ed.SPSSODescriptors = append(ed.SPSSODescriptors, newTeleportEmbeddedSPSSODescriptor)
+	if embeddedSPSSODescriptorIndex == 0 {
+		ed.SPSSODescriptors = append(ed.SPSSODescriptors, newEmbeddedSPSSODescriptor)
 	} else {
-		ed.SPSSODescriptors[teleportEmbeddedSPSSODescriptorIndex] = newTeleportEmbeddedSPSSODescriptor
+		ed.SPSSODescriptors[embeddedSPSSODescriptorIndex] = newEmbeddedSPSSODescriptor
 	}
 
 	edWithAttributes, err := xml.MarshalIndent(ed, " ", "    ")
@@ -348,8 +348,6 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 
 // spSSODescriptorWithRequestedAttributes builds new saml.SPSSODescriptor populated with
 // types.SAMLAttributeMapping (attributeMapping input) converted to saml.RequestedAttributes format.
-// The resulting SPSSODescriptor is what we reference in embedAttributeMapping() method as
-// Teleport embedded SPSSODescriptor.
 func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
 	var reqs []saml.RequestedAttribute
 	for _, v := range attributeMapping {
@@ -382,13 +380,13 @@ func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttrib
 // The correct SPSSODescriptor is determined by searching for AttributeConsumingService element with ServiceNames named
 // TELEPORT_SAML_IDP.
 func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSSODescriptor) (int, []*types.SAMLAttributeMapping) {
-	teleportEmbeddedSPSSODescriptorIndex := 0
+	embeddedSPSSODescriptorIndex := 0
 	attrs := make([]*types.SAMLAttributeMapping, 0)
 	for descriptorIndex, descriptor := range spSSODescriptors {
 		for _, acs := range descriptor.AttributeConsumingServices {
 			for _, serviceName := range acs.ServiceNames {
 				if serviceName.Value == teleportSAMLIdP {
-					teleportEmbeddedSPSSODescriptorIndex = descriptorIndex
+					embeddedSPSSODescriptorIndex = descriptorIndex
 					for _, reqAttr := range acs.RequestedAttributes {
 						var embeddedAttribute types.SAMLAttributeMapping
 						for _, reqAttrVal := range reqAttr.Values {
@@ -403,5 +401,5 @@ func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSS
 		}
 	}
 
-	return teleportEmbeddedSPSSODescriptorIndex, attrs
+	return embeddedSPSSODescriptorIndex, attrs
 }

@@ -562,7 +562,7 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 	// 2. Now using previously embedded entity descriptor (spFromBackend.GetEntityDescriptor())
 	// update sp with one additional attribute mapping and test that:
 	// - the new attribute mapping is added to SPSSOdescriptor.
-	// - there is exactly one copy of Teleport embedded SPSSOdescriptor.
+	// - there is exactly one copy of embedded SPSSOdescriptor.
 	sp.SetEntityDescriptor(spFromBackend.GetEntityDescriptor())
 	attributeMappingInput = append(attributeMappingInput, &types.SAMLAttributeMapping{
 		Name:       "firstname",
@@ -582,12 +582,12 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 
 	_, embeddedAttributes = samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithUpdatedAttributes.SPSSODescriptors)
 	require.Equal(t, attributeMappingInput, embeddedAttributes)
-	require.Equal(t, 1, countTeleportEmbeddedSPSSODescriptor(edWithUpdatedAttributes.SPSSODescriptors))
+	require.Equal(t, 1, countEmbeddedSPSSODescriptor(edWithUpdatedAttributes.SPSSODescriptors))
 
 	// 3. test we do not override SP managed SPSSODescriptor.
 	// We will create SP with test entity descriptor edWithMultipleSPSSODescriptor, which already
 	// has total 2 SPSSODescriptor elements. Once the SP is created with attribute mapping,
-	// we will test that attributes are correctly embedded and that total count of Teleport embedded
+	// we will test that attributes are correctly embedded and that total count of embedded
 	// SPSSODescriptor is exactly 1 and if we remove embedded element, the resulting entity descriptor
 	// matches original data.
 	newMultipleSSODescriptorSP, err := types.NewSAMLIdPServiceProvider(
@@ -611,7 +611,7 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 
 	embeddedIndex, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithEmbeddedAttributes.SPSSODescriptors)
 	require.Equal(t, attributeMappingInput, embeddedAttributes)
-	require.Equal(t, 1, countTeleportEmbeddedSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors))
+	require.Equal(t, 1, countEmbeddedSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors))
 
 	// and if we remove embedded SPSSODescriptor, the resulting entity descriptor should be exactly the same as before embedding.
 	edWithEmbeddedAttributes.SPSSODescriptors = append(edWithEmbeddedAttributes.SPSSODescriptors[:embeddedIndex], edWithEmbeddedAttributes.SPSSODescriptors[embeddedIndex+1:]...)
@@ -620,28 +620,12 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 	require.Empty(t, cmp.Diff(originalED, edWithEmbeddedAttributes))
 }
 
-func countTeleportEmbeddedSPSSODescriptor(spSSODescriptor []saml.SPSSODescriptor) (teleportEmbeddedSPSSODescriptorAcount int) {
+func countEmbeddedSPSSODescriptor(spSSODescriptor []saml.SPSSODescriptor) (embeddedSPSSODescriptorAcount int) {
 	for _, ssoDescriptor := range spSSODescriptor {
 		for _, acs := range ssoDescriptor.AttributeConsumingServices {
 			for _, serviceName := range acs.ServiceNames {
 				if serviceName.Value == teleportSAMLIdP {
-					teleportEmbeddedSPSSODescriptorAcount++
-				}
-			}
-		}
-	}
-	return
-}
-
-func countSPSSODescriptorNotEmbeddedByTeleport(spSSODescriptor []saml.SPSSODescriptor) (spSSODescriptorNotEmbeddedByTeleport int) {
-	for _, ssoDescriptor := range spSSODescriptor {
-		for _, acs := range ssoDescriptor.AttributeConsumingServices {
-			if len(acs.ServiceNames) == 0 {
-				spSSODescriptorNotEmbeddedByTeleport++
-			}
-			for _, serviceName := range acs.ServiceNames {
-				if serviceName.Value != teleportSAMLIdP {
-					spSSODescriptorNotEmbeddedByTeleport++
+					embeddedSPSSODescriptorAcount++
 				}
 			}
 		}
