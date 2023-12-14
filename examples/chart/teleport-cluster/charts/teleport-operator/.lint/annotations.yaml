@@ -8,3 +8,7 @@ annotations:
   serviceAccount:
     kubernetes.io/serviceaccount: "test-annotation"
     kubernetes.io/serviceaccount-different: 6
+
+teleportAddress: "example.teleport.sh:443"
+token: "my-operator-bot"
+teleportClusterName: "example.teleport.sh"
