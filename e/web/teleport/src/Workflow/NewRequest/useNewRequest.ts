@@ -184,7 +184,11 @@ export function useNewRequest(ctx: Ctx) {
         } catch (err) {
           // unified resources are not implemented on the cluster. We ignore
           // the error because the view is going to change anyway. Throw everything else
-          if (err?.response?.status === 404 || err?.response?.status === 501) {
+          if (
+            (err?.response?.status === 404 &&
+              err?.message.includes('unknown method ListUnifiedResources')) ||
+            err?.response?.status === 501
+          ) {
             return {
               startKey: '',
               agents: [],

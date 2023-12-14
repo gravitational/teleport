@@ -294,9 +294,10 @@ export function NewRequest(props: State) {
           )}
         </Flex>
       </FeatureHeader>
-      {attempt.status === 'failed' && (
-        <ErrorMessage message={attempt.statusText} />
-      )}
+      {attempt.status === 'failed' &&
+        attempt.statusText !== dryRunAttempt.statusText && (
+          <ErrorMessage message={attempt.statusText} />
+        )}
       {addAllFetchAttempt.status === 'failed' && (
         <ErrorMessage message={addAllFetchAttempt.statusText} />
       )}
