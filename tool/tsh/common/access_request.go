@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -219,6 +220,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		// Display the expiry time in the local timezone. UTC is confusing.
 		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
 	}
+	if req.GetAssumeStartTime() != nil {
+		table.AddRow([]string{"Assume Start Time (UTC):", req.GetAssumeStartTime().UTC().Format(time.RFC822)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
@@ -304,6 +308,19 @@ func onRequestReview(cf *CLIConf) error {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
 	}
 
+	var parsedAssumeStartTime *time.Time
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
+		if err != nil {
+			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+		parsedAssumeStartTime = &assumeStartTime
+		if time.Until(*parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
+			return trace.BadParameter("assume-start-time too far in future: latest date %q",
+				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+	}
+
 	var state types.RequestState
 	switch {
 	case cf.Approve:
@@ -317,9 +334,10 @@ func onRequestReview(cf *CLIConf) error {
 		req, err = clt.SubmitAccessReview(cf.Context, types.AccessReviewSubmission{
 			RequestID: cf.RequestID,
 			Review: types.AccessReview{
-				Author:        cf.Username,
-				ProposedState: state,
-				Reason:        cf.ReviewReason,
+				Author:          cf.Username,
+				ProposedState:   state,
+				Reason:          cf.ReviewReason,
+				AssumeStartTime: parsedAssumeStartTime,
 			},
 		})
 		return trace.Wrap(err)
@@ -352,6 +370,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
 	table.AddColumn(asciitable.Column{Title: "Request TTL"})
 	table.AddColumn(asciitable.Column{Title: "Session TTL"})
+	table.AddColumn(asciitable.Column{Title: "Assume Time (UTC)"})
 	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
@@ -362,6 +381,10 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		assumeStartTime := ""
+		if req.GetAssumeStartTime() != nil {
+			assumeStartTime = req.GetAssumeStartTime().UTC().Format(time.RFC822)
+		}
 		table.AddRow([]string{
 			req.GetName(),
 			req.GetUser(),
@@ -370,6 +393,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 			req.GetCreationTime().UTC().Format(time.RFC822),
 			time.Until(req.Expiry()).Round(time.Minute).String(),
 			time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
+			assumeStartTime,
 			req.GetState().String(),
 		})
 	}
