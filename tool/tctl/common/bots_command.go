@@ -368,7 +368,25 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	if c.format == teleport.JSON {
-		out, err := json.MarshalIndent(bot, "", "  ")
+		tokenTTL := time.Duration(0)
+		if exp := token.Expiry(); !exp.IsZero() {
+			tokenTTL = time.Until(exp)
+		}
+		// This struct is equivalent to a legacy bit of JSON we used to output
+		// when we called an older RPC. We've preserved it here to avoid
+		// breaking customer scripts.
+		response := struct {
+			UserName string        `json:"user_name"`
+			RoleName string        `json:"role_name"`
+			TokenID  string        `json:"token_id"`
+			TokenTTL time.Duration `json:"token_ttl"`
+		}{
+			UserName: bot.Status.UserName,
+			RoleName: bot.Status.RoleName,
+			TokenID:  token.GetName(),
+			TokenTTL: tokenTTL,
+		}
+		out, err := json.MarshalIndent(response, "", "  ")
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal CreateBot response")
 		}
