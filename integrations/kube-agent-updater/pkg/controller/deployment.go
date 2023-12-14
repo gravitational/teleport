@@ -29,6 +29,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
 
 // DeploymentVersionUpdater Reconciles a podSpec by changing its image
@@ -76,7 +78,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 
 	image, err := r.GetVersion(ctx, &obj, currentVersion)
 	var (
-		noNewVersionErr *NoNewVersionError
+		noNewVersionErr *version.NoNewVersionError
 		maintenanceErr  *MaintenanceNotTriggeredError
 	)
 	switch {

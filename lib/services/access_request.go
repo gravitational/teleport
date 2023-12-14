@@ -435,6 +435,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
+	if rev.AssumeStartTime != nil {
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
 	return nil
 }
 

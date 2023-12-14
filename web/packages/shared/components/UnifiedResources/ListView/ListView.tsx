@@ -37,6 +37,7 @@ export function ListView({
   onPinResource,
   pinningSupport,
   isProcessing,
+  expandAllLabels,
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
@@ -55,6 +56,7 @@ export function ListView({
           selected={selectedResources.includes(key)}
           selectResource={() => onSelectResource(key)}
           pinResource={() => onPinResource(key)}
+          expandAllLabels={expandAllLabels}
         />
       ))}
       {isProcessing && (
