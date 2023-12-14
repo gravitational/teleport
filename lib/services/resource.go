@@ -26,8 +26,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // MarshalConfig specifies marshaling options
@@ -729,4 +731,24 @@ func setResourceName(overrideLabels []string, meta types.Metadata, firstNamePart
 	meta.Name = strings.Join(nameParts, "-")
 
 	return meta
+}
+
+type resetProtoResource interface {
+	protoadapt.MessageV1
+	SetResourceID(int64)
+	SetRevision(string)
+}
+
+// maybeResetProtoResourceID returns a clone of [r] with the identifiers
+// reset to default values if preserveResourceID is true, otherwise
+// this is a nop, and the original value is returned unaltered.
+func maybeResetProtoResourceID[T resetProtoResource](preserveResourceID bool, r T) T {
+	if preserveResourceID {
+		return r
+	}
+
+	cp := utils.CloneProtoMsg(r)
+	cp.SetResourceID(0)
+	cp.SetRevision("")
+	return cp
 }

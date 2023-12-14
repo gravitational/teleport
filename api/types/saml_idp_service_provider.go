@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -34,12 +33,12 @@ const (
 
 var (
 	// ErrMissingEntityDescriptorAndEntityID is returned when both entity descriptor and entity ID is empty.
-	ErrEmptyEntityDescriptorAndEntityID = trace.BadParameter("either entity_descriptor or entity_id must be provided")
+	ErrEmptyEntityDescriptorAndEntityID = &trace.BadParameterError{Message: "either entity_descriptor or entity_id must be provided"}
 	// ErrMissingEntityDescriptorAndACSURL is returned when both entity descriptor and ACS URL is empty.
-	ErrEmptyEntityDescriptorAndACSURL = trace.BadParameter("either entity_descriptor or acs_url must be provided")
+	ErrEmptyEntityDescriptorAndACSURL = &trace.BadParameterError{Message: "either entity_descriptor or acs_url must be provided"}
 	// ErrDuplicateAttributeName is returned when attribute mapping declares two or more
 	// attributes with the same name.
-	ErrDuplicateAttributeName = trace.BadParameter("duplicate attribute name not allowed.")
+	ErrDuplicateAttributeName = &trace.BadParameterError{Message: "duplicate attribute name not allowed"}
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
@@ -163,11 +162,11 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 
 	if s.Spec.EntityDescriptor == "" {
 		if s.Spec.EntityID == "" {
-			return ErrEmptyEntityDescriptorAndEntityID
+			return trace.Wrap(ErrEmptyEntityDescriptorAndEntityID)
 		}
 
 		if s.Spec.ACSURL == "" {
-			return ErrEmptyEntityDescriptorAndACSURL
+			return trace.Wrap(ErrEmptyEntityDescriptorAndACSURL)
 		}
 
 	}
@@ -185,24 +184,16 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		s.Spec.EntityID = ed.EntityID
 	}
 
-	if len(s.GetAttributeMapping()) > 0 {
-		attrNames := make([]string, 0)
-		for _, v := range s.GetAttributeMapping() {
-			// check for duplicate attribute names
-			if slices.Contains(attrNames, v.Name) {
-				return ErrDuplicateAttributeName
-			}
-			attrNames = append(attrNames, v.Name)
-
-			// validate input name format. If it is using one of the
-			// supported values "unspecified", "basic" or "uri", update
-			// the value with respective uri format.
-			uriNameFormat, err := validateAndGetURINameFormat(v.NameFormat)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			v.NameFormat = uriNameFormat
+	attrNames := make(map[string]struct{})
+	for _, attributeMap := range s.GetAttributeMapping() {
+		if err := attributeMap.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
+		// check for duplicate attribute names
+		if _, ok := attrNames[attributeMap.Name]; ok {
+			return trace.Wrap(ErrDuplicateAttributeName)
+		}
+		attrNames[attributeMap.Name] = struct{}{}
 	}
 
 	return nil
@@ -229,18 +220,20 @@ func (s SAMLIdPServiceProviders) Less(i, j int) bool { return s[i].GetName() < s
 // Swap swaps two service providers.
 func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// validateAndGetURINameFormat checks if the configured name format is one of the supported
-// formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
-// and returns the urn value of that format.
-func validateAndGetURINameFormat(nameFormat string) (string, error) {
-	switch nameFormat {
+// CheckAndSetDefaults check and sets SAMLAttributeMapping default values
+func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
+	// verify name format is one of the supported
+	// formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
+	// and assign it with the URN value of that format.
+	switch am.NameFormat {
 	case "", "unspecified", unspecifiedNameFormat:
-		return unspecifiedNameFormat, nil
+		am.NameFormat = unspecifiedNameFormat
 	case "basic", basicNameFormat:
-		return basicNameFormat, nil
+		am.NameFormat = basicNameFormat
 	case "uri", uriNameFormat:
-		return uriNameFormat, nil
+		am.NameFormat = uriNameFormat
 	default:
-		return "", trace.BadParameter("invalid name format: %s", nameFormat)
+		return trace.BadParameter("invalid name format: %s", am.NameFormat)
 	}
+	return nil
 }

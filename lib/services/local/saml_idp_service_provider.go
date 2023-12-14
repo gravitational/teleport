@@ -230,7 +230,7 @@ func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 	if err != nil {
 		switch {
 		case errors.Is(err, io.EOF):
-			return trace.Wrap(trace.BadParameter("missing entity descriptor: %s", err.Error()))
+			return trace.BadParameter("missing entity descriptor: %s", err.Error())
 		default:
 			return trace.BadParameter(err.Error())
 		}

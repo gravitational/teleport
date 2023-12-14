@@ -993,7 +993,7 @@ $ tsh status
 # > Profile URL:  https://proxy.example.com:3080
 #   Logged in as:       benarent
 #   Cluster:            aws
-#   Roles:              admin*
+#   Roles:              access, editor, auditor
 #   Logins:             benarent, root, ec2-user, ubunutu
 #   Kubernetes:         enabled
 #   Kubernetes cluster: "gke_bens-demos_us-central1-c_gks-demo"
@@ -1077,6 +1077,7 @@ $ tsh request create [<flags>]
 | `--request-ttl` | 1 hour | Relative duration like `5s`, `2m`, or `3h`, | Defines how long the Access Request will be in a `PENDING` state before becoming invalid |
 | `--session-ttl` | Time left on current session | Relative duration like `5s`, `2m`, or `3h` | Defines how long the elevated session will be valid for |
 | `--max-duration` | none | Relative duration like `5s`, `2m`, `3h`, or `7d` | Defines the maximum duration of the elevated session up to 7 days. The assigned role also must have `max_duration` option specified (optional) |
+| `--assume-start-time` | none | String | Sets time roles can be assumed by requestor (RFC3339) |
 
 <Admonition type="tip" title="Note">
 The `--request-ttl` and `--session-ttl` values can not be greater than the
@@ -1140,6 +1141,7 @@ $ tsh request review [<flags>] <request-id>
 | `--approve` | `false` | `true` or `false` | Review proposes approval |
 | `--deny` | `false` | `true` or `false` | Review proposes denial |
 | `--reason` | none | String | Review reason message |
+| `--assume-start-time` | none | String | Sets time roles can be assumed by requestor (RFC3339) |
 
 ### Arguments
 

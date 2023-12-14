@@ -73,7 +73,8 @@ main() {
   # Generate JS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \
     --path=proto/prehog/ \
-    --path=proto/teleport/lib/teleterm/
+    --path=proto/teleport/lib/teleterm/ \
+    --path=api/proto/teleport/userpreferences/
 }
 
 main "$@"

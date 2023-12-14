@@ -2467,6 +2467,31 @@ export namespace AuditQueryRunEvent {
     }
 }
 
+export class DiscoveryFetchEvent extends jspb.Message { 
+    getCloudProvider(): string;
+    setCloudProvider(value: string): DiscoveryFetchEvent;
+
+    getResourceType(): string;
+    setResourceType(value: string): DiscoveryFetchEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoveryFetchEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoveryFetchEvent): DiscoveryFetchEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoveryFetchEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoveryFetchEvent;
+    static deserializeBinaryFromReader(message: DiscoveryFetchEvent, reader: jspb.BinaryReader): DiscoveryFetchEvent;
+}
+
+export namespace DiscoveryFetchEvent {
+    export type AsObject = {
+        cloudProvider: string,
+        resourceType: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -2898,6 +2923,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAuditQueryRun(value?: AuditQueryRunEvent): SubmitEventRequest;
 
 
+    hasDiscoveryFetchEvent(): boolean;
+    clearDiscoveryFetchEvent(): void;
+    getDiscoveryFetchEvent(): DiscoveryFetchEvent | undefined;
+    setDiscoveryFetchEvent(value?: DiscoveryFetchEvent): SubmitEventRequest;
+
+
     hasAccessListReviewCreate(): boolean;
     clearAccessListReviewCreate(): void;
     getAccessListReviewCreate(): AccessListReviewCreateEvent | undefined;
@@ -3002,6 +3033,7 @@ export namespace SubmitEventRequest {
         externalAuditStorageAuthenticate?: ExternalAuditStorageAuthenticateEvent.AsObject,
         securityReportGetResult?: SecurityReportGetResultEvent.AsObject,
         auditQueryRun?: AuditQueryRunEvent.AsObject,
+        discoveryFetchEvent?: DiscoveryFetchEvent.AsObject,
         accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
         accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
         accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
@@ -3149,6 +3181,8 @@ export namespace SubmitEventRequest {
     SECURITY_REPORT_GET_RESULT = 72,
 
     AUDIT_QUERY_RUN = 73,
+
+    DISCOVERY_FETCH_EVENT = 74,
 
     ACCESS_LIST_REVIEW_CREATE = 75,
 
