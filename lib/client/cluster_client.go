@@ -52,6 +52,20 @@ func (c *ClusterClient) Close() error {
 	return trace.NewAggregate(c.AuthClient.Close(), c.ProxyClient.Close())
 }
 
+// ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
+type ceremonyFailedErr struct {
+	err error
+}
+
+// Error returns the error string of the wrapped error if one exists.
+func (c ceremonyFailedErr) Error() string {
+	if c.err == nil {
+		return ""
+	}
+
+	return c.err.Error()
+}
+
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
 // provided target for the provided user. If per session MFA is required to establish the
 // connection, then the MFA ceremony will be performed.
@@ -118,7 +132,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	log.Debug("Issued single-use user certificate after an MFA check.")
 	am, err := key.AsAuthMethod()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 
 	sshConfig.Auth = []ssh.AuthMethod{am}
@@ -315,7 +329,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 
 	mfaResp, err := clt.tc.PromptMFA(ctx, mfaChal)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
