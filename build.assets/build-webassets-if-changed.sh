@@ -51,17 +51,19 @@ for i in "${!SRC_DIRECTORIES[@]}"; do
   SRC_DIRECTORIES[i]="$ROOT_PATH/${SRC_DIRECTORIES[i]}"
 done
 
+# Calculate the current hash-of-hashes of the given source directories, package.json, and yarn.lock.
+# We exclude node_modules as it's covered by package.json and yarn.lock.
+# We also exclude .swc as it's a cache directory for the swc compiler,
+# and ironrdp/pkg as it's filled with the generated wasm files.
 function calculate_sha() {
   #shellcheck disable=SC2086
   #We want to split $SHASUM on spaces so we dont want it quoted.
   find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" \
-	  -not \( -type d \( -name node_modules -o -name .swc \) -prune \) \
-	  -type f -print0 | \
-	  LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -'
+    -not \( -type d \( -name node_modules -o -name .swc -o -path '*ironrdp/pkg*' \) -prune \) \
+    -type f -print0 | \
+    LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -'
 }
 
-# Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
-# This excludes node_modules, as the package.json differences should handle this.
 CURRENT_SHA="$(calculate_sha)"
 
 BUILD=true
