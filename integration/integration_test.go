@@ -7869,12 +7869,14 @@ func getRemoteAddrString(sshClientString string) string {
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create Teleport instance.
-	teleport := suite.newTeleport(t, nil, true)
+	teleport := suite.newTeleport(t, []string{}, true)
 	t.Cleanup(func() {
 		teleport.StopAll()
 	})
 
-	client, err := teleport.NewClient(helpers.ClientConfig{
+	waitForNodesToRegister(t, teleport, helpers.Site)
+
+	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
@@ -7883,13 +7885,29 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Create SFTP session.
 	ctx := context.Background()
-	proxyClient, err := client.ConnectToProxy(ctx)
+	clusterClient, err := teleportClient.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		proxyClient.Close()
+		_ = clusterClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	nodes, err := clusterClient.CurrentCluster().GetNodes(ctx, teleportClient.Namespace)
+	require.NoError(t, err)
+	require.Greater(t, len(nodes), 0)
+
+	nodeClient, err := teleportClient.ConnectToNode(
+		ctx,
+		clusterClient,
+		client.NodeDetails{
+			Addr:      nodes[0].GetAddr(),
+			Namespace: teleportClient.Namespace,
+			Cluster:   helpers.Site,
+		},
+		suite.Me.Username,
+	)
+	require.NoError(t, err)
+
+	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())
