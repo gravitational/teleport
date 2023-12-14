@@ -9114,11 +9114,12 @@ var xxx_messageInfo_WebSessionV2 proto.InternalMessageInfo
 type WebSessionSpecV2 struct {
 	// User is the identity of the user to which the web session belongs.
 	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user"`
-	// Pub is the SSH certificate for the user.
+	// Pub is the SSH certificate for the user, marshaled in the authorized key
+	// format.
 	Pub []byte `protobuf:"bytes,2,opt,name=Pub,proto3" json:"pub"`
 	// Priv is the SSH private key for the user.
 	Priv []byte `protobuf:"bytes,3,opt,name=Priv,proto3" json:"priv,omitempty"`
-	// TLSCert is the TLS certificate for the user.
+	// TLSCert is the X.509 certificate for the user (PEM-encoded).
 	TLSCert []byte `protobuf:"bytes,4,opt,name=TLSCert,proto3" json:"tls_cert,omitempty"`
 	// BearerToken is a token that is paired with the session cookie for
 	// authentication. It is periodically rotated so a stolen cookie itself
