@@ -191,8 +191,6 @@ buildbox-centos7-fips:
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
-# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
-# with the correct UID and GID created, so those arguments are not needed here.
 #
 .PHONY:buildbox-arm
 buildbox-arm:
@@ -206,6 +204,8 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -397,6 +397,14 @@ enter/grpcbox: grpcbox
 enter/node: buildbox-node
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
+
+#
+# Starts shell inside the arm build container
+#
+.PHONY:enter/arm
+enter/arm: buildbox-arm
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_ARM) /bin/bash
 
 # #############################################################################
 # Architecture and variant (fips) specific release targets

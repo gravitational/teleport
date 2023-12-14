@@ -23,25 +23,25 @@ ARG BUILDARCH
 
 RUN apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        curl \
-        git \
-        gzip \
-        libc6-dev \
-        libpam-dev \
-        locales \
-        pkg-config \
-        sudo \
-        unzip \
-        zip \
-        # ARM dependencies
-        gcc-arm-linux-gnueabihf \
-        libc6-dev-armhf-cross \
-        # ARM64 dependencies
-        gcc-aarch64-linux-gnu \
-        libc6-dev-arm64-cross \
-        && \
+    build-essential \
+    ca-certificates \
+    curl \
+    git \
+    gzip \
+    libc6-dev \
+    libpam-dev \
+    locales \
+    pkg-config \
+    sudo \
+    unzip \
+    zip \
+    # ARM dependencies
+    gcc-arm-linux-gnueabihf \
+    libc6-dev-armhf-cross \
+    # ARM64 dependencies
+    gcc-aarch64-linux-gnu \
+    libc6-dev-arm64-cross \
+    && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
@@ -73,7 +73,6 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Add the CI user.
-# This images is not used in CI, but because we used to use it in CI, we keep the same UID/GID and name.
 ARG UID
 ARG GID
 RUN groupadd ci --gid="$GID" -o && \
@@ -82,3 +81,23 @@ RUN groupadd ci --gid="$GID" -o && \
     chown -R ci /var/lib/teleport
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
+
+# Install Rust.
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version
+
+# Install wasm-pack for targeting WebAssembly from Rust.
+ARG WASM_PACK_VERSION
+RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
