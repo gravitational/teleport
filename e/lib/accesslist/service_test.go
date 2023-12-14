@@ -194,9 +194,6 @@ func TestService_UpsertAccessList(t *testing.T) {
 	// User tries to create a new access list that they own. Shouldn't work.
 	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.True(t, trace.IsAccessDenied(err))
-	expectEvent(t, events.AccessListCreateFailureCode, emitter, func(event *apievents.AccessListCreate) {
-		require.False(t, event.Success)
-	})
 
 	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.NoError(t, err)
@@ -207,42 +204,21 @@ func TestService_UpsertAccessList(t *testing.T) {
 		require.Equal(t, a2.GetName(), event.AccessListCreate.Metadata.Id)
 	})
 
-	// Owner should be able to modify the audit.
+	// Owner cannot make any modifications
 	a2.Spec.Audit.NextAuditDate = clock.Now().AddDate(100, 0, 0)
 	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-	expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
-		require.True(t, event.Success)
-	})
-	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
-		require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
-	})
-
-	get, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
-
-	// Owner should be able to modify the membership requires.
-	a2.Spec.MembershipRequires.Roles = append(a2.Spec.MembershipRequires.Roles, "new")
-	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
-	require.NoError(t, err)
-	expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
-		require.True(t, event.Success)
-	})
-	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
-		require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
-	})
-
-	get, err = svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a2, mustFromProto(t, get), cmpOpts...))
-
-	// Owner should not be able to modify anything else. We'll test by changing ownership roles.
-	a2.Spec.OwnershipRequires.Roles = append(a2.Spec.OwnershipRequires.Roles, "new")
-	_, err = svc.UpsertAccessList(ownerCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
 	require.True(t, trace.IsAccessDenied(err))
-	expectEvent(t, events.AccessListUpdateFailureCode, emitter, func(event *apievents.AccessListUpdate) {
-		require.False(t, event.Success)
+
+	// Admin can make modifications
+	a2.Spec.Audit.NextAuditDate = clock.Now().AddDate(100, 0, 0)
+	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
+	require.NoError(t, err)
+
+	expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+		require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
 	})
 }
 
@@ -623,7 +599,7 @@ func initSvcAndTestEnv(t *testing.T) (userContext context.Context, ownerContext 
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
-					Resources: []string{types.KindAccessList},
+					Resources: []string{types.KindAccessList, types.KindUser},
 					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
 				},
 			},
@@ -937,8 +913,9 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 
 	// Update from admin should still retain the old added by, reason, and joined
 	oldJoined := a1m1.Spec.Joined
-	want.Spec.Reason = "some new reason"
+	oldReason := a1m1.Spec.Reason
 	want.Spec.Joined = clock.Now().Add(time.Hour * 24)
+	want.Spec.Reason = "some new reason"
 	_, err = svc.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a1m1)})
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
@@ -949,9 +926,27 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	})
 
 	want.Spec.Joined = oldJoined
+	want.Spec.Reason = oldReason
 	got, err = svc.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(want, mustFromMemberProto(t, got), cmpOpts...))
+
+	// Owner can't add themselves as a member
+	_, err = svc.UpsertAccessListMember(ownerCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(newAccessListMember(t, a1.GetName(), ownerUser, clock))})
+	require.ErrorIs(t, err, trace.AccessDenied("user cannot add themselves to an access list"))
+	expectEvent(t, events.AccessListMemberCreateFailureCode, emitter, func(event *apievents.AccessListMemberCreate) {
+		require.False(t, event.Success)
+	})
+
+	// User with KindUser access can add themselves as a member.
+	_, err = svc.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(newAccessListMember(t, a1.GetName(), testUser, clock))})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+		require.Equal(t, a1.GetName(), event.AccessListMemberCreate.Metadata.Id)
+	})
 }
 
 func TestService_DeleteAccessListMember(t *testing.T) {
@@ -1027,17 +1022,144 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 }
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
-	ctx, _, svc, clock, emitter, usageEvents := initSvc(t)
+	ctx, ownerCtx, svc, clock, emitter, usageEvents := initSvc(t)
+
+	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
 
 	a1 := newAccessList(t, "1", clock)
 	a2 := newAccessList(t, "2", clock)
+	a3 := newAccessList(t, "3", clock)
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, clock)
 	a2m1 := newAccessListMember(t, a2.GetName(), member3, clock)
 	a2m2 := newAccessListMemberWithIneligibleReason(t, a2.GetName(), "user4", clock, accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST)])
 
-	createAccessListsAndMembers(t, ctx, svc, emitter, usageEvents, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
+	createAccessListsAndMembers(t, ctx, svc, emitter, usageEvents, []*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
+
+	upsertAccessListWithMembers := func(t *testing.T, ctx context.Context, accessList *accesslist.AccessList,
+		members []*accesslist.AccessListMember, wantErrFn require.ErrorAssertionFunc) {
+		oldAccessListResp, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{
+			Name: accessList.GetName(),
+		})
+		if err != nil && !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+
+		var membersCreated, membersUpdated, membersDeleted int
+
+		var oldAccessList *accesslist.AccessList
+		if oldAccessListResp != nil {
+			oldAccessList, err = conv.FromProto(oldAccessListResp)
+			require.NoError(t, err)
+		}
+		var checkAccessListModificationEvent bool
+		if !cmp.Equal(oldAccessList, accessList, ignoreIDAndRevision...) {
+			checkAccessListModificationEvent = true
+		}
+
+		accessListCreated := false
+		if oldAccessList == nil {
+			accessListCreated = true
+			membersCreated = len(members)
+		} else {
+			oldMembers, err := svc.getAccessListMemberMap(ctx, accessList.GetName())
+			require.NoError(t, err)
+
+			for _, member := range members {
+				if _, ok := oldMembers[member.GetName()]; ok {
+					membersUpdated++
+					delete(oldMembers, member.GetName())
+				} else {
+					membersCreated++
+				}
+			}
+			membersDeleted = len(oldMembers)
+		}
+
+		_, err = svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(accessList),
+			Members:    conv.ToMembersProto(members),
+		})
+		wantErrFn(t, err)
+
+		if checkAccessListModificationEvent {
+			if accessListCreated {
+				if err == nil {
+					expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
+						require.True(t, event.Success)
+					})
+				} else {
+					expectEvent(t, events.AccessListCreateFailureCode, emitter, func(event *apievents.AccessListCreate) {
+						require.False(t, event.Success)
+					})
+				}
+			} else {
+				if err == nil {
+					expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
+						require.True(t, event.Success)
+					})
+				} else {
+					expectEvent(t, events.AccessListUpdateFailureCode, emitter, func(event *apievents.AccessListUpdate) {
+						require.False(t, event.Success)
+					})
+				}
+			}
+		}
+
+		if err != nil {
+			return
+		}
+
+		if checkAccessListModificationEvent {
+			if accessListCreated {
+				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+					require.Equal(t, accessList.GetName(), event.AccessListCreate.Metadata.Id)
+				})
+			} else {
+				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+					require.Equal(t, accessList.GetName(), event.AccessListUpdate.Metadata.Id)
+				})
+			}
+		}
+
+		if membersCreated > 0 {
+			expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
+				require.True(t, event.Success)
+				require.Len(t, event.AccessListMemberMetadata.Members, membersCreated)
+			})
+			for i := 0; i < membersCreated; i++ {
+				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+					require.Equal(t, accessList.GetName(), event.AccessListMemberCreate.Metadata.Id)
+				})
+			}
+		}
+		if membersUpdated > 0 {
+			expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
+				require.True(t, event.Success)
+				require.Len(t, event.AccessListMemberMetadata.Members, membersUpdated)
+			})
+			for i := 0; i < membersUpdated; i++ {
+				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
+					require.Equal(t, accessList.GetName(), event.AccessListMemberUpdate.Metadata.Id)
+				})
+			}
+		}
+		if membersDeleted > 0 {
+			expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
+				require.True(t, event.Success)
+				require.Len(t, event.AccessListMemberMetadata.Members, membersDeleted)
+			})
+			for i := 0; i < membersDeleted; i++ {
+				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+					require.Equal(t, accessList.GetName(), event.AccessListMemberDelete.Metadata.Id)
+				})
+			}
+		}
+	}
 
 	// Sanity check
 	membersA1 := listAllAccessListMembers(ctx, t, svc, a1.GetName(), 2)
@@ -1046,34 +1168,22 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	membersA2 := listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
 	require.Len(t, membersA2, 1)
 
+	t.Run("create a new access list with members", func(t *testing.T) {
+		a4 := newAccessList(t, "4", clock)
+		upsertAccessListWithMembers(t, ctx, a4, []*accesslist.AccessListMember{
+			newAccessListMember(t, a4.GetName(), member1, clock),
+			newAccessListMember(t, a4.GetName(), member2, clock),
+		}, require.NoError)
+
+		// One member should have been deleted
+		membersA4 := listAllAccessListMembers(ctx, t, svc, a4.GetName(), 3)
+		require.Len(t, membersA4, 2)
+	})
+
 	t.Run("remove one member", func(t *testing.T) {
-		_, err := svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
-			AccessList: conv.ToProto(a1),
-			Members:    conv.ToMembersProto([]*accesslist.AccessListMember{a1m1}),
-		})
-		require.NoError(t, err)
-		expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
-			require.True(t, event.Success)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
-			require.Equal(t, a1.GetName(), event.AccessListUpdate.Metadata.Id)
-		})
-
-		expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
-			require.True(t, event.Success)
-			require.Len(t, event.AccessListMemberMetadata.Members, 1)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
-			require.Equal(t, a1.GetName(), event.AccessListMemberUpdate.Metadata.Id)
-		})
-
-		expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
-			require.True(t, event.Success)
-			require.Len(t, event.AccessListMemberMetadata.Members, 1)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
-			require.Equal(t, a1.GetName(), event.AccessListMemberDelete.Metadata.Id)
-		})
+		upsertAccessListWithMembers(t, ctx, a1, []*accesslist.AccessListMember{
+			a1m1,
+		}, require.NoError)
 
 		// One member should have been deleted
 		membersA1 = listAllAccessListMembers(ctx, t, svc, a1.GetName(), 2)
@@ -1082,33 +1192,10 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 
 	t.Run("add one member", func(t *testing.T) {
 		// Add one member to a2
-		_, err := svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
-			AccessList: conv.ToProto(a2),
-			Members:    conv.ToMembersProto([]*accesslist.AccessListMember{a2m1, a2m2}),
-		})
-		require.NoError(t, err)
-		expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
-			require.True(t, event.Success)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
-			require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
-		})
-
-		expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
-			require.True(t, event.Success)
-			require.Len(t, event.AccessListMemberMetadata.Members, 1)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
-			require.Equal(t, a2.GetName(), event.AccessListMemberCreate.Metadata.Id)
-		})
-
-		expectEvent(t, events.AccessListMemberUpdateSuccessCode, emitter, func(event *apievents.AccessListMemberUpdate) {
-			require.True(t, event.Success)
-			require.Len(t, event.AccessListMemberMetadata.Members, 1)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
-			require.Equal(t, a2.GetName(), event.AccessListMemberUpdate.Metadata.Id)
-		})
+		upsertAccessListWithMembers(t, ctx, a2, []*accesslist.AccessListMember{
+			a2m1,
+			a2m2,
+		}, require.NoError)
 
 		// One member should have been added
 		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
@@ -1117,31 +1204,137 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 
 	t.Run("remove all members", func(t *testing.T) {
 		// If not members are provided all members should be deleted
-		_, err := svc.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
-			AccessList: conv.ToProto(a2),
-		})
-		require.NoError(t, err)
-		expectEvent(t, events.AccessListUpdateSuccessCode, emitter, func(event *apievents.AccessListUpdate) {
-			require.True(t, event.Success)
-		})
-		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
-			require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
-		})
-
-		expectEvent(t, events.AccessListMemberDeleteSuccessCode, emitter, func(event *apievents.AccessListMemberDelete) {
-			require.True(t, event.Success)
-			require.Len(t, event.AccessListMemberMetadata.Members, 2)
-		})
-		for i := 0; i < 2; i++ {
-			expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
-				require.Equal(t, a2.GetName(), event.AccessListMemberDelete.Metadata.Id)
-			})
-		}
+		upsertAccessListWithMembers(t, ctx, a2, nil, require.NoError)
 
 		// All members should have been deleted
 		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
 		require.Empty(t, membersA2)
 	})
+
+	t.Run("owner can't modify owners", func(t *testing.T) {
+		// Make a copy of a3.
+		a3, err := conv.FromProto(conv.ToProto(a3))
+		require.NoError(t, err)
+		a3.Spec.Owners = append(a3.Spec.Owners, accesslist.Owner{
+			Name: "dummy",
+		})
+		upsertAccessListWithMembers(t, ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	})
+
+	t.Run("owner can't modify grant roles", func(t *testing.T) {
+		// Make a copy of a3.
+		a3, err := conv.FromProto(conv.ToProto(a3))
+		require.NoError(t, err)
+		a3.Spec.Grants.Roles = append(a3.Spec.Grants.Roles, "dummy")
+		upsertAccessListWithMembers(t, ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	})
+
+	t.Run("owner can't modify grant traits", func(t *testing.T) {
+		a3, err := conv.FromProto(conv.ToProto(a3))
+		require.NoError(t, err)
+		a3.Spec.Grants.Traits["dummy"] = []string{"value1", "value2"}
+		upsertAccessListWithMembers(t, ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	})
+
+	t.Run("owner can't modify membership requires", func(t *testing.T) {
+		a3, err := conv.FromProto(conv.ToProto(a3))
+		require.NoError(t, err)
+		a3.Spec.MembershipRequires = accesslist.Requires{
+			Roles: []string{"some-new-role"},
+		}
+		upsertAccessListWithMembers(t, ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	})
+
+	t.Run("owner can't modify audit", func(t *testing.T) {
+		a3, err := conv.FromProto(conv.ToProto(a3))
+		require.NoError(t, err)
+		a3.Spec.Audit.NextAuditDate = a3.Spec.Audit.NextAuditDate.Add(24 * time.Hour * 365)
+		upsertAccessListWithMembers(t, ownerCtx, a3, nil, func(t require.TestingT, err error, i ...interface{}) {
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	})
+
+	t.Run("owner can modify members", func(t *testing.T) {
+		upsertAccessListWithMembers(t, ownerCtx, a3, []*accesslist.AccessListMember{
+			newAccessListMember(t, a3.GetName(), member1, clock),
+			newAccessListMember(t, a3.GetName(), member2, clock),
+		}, require.NoError)
+
+		// One member should have been deleted
+		membersA3 := listAllAccessListMembers(ctx, t, svc, a3.GetName(), 3)
+		require.Len(t, membersA3, 2)
+	})
+
+	t.Run("member can't modify members", func(t *testing.T) {
+		a3, err := conv.FromProto(conv.ToProto(a3))
+		require.NoError(t, err)
+		upsertAccessListWithMembers(t, memberCtx, a3, []*accesslist.AccessListMember{
+			newAccessListMember(t, a3.GetName(), member1, clock),
+			newAccessListMember(t, a3.GetName(), member2, clock),
+		}, func(t require.TestingT, err error, i ...interface{}) {
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	})
+
+	t.Run("owner can't add itself as a member", func(t *testing.T) {
+		ownerMember := newAccessListMember(t, a2.GetName(), ownerUser, clock)
+
+		// Owner tries to add itself as a member.
+		upsertAccessListWithMembers(t, ownerCtx, a2, []*accesslist.AccessListMember{
+			a2m1,
+			a2m2,
+			ownerMember,
+		}, func(t require.TestingT, err error, i ...interface{}) {
+			require.ErrorIs(t, err, trace.AccessDenied("user cannot add themselves to an access list"))
+		})
+
+		// Admin user adds owner to access list.
+		upsertAccessListWithMembers(t, ctx, a2, []*accesslist.AccessListMember{
+			a2m1,
+			a2m2,
+			ownerMember,
+		}, require.NoError)
+
+		// Owner adds another user, including themselves, which is okay since it already exists.
+		upsertAccessListWithMembers(t, ownerCtx, a2, []*accesslist.AccessListMember{
+			a2m1,
+			a2m2,
+			ownerMember,
+			newAccessListMember(t, a2.GetName(), "new-user1", clock),
+		}, require.NoError)
+
+		// Owner attempts to modify their own user.
+		ownerMember.Spec.Expires = clock.Now()
+		upsertAccessListWithMembers(t, ownerCtx, a2, []*accesslist.AccessListMember{
+			a2m1,
+			a2m2,
+			ownerMember,
+			newAccessListMember(t, a2.GetName(), "new-user1", clock),
+		}, func(t require.TestingT, err error, i ...interface{}) {
+			require.ErrorIs(t, err, trace.AccessDenied("user cannot add themselves to an access list"))
+		})
+
+		// Test user attempts to add their own user, which is okay because they have KindUser RBAC access.
+		upsertAccessListWithMembers(t, ctx, a2, []*accesslist.AccessListMember{
+			a2m1,
+			a2m2,
+			ownerMember,
+			newAccessListMember(t, a2.GetName(), "new-user1", clock),
+			newAccessListMember(t, a2.GetName(), testUser, clock),
+		}, require.NoError)
+
+		membersA2 = listAllAccessListMembers(ctx, t, svc, a2.GetName(), 2)
+		require.Len(t, membersA2, 5)
+	})
+
 }
 
 func TestService_AuthOrIsOwner(t *testing.T) {
@@ -1200,7 +1393,8 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// This test must not be parallel to avoid testing issues with lock interaction and
 			// the fake clock being used for the underlying tests.
-			test.wantErr(t, svc.authOrIsOwner(test.ctx, test.accessListName, types.VerbRead))
+			_, err := svc.authOrIsOwner(test.ctx, test.accessListName, types.VerbRead)
+			test.wantErr(t, err)
 		})
 	}
 }
