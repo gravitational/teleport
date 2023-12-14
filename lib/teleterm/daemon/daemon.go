@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"os/exec"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -317,8 +319,9 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
+// reissueGatewayCerts tries to reissue gateway certs. It handles asking the user to relogin and
+// per-session MFA checks.
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
@@ -329,17 +332,25 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		},
 	}
 
+	var cert tls.Certificate
+
 	reissueDBCerts := func() error {
-		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
+		cluster, clusterClient, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
+		promptReason, err := gateway.GetPromptReasonSessionMFA(g.TargetURI())
+		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		return trace.Wrap(g.ReloadCert())
+		mfaPrompt := clusterClient.NewMFAPrompt(
+			mfa.WithPromptReasonSessionMFA(promptReason.ServiceType, promptReason.ServiceName))
+		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	// If the gateway certs have expired but the user cert is active,
@@ -363,10 +374,10 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	return nil
+	return cert, nil
 }
 
 // RemoveGateway removes cluster gateway

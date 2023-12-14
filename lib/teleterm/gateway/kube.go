@@ -123,26 +123,16 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 }
 
 func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) {
-	cert, err := keys.LoadX509KeyPair(k.cfg.CertPath, k.cfg.KeyPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certReissuer := newKubeCertReissuer(cert, func(ctx context.Context) error {
-		return trace.Wrap(k.cfg.OnExpiredCert(ctx, k))
-	})
-	k.onNewCertFuncs = append(k.onNewCertFuncs, func(cert tls.Certificate) error {
-		certReissuer.updateCert(cert)
-		return nil
-	})
-
 	certs := make(alpnproxy.KubeClientCerts)
-	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, cert)
+	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, k.cfg.Cert)
 	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
-		Certs:        certs,
-		CertReissuer: certReissuer.reissueCert,
-		Clock:        k.cfg.Clock,
-		Logger:       k.cfg.Log,
+		Certs: certs,
+		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+			cert, err := k.cfg.OnExpiredCert(ctx, k)
+			return cert, trace.Wrap(err)
+		},
+		Clock:  k.cfg.Clock,
+		Logger: k.cfg.Log,
 	}), nil
 }
 

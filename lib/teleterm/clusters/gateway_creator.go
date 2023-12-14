@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -39,10 +40,17 @@ func NewGatewayCreator(resolver Resolver) GatewayCreator {
 }
 
 func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
-	cluster, _, err := g.resolver.ResolveCluster(params.TargetURI)
+	cluster, clusterClient, err := g.resolver.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	promptReason, err := gateway.GetPromptReasonSessionMFA(params.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	params.MFAPrompt = clusterClient.NewMFAPrompt(
+		mfa.WithPromptReasonSessionMFA(promptReason.ServiceType, promptReason.ServiceName))
 
 	gateway, err := cluster.CreateGateway(ctx, params)
 	return gateway, trace.Wrap(err)

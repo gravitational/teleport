@@ -191,11 +191,20 @@ func (b *base) LocalPortInt() int {
 //
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
+// TODO(ravicious): Remove ReloadCert after adding MFA support to gateways.
 func (b *base) ReloadCert() error {
 	if len(b.onNewCertFuncs) == 0 {
 		return nil
 	}
 	b.cfg.Log.Debug("Reloading cert")
+
+	if b.cfg.CertPath == "" {
+		return trace.Errorf("attempted to reload cert for a gateway, but cert path is empty")
+	}
+
+	if b.cfg.KeyPath == "" {
+		return trace.Errorf("attempted to reload cert for a gateway, but key path is empty")
+	}
 
 	tlsCert, err := keys.LoadX509KeyPair(b.cfg.CertPath, b.cfg.KeyPath)
 	if err != nil {
@@ -242,6 +251,7 @@ type base struct {
 	forwardProxy *alpn.ForwardProxy
 	// onNewCertFuncs contains a list of callback functions that update the local
 	// proxy when TLS certificate is reissued.
+	// TODO(ravicious): Remove this field after adding MFA support to gateways.
 	onNewCertFuncs []func(tls.Certificate) error
 	// onCloseFuncs contains a list of extra cleanup functions called during Close.
 	onCloseFuncs []func() error
@@ -264,4 +274,28 @@ func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, er
 	}
 
 	return listener, nil
+}
+
+type PromptReasonSessionMFA struct {
+	ServiceType string
+	ServiceName string
+}
+
+func GetPromptReasonSessionMFA(uri uri.ResourceURI) (PromptReasonSessionMFA, error) {
+	switch {
+	case uri.IsDB():
+		return PromptReasonSessionMFA{
+			ServiceType: "database",
+			ServiceName: uri.GetDbName(),
+		}, nil
+
+	case uri.IsKube():
+		return PromptReasonSessionMFA{
+			ServiceType: "Kubernetes cluster",
+			ServiceName: uri.GetKubeName(),
+		}, nil
+
+	default:
+		return PromptReasonSessionMFA{}, trace.NotImplemented("GetPromptReasonSessionMFA does not handle this resource kind %v", uri)
+	}
 }

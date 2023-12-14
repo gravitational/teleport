@@ -88,12 +88,17 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 
 	ca := gatewaytest.MustGenCACert(m.t)
 
-	// The way this code is structured might seem weird, but we're going to change it within this PR
-	// to set CertPath and KeyPath for db gateways and just Cert for kube gateways.
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
+	if params.TargetURI.IsDB() {
+		keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
 
-	config.CertPath = keyPairPaths.CertPath
-	config.KeyPath = keyPairPaths.KeyPath
+		config.CertPath = keyPairPaths.CertPath
+		config.KeyPath = keyPairPaths.KeyPath
+	}
+
+	if params.TargetURI.IsKube() {
+		cert := gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity)
+		config.Cert = cert
+	}
 
 	gateway, err := gateway.New(config)
 	if err != nil {
