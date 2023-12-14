@@ -119,7 +119,8 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 	TeleportClusterVersion string
 	// AWSOIDCProvderAddr specifies the AWS OIDC provider address used to generate AWS OIDC tokens
 	AWSOIDCProviderAddr string
-	UpgradeChannel      *automaticupgrades.Channel
+	// UpgradeChannel is the channel that serves the version used by the updater.
+	UpgradeChannel *automaticupgrades.Channel
 }
 
 // CheckAndSetDefaults checks and sets default config values.

@@ -78,7 +78,8 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
-	// automaticUpgradesVersion is the target automatic upgrades version
+	// automaticUpgradesVersion is the target automatic upgrades version.
+	// The version must be valid semver, with the leading 'v'. e.g. v15.0.0-dev
 	// Required when installUpdater is true.
 	automaticUpgradesVersion string
 }
@@ -207,17 +208,30 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
-func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	httplib.SetScriptHeaders(w.Header())
-
+// getAutoUpgrades checks if automaticUpgrades are enabled and returns the
+// version that should be used according to auto upgrades default channel.
+func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
 	var autoUpgradesVersion string
 	var err error
 	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
 	if autoUpgrades {
-		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
+		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to get auto-upgrade version")
+			log.WithError(err).Info("Failed to get auto upgrades version.")
+			return false, "", trace.Wrap(err)
 		}
+	}
+	return autoUpgrades, autoUpgradesVersion, nil
+
+}
+
+func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
 	}
 
 	settings := scriptSettings{
@@ -262,13 +276,10 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
-	var autoUpgradesVersion string
-	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
-	if autoUpgrades {
-		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to get auto-upgrade version")
-		}
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
 	}
 
 	settings := scriptSettings{
@@ -299,14 +310,10 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
-	var autoUpgradesVersion string
-	var err error
-	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
-	if autoUpgrades {
-		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to get auto-upgrade version")
-		}
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
 	}
 
 	settings := scriptSettings{
@@ -422,8 +429,13 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// It pins the teleport version to the one specified by the default version channel
 	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
+		if settings.automaticUpgradesVersion == "" {
+			return "", trace.Wrap(err, "automatic upgrades version must be set when installUpdater is true")
+		}
+
 		repoChannel = stableCloudChannelRepo
-		// automaticUpgradesVersion has vX.Y.Z format, however the script expects the version to not include the `v`
+		// automaticUpgradesVersion has vX.Y.Z format, however the script
+		// expects the version to not include the `v` so we strip it
 		version = strings.TrimPrefix(settings.automaticUpgradesVersion, "v")
 	}
 
