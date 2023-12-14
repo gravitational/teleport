@@ -78,7 +78,7 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
-	// automaticUpgradesVersion is the channel for getting the version when using automatic upgrades
+	// automaticUpgradesVersion is the target automatic upgrades version
 	// Required when installUpdater is true.
 	automaticUpgradesVersion string
 }
