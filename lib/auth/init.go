@@ -1379,7 +1379,10 @@ var ResourceApplyPriority = map[string]int{
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
-	types.KindBot:                     3, // Bots should be applied after users and roles
+	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
+	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
+	// resources have been exported.
+	types.KindBot: 3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
