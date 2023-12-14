@@ -1075,7 +1075,7 @@ func (x *ListAccessListReviewsRequest) GetNextToken() string {
 	return ""
 }
 
-// ListAccessListReviewsResponse is the response for getting paginated access list rviews for a particular access list.
+// ListAccessListReviewsResponse is the response for getting paginated access list reviews for a particular access list.
 type ListAccessListReviewsResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

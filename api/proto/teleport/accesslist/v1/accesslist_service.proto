@@ -215,7 +215,7 @@ message ListAccessListReviewsRequest {
   string next_token = 3;
 }
 
-// ListAccessListReviewsResponse is the response for getting paginated access list rviews for a particular access list.
+// ListAccessListReviewsResponse is the response for getting paginated access list reviews for a particular access list.
 message ListAccessListReviewsResponse {
   // reviews is the list of access list reviews.
   repeated Review reviews = 1;
