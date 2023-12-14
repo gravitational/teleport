@@ -1,0 +1,40 @@
+In order for the Event Handler plugin to forward events from your Teleport
+cluster, it needs signed credentials from the cluster's certificate authority.
+The `teleport-event-handler` user cannot request this itself, and requires
+another user to **impersonate** this account in order to request credentials.
+
+Create a role that enables your user to impersonate the `teleport-event-handler`
+user. First, paste the following YAML document into a file called
+`teleport-event-handler-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: teleport-event-handler-impersonator
+spec:
+  options:
+    # max_session_ttl defines the TTL (time to live) of SSH certificates
+    # issued to the users with this role.
+    max_session_ttl: 10h
+
+  # This section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default nothing is allowed.
+  allow:
+    impersonate:
+      users: ["teleport-event-handler"]
+      roles: ["teleport-event-handler"]
+```
+
+Next, create the role:
+
+```code
+$ tctl create teleport-event-handler-impersonator.yaml
+```
+
+If you are using Machine ID to provide short-lived credentials to the Event
+Handler, add this role to the Machine ID bot user. Otherwise, add this role to
+the user that generates signed credentials for the Event Handler:
+
+(!docs/pages/includes/add-role-to-user.mdx role="teleport-event-handler-impersonator"!)
+

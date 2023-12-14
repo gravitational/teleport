@@ -63,10 +63,10 @@ impl UnixPath {
     /// any characters that can't be handled by CString::new().
     pub fn to_cstring(&self) -> PduResult<CString> {
         CString::new(self.path.clone()).map_err(|e| {
-            custom_err!(
-                "UnixPath::to_cstring",
-                PathError(format!("Error converting UnixPath to CString: {}", e))
-            )
+            custom_err!(PathError(format!(
+                "Error converting UnixPath to CString: {}",
+                e
+            )))
         })
     }
 

@@ -1,46 +1,34 @@
-// default trait not supported in wasm
-// Copyright 2023 Gravitational, Inc
+// Teleport
+// Copyright (C) 2023  Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
-
-#[macro_use]
-extern crate log;
-extern crate byteorder;
-extern crate bytes;
-extern crate console_log;
-extern crate ironrdp_graphics;
-extern crate ironrdp_pdu;
-extern crate ironrdp_session;
-extern crate js_sys;
-extern crate tracing;
-extern crate tracing_subscriber;
-extern crate tracing_web;
-extern crate wasm_bindgen;
-extern crate web_sys;
 
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
 use ironrdp_pdu::write_buf::WriteBuf;
 use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::image::DecodedImage;
+use ironrdp_session::ActiveStageOutput;
 use ironrdp_session::{
     fast_path::Processor as IronRdpFastPathProcessor,
-    fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder, ActiveStageOutput,
+    fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
 };
 use js_sys::Uint8Array;
+use log::{debug, warn};
 use std::convert::TryFrom;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
@@ -108,7 +96,7 @@ impl From<RDPFastPathPDU> for RustRDPFastPathPDU {
 }
 
 #[wasm_bindgen]
-struct BitmapFrame {
+pub struct BitmapFrame {
     top: u16,
     left: u16,
     image_data: ImageData,

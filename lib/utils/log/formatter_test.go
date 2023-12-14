@@ -183,7 +183,7 @@ func TestOutput(t *testing.T) {
 				slogTime, err := time.Parse(time.RFC3339, slogMatches[1])
 				assert.NoError(t, err, "invalid slog timestamp found %s", slogMatches[1])
 
-				assert.InDelta(t, logrusTime.UnixNano(), slogTime.UnixNano(), 10)
+				assert.InDelta(t, logrusTime.Unix(), slogTime.Unix(), 10)
 
 				// Match level, and component: DEBU [TEST]
 				assert.Empty(t, cmp.Diff(logrusMatches[2], slogMatches[2]), "level, and component to be identical")
@@ -306,6 +306,22 @@ func TestOutput(t *testing.T) {
 				delete(slogData, "caller")
 				assert.True(t, ok, "caller was missing from slog output")
 				assert.Equal(t, fmt.Sprintf("log/formatter_test.go:%d", slogTestLogLineNumber), slogCaller)
+
+				logrusTimestamp, ok := logrusData["timestamp"].(string)
+				delete(logrusData, "timestamp")
+				assert.True(t, ok, "time was missing from logrus output")
+
+				slogTimestamp, ok := slogData["timestamp"].(string)
+				delete(slogData, "timestamp")
+				assert.True(t, ok, "time was missing from slog output")
+
+				logrusTime, err := time.Parse(time.RFC3339, logrusTimestamp)
+				assert.NoError(t, err, "invalid logrus timestamp %s", logrusTimestamp)
+
+				slogTime, err := time.Parse(time.RFC3339, slogTimestamp)
+				assert.NoError(t, err, "invalid slog timestamp %s", slogTimestamp)
+
+				assert.InDelta(t, logrusTime.Unix(), slogTime.Unix(), 10)
 
 				require.Empty(t,
 					cmp.Diff(

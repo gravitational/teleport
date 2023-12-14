@@ -134,10 +134,10 @@ impl FileSystemObject {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(custom_err!(
-                "FileSystemObject::name",
-                TdpHandlingError(format!("failed to extract name from path: {:?}", self.path))
-            ))
+            Err(custom_err!(TdpHandlingError(format!(
+                "failed to extract name from path: {:?}",
+                self.path
+            ))))
         }
     }
 

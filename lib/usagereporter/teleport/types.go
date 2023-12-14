@@ -776,6 +776,57 @@ func (e *AccessListGrantsToUserEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	}
 }
 
+type AccessListReviewCreateEvent prehogv1a.AccessListReviewCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListReviewCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewCreate{
+			AccessListReviewCreate: &prehogv1a.AccessListReviewCreateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+				DaysPastNextAuditDate:         e.DaysPastNextAuditDate,
+				MembershipRequirementsChanged: e.MembershipRequirementsChanged,
+				ReviewFrequencyChanged:        e.ReviewFrequencyChanged,
+				ReviewDayOfMonthChanged:       e.ReviewDayOfMonthChanged,
+				NumberOfRemovedMembers:        e.NumberOfRemovedMembers,
+			},
+		},
+	}
+}
+
+type AccessListReviewDeleteEvent prehogv1a.AccessListReviewDeleteEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListReviewDeleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewDelete{
+			AccessListReviewDelete: &prehogv1a.AccessListReviewDeleteEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListReviewComplianceEvent prehogv1a.AccessListReviewComplianceEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListReviewComplianceEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewCompliance{
+			AccessListReviewCompliance: &prehogv1a.AccessListReviewComplianceEvent{
+				TotalAccessLists:      e.TotalAccessLists,
+				AccessListsNeedReview: e.AccessListsNeedReview,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -938,6 +989,21 @@ func (e *AuditQueryRunEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 				UserName:  a.AnonymizeString(e.UserName),
 				Days:      e.Days,
 				IsSuccess: e.IsSuccess,
+			},
+		},
+	}
+}
+
+// DiscoveryFetchEvent is emitted when a DiscoveryService fetchs resources.
+type DiscoveryFetchEvent prehogv1a.DiscoveryFetchEvent
+
+// Anonymize anonymizes the event.
+func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DiscoveryFetchEvent{
+			DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
+				CloudProvider: e.CloudProvider,
+				ResourceType:  e.ResourceType,
 			},
 		},
 	}
@@ -1357,6 +1423,33 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			UserName: userMD.Username,
 			Name:     e.SecurityReportGetResult.Name,
 			Days:     e.SecurityReportGetResult.Days,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
+		ret := &AccessListReviewCreateEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListReviewCreate.Metadata.Id,
+			},
+			DaysPastNextAuditDate:         e.AccessListReviewCreate.DaysPastNextAuditDate,
+			MembershipRequirementsChanged: e.AccessListReviewCreate.MembershipRequirementsChanged,
+			ReviewFrequencyChanged:        e.AccessListReviewCreate.ReviewFrequencyChanged,
+			ReviewDayOfMonthChanged:       e.AccessListReviewCreate.ReviewDayOfMonthChanged,
+			NumberOfRemovedMembers:        e.AccessListReviewCreate.NumberOfRemovedMembers,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListReviewDelete:
+		ret := &AccessListReviewDeleteEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListReviewDelete.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent:
+		ret := &DiscoveryFetchEvent{
+			CloudProvider: e.DiscoveryFetchEvent.CloudProvider,
+			ResourceType:  e.DiscoveryFetchEvent.ResourceType,
 		}
 		return ret, nil
 

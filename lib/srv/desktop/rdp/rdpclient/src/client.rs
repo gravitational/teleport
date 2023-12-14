@@ -30,7 +30,7 @@ use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::SecurityProtocol;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::RdpError;
-use ironrdp_pdu::{custom_err, PduError, PduParsing};
+use ironrdp_pdu::{custom_err, function, PduError, PduParsing};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
@@ -40,6 +40,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
 use ironrdp_tokio::{Framed, TokioStream};
+use log::debug;
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
@@ -659,7 +660,7 @@ impl Client {
         global::TOKIO_RT
             .spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
             .await
-            .map_err(|err| reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err))?
+            .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
 
     /// Processes some [`SvcProcessorMessages`] on a blocking thread.
@@ -677,7 +678,7 @@ impl Client {
                 Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
             })
             .await
-            .map_err(|err| reason_err!("tokio::spawn_blocking", "JoinError: {:?}", err))?
+            .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
 
     fn x224_lock(
@@ -685,7 +686,7 @@ impl Client {
     ) -> Result<MutexGuard<X224Processor>, SessionError> {
         x224_processor
             .lock()
-            .map_err(|err| reason_err!("x224_processor.lock()", "PoisonError: {:?}", err))
+            .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
     }
 
     /// Returns an immutable reference to the [`StaticVirtualChannelProcessor`] of type `S`.
@@ -1165,7 +1166,7 @@ impl From<PduError> for ClientError {
 
 impl From<ClientError> for PduError {
     fn from(e: ClientError) -> Self {
-        custom_err!("ClientError", e)
+        custom_err!(e)
     }
 }
 

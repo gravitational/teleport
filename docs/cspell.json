@@ -110,8 +110,8 @@
     "Kubernetes",
     "Kubes",
     "LDAPS",
-    "LnaRP0xKWRI",
     "LOCALAPPDATA",
+    "LnaRP0xKWRI",
     "MAINPID",
     "MDAs",
     "MGET",
@@ -403,6 +403,7 @@
     "exfiltrated",
     "exfiltration",
     "externaladdress",
+    "externalauditstorage",
     "extfile",
     "extraargs",
     "extraenv",
@@ -523,6 +524,7 @@
     "loginuid",
     "loginwithmsft",
     "logrus",
+    "longterm",
     "lptne",
     "lsnrctl",
     "lucidchart",
@@ -872,7 +874,10 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "Vitess",
+    "vtgate",
+    "clientcert"
   ],
   "flagWords": ["hte"]
 }

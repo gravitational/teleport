@@ -206,7 +206,7 @@ it('notifies about resource search errors and allows to display details', () => 
   expect(results).toHaveTextContent('Could not fetch servers from foo');
   expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
 
-  screen.getByText('Show details').click();
+  act(() => screen.getByText('Show details').click());
 
   expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -248,20 +248,20 @@ it('maintains focus on the search input after closing a resource search error mo
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
 
   expect(screen.getByRole('menu')).toHaveTextContent(
     'Some of the search results are incomplete.'
   );
-  screen.getByText('Show details').click();
+  act(() => screen.getByText('Show details').click());
 
   const modal = screen.getByTestId('Modal');
   expect(modal).toHaveTextContent('Resource search errors');
   expect(modal).toHaveTextContent('whoops');
 
   // Lose focus on the search input.
-  screen.getByText('Close').focus();
-  screen.getByText('Close').click();
+  act(() => screen.getByText('Close').focus());
+  act(() => screen.getByText('Close').click());
 
   // Need to await this since some state updates in SearchContext are done after the modal closes.
   // Otherwise we'd get a warning about missing `act`.
@@ -307,7 +307,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
 
   // Verify that the login modal was shown after typing in the search box.
   await waitFor(() => {
@@ -316,7 +316,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   expect(screen.getByTestId('Modal')).toHaveTextContent('Login to');
 
   // Verify that the search bar stays open after closing the modal.
-  screen.getByLabelText('Close').click();
+  act(() => screen.getByLabelText('Close').click());
   await waitFor(() => {
     expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
   });
@@ -348,7 +348,7 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
   expect(screen.getByRole('menu')).toBeInTheDocument();
 
   act(() => {

@@ -233,6 +233,10 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 // tunnel subsystem.
 func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn, err error) {
 	t.mu.Lock()
+	if len(t.c.servers) == 0 {
+		defer t.mu.Unlock()
+		return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
+	}
 	servers := make([]types.AppServer, len(t.c.servers))
 	copy(servers, t.c.servers)
 	t.mu.Unlock()
@@ -256,7 +260,11 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 	// eliminate any servers from the head of the list that were unreachable
 	t.mu.Lock()
-	t.c.servers = t.c.servers[i:]
+	if i < len(servers) {
+		t.c.servers = t.c.servers[i:]
+	} else {
+		t.c.servers = nil
+	}
 	t.mu.Unlock()
 
 	if conn != nil || err != nil {

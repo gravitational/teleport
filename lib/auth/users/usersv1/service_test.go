@@ -98,7 +98,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 		Identity: &authz.LocalUser{
 			Username: "alice",
 			Identity: tlsca.Identity{
-				Groups: []string{"dev"},
+				Groups:   []string{"dev"},
+				Username: "alice",
 			},
 		},
 	}, nil
@@ -227,6 +228,9 @@ func TestCreateUser(t *testing.T) {
 	event := <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+	createEvent, ok := event.(*apievents.UserCreate)
+	require.True(t, ok, "expected a UserCreate event got %T", event)
+	assert.Equal(t, "alice", createEvent.UserMetadata.User)
 
 	user, err := types.NewUser("alpaca")
 	require.NoError(t, err, "creating user alpaca")
@@ -234,6 +238,9 @@ func TestCreateUser(t *testing.T) {
 	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
 	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
 	require.Error(t, err, "user allowed to be created with a role that does not exist")
+	createEvent, ok = event.(*apievents.UserCreate)
+	require.True(t, ok, "expected a UserCreate event got %T", event)
+	assert.Equal(t, "alice", createEvent.UserMetadata.User)
 }
 
 func TestDeleteUser(t *testing.T) {
@@ -360,6 +367,9 @@ func TestUpdateUser(t *testing.T) {
 	event := <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+	createEvent, ok := event.(*apievents.UserCreate)
+	require.True(t, ok, "expected a UserCreate event got %T", event)
+	assert.Equal(t, "alice", createEvent.UserMetadata.User)
 
 	// Attempt to update the user again.
 	created.User.SetLogins([]string{"alpaca"})
@@ -371,6 +381,9 @@ func TestUpdateUser(t *testing.T) {
 	event = <-env.emitter.C()
 	assert.Equal(t, events.UserUpdatedEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserUpdateCode, event.GetCode(), "unexpected event code")
+	createEvent, ok = event.(*apievents.UserCreate)
+	require.True(t, ok, "expected a UserCreate event got %T", event)
+	assert.Equal(t, "alice", createEvent.UserMetadata.User)
 }
 
 func TestUpsertUser(t *testing.T) {
@@ -396,6 +409,9 @@ func TestUpsertUser(t *testing.T) {
 	event := <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+	createEvent, ok := event.(*apievents.UserCreate)
+	require.True(t, ok, "expected a UserCreate event got %T", event)
+	assert.Equal(t, "alice", createEvent.UserMetadata.User)
 
 	// Attempt to update the user again.
 	upserted.User.SetLogins([]string{"alpaca"})
@@ -407,6 +423,9 @@ func TestUpsertUser(t *testing.T) {
 	event = <-env.emitter.C()
 	assert.Equal(t, events.UserCreateEvent, event.GetType(), "unexpected event type")
 	assert.Equal(t, events.UserCreateCode, event.GetCode(), "unexpected event code")
+	createEvent, ok = event.(*apievents.UserCreate)
+	require.True(t, ok, "expected a UserCreate event got %T", event)
+	assert.Equal(t, "alice", createEvent.UserMetadata.User)
 }
 
 func TestListUsers(t *testing.T) {

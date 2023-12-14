@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::fmt::{Debug, Formatter};
-
+use crate::client::ClientHandle;
+use crate::util;
 use ironrdp_cliprdr::backend::CliprdrBackend;
 use ironrdp_cliprdr::pdu::{
     ClipboardFormat, ClipboardFormatId, ClipboardGeneralCapabilityFlags, FileContentsRequest,
@@ -24,10 +24,9 @@ use ironrdp_cliprdr::pdu::{
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_pdu::PduResult;
 use ironrdp_svc::impl_as_any;
+use log::{debug, error, info, trace, warn};
 use static_init::dynamic;
-
-use crate::client::ClientHandle;
-use crate::util;
+use std::fmt::{Debug, Formatter};
 
 #[dynamic]
 static CF_UNICODETEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT);

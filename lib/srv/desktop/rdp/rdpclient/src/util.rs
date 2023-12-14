@@ -40,7 +40,7 @@ pub fn to_unicode(s: &str, with_null_term: bool) -> Vec<u8> {
 #[allow(clippy::bind_instead_of_map)]
 pub fn from_unicode(s: Vec<u8>) -> PduResult<String> {
     let mut with_null_terminator = WString::from_utf16le(s)
-        .or_else(|_| Err(other_err!("from_unicode", "invalid Unicode")))?
+        .or_else(|_| Err(other_err!("invalid Unicode")))?
         .to_utf8();
     with_null_terminator.pop();
     let without_null_terminator = with_null_terminator;
@@ -49,7 +49,7 @@ pub fn from_unicode(s: Vec<u8>) -> PduResult<String> {
 
 pub fn from_utf8(s: Vec<u8>) -> PduResult<String> {
     let mut with_null_terminator =
-        String::from_utf8(s).map_err(|_| other_err!("from_utf8", "invalid Unicode"))?;
+        String::from_utf8(s).map_err(|_| other_err!("invalid Unicode"))?;
     with_null_terminator.pop();
     let without_null_terminator = with_null_terminator;
     Ok(without_null_terminator)

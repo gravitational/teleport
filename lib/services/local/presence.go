@@ -193,7 +193,7 @@ func (s *PresenceService) DeleteAllServerInfos(ctx context.Context) error {
 
 // UpsertServerInfo upserts a ServerInfo.
 func (s *PresenceService) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
-	if err := si.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(si); err != nil {
 		return trace.Wrap(err)
 	}
 	rev := si.GetRevision()
@@ -563,7 +563,7 @@ func (s *PresenceService) DeleteTrustedCluster(ctx context.Context, name string)
 
 // UpsertTunnelConnection updates or creates tunnel connection
 func (s *PresenceService) UpsertTunnelConnection(conn types.TunnelConnection) error {
-	if err := conn.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(conn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -698,7 +698,7 @@ func (s *PresenceService) CreateRemoteCluster(rc types.RemoteCluster) error {
 // UpdateRemoteCluster updates selected remote cluster fields: expiry and labels
 // other changed fields will be ignored by the method
 func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
-	if err := rc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(rc); err != nil {
 		return trace.Wrap(err)
 	}
 	existingItem, update, err := s.getRemoteCluster(ctx, rc.GetName())
@@ -1112,7 +1112,7 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // UpsertKubernetesServer registers an kubernetes server.
 func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := server.GetRevision()
@@ -1222,7 +1222,7 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 
 // UpsertDatabaseServer registers new database proxy server.
 func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := server.GetRevision()
@@ -1318,7 +1318,7 @@ func (s *PresenceService) getApplicationServers(ctx context.Context, namespace s
 
 // UpsertApplicationServer registers an application server.
 func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := server.GetRevision()
@@ -1446,7 +1446,7 @@ func (s *PresenceService) GetWindowsDesktopService(ctx context.Context, name str
 
 // UpsertWindowsDesktopService registers new Windows desktop service.
 func (s *PresenceService) UpsertWindowsDesktopService(ctx context.Context, srv types.WindowsDesktopService) (*types.KeepAlive, error) {
-	if err := srv.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(srv); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := srv.GetRevision()

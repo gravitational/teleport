@@ -372,8 +372,8 @@ func TestMarshallCreateHostUserModeJSON(t *testing.T) {
 	}{
 		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "off"},
 		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: ""},
-		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
 		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
+		{input: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, expected: "insecure-drop"},
 	} {
 		got, err := json.Marshal(&tc.input)
 		require.NoError(t, err)
@@ -388,8 +388,8 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 	}{
 		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "\"off\""},
 		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: "\"\""},
-		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
 		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
+		{input: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, expected: "insecure-drop"},
 	} {
 		got, err := yaml.Marshal(&tc.input)
 		require.NoError(t, err)
@@ -404,10 +404,10 @@ func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
 	}{
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "\"drop\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "\"keep\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: 3},
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: 1},
+		{expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, input: 4},
 	} {
 		var got CreateHostUserMode
 		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
@@ -424,8 +424,8 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
 		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
 		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, input: "insecure-drop"},
 	} {
 		var got CreateHostUserMode
 		err := yaml.Unmarshal([]byte(tc.input), &got)
