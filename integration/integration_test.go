@@ -7869,7 +7869,7 @@ func getRemoteAddrString(sshClientString string) string {
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create Teleport instance.
-	teleport := suite.newTeleport(t, []string{}, true)
+	teleport := suite.newTeleport(t, nil, true)
 	t.Cleanup(func() {
 		teleport.StopAll()
 	})
@@ -7891,15 +7891,11 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		_ = clusterClient.Close()
 	})
 
-	nodes, err := clusterClient.CurrentCluster().GetNodes(ctx, teleportClient.Namespace)
-	require.NoError(t, err)
-	require.NotEmpty(t, nodes)
-
 	nodeClient, err := teleportClient.ConnectToNode(
 		ctx,
 		clusterClient,
 		client.NodeDetails{
-			Addr:      nodes[0].GetAddr(),
+			Addr:      teleport.Config.SSH.Addr.Addr,
 			Namespace: teleportClient.Namespace,
 			Cluster:   helpers.Site,
 		},

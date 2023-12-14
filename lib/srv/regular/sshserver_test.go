@@ -2194,14 +2194,14 @@ func requireNoErrors(t *testing.T, errsCh <-chan []error) {
 func TestParseSubsystemRequest(t *testing.T) {
 	ctx := context.Background()
 
-	// start a dummy listener; this will be needed for the proxy test to pass, otherwise nothing will be there to handle the call.
-	ln, err := net.Listen("tcp", "localhost:0")
+	// start a listener to accept connections; this will be needed for the proxy test to pass, otherwise nothing will be there to handle the call.
+	agentlessListener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = ln.Close() })
+	t.Cleanup(func() { _ = agentlessListener.Close() })
 	go func() {
 		for {
 			// accept connections, but don't do anything else except for closing the connection on cleanup.
-			conn, _ := ln.Accept()
+			conn, _ := agentlessListener.Accept()
 			if conn != nil {
 				t.Cleanup(func() {
 					_ = conn.Close()
@@ -2218,20 +2218,22 @@ func TestParseSubsystemRequest(t *testing.T) {
 			Name: uuid.NewString(),
 		},
 		Spec: types.ServerSpecV2{
-			Addr:     ln.Addr().String(),
+			Addr:     agentlessListener.Addr().String(),
 			Hostname: "agentless",
 		},
 	}
 
-	getNonProxySession := func(t *testing.T) *tracessh.Session {
+	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
-		se, err := f.ssh.clt.NewSession(context.Background())
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = se.Close() })
-		return se
-	}
+		return func() *tracessh.Session {
+			se, err := f.ssh.clt.NewSession(context.Background())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = se.Close() })
+			return se
+		}
+	}()
 
-	getProxySession := func(t *testing.T) *tracessh.Session {
+	getProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t)
 		listener, _ := mustListen(t)
 
@@ -2315,26 +2317,25 @@ func TestParseSubsystemRequest(t *testing.T) {
 		up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 		require.NoError(t, err)
 
-		sshConfig := &ssh.ClientConfig{
-			User:            f.user,
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
-			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		return func() *tracessh.Session {
+			sshConfig := &ssh.ClientConfig{
+				User:            f.user,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+				HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+			}
+
+			// Connect SSH client to proxy
+			client, err := tracessh.Dial(ctx, "tcp", proxy.Addr(), sshConfig)
+
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = client.Close() })
+
+			se, err := client.NewSession(ctx)
+			require.NoError(t, err)
+
+			return se
 		}
-
-		_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
-		require.NoError(t, err)
-
-		// Connect SSH client to proxy
-		client, err := tracessh.Dial(ctx, "tcp", proxy.Addr(), sshConfig)
-
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = client.Close() })
-
-		se, err := client.NewSession(ctx)
-		require.NoError(t, err)
-
-		return se
-	}
+	}()
 
 	tests := []struct {
 		name                 string
@@ -2377,14 +2378,14 @@ func TestParseSubsystemRequest(t *testing.T) {
 				subsystem = tt.subsystemOverride
 			}
 
-			err := getProxySession(t).RequestSubsystem(ctx, subsystem)
+			err := getProxySession().RequestSubsystem(ctx, subsystem)
 			if tt.wantErrInProxyMode {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 
-			err = getNonProxySession(t).RequestSubsystem(ctx, subsystem)
+			err = getNonProxySession().RequestSubsystem(ctx, subsystem)
 			if tt.wantErrInRegularMode {
 				require.Error(t, err)
 			} else {
