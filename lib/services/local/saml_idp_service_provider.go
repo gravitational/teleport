@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"time"
 
 	"github.com/crewjam/saml"
@@ -46,6 +47,7 @@ const (
 	samlIDPServiceProviderModifyLock    = "saml_idp_service_provider_modify_lock"
 	samlIDPServiceProviderModifyLockTTL = time.Second * 5
 	samlIDPServiceProviderMaxPageSize   = 200
+	teleportSAMLIdP                     = "TELEPORT_SAML_IDP"
 )
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
@@ -128,6 +130,11 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
+	// embed attribute mapping in entity descriptor
+	if err := s.embedAttributeMapping(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
 	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
 	if err != nil {
 		return trace.Wrap(err)
@@ -150,6 +157,11 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if err := validateSAMLIdPServiceProvider(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// embed attribute mapping in entity descriptor
+	if err := s.embedAttributeMapping(sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -261,7 +273,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 		return trace.Wrap(err)
 	}
 
-	// parse body to check if its a valid entity descriptor
+	// parse body to check if it's a valid entity descriptor
 	_, err = samlsp.ParseMetadata(body)
 	if err != nil {
 		return trace.Wrap(err)
@@ -294,4 +306,101 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 
 	sp.SetEntityDescriptor(string(entityDescriptor))
 	return nil
+}
+
+// embedAttributeMapping embeds attribute mapping details into entity descriptor.
+func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPServiceProvider) error {
+	if len(sp.GetAttributeMapping()) == 0 {
+		s.log.Infof("no custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
+		return nil
+	}
+
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// return if provided attributes are already embedded.
+	teleportEmbeddedSPSSODescriptorIndex, teleportEmbeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(ed.SPSSODescriptors)
+	if reflect.DeepEqual(sp.GetAttributeMapping(), teleportEmbeddedAttributes) {
+		return nil
+	}
+
+	newTeleportEmbeddedSPSSODescriptor := spSSODescriptorWithRequestedAttributes(sp.GetAttributeMapping())
+	// If there is existing Teleport embedded SPSSODescriptor, we'll replace it with newTeleportEmbeddedSPSSODescriptor
+	// to avoid duplication or possible fragmented SPSSODescriptor. This is checked with teleportEmbeddedSPSSODescriptorIndex
+	// value greater than 0. Otherwise, simply append to ed.SPSSODescriptors.
+	if teleportEmbeddedSPSSODescriptorIndex == 0 {
+		ed.SPSSODescriptors = append(ed.SPSSODescriptors, newTeleportEmbeddedSPSSODescriptor)
+	} else {
+		ed.SPSSODescriptors[teleportEmbeddedSPSSODescriptorIndex] = newTeleportEmbeddedSPSSODescriptor
+	}
+
+	edWithAttributes, err := xml.MarshalIndent(ed, " ", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Infof("attribute mapping embedded in entity descriptor")
+	sp.SetEntityDescriptor(string(edWithAttributes))
+	return nil
+}
+
+// spSSODescriptorWithRequestedAttributes builds new saml.SPSSODescriptor populated with
+// types.SAMLAttributeMapping (attributeMapping input) converted to saml.RequestedAttributes format.
+// The resulting SPSSODescriptor is what we reference as Teleport embedded SPSSODescriptor.
+func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
+	var reqs []saml.RequestedAttribute
+	for _, v := range attributeMapping {
+		var reqAttrs saml.RequestedAttribute
+		reqAttrs.FriendlyName = v.Name
+		reqAttrs.Name = v.Name
+		reqAttrs.NameFormat = v.NameFormat
+		reqAttrs.Values = append(reqAttrs.Values, saml.AttributeValue{
+			Value: v.Value,
+		})
+		reqs = append(reqs, reqAttrs)
+	}
+
+	return saml.SPSSODescriptor{
+		AttributeConsumingServices: []saml.AttributeConsumingService{
+			{
+				// ServiceNames is hardcoded with value TELEPORT_SAML_IDP to make the descriptor
+				// recognizable throughout SAML SSO flow. Attribute mapping should only ever
+				// edit SPSSODescriptor containing TELEPORT_SAML_IDP element. Otherwise, we risk
+				// overriding SP managed SPSSODescriptor!
+				ServiceNames:        []saml.LocalizedName{{Value: teleportSAMLIdP}},
+				RequestedAttributes: reqs,
+			},
+		},
+	}
+}
+
+// samlSPSSODescriptorToProtoSAMLAttributeMapping converts []saml.SPSSODescriptor to []*types.SAMLAttributeMapping
+// and returns SPSSODescriptor element index and converted attribute mapping values.
+// The correct SPSSODescriptor is determined by searching for AttributeConsumingService element with ServiceNames named
+// TELEPORT_SAML_IDP.
+func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSSODescriptor) (int, []*types.SAMLAttributeMapping) {
+	teleportSAMLIdPIndex := 0
+	var attrs []*types.SAMLAttributeMapping = make([]*types.SAMLAttributeMapping, 0)
+	for descriptorIndex, descriptor := range spSSODescriptors {
+		for _, acs := range descriptor.AttributeConsumingServices {
+			for _, serviceName := range acs.ServiceNames {
+				if serviceName.Value == teleportSAMLIdP {
+					teleportSAMLIdPIndex = descriptorIndex
+					for _, reqAttrs := range acs.RequestedAttributes {
+						var embeddedAttribute types.SAMLAttributeMapping
+						for _, attrVals := range reqAttrs.Values {
+							embeddedAttribute.Name = reqAttrs.Name
+							embeddedAttribute.NameFormat = reqAttrs.NameFormat
+							embeddedAttribute.Value = attrVals.Value
+						}
+						attrs = append(attrs, &embeddedAttribute)
+					}
+				}
+			}
+		}
+	}
+
+	return teleportSAMLIdPIndex, attrs
 }
