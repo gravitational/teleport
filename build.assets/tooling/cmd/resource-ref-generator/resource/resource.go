@@ -26,7 +26,7 @@ import (
 	"strings"
 )
 
-const yamlExampleDelimeter string = "Example YAML:\n---\n"
+const yamlExampleDelimiter string = "Example YAML:\n---\n"
 
 // Package is used to look up a Go declaration in a map of declaration names to
 // resource data.
@@ -352,8 +352,8 @@ func makeYAMLExample(fields []rawField) (string, error) {
 		var example string
 		// There is a predefined YAML example in the field comment, so
 		// use that.
-		if strings.Contains(field.doc, yamlExampleDelimeter) {
-			sides := strings.Split(field.doc, yamlExampleDelimeter)
+		if strings.Contains(field.doc, yamlExampleDelimiter) {
+			sides := strings.Split(field.doc, yamlExampleDelimiter)
 			if len(sides) != 2 {
 				return "", errors.New("malformed example YAML in description: " + field.doc)
 			}
@@ -523,8 +523,8 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 		// If there is a predefined YAML example, we don't attempt to
 		// create a field table, since it will probably be inaccurate.
 		// Instead, refer readers to the YAML example.
-		if strings.Contains(field.doc, yamlExampleDelimeter) {
-			sides := strings.Split(field.doc, yamlExampleDelimeter)
+		if strings.Contains(field.doc, yamlExampleDelimiter) {
+			sides := strings.Split(field.doc, yamlExampleDelimiter)
 			if len(sides) != 2 {
 				return nil, errors.New("malformed example YAML in description: " + field.doc)
 			}
@@ -584,12 +584,14 @@ func descriptionWithoutName(description, name string) string {
 func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
 	fieldsToProcess := []rawField{}
 	for _, l := range fld {
+		// Not an embedded struct field, so append it to the final
+		// result.
 		if l.name != "" {
 			fieldsToProcess = append(fieldsToProcess, l)
 			continue
 		}
 		c, ok := l.kind.(yamlCustomType)
-		// Not an embedded struct since it's not a custom type
+		// Not an embedded struct since it's not a declared type.
 		if !ok {
 			continue
 		}
@@ -606,6 +608,8 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			DeclName:    c.declarationInfo.DeclName,
 			PackageName: pkg,
 		}
+
+		// We expect to find a declaration of the embedded struct.
 		d, ok := allDecls[p]
 		if !ok {
 			return nil, fmt.Errorf(
@@ -620,6 +624,8 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			return nil, err
 		}
 
+		// The embedded struct field may have its own embedded struct
+		// fields.
 		nf, err := handleEmbeddedStructFields(decl, e.fields, allDecls)
 		if err != nil {
 			return nil, err
@@ -628,10 +634,10 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 		fieldsToProcess = append(fieldsToProcess, nf...)
 	}
 	return fieldsToProcess, nil
-
 }
 
-// ReferenceDataFromDeclaration uses allResources to look up custom fields.
+// ReferenceDataFromDeclaration gets data for the reference by examining decl.
+// Looks up decl's fields in allDecls and methods in allMethods.
 func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := getRawTypes(decl)
 	if err != nil {
@@ -643,13 +649,16 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		return nil, err
 	}
 
+	// Make the example YAML string. This can come from:
+	// - The fields of decl, if decl is a struct.
+	// - If a comment above decl includes the YAML example delimiter, use
+	//   the example provided under the delimiter in the reference without
+	//   processing struct fields in decl.
 	var overridden bool
-
-	// Handle example YAML within the declaration's GoDoc.
 	description := rs.doc
 	var example string
-	if strings.Contains(rs.doc, yamlExampleDelimeter) {
-		sides := strings.Split(rs.doc, yamlExampleDelimeter)
+	if strings.Contains(rs.doc, yamlExampleDelimiter) {
+		sides := strings.Split(rs.doc, yamlExampleDelimiter)
 		if len(sides) != 2 {
 			return nil, errors.New("malformed example YAML in description: " + rs.doc)
 		}
@@ -657,14 +666,13 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		description = sides[0]
 		overridden = true
 	} else {
-
 		m := allMethods[PackageInfo{
 			DeclName:    rs.name,
 			PackageName: decl.PackageName,
 		}]
 		for _, e := range m {
 			if e.Name == "UnmarshalYAML" || e.Name == "UnmarshalJSON" {
-				return nil, fmt.Errorf("%v: type %v.%v has a custom unmarshaler, so it needs a custom YAML example, a comment beginning %q", decl.FilePath, decl.PackageName, rs.name, yamlExampleDelimeter)
+				return nil, fmt.Errorf("%v: type %v.%v has a custom unmarshaler, so it needs a custom YAML example, a comment beginning %q", decl.FilePath, decl.PackageName, rs.name, yamlExampleDelimiter)
 			}
 		}
 
@@ -680,7 +688,6 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	// Initialize the return value and insert the root reference entry
 	// provided by decl.
 	refs := make(map[PackageInfo]ReferenceEntry)
-
 	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
 	entry := ReferenceEntry{
 		SectionName: makeSectionName(rs.name),
@@ -720,7 +727,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		// Also ignore fields we are overriding with a custom YAML
 		// example because the actual type is something we want to hide
 		// from docs readers.
-		if f.name == "" || strings.Contains(f.doc, yamlExampleDelimeter) {
+		if f.name == "" || strings.Contains(f.doc, yamlExampleDelimiter) {
 			continue
 		}
 		deps = append(deps, f.kind.customFieldData()...)
@@ -747,7 +754,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 
 // MethodInfo is a simplified representation of a Go method.
 type MethodInfo struct {
-	// The name of the method
+	// The name of the method.
 	Name string
 	// Any field assignments within the main body of the method. Keys
 	// represent fields of the receiver. Values are the values the
@@ -755,6 +762,9 @@ type MethodInfo struct {
 	FieldAssignments map[string]string
 }
 
+// GetTopLevelStringAssignments collects all declarations of a var or a const
+// within decls that assign a string value. Used to look up the values of these
+// declarations.
 func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo]string, error) {
 	result := make(map[PackageInfo]string)
 
@@ -770,7 +780,7 @@ func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo
 	}
 
 	// Whether in the "var =" format or "var (" format, each assignment is
-	// an *ast.ValueSpec. Round up all ValueSpecs within a GenDecl that
+	// an *ast.ValueSpec. Collect all ValueSpecs within a GenDecl that
 	// declares a var or a const.
 	vs := []*ast.ValueSpec{}
 	for _, g := range gd {
@@ -880,6 +890,10 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 			result[pi] = []MethodInfo{}
 		}
 
+		// Find all statements within the method that assign a value to
+		// one of the receiver's fields. We'll need this to collect
+		// information about dynamic resources, e.g., the kind and
+		// version.
 		for _, l := range f.Body.List {
 			n, ok := l.(*ast.AssignStmt)
 			if !ok {
@@ -893,17 +907,20 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 				continue
 			}
 
+			// We don't need to process non-identifier expression,
+			// such as selector expressions, on the right hand side
+			// yet. See if there is an identifier on the right hand
+			// side.
 			nt, ok := n.Rhs[0].(*ast.Ident)
-			// We don't need to process other types, such as
-			// selector expressions, on the right hand side yet.
 			if !ok {
 				continue
 			}
 			rhs := nt.Name
 
+			// The expression does not assign one of the method
+			// receiver's fields, since the left hand side is not a
+			// selector expression.
 			sel, ok := n.Lhs[0].(*ast.SelectorExpr)
-			// Does not assign one of the method receiver's
-			// fields, since it's not a selector expression.
 			if !ok {
 				continue
 			}
