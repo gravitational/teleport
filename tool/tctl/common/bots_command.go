@@ -181,7 +181,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	} else {
 		err := utils.WriteJSONArray(os.Stdout, bots)
 		if err != nil {
-			return trace.Wrap(err, "failed to marshal users")
+			return trace.Wrap(err, "failed to marshal bots")
 		}
 	}
 	return nil
