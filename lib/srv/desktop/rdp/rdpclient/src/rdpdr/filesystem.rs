@@ -27,6 +27,7 @@ use ironrdp_rdpdr::pdu::{
     efs::{self, NtStatus},
     esc,
 };
+use log::debug;
 use std::collections::HashMap;
 use std::convert::TryInto;
 

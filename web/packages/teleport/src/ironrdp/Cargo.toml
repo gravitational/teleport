@@ -1,7 +1,9 @@
 [package]
 name = "ironrdp"
 version = "0.1.0"
-publish = false
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,26 +11,20 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-bytes = "1.4.0"
 byteorder = "1.5.0"
-getrandom = { version = "0.2", features = ["js"] }
-js-sys = "0.3.61"
-log = "0.4.17"
+bytes = "1.4.0"
+console_error_panic_hook = "0.1.7"
 console_log = "0.2.2"
-wasm-bindgen = "0.2.84"
-wasm-logger = "0.2.0"
-web-sys = { version = "0.3.61", features = ["ImageData"] }
+getrandom = { version = "0.2", features = ["js"] }
+ironrdp-session.workspace = true
+ironrdp-pdu.workspace = true
+ironrdp-graphics.workspace = true
+js-sys = "0.3.61"
+log = "0.4.20"
+time = { version = "0.3", features = ["wasm-bindgen"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["time"] }
 tracing-web = "0.1.2"
-time = { version = "0.3", features = ["wasm-bindgen"] }
-console_error_panic_hook = "0.1.7"
-
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "6588f7cdc71cbaa24ae6d18b7f8d0d3ed48c1377" }
-
-# Uncomment the following lines and comment out the ones above to use local crates instead of the ones from github
-# ironrdp-session = { path = "/path/to/your/local/IronRDP/crates/ironrdp-session" }
-# ironrdp-pdu = { path = "/path/to/your/local/IronRDP/crates/ironrdp-pdu" }
-# ironrdp-graphics = { path = "/path/to/your/local/IronRDP/crates/ironrdp-graphics" }
+wasm-bindgen = "0.2.84"
+wasm-logger = "0.2.0"
+web-sys = { version = "0.3.61", features = ["ImageData"] }

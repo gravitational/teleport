@@ -17,31 +17,18 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
-#[macro_use]
-extern crate log;
-extern crate byteorder;
-extern crate bytes;
-extern crate console_log;
-extern crate ironrdp_graphics;
-extern crate ironrdp_pdu;
-extern crate ironrdp_session;
-extern crate js_sys;
-extern crate tracing;
-extern crate tracing_subscriber;
-extern crate tracing_web;
-extern crate wasm_bindgen;
-extern crate web_sys;
-
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
 use ironrdp_pdu::write_buf::WriteBuf;
 use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::image::DecodedImage;
+use ironrdp_session::ActiveStageOutput;
 use ironrdp_session::{
     fast_path::Processor as IronRdpFastPathProcessor,
-    fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder, ActiveStageOutput,
+    fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
 };
 use js_sys::Uint8Array;
+use log::{debug, warn};
 use std::convert::TryFrom;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
@@ -109,7 +96,7 @@ impl From<RDPFastPathPDU> for RustRDPFastPathPDU {
 }
 
 #[wasm_bindgen]
-struct BitmapFrame {
+pub struct BitmapFrame {
     top: u16,
     left: u16,
     image_data: ImageData,

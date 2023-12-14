@@ -40,6 +40,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{StaticVirtualChannelProcessor, SvcMessage, SvcProcessorMessages};
 use ironrdp_tokio::{Framed, TokioStream};
+use log::debug;
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
