@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Features provides supported and unsupported features
@@ -148,6 +149,21 @@ type AccessResourcesGetter interface {
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
+type AccessListSuggestionClient interface {
+	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
+	RoleGetter
+
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+}
+
+type RoleGetter interface {
+	GetRole(ctx context.Context, name string) (types.Role, error)
+}
+type AccessListGetter interface {
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+}
+
 // Modules defines interface that external libraries can implement customizing
 // default teleport behavior
 type Modules interface {
@@ -165,6 +181,8 @@ type Modules interface {
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
+	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListGetter, requestID string) ([]*accesslist.AccessList, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -267,6 +285,12 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ k
 func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	// The default module does not support generating access list promotions.
 	return types.NewAccessRequestAllowedPromotions(nil), nil
+}
+
+func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,
+	accessListGetter AccessListGetter, requestID string,
+) ([]*accesslist.AccessList, error) {
+	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not
