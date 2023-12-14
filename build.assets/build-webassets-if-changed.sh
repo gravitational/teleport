@@ -10,15 +10,20 @@ ROOT_PATH="$(cd "$(dirname "$0")/.." && pwd -P)"
 MAKE="${MAKE:-make}"
 SHASUMS=("shasum -a 512" "sha512sum")
 
+function print_for_user() {
+  local script_name=$(basename "$0")
+  echo "$script_name: $1"
+}
+
 if ! command -v "$MAKE" >/dev/null; then
-  echo "Unable to find \"$MAKE\" on path."
+  print_for_user "Unable to find \"$MAKE\" on path."
   exit 1
 fi
 
 if [ -n "$SHASUM" ]; then
   EXEC="$(echo "$SHASUM" | awk '{print $1}')"
   if ! command -v "$EXEC" >/dev/null; then
-    echo "Unable to find custom SHA sum $SHASUM on path."
+    print_for_user "Unable to find custom SHA sum $SHASUM on path."
     exit 1
   fi
 else
@@ -32,12 +37,12 @@ else
 fi
 
 if [ -z "$SHASUM" ]; then
-  echo "Unable to find a SHA sum executable."
+  print_for_user "Unable to find a SHA sum executable."
   exit 1
 fi
 
 if [ "$#" -lt 4 ]; then
-  echo "Usage: $0 <type> <last-sha-file> <build-target> <directories...>"
+  "Usage: $0 <type> <last-sha-file> <build-target> <directories...>"
   exit 1
 fi
 
@@ -79,6 +84,7 @@ fi
 
 # If BUILD is true, make the build target. This assumes using the root Makefile.
 if [ "$BUILD" = "true" ]; then \
+  print_for_user "detected changes in $TYPE webassets. Rebuilding..."
   "$MAKE" -C "$ROOT_PATH" "$BUILD_TARGET"; \
   # Recalculate the current SHA and record into the LAST_SHA_FILE. The make target is expected to have
   # created any necessary directories here. The recalculation is necessary as yarn.lock may have been
@@ -86,7 +92,7 @@ if [ "$BUILD" = "true" ]; then \
   mkdir -p "$(dirname "$LAST_SHA_FILE")"
   # Save SHA with yarn.lock before yarn install
   echo "$CURRENT_SHA" > "$LAST_SHA_FILE"
-  echo "$TYPE webassets successfully updated."
+  print_for_user "$TYPE webassets successfully updated."
 else
-  echo "$TYPE webassets up to date."
+  print_for_user "$TYPE webassets up to date."
 fi
