@@ -57,6 +57,8 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 type IdentityService struct {
 	backend.Backend
 	log logrus.FieldLogger
+	// ServiceClock is used in tests to desync the service clock from the backend clock.
+	ServiceClock clockwork.Clock
 }
 
 // NewIdentityService returns a new instance of IdentityService object
@@ -65,6 +67,13 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 		Backend: backend,
 		log:     logrus.WithField(trace.Component, "identity"),
 	}
+}
+
+func (s *IdentityService) Clock() clockwork.Clock {
+	if s.ServiceClock != nil {
+		return s.ServiceClock
+	}
+	return s.Backend.Clock()
 }
 
 // DeleteAllUsers deletes all users
@@ -724,7 +733,7 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 		return nil, trace.Wrap(err)
 	}
 
-	if s.Clock().Now().After(item.Expires) {
+	if !s.Clock().Now().Before(item.Expires) {
 		// Webauthn session already expired. Some backends do not clean up expired
 		// items in a timely manner, force delete.
 		if err := s.Delete(ctx, item.Key); err != nil && !trace.IsNotFound(err) {

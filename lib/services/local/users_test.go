@@ -50,7 +50,10 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-	return local.NewIdentityService(backend)
+
+	identityService := local.NewIdentityService(backend)
+	identityService.ServiceClock = clock
+	return identityService
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
@@ -755,6 +758,27 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 		_, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
 		require.NoError(t, err) // Other keys preserved
 	}
+}
+
+func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	ctx := context.Background()
+	sessionData := &wanpb.SessionData{Challenge: []byte("challenge"), UserId: []byte("userid")}
+	err := identity.UpsertWebauthnSessionData(ctx, "user", "login", sessionData)
+	require.NoError(t, err)
+
+	got, err := identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.NoError(t, err)
+	require.Equal(t, sessionData, got)
+
+	// If the session data is expired but not automatically removed from
+	// the backend, it should be manually deleted on retrieval attempt.
+	clock.Advance(10 * time.Minute)
+	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.ErrorIs(t, err, trace.BadParameter("webauthn session expired"), "expected webauthn session expired error but got %v", err)
 }
 
 func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
