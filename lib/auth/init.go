@@ -1418,7 +1418,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.AuthPreference:
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
-			_, err = machineidv1.UpsertBot(ctx, service, r)
+			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

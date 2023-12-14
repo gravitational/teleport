@@ -108,6 +108,7 @@ type BotServiceConfig struct {
 	Clock      clockwork.Clock
 }
 
+// NewBotService returns a new instance of the BotService.
 func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 	switch {
 	case cfg.Cache == nil:
@@ -153,6 +154,7 @@ type BotService struct {
 	clock      clockwork.Clock
 }
 
+// GetBot gets a bot by name. It will throw an error if the bot does not exist.
 func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bot, error) {
 	_, err := authz.AuthorizeWithVerbs(
 		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbRead,
@@ -183,6 +185,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	return bot, nil
 }
 
+// ListBots lists all bots.
 func (bs *BotService) ListBots(
 	ctx context.Context, req *pb.ListBotsRequest,
 ) (*pb.ListBotsResponse, error) {
@@ -234,8 +237,10 @@ func (bs *BotService) ListBots(
 
 // createBotAuthz allows the legacy rbac noun/verbs to continue being used until
 // v16.0.0.
-func (bs *BotService) createBotAuthz(ctx context.Context) error {
-	_, originalErr := authz.AuthorizeWithVerbs(
+func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error) {
+	var authCtx *authz.Context
+	var originalErr error
+	authCtx, originalErr = authz.AuthorizeWithVerbs(
 		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate,
 	)
 	if originalErr != nil {
@@ -243,27 +248,32 @@ func (bs *BotService) createBotAuthz(ctx context.Context) error {
 		if _, err := authz.AuthorizeWithVerbs(
 			ctx, bs.logger, bs.authorizer, false, types.KindUser, types.VerbCreate,
 		); err != nil {
-			return originalErr
+			return nil, originalErr
 		}
 		if _, err := authz.AuthorizeWithVerbs(
 			ctx, bs.logger, bs.authorizer, false, types.KindRole, types.VerbCreate,
 		); err != nil {
-			return originalErr
+			return nil, originalErr
 		}
-		if _, err := authz.AuthorizeWithVerbs(
+		var err error
+		authCtx, err = authz.AuthorizeWithVerbs(
 			ctx, bs.logger, bs.authorizer, false, types.KindToken, types.VerbCreate,
-		); err != nil {
-			return originalErr
+		)
+		if err != nil {
+			return nil, originalErr
 		}
 		bs.logger.Warn("CreateBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
 	}
-	return nil
+	return authCtx, nil
 }
 
+// CreateBot creates a new bot. It will throw an error if the bot already
+// exists.
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	if err := bs.createBotAuthz(ctx); err != nil {
+	authCtx, err := bs.createBotAuthz(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -271,7 +281,9 @@ func (bs *BotService) CreateBot(
 		return nil, trace.Wrap(err, "validating bot")
 	}
 
-	user, role, err := botToUserAndRole(req.Bot)
+	user, role, err := botToUserAndRole(
+		req.Bot, bs.clock.Now(), authCtx.User.GetName(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "converting to resources")
 	}
@@ -313,11 +325,21 @@ func (bs *BotService) CreateBot(
 	return bot, nil
 }
 
-func UpsertBot(ctx context.Context, backend Backend, bot *pb.Bot) (*pb.Bot, error) {
+// UpsertBot creates a new bot or forcefully updates an existing bot. This is
+// a function rather than a method so that it can be used by both the gRPC
+// service and the auth server init code when dealing with resources to be
+// applied at startup.
+func UpsertBot(
+	ctx context.Context,
+	backend Backend,
+	bot *pb.Bot,
+	now time.Time,
+	createdBy string,
+) (*pb.Bot, error) {
 	if err := validateBot(bot); err != nil {
 		return nil, trace.Wrap(err, "validating bot")
 	}
-	user, role, err := botToUserAndRole(bot)
+	user, role, err := botToUserAndRole(bot, now, createdBy)
 	if err != nil {
 		return nil, trace.Wrap(err, "converting to resources")
 	}
@@ -350,15 +372,18 @@ func UpsertBot(ctx context.Context, backend Backend, bot *pb.Bot) (*pb.Bot, erro
 	return bot, nil
 }
 
+// UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
-	_, err := authz.AuthorizeWithVerbs(
+	authCtx, err := authz.AuthorizeWithVerbs(
 		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate, types.VerbUpdate,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	bot, err := UpsertBot(ctx, bs.backend, req.Bot)
+	bot, err := UpsertBot(
+		ctx, bs.backend, req.Bot, bs.clock.Now(), authCtx.User.GetName(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -386,6 +411,8 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	return bot, nil
 }
 
+// UpdateBot updates an existing bot. It will throw an error if the bot does
+// not exist.
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
@@ -526,6 +553,8 @@ func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
 	return nil
 }
 
+// DeleteBot deletes an existing bot. It will throw an error if the bot does
+// not exist.
 func (bs *BotService) DeleteBot(
 	ctx context.Context, req *pb.DeleteBotRequest,
 ) (*emptypb.Empty, error) {
@@ -620,7 +649,7 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 	return b, nil
 }
 
-func botToUserAndRole(bot *pb.Bot) (types.User, types.Role, error) {
+func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User, types.Role, error) {
 	// Setup role
 	resourceName := BotResourceName(bot.Metadata.Name)
 	role, err := types.NewRole(resourceName, types.RoleSpecV6{
@@ -672,6 +701,10 @@ func botToUserAndRole(bot *pb.Bot) (types.User, types.Role, error) {
 		traits[t.Name] = append(traits[t.Name], t.Values...)
 	}
 	user.SetTraits(traits)
+	user.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: createdBy},
+		Time: now,
+	})
 
 	return user, role, nil
 }

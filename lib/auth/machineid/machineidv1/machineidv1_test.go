@@ -181,6 +181,9 @@ func TestCreateBot(t *testing.T) {
 					},
 				},
 				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
 					Roles: []string{"bot-success"},
 					Traits: map[string][]string{
 						constants.TraitLogins: {"root"},
@@ -352,10 +355,13 @@ func TestCreateBot(t *testing.T) {
 			if tt.wantUser != nil {
 				gotUser, err := srv.Auth().GetUser(ctx, tt.wantUser.GetName(), false)
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(
-					tt.wantUser,
-					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				require.Empty(t,
+					cmp.Diff(
+						tt.wantUser,
+						gotUser,
+						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+					),
 				)
 			}
 			if tt.wantRole != nil {
@@ -508,6 +514,11 @@ func TestUpdateBot(t *testing.T) {
 					Traits: map[string][]string{
 						constants.TraitLogins:    {"after"},
 						constants.TraitKubeUsers: {"after"},
+					},
+					CreatedBy: types.CreatedBy{
+						// We don't expect this to change because an update does
+						// not adjust the CreatedBy field.
+						User: types.UserRef{Name: "Admin.localhost"},
 					},
 				},
 			},
@@ -683,10 +694,13 @@ func TestUpdateBot(t *testing.T) {
 			if tt.wantUser != nil {
 				gotUser, err := srv.Auth().GetUser(ctx, tt.wantUser.GetName(), false)
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(
-					tt.wantUser,
-					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				require.Empty(t,
+					cmp.Diff(
+						tt.wantUser,
+						gotUser,
+						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+					),
 				)
 			}
 			if tt.wantRole != nil {
@@ -815,6 +829,9 @@ func TestUpsertBot(t *testing.T) {
 					Traits: map[string][]string{
 						constants.TraitLogins: {"root"},
 					},
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
 				},
 			},
 			wantRole: &types.RoleV6{
@@ -864,6 +881,9 @@ func TestUpsertBot(t *testing.T) {
 					},
 				},
 				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
 					Roles:  []string{"bot-pre-existing"},
 					Traits: nil,
 				},
@@ -964,10 +984,13 @@ func TestUpsertBot(t *testing.T) {
 			if tt.wantUser != nil {
 				gotUser, err := srv.Auth().GetUser(ctx, tt.wantUser.GetName(), false)
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(
-					tt.wantUser,
-					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+				require.Empty(t,
+					cmp.Diff(
+						tt.wantUser,
+						gotUser,
+						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+					),
 				)
 			}
 			if tt.wantRole != nil {
@@ -1574,6 +1597,9 @@ func TestGetBotUsersLegacy(t *testing.T) {
 					},
 					Spec: types.UserSpecV2{
 						Roles: []string{"bot-pre-existing"},
+						CreatedBy: types.CreatedBy{
+							User: types.UserRef{Name: "Admin.localhost"},
+						},
 					},
 				},
 				&types.UserV2{
@@ -1589,6 +1615,9 @@ func TestGetBotUsersLegacy(t *testing.T) {
 					},
 					Spec: types.UserSpecV2{
 						Roles: []string{"bot-pre-existing-2"},
+						CreatedBy: types.CreatedBy{
+							User: types.UserRef{Name: "Admin.localhost"},
+						},
 					},
 				},
 			},
@@ -1615,6 +1644,7 @@ func TestGetBotUsersLegacy(t *testing.T) {
 						tt.want,
 						res,
 						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
 						cmpopts.SortSlices(func(a, b types.User) bool {
 							return a.GetName() < b.GetName()
 						}),

@@ -134,7 +134,7 @@ func (bs *BotService) checkOrCreateBotToken(ctx context.Context, req *proto.Crea
 // Deprecated: Switch to calling [BotService.CreateBot] and CreateToken separately.
 func (bs *BotService) CreateBotLegacy(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
 	bs.logger.Warn("Deprecated CreateBot RPC called. Upgrade your client. From V16.0.0, this will fail!")
-	if err := bs.createBotAuthz(ctx); err != nil {
+	if _, err := bs.createBotAuthz(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
