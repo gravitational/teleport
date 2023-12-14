@@ -359,7 +359,7 @@ func TestMux(t *testing.T) {
 			Listener: listener,
 			// Set read deadline in the past to remove reliance on real time
 			// and simulate scenario when read deadline has elapsed.
-			ReadDeadline: -time.Millisecond,
+			DetectTimeout: -time.Millisecond,
 		}
 		mux, err := New(config)
 		require.NoError(t, err)
