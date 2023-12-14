@@ -22,21 +22,10 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-        # required by libbpf, Clang
         centos-release-scl \
-        # required by Clang/LLVM
         cmake3 \
-        # required by libbpf
-        elfutils-libelf-devel \
-        # required by libbpf
-        elfutils-libelf-devel-static \
         git \
-        # required by libbpf, Clang
-        scl-utils \
-        # required by libbpf
-        zlib-devel \
-        # required by libbpf
-        zlib-static && \
+        scl-utils && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
@@ -74,9 +63,34 @@ make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-forma
     cd ../.. && \
     rm -rf llvm-project
 
-# Create the final image with Clang only. We're using this Docker image as a tar.gz mainly
-# because we want to keep our artifacts on GitHub, and GH doesn't support blobs, only Docker images.
+# Build custom packages with -fPIC for use with other dependencies.
+FROM centos-devtoolset as custom-packages
+
+# Create mockbuild user/group for building.
+RUN useradd --user-group --create-home --shell=/bin/bash mockbuild
+
+# Recompile and install libelf with -fPIC.
+RUN mkdir -p /opt/custom-builds && cd /opt && \
+    yumdownloader --source elfutils-libelf-devel-static && \
+    yum-builddep -y elfutils-libelf-devel-static && \
+    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" elfutils-*.src.rpm && \
+    if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
+    cp /root/rpmbuild/RPMS/${TARGETARCH}/elfutils-libelf-devel-static-*.el7.${TARGETARCH}.rpm /opt/custom-builds/
+
+# Recompile and install zlib with -fPIC.
+RUN mkdir -p /opt/custom-builds && cd /opt && \
+    yumdownloader --source zlib-static && \
+    yum-builddep -y zlib-static && \
+    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" zlib-*.src.rpm && \
+    if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
+    cp /root/rpmbuild/RPMS/${TARGETARCH}/zlib-static-*.el7.${TARGETARCH}.rpm /opt/custom-builds/
+
+# Create the final image with Clang and custom builds only. We're using this Docker image as a tar.gz
+# mainly because we want to keep our artifacts on GitHub, and GH doesn't support blobs, only Docker images.
 FROM scratch AS buildbox-centos7-assets
 
 # Copy Clang into the final image.
 COPY --from=clang12 /opt/llvm /opt/llvm/
+
+# Copy custom packages into the final image.
+COPY --from=custom-packages /opt/custom-builds /opt/custom-builds/
