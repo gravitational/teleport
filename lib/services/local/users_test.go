@@ -50,10 +50,7 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-
-	identityService := local.NewIdentityService(backend)
-	identityService.SetClock(clock)
-	return identityService
+	return local.NewIdentityService(backend)
 }
 
 func TestRecoveryCodesCRUD(t *testing.T) {
@@ -764,6 +761,7 @@ func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	identity := newIdentityService(t, clock)
+	identity.SetDesyncedClockForTesting(clock)
 
 	ctx := context.Background()
 	sessionData := &wanpb.SessionData{Challenge: []byte("challenge"), UserId: []byte("userid")}
@@ -780,7 +778,7 @@ func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
 	// emulate this occurrence.
 	clock.Advance(10 * time.Minute)
 	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.ErrorIs(t, err, trace.BadParameter("webauthn session expired"), "expected webauthn session expired error but got %v", err)
+	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 
 	// Another retrieval should result in a not found error since it was deleted during the last get.
 	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
