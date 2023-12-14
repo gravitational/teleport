@@ -27,13 +27,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
 
+// versionGetter implements version.Getter while also supporting a SetHeader method
+type versionGetter interface {
+	version.Getter
+	// SetHeader configures the version getter with extra headers
+	SetHeader(header, value string)
+}
+
 type VersionUpdater struct {
-	versionGetter       version.Getter
+	versionGetter       versionGetter
 	imageValidators     img.Validators
 	maintenanceTriggers maintenance.Triggers
 	baseImage           reference.Named
@@ -54,6 +62,9 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 		return nil, &MaintenanceNotTriggeredError{}
 	}
 	log.Info("Maintenance triggered, getting new version")
+
+	// Update version getter with appropriate agent version
+	r.versionGetter.SetHeader(constants.AgentVersionHeader, currentVersion)
 
 	// Get the next version
 	nextVersion, err := r.versionGetter.GetVersion(ctx)
@@ -86,7 +97,7 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 
 // NewVersionUpdater returns a version updater using the given version.Getter,
 // img.Validators, maintenance.Triggers and baseImage.
-func NewVersionUpdater(v version.Getter, i img.Validators, t maintenance.Triggers, b reference.Named) VersionUpdater {
+func NewVersionUpdater(v versionGetter, i img.Validators, t maintenance.Triggers, b reference.Named) VersionUpdater {
 	// TODO: do checks to see if not nil/empty ?
 	return VersionUpdater{
 		versionGetter:       v,

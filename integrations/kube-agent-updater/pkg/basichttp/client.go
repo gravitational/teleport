@@ -42,6 +42,26 @@ func (c *Client) GetContent(ctx context.Context, targetURL url.URL) ([]byte, err
 	if err != nil {
 		return []byte{}, trace.Wrap(err)
 	}
+	content, err := c.getContent(ctx, req)
+	return content, trace.Wrap(err)
+}
+
+// GetContentWithHeaders sends a GET HTTP request with extra headers.
+// Returns an error if the response is not 200.
+func (c *Client) GetContentWithHeaders(ctx context.Context, targetURL url.URL, extraHeaders map[string]string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL.String(), nil)
+	if err != nil {
+		return []byte{}, trace.Wrap(err)
+	}
+
+	for header, value := range extraHeaders {
+		req.Header.Set(header, value)
+	}
+	content, err := c.getContent(ctx, req)
+	return content, trace.Wrap(err)
+}
+
+func (c *Client) getContent(ctx context.Context, req *http.Request) ([]byte, error) {
 	res, err := c.Do(req)
 	if err != nil {
 		return []byte{}, trace.Wrap(err)

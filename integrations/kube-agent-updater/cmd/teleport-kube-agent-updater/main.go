@@ -40,6 +40,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
@@ -125,7 +126,11 @@ func main() {
 		ctrl.Log.Error(err, "failed to pasre version server URL, exiting")
 		os.Exit(1)
 	}
+
+	// Initialize the version getter and set the updater version header
 	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
+	versionGetter.SetHeader(constants.UpdaterVersionHeader, kubeversionupdater.Version)
+
 	maintenanceTriggers := maintenance.Triggers{
 		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL),
 		maintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),

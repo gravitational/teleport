@@ -36,18 +36,23 @@ type ServerMock struct {
 	code     int
 	response string
 	path     string
+	headers  map[string]string
 }
 
 // SetResponse sets the ServerMock's response.
-func (m *ServerMock) SetResponse(t *testing.T, code int, response string) {
+func (m *ServerMock) SetResponse(t *testing.T, code int, response string, headers map[string]string) {
 	m.t = t
 	m.code = code
 	m.response = response
+	m.headers = headers
 }
 
 // ServeHTTP implements the http.Handler interface.
 func (m *ServerMock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	require.Equal(m.t, m.path, r.URL.Path)
+	for header, value := range m.headers {
+		require.Equal(m.t, r.Header.Get(header), value)
+	}
 	w.WriteHeader(m.code)
 	_, err := io.WriteString(w, m.response)
 	require.NoError(m.t, err)

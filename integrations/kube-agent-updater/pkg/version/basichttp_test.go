@@ -46,6 +46,7 @@ func Test_basicHTTPVersionClient_Get(t *testing.T) {
 		statusCode int
 		response   string
 		expected   string
+		headers    map[string]string
 		assertErr  require.ErrorAssertionFunc
 	}{
 		{
@@ -87,14 +88,26 @@ func Test_basicHTTPVersionClient_Get(t *testing.T) {
 			expected:   "",
 			assertErr:  require.Error,
 		},
+		{
+			name:       "agent metadata headers",
+			statusCode: http.StatusOK,
+			response:   "14.2.0",
+			expected:   "v14.2.0",
+			headers: map[string]string{
+				constants.AgentVersionHeader:   "14.0.0",
+				constants.UpdaterVersionHeader: "14.1.0",
+			},
+			assertErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &basicHTTPVersionClient{
-				baseURL: serverURL,
-				client:  &basichttp.Client{Client: mock.Srv.Client()},
+				baseURL:      serverURL,
+				client:       &basichttp.Client{Client: mock.Srv.Client()},
+				extraHeaders: tt.headers,
 			}
-			mock.SetResponse(t, tt.statusCode, tt.response)
+			mock.SetResponse(t, tt.statusCode, tt.response, tt.headers)
 			result, err := b.Get(ctx)
 			tt.assertErr(t, err)
 			require.Equal(t, tt.expected, result)

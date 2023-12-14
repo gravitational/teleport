@@ -99,7 +99,7 @@ func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 				baseURL: serverURL,
 				client:  &basichttp.Client{Client: mock.Srv.Client()},
 			}
-			mock.SetResponse(t, tt.statusCode, tt.response)
+			mock.SetResponse(t, tt.statusCode, tt.response, nil)
 			result, err := b.Get(ctx)
 			tt.assertErr(t, err)
 			require.Equal(t, tt.expected, result)
