@@ -7893,7 +7893,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	nodes, err := clusterClient.CurrentCluster().GetNodes(ctx, teleportClient.Namespace)
 	require.NoError(t, err)
-	require.Greater(t, len(nodes), 0)
+	require.NotEmpty(t, nodes)
 
 	nodeClient, err := teleportClient.ConnectToNode(
 		ctx,
