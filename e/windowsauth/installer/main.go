@@ -69,6 +69,7 @@ func main() {
 		}
 		app.FatalIfError(disableNLA(), "can't disable NLA")
 		app.FatalIfError(setConnectionSecurityLayer(), "can't request security layer")
+		app.FatalIfError(enableRemoteFX(), "can't enable RemoteFX")
 		app.FatalIfError(copyDLL(), "can't install Teleport Authentication Package")
 		app.FatalIfError(registerDLL(), "can't register Teleport Authentication Package")
 		fmt.Println("Teleport Authentication Package installed")
@@ -125,6 +126,10 @@ func ui() {
 				zenity.Error(fmt.Sprintf("Can't request security layer: %s", err), title, width, height)
 				return
 			}
+			if err := enableRemoteFX(); err != nil {
+				zenity.Error(fmt.Sprintf("Can't enable RemoteFX: %s", err), title, width, height)
+				return
+			}
 			if err := copyDLL(); err != nil {
 				zenity.Error(fmt.Sprintf("Can't update Teleport Authentication Package: %s", err), title, width, height)
 				return
@@ -168,6 +173,10 @@ func ui() {
 	}
 	if err := setConnectionSecurityLayer(); err != nil {
 		zenity.Error(fmt.Sprintf("Can't request security layer: %s", err), title, width, height)
+		return
+	}
+	if err := enableRemoteFX(); err != nil {
+		zenity.Error(fmt.Sprintf("Can't enable RemoteFX: %s", err), title, width, height)
 		return
 	}
 	if err := copyDLL(); err != nil {
@@ -231,6 +240,22 @@ func importCert(file string) error {
 	defer windows.CertCloseStore(hstore, 0)
 	if err := CertAddEncodedCertificateToStore(hstore, windows.X509_ASN_ENCODING|windows.PKCS_7_ASN_ENCODING, der, windows.CERT_STORE_ADD_REPLACE_EXISTING, nil); err != nil {
 		return fmt.Errorf("can't add certificate to store: %w", err)
+	}
+	return nil
+}
+
+func enableRemoteFX() error {
+	key := `SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`
+	servicesKey, err := registry.OpenKey(registry.LOCAL_MACHINE, key, registry.ALL_ACCESS)
+	if err != nil {
+		return fmt.Errorf("opening key %s: %w", key, err)
+	}
+	defer servicesKey.Close()
+	if err := servicesKey.SetDWordValue("ColorDepth", 5); err != nil {
+		return fmt.Errorf("setting ColorDepth: %w", err)
+	}
+	if err := servicesKey.SetDWordValue("fEnableVirtualizedGraphics", 1); err != nil {
+		return fmt.Errorf("setting fEnableVirtualizedGraphics: %w", err)
 	}
 	return nil
 }
