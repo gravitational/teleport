@@ -398,6 +398,11 @@ enter/node: buildbox-node
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
 
+.PHONY:enter/arm
+enter/arm: buildbox-arm
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_ARM) /bin/bash
+
 # #############################################################################
 # Architecture and variant (fips) specific release targets
 # These are aliases used to make build commands uniform.
@@ -420,8 +425,10 @@ release-386:
 release-arm64:
 	$(MAKE) release-centos7 ARCH=arm64 BUILDBOX_CENTOS7=$(BUILDBOX_ARM64)
 
+# We depend on webassets to pre-build them in the buildbox-node container
+# so that we don't need to install node.js and rust on the buildbox-arm container.
 .PHONY: release-arm
-release-arm:
+release-arm: webassets
 	$(MAKE) release ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
 
 # Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64

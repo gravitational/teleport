@@ -1224,6 +1224,10 @@ enter/grpcbox:
 enter/node:
 	make -C build.assets enter/node
 
+.PHONY:enter/arm
+enter/arm:
+	make -C build.assets enter/arm
+
 BUF := buf
 
 # protos/all runs build, lint and format on all protos.
