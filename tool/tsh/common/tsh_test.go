@@ -1288,6 +1288,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		}
 	}
 
+	abortedChallenge := func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		return nil, "", errors.New("aborted challenge")
+	}
+
 	cases := []struct {
 		name            string
 		target          string
@@ -1529,6 +1533,30 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			mfaPromptCount: 1,
 			errAssertion:   require.Error,
+		},
+		{
+			name: "aborted ceremony when role requires per session mfa",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+				},
+			},
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			target:          sshHostID,
+			roles:           []string{perSessionMFARole.GetName()},
+			webauthnLogin:   abortedChallenge,
+			stdoutAssertion: require.Empty,
+			stderrAssertion: func(t require.TestingT, v any, i ...any) {
+				out, ok := v.(string)
+				require.True(t, ok, i...)
+				require.Contains(t, out, "aborted challenge", i...)
+			},
+			errAssertion: require.Error,
 		},
 		{
 			name: "mfa ceremony prevented when using headless auth",
