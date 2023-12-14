@@ -76,7 +76,7 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 				ForwardURL: stableCloudVersionBaseURL,
 			},
 			assertError:                 require.NoError,
-			expectedVersionGetterType:   version.BasicHTTPVersionGetter{},
+			expectedVersionGetterType:   &version.BasicHTTPVersionGetter{},
 			expectedCriticalTriggerType: maintenance.BasicHTTPMaintenanceTrigger{},
 		},
 		{

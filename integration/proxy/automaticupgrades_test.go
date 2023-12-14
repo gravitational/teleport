@@ -89,9 +89,9 @@ func TestVersionServer(t *testing.T) {
 	forwardPath := "/version-server/"
 
 	upstreamServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
-	upstreamServer.SetResponse(t, http.StatusOK, testVersion)
+	upstreamServer.SetResponse(t, http.StatusOK, testVersion, nil)
 	upstreamHighServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
-	upstreamHighServer.SetResponse(t, http.StatusOK, testVersionMajorTooHigh)
+	upstreamHighServer.SetResponse(t, http.StatusOK, testVersionMajorTooHigh, nil)
 
 	channels := automaticupgrades.Channels{
 		staticChannel: {

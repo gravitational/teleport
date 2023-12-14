@@ -72,6 +72,11 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 		return nil, trace.Wrap(err)
 	}
 
+	nextVersion, err = version.EnsureSemver(nextVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	log.Info("New version candidate", "nextVersion", nextVersion)
 	if !version.ValidVersionChange(ctx, currentVersion, nextVersion) {
 		return nil, &version.NoNewVersionError{CurrentVersion: currentVersion, NextVersion: nextVersion}

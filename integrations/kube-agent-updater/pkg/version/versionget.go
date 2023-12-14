@@ -40,8 +40,7 @@ func ValidVersionChange(ctx context.Context, current, next string) bool {
 	// TODO: clarify rollback constraints regarding previous version and add a "previous" parameter
 	log := ctrllog.FromContext(ctx).V(1)
 	// Cannot upgrade to a non-valid version
-	next, err := EnsureSemver(next)
-	if err != nil {
+	if !semver.IsValid(next) {
 		log.Error(trace.BadParameter("next version is not following semver"), "version change is invalid", "nextVersion", next)
 		return false
 	}
