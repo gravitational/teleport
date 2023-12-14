@@ -164,20 +164,6 @@ func TestExportAuthorities(t *testing.T) {
 				name: "fingerprint not found",
 				req: ExportAuthoritiesRequest{
 					AuthType:                   "user",
-					ExportAuthorityFingerprint: "not found fingerprint",
-				},
-				errorCheck: require.NoError,
-				assertNoSecrets: func(t *testing.T, output string) {
-					require.Empty(t, output)
-				},
-				assertSecrets: func(t *testing.T, output string) {
-					require.Empty(t, output)
-				},
-			},
-			{
-				name: "fingerprint not found",
-				req: ExportAuthoritiesRequest{
-					AuthType:                   "user",
 					ExportAuthorityFingerprint: "fake fingerprint",
 				},
 				errorCheck: require.NoError,
