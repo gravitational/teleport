@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -207,10 +208,8 @@ type HeartbeatConfig struct {
 	PublicAddr string
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
-	// StaticHosts is an optional list of AD-connected static Windows hosts to register.
-	StaticHosts []utils.NetAddr
-	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
-	NonADHosts []utils.NetAddr
+	// StaticHosts is an optional list of static Windows hosts to register
+	StaticHosts []servicecfg.WindowsHost
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
@@ -400,7 +399,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 && len(s.cfg.Heartbeat.NonADHosts) == 0 {
+	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
 		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
@@ -595,25 +594,21 @@ func (s *WindowsService) startServiceHeartbeat() error {
 // service itself is running.
 func (s *WindowsService) startStaticHostHeartbeats() error {
 	for _, host := range s.cfg.Heartbeat.StaticHosts {
-		if err := s.startStaticHostHeartbeat(host, false); err != nil {
+		if err := s.startStaticHostHeartbeat(host); err != nil {
 			return err
-		}
-	}
-	for _, host := range s.cfg.Heartbeat.NonADHosts {
-		if err := s.startStaticHostHeartbeat(host, true); err != nil {
-			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (s *WindowsService) startStaticHostHeartbeat(host utils.NetAddr, nonAD bool) error {
+// startStaticHostHeartbeats spawns heartbeat goroutine for single host
+func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeCtx,
 		Component:       teleport.ComponentWindowsDesktop,
 		Mode:            srv.HeartbeatModeWindowsDesktop,
 		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn, nonAD),
+		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     5 * time.Minute,
@@ -1099,20 +1094,25 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
-func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
-	getHostLabels func(string) map[string]string, nonAD bool,
+func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
+	getHostLabels func(string) map[string]string,
 ) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
-		addr := netAddr.String()
-		name, err := s.nameForStaticHost(addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// for static hosts, we match against the host's addr,
-		// as the name is a randomly generated UUID
+		addr := host.Address.String()
 		labels := getHostLabels(addr)
+		for k, v := range host.Labels {
+			labels[k] = v
+		}
+		name := host.Name
+		if name == "" {
+			var err error
+			name, err = s.nameForStaticHost(addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 		labels[types.OriginLabel] = types.OriginConfigFile
-		labels[types.ADLabel] = strconv.FormatBool(!nonAD)
+		labels[types.ADLabel] = strconv.FormatBool(host.AD)
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
@@ -1120,7 +1120,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 				Addr:   addr,
 				Domain: s.cfg.Domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
-				NonAD:  nonAD,
+				NonAD:  !host.AD,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)

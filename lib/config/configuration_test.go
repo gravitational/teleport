@@ -543,7 +543,7 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress: "tcp://windows_desktop",
 			},
 			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
-			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+			ADHosts:    apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
 		Tracing: TracingService{
 			EnabledFlag: "yes",
@@ -1649,7 +1649,7 @@ func makeConfigFixture() string {
 			ListenAddress: "tcp://windows_desktop",
 		},
 		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
-		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+		ADHosts:    apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
 	// Tracing service.
@@ -2130,7 +2130,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid static host addr",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
+				fc.WindowsDesktop.ADHosts = []string{"badscheme://foo:1:2"}
 			},
 		},
 		{
@@ -2162,7 +2162,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - hosts specified but ldap not specified",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "",
 				}
@@ -2172,7 +2172,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - hosts specified and ldap specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2182,7 +2182,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - no hosts specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.ADHosts = []string{}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "",
 				}
@@ -2192,7 +2192,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - no hosts specified and ldap specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.ADHosts = []string{}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2252,7 +2252,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.EnabledFlag = "yes"
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}

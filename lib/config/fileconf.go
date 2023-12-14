@@ -2210,13 +2210,20 @@ type WindowsDesktopService struct {
 	PKIDomain string `yaml:"pki_domain"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// Hosts is a list of static, AD-connected Windows hosts. This gives users
+	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
-	Hosts []string `yaml:"hosts,omitempty"`
+	//
+	// Deprecated: prefer StaticHosts instead.
+	ADHosts []string `yaml:"hosts,omitempty"`
 	// NonADHosts is a list of standalone Windows hosts that are not
 	// jointed to an Active Directory domain.
+	//
+	// Deprecated: prefer StaticHosts instead.
 	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
+	// StaticHosts is a list of Windows hosts (both AD-connected and standalone).
+	// User can specify name for each host and labels specific to it.
+	StaticHosts []WindowsHost `yaml:"static_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
@@ -2225,9 +2232,13 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
-		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
-			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
+	hasAD := len(wds.ADHosts) > 0 || slices.ContainsFunc(wds.StaticHosts, func(host WindowsHost) bool {
+		return host.AD
+	})
+
+	if hasAD && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
+			"the ldap configuration must also be specified")
 	}
 
 	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
@@ -2238,7 +2249,7 @@ func (wds *WindowsDesktopService) Check() error {
 	return nil
 }
 
-// WindowsHostLabelRule describes how a set of labels should be a applied to
+// WindowsHostLabelRule describes how a set of labels should be applied to
 // a Windows host.
 type WindowsHostLabelRule struct {
 	// Match is a regexp that is checked against the Windows host's DNS name.
@@ -2246,6 +2257,19 @@ type WindowsHostLabelRule struct {
 	Match string `yaml:"match"`
 	// Labels is the set of labels to apply to hosts that match this rule.
 	Labels map[string]string `yaml:"labels"`
+}
+
+// WindowsHost describes single host in configuration
+type WindowsHost struct {
+	// Name of the host
+	Name string `yaml:"name"`
+	// Address of the host, with an optional port.
+	// 10.1.103.4 or 10.1.103.4:3389, for example.
+	Address string `yaml:"addr"`
+	// Labels is the set of labels to apply to this host
+	Labels map[string]string `yaml:"labels"`
+	// AD tells if host is part of Active Directory domain
+	AD bool `yaml:"ad"`
 }
 
 // LDAPConfig is the LDAP connection parameters.
