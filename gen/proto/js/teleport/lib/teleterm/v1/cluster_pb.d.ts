@@ -34,11 +34,11 @@ export class Cluster extends jspb.Message {
     getFeatures(): Features | undefined;
     setFeatures(value?: Features): Cluster;
 
-    getAnonymizationKey(): string;
-    setAnonymizationKey(value: string): Cluster;
-
     getProxyVersion(): string;
     setProxyVersion(value: string): Cluster;
+
+    getAnonymizationKey(): string;
+    setAnonymizationKey(value: string): Cluster;
 
 
     serializeBinary(): Uint8Array;
@@ -60,8 +60,8 @@ export namespace Cluster {
         leaf: boolean,
         loggedInUser?: LoggedInUser.AsObject,
         features?: Features.AsObject,
-        anonymizationKey: string,
         proxyVersion: string,
+        anonymizationKey: string,
     }
 }
 

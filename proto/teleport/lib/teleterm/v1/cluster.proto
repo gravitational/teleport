@@ -40,12 +40,15 @@ message Cluster {
   // features describes the auth servers features.
   // Only present when detailed information is queried from the auth server.
   Features features = 8;
-  // anonymization_key used to anonymize the cluster user and resource names for collecting usage statistics.
-  // Only present when detailed information is queried from the auth server.
-  string anonymization_key = 9;
+  // auth_cluster_id has been replaced by anonymization_key
+  reserved 9;
+  reserved "auth_cluster_id";
   // ProxyVersion is the cluster proxy's service version.
   // Only present when detailed information is queried from the proxy server.
   string proxy_version = 10;
+  // anonymization_key used to anonymize the cluster user and resource names for collecting usage statistics.
+  // Only present when detailed information is queried from the auth server.
+  string anonymization_key = 11;
 }
 
 // LoggedInUser describes a logged-in user

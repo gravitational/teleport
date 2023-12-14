@@ -165,8 +165,8 @@ proto.teleport.lib.teleterm.v1.Cluster.toObject = function(includeInstance, msg)
     leaf: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
     loggedInUser: (f = msg.getLoggedInUser()) && proto.teleport.lib.teleterm.v1.LoggedInUser.toObject(includeInstance, f),
     features: (f = msg.getFeatures()) && proto.teleport.lib.teleterm.v1.Features.toObject(includeInstance, f),
-    anonymizationKey: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, "")
+    proxyVersion: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    anonymizationKey: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -233,13 +233,13 @@ proto.teleport.lib.teleterm.v1.Cluster.deserializeBinaryFromReader = function(ms
       reader.readMessage(value,proto.teleport.lib.teleterm.v1.Features.deserializeBinaryFromReader);
       msg.setFeatures(value);
       break;
-    case 9:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setAnonymizationKey(value);
-      break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.setProxyVersion(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAnonymizationKey(value);
       break;
     default:
       reader.skipField();
@@ -321,17 +321,17 @@ proto.teleport.lib.teleterm.v1.Cluster.serializeBinaryToWriter = function(messag
       proto.teleport.lib.teleterm.v1.Features.serializeBinaryToWriter
     );
   }
-  f = message.getAnonymizationKey();
-  if (f.length > 0) {
-    writer.writeString(
-      9,
-      f
-    );
-  }
   f = message.getProxyVersion();
   if (f.length > 0) {
     writer.writeString(
       10,
+      f
+    );
+  }
+  f = message.getAnonymizationKey();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
       f
     );
   }
@@ -503,24 +503,6 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.hasFeatures = function() {
 
 
 /**
- * optional string anonymization_key = 9;
- * @return {string}
- */
-proto.teleport.lib.teleterm.v1.Cluster.prototype.getAnonymizationKey = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
- */
-proto.teleport.lib.teleterm.v1.Cluster.prototype.setAnonymizationKey = function(value) {
-  return jspb.Message.setProto3StringField(this, 9, value);
-};
-
-
-/**
  * optional string proxy_version = 10;
  * @return {string}
  */
@@ -535,6 +517,24 @@ proto.teleport.lib.teleterm.v1.Cluster.prototype.getProxyVersion = function() {
  */
 proto.teleport.lib.teleterm.v1.Cluster.prototype.setProxyVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional string anonymization_key = 11;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.Cluster.prototype.getAnonymizationKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.Cluster} returns this
+ */
+proto.teleport.lib.teleterm.v1.Cluster.prototype.setAnonymizationKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 
