@@ -62,7 +62,20 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
+	config := gateway.Config{
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              defaults.ProtocolPostgres,
+		Insecure:              true,
+		WebProxyAddr:          hs.Listener.Addr().String(),
+		TCPPortAllocator:      m.tcpPortAllocator,
+		KubeconfigsDir:        m.t.TempDir(),
+	}
+
+	identity := tlsca.Identity{
 		Username: "user",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -71,22 +84,18 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 			Username:    params.TargetUser,
 		},
 		KubernetesCluster: params.TargetURI.GetKubeName(),
-	})
+	}
 
-	gateway, err := gateway.New(gateway.Config{
-		LocalPort:             params.LocalPort,
-		TargetURI:             params.TargetURI,
-		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
-		TargetSubresourceName: params.TargetSubresourceName,
-		Protocol:              defaults.ProtocolPostgres,
-		CertPath:              keyPairPaths.CertPath,
-		KeyPath:               keyPairPaths.KeyPath,
-		Insecure:              true,
-		WebProxyAddr:          hs.Listener.Addr().String(),
-		TCPPortAllocator:      m.tcpPortAllocator,
-		KubeconfigsDir:        m.t.TempDir(),
-	})
+	ca := gatewaytest.MustGenCACert(m.t)
+
+	// The way this code is structured might seem weird, but we're going to change it within this PR
+	// to set CertPath and KeyPath for db gateways and just Cert for kube gateways.
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
+
+	config.CertPath = keyPairPaths.CertPath
+	config.KeyPath = keyPairPaths.KeyPath
+
+	gateway, err := gateway.New(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

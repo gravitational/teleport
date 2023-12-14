@@ -152,14 +152,12 @@ type KeyPairPaths struct {
 	KeyPath  string
 }
 
-func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
+func MustGenAndSaveCert(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) KeyPairPaths {
 	t.Helper()
 
 	dir := t.TempDir()
 	certPath := path.Join(dir, "cert.pem")
 	keyPath := path.Join(dir, "key.pem")
-
-	ca := mustGenCACert(t)
 
 	MustGenCertSignedWithCAAndSaveToPaths(t, ca, identity, certPath, keyPath)
 	return KeyPairPaths{
@@ -184,7 +182,7 @@ func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority
 	require.NoError(t, os.WriteFile(keyPath, pemPrivateKey, teleport.FileMaskOwnerOnly))
 }
 
-func mustGenCACert(t *testing.T) *tlsca.CertAuthority {
+func MustGenCACert(t *testing.T) *tlsca.CertAuthority {
 	t.Helper()
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
