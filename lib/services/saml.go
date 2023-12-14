@@ -327,15 +327,7 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 
 	switch samlConnector := samlConnector.(type) {
 	case *types.SAMLConnectorV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *samlConnector
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			samlConnector = &copy
-		}
-		return utils.FastMarshal(samlConnector)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, samlConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}
