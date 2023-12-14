@@ -14,7 +14,6 @@ VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
-NOROOT=-u $$(id -u):$$(id -g)
 KUBECONFIG ?=
 TEST_KUBE ?=
 
@@ -23,6 +22,7 @@ ARCH ?= amd64
 
 UID := $$(id -u)
 GID := $$(id -g)
+NOROOT := -u $(UID):$(GID)
 
 HOST_ARCH := $(shell uname -m)
 RUNTIME_ARCH_x86_64 := amd64
@@ -214,23 +214,28 @@ CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
 endif
 
 #
-# Builds a Docker buildbox for Linux Connect builds
+# Builds a Docker buildbox for builds that depend on Node.js.
+# This can be used for building webassets as well as Teleport Connect.
 #
-.PHONY:buildbox-connect
-buildbox-connect:
-	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
+.PHONY:buildbox-node
+buildbox-node:
+	$(call PULL_ON_CI,$(BUILDBOX_NODE))
 	DOCKER_BUILDKIT=1 docker build \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--cache-from $(BUILDBOX_CONNECT) \
-		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect .
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--cache-from $(BUILDBOX_NODE) \
+		--tag $(BUILDBOX_NODE) -f Dockerfile-node .
 
 #
 # Builds Teleport Connect inside the buildbox container.
 #
 .PHONY:teleterm
-teleterm: buildbox-connect
-	# Always run this image as user 1000, as the Node base image assumes that.
-	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
+teleterm: buildbox-node
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
@@ -239,15 +244,15 @@ ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
 
-# Builds webassets inside the buildbox-connect container via the
+# Builds webassets inside the buildbox-node container via the
 # Makefile (instead of calling yarn directly as the ui target above does)
 # as that computes a SHA to prevent unnecessary rebuilds. This is used by
 # the CentOS 7 build that does not have a new enough version of node.js
 # to build webassets. Enterprise webassets will only be built if the e
 # submodule is present.
 .PHONY: webassets
-webassets: buildbox-connect
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CONNECT) \
+webassets: buildbox-node
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
 		/usr/bin/make ensure-webassets $(if $(wildcard ../e/Makefile),ensure-webassets-e)
 
 # grpc generates GRPC stubs from inside the buildbox
@@ -385,6 +390,14 @@ enter-root/centos7: buildbox-centos7
 enter/grpcbox: grpcbox
 	$(GRPCBOX_RUN)
 
+#
+# Starts shell inside the node build container
+#
+.PHONY:enter/node
+enter/node: buildbox-node
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
+
 # #############################################################################
 # Architecture and variant (fips) specific release targets
 # These are aliases used to make build commands uniform.
@@ -454,7 +467,7 @@ release-fips: buildbox-centos7-fips webassets
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
-# We depend on webassets to pre-build them in the buildbox-connect container
+# We depend on webassets to pre-build them in the buildbox-node container
 # as the version of node.js on CentOS 7 is too old.
 #
 # CentOS 7 builds are for amd64 and arm64 and must be built (currently) on
@@ -471,7 +484,7 @@ release-centos7: buildbox-centos7 webassets
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
-# We depend on webassets to pre-build them in the buildbox-connect container
+# We depend on webassets to pre-build them in the buildbox-node container
 # as the version of node.js on CentOS 7 is too old. The enterprise Makefile
 # does not clean the web assets on the `release` target so there is no need
 # to call release-unix-preserving-webassets like we do for the non-fips release.
@@ -555,66 +568,9 @@ build-centos7-assets:
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
 
-#################################################################################
-# Multiarch build steps
-#################################################################################
-
-GCC_VERSION ?= 10.4.0
-# This version of Clang is explicitly required for FIPS compliance when building BoringSSL.
-# For more information please refer to the section 12. Guidance and Secure Operation of:
-# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4407.pdf
-CLANG_VERSION ?= 12.0.0
-BUILDBOX_PREFIX ?= ghcr.io/gravitational
-
 #
-# Build Dockerfile-multiarch-base on GHA
+# Generate event schema from proto files.
 #
-.PHONY:build-multiarch-base
-build-multiarch-base: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-base:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-base:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg GCC_VERSION=$(GCC_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-base .
-
-#
-# Build Dockerfile-multiarch-clang on GHA with clang-12, based on -base
-#
-.PHONY:build-multiarch-clang12
-build-multiarch-clang12: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang12:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-clang12:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg CLANG_VERSION=$(CLANG_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-clang .
-
-#
-# Build Dockerfile-multiarch on GHA, based on -base
-#
-.PHONY:build-multiarch
-build-multiarch: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg UID=$(shell id -u) \
-		--build-arg GID=$(shell id -g) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch .
-
 .PHONY:generate-eventschema
 generate-eventschema:
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))

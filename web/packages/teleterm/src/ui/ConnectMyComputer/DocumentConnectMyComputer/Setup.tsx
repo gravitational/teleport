@@ -115,23 +115,13 @@ function Information(props: {
         </>
       )}
       <Text>
-        Connect My Computer allows you to add this device to the Teleport
-        cluster with just a few clicks.{' '}
-        <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
+        <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />{' '}
+        Cluster users with the role <strong>{roleName}</strong> and users with
+        administrator privileges will be able to access your computer as{' '}
+        <strong>{systemUsername}</strong>.
         <br />
         <br />
-        Cluster users with the role <strong>{roleName}</strong> will be able to
-        access your computer as <strong>{systemUsername}</strong>.
-        <br />
-        <br />
-        Note that users with administrator privileges can assign that role to
-        themselves or craft another role which grants access to the node. We
-        recommend using Connect My Computer only in scenarios where no other
-        user could plausibly gain access to the node, such as when exploring a
-        Teleport cluster as its only user or in a home lab.
-        <br />
-        <br />
-        Your computer will be shared while Teleport Connect is open. To stop
+        Your device will be shared while Teleport Connect is open. To stop
         sharing, close Teleport Connect or stop the agent through the Connect My
         Computer tab. Sharing will resume on app restart, unless you stop the
         agent before exiting.
@@ -507,9 +497,8 @@ function ClusterAndHostnameCopy(props: {
 }): JSX.Element {
   return (
     <>
-      The setup process will download and launch a Teleport agent, making your
-      computer available in the <strong>{props.clusterName}</strong> cluster as{' '}
-      <strong>{props.hostname}</strong>.
+      The setup process will make <strong>{props.hostname}</strong> available in
+      the <strong>{props.clusterName}</strong> cluster as an SSH server.
     </>
   );
 }

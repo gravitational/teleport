@@ -196,6 +196,12 @@ type Context struct {
 	adminActionAuthorized bool
 }
 
+// GetUserMetadata returns information about the authenticated identity
+// to be included in audit events.
+func (c *Context) GetUserMetadata() apievents.UserMetadata {
+	return c.Identity.GetIdentity().GetUserMetadata()
+}
+
 // LockTargets returns a list of LockTargets inferred from the context's
 // Identity and UnmappedIdentity.
 func (c *Context) LockTargets() []types.LockTarget {
@@ -394,8 +400,8 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	// Admin actions do not require MFA when MFA is not enabled.
-	if authpref.GetSecondFactor() == constants.SecondFactorOff {
+	// Admin actions do not require MFA when Webauthn is not enabled.
+	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
 		return nil
 	}
 
@@ -1036,7 +1042,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLock, services.RW()),
 					},
 				},
 			})

@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act, waitFor } from '@testing-library/react';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
@@ -73,13 +73,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       resourceSpec: { kind: ResourceKind.Kubernetes } as any,
     };
 
-    const { result, waitForNextUpdate, waitFor } = renderHook(
-      () => useUserTraits(props),
-      {
-        wrapper,
-      }
+    const { result } = renderHook(() => useUserTraits(props), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current.staticTraits.kubeUsers).toHaveLength(2)
     );
-    await waitForNextUpdate();
 
     const staticTraits = result.current.staticTraits;
     const dynamicTraits = result.current.dynamicTraits;
@@ -117,6 +117,10 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       kubeGroups: [dynamicTraits.kubeGroups[0]],
     };
 
+    await waitFor(() => {
+      expect(ctx.userService.fetchUser).toHaveBeenCalledTimes(1);
+    });
+
     act(() => {
       result.current.onProceed(mockedSelectedOptions);
     });
@@ -152,13 +156,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       resourceSpec: { kind: ResourceKind.Database } as any,
     };
 
-    const { result, waitForNextUpdate, waitFor } = renderHook(
-      () => useUserTraits(props),
-      {
-        wrapper,
-      }
+    const { result } = renderHook(() => useUserTraits(props), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current.staticTraits.databaseNames).toHaveLength(2)
     );
-    await waitForNextUpdate();
 
     const staticTraits = result.current.staticTraits;
     const dynamicTraits = result.current.dynamicTraits;
@@ -231,13 +235,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       resourceSpec: { kind: ResourceKind.Server } as any,
     };
 
-    const { result, waitForNextUpdate, waitFor } = renderHook(
-      () => useUserTraits(props),
-      {
-        wrapper,
-      }
+    const { result } = renderHook(() => useUserTraits(props), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current.staticTraits.logins).toHaveLength(2)
     );
-    await waitForNextUpdate();
 
     const staticTraits = result.current.staticTraits;
     const dynamicTraits = result.current.dynamicTraits;
@@ -320,15 +324,11 @@ describe('static and dynamic traits are correctly separated and correctly create
       </MemoryRouter>
     );
 
-    const { result, waitForNextUpdate } = renderHook(
-      () => useUserTraits(props),
-      {
-        wrapper,
-      }
-    );
+    const { result } = renderHook(() => useUserTraits(props), {
+      wrapper,
+    });
 
-    await waitForNextUpdate();
-    expect(ctx.userService.fetchUser).toHaveBeenCalled();
+    await waitFor(() => expect(ctx.userService.fetchUser).toHaveBeenCalled());
 
     // Test correct making of dynamic traits.
     const dynamicTraits = result.current.dynamicTraits;

@@ -20,7 +20,7 @@ version as the cluster they are connecting to. Teleport servers are compatible
 with clients that are on the same major version or one major version older.
 Teleport servers do not support clients that are on a newer major version.
 
-See our [Upgrading](./management/operations/upgrading.mdx) guide for more information.
+See our [Upgrading](./upgrading.mdx) guide for more information.
 
 
 ## Operating system support
@@ -467,7 +467,7 @@ chart.
   and `tctl` you run on your local machine are compatible with the versions
   you run on your infrastructure. Homebrew usually ships the latest release of
   Teleport, which may be incompatible with older versions. See our
-  [compatibility policy](management/operations/upgrading.mdx) for details.
+  [compatibility policy](upgrading.mdx) for details.
 
   To verify versions, log in to your cluster and compare the output of `tctl status`
   against `tsh version` and `tctl version`.

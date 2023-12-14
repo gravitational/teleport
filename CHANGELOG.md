@@ -12,6 +12,13 @@ rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
 
+#### `drop` host user creation mode
+
+The `drop` host user creation mode has been removed in Teleport 15. It is replaced
+by `insecure-drop`, which still creates temporary users but does not create a
+home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
+or use PAM.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:
@@ -1595,7 +1602,7 @@ is more than one major version behind them. You can use the `--skip-version-chec
 bypass the version check.
 
 Take a look at component compatibility guarantees in the
-[documentation](docs/pages/management/operations/upgrading.mdx).
+[documentation](docs/pages/upgrading.mdx).
 
 #### HTTP_PROXY for reverse tunnels
 
@@ -2867,8 +2874,7 @@ We've added an [API Guide](docs/pages/api/introduction.mdx) to simply developing
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade
-procedure](./docs/pages/management/admin/upgrading-the-teleport-binary.mdx).
+Please follow our [standard upgrade procedure](./docs/pages/upgrading.mdx).
 
 * Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
 * Optional: Consider migrating Kubernetes access from `proxy_service` to `kubernetes_service` after the upgrade.
@@ -3012,7 +3018,7 @@ auth_service:
 #### Upgrade Notes
 
 Please follow our [standard upgrade
-procedure](docs/pages/management/operations/upgrading.mdx).
+procedure](docs/pages/upgrading.mdx).
 
 ## 4.3.9
 
@@ -3133,7 +3139,7 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 #### Upgrade Notes
 
 Always follow the [recommended upgrade
-procedure](./docs/pages/management/operations/upgrading.mdx) to upgrade to this version.
+procedure](./docs/pages/upgrading.mdx) to upgrade to this version.
 
 ##### New Signing Algorithm
 
@@ -3174,7 +3180,7 @@ permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
 The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
 the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
-[upgrade guidance](docs/pages/management/operations/upgrading.mdx).
+[upgrade guidance](docs/pages/upgrading.mdx).
 
 **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
@@ -3553,7 +3559,7 @@ The lists of improvements and bug fixes above mention only the significant chang
 
 ### Upgrading
 
-Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/management/operations/upgrading.mdx)
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/upgrading.mdx)
 
 Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
 
@@ -3821,7 +3827,7 @@ on Github for more.
 #### Upgrading to 3.0
 
 Follow the [recommended upgrade
-procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading.mdx) to upgrade to this
 version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
@@ -3927,7 +3933,7 @@ As always, this release contains several bug fixes. The full list can be seen [h
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.6.9
@@ -4057,7 +4063,7 @@ You can see the full list of 2.6.0 changes [here](https://github.com/gravitation
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.5.7
@@ -4144,7 +4150,7 @@ release, which includes:
 
 * The Teleport daemon now implements built-in connection draining which allows
   zero-downtime upgrades.  [See
-  documentation](docs/pages/management/admin/upgrading-the-teleport-binary.mdx).
+  documentation](docs/pages/upgrading.mdx).
 
 * Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`.
   This allows Teleport admins to use an external mechanism for generating

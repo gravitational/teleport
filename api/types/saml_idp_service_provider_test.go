@@ -28,6 +28,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 		name             string
 		entityDescriptor string
 		entityID         string
+		acsURL           string
 		errAssertion     require.ErrorAssertionFunc
 		expectedEntityID string
 	}{
@@ -47,13 +48,37 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			expectedEntityID: "IAMShowcase",
 		},
 		{
-			name:             "empty entity descriptor",
+			name:             "empty entity descriptor, entity ID and ACS URL",
 			entityDescriptor: "",
 			errAssertion:     require.Error,
 		},
 		{
 			name:             "empty entity ID",
 			entityDescriptor: testEntityDescriptor,
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
+		},
+		{
+			name:             "empty entity descriptor and entity ID",
+			entityDescriptor: "",
+			acsURL:           "https:/test.com/acs",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndEntityID)
+			},
+		},
+		{
+			name:             "empty entity descriptor and ACS URL",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndACSURL)
+			},
+		},
+		{
+			name:             "empty entity descriptor with entity ID and ACS URL",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
 			errAssertion:     require.NoError,
 			expectedEntityID: "IAMShowcase",
 		},
@@ -66,6 +91,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
 				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
 			})
 
 			test.errAssertion(t, err)

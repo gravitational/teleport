@@ -139,6 +139,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
+
+  DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -475,6 +477,34 @@ message AccessListGrantsToUser {
   int32 count_traits_granted = 2;
 }
 
+// AccessListReviewCreate is an event that is emitted when an access list review is created.
+message AccessListReviewCreate {
+  AccessListMetadata metadata = 1;
+
+  // days_past_next_audit_date is how many days past the next audit date the review came in. Can be negative.
+  int32 days_past_next_audit_date = 2;
+
+  // membership_requirements_changed indicates that the membership requirements were changed.
+  bool membership_requirements_changed = 3;
+
+  // review_frequency_changed indicates that the review frequency was changed.
+  bool review_frequency_changed = 4;
+
+  // review_day_of_month_changed indicates that the review day of month was changed.
+  bool review_day_of_month_changed = 5;
+
+  // number_of_removed_members is how many members were removed as part of this review.
+  int32 number_of_removed_members = 6;
+}
+
+// AccessListReviewDelete is an event that is emitted when an access list review is deleted.
+message AccessListReviewDelete {
+  AccessListMetadata metadata = 1;
+
+  // access_list_review_id is the unique identifier for the access list review.
+  string access_list_review_id = 2;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -600,6 +630,18 @@ message SecurityReportGetResultEvent {
   int32 days = 2;
 }
 
+// DiscoveryFetchEvent is emitted when a DiscoveryService polls for new resources of a given type
+message DiscoveryFetchEvent {
+  // cloud_provider is the cloud provider used to fetch resources
+  // Eg, AWS, Azure, GCP, Kubernetes
+  string cloud_provider = 1;
+
+  // resource_type is the type of resource that this fetch is polling.
+  // It depends on the Cloud Provider (defined above).
+  // Eg, rds, ec2, vm, aks, gce, app
+  string resource_type = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -654,6 +696,9 @@ message UsageEventOneOf {
     UIDiscoverCreateNodeEvent ui_discover_create_node = 49;
     TAGExecuteQueryEvent tag_execute_query = 50;
     SecurityReportGetResultEvent security_report_get_result = 51;
+    AccessListReviewCreate access_list_review_create = 52;
+    AccessListReviewDelete access_list_review_delete = 53;
+    DiscoveryFetchEvent discovery_fetch_event = 54;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
