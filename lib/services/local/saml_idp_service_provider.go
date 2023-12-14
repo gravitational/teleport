@@ -348,7 +348,8 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 
 // spSSODescriptorWithRequestedAttributes builds new saml.SPSSODescriptor populated with
 // types.SAMLAttributeMapping (attributeMapping input) converted to saml.RequestedAttributes format.
-// The resulting SPSSODescriptor is what we reference as Teleport embedded SPSSODescriptor.
+// The resulting SPSSODescriptor is what we reference in embedAttributeMapping() method as
+// Teleport embedded SPSSODescriptor.
 func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
 	var reqs []saml.RequestedAttribute
 	for _, v := range attributeMapping {
@@ -381,19 +382,19 @@ func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttrib
 // The correct SPSSODescriptor is determined by searching for AttributeConsumingService element with ServiceNames named
 // TELEPORT_SAML_IDP.
 func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSSODescriptor) (int, []*types.SAMLAttributeMapping) {
-	teleportSAMLIdPIndex := 0
-	var attrs []*types.SAMLAttributeMapping = make([]*types.SAMLAttributeMapping, 0)
+	teleportEmbeddedSPSSODescriptorIndex := 0
+	attrs := make([]*types.SAMLAttributeMapping, 0)
 	for descriptorIndex, descriptor := range spSSODescriptors {
 		for _, acs := range descriptor.AttributeConsumingServices {
 			for _, serviceName := range acs.ServiceNames {
 				if serviceName.Value == teleportSAMLIdP {
-					teleportSAMLIdPIndex = descriptorIndex
-					for _, reqAttrs := range acs.RequestedAttributes {
+					teleportEmbeddedSPSSODescriptorIndex = descriptorIndex
+					for _, reqAttr := range acs.RequestedAttributes {
 						var embeddedAttribute types.SAMLAttributeMapping
-						for _, attrVals := range reqAttrs.Values {
-							embeddedAttribute.Name = reqAttrs.Name
-							embeddedAttribute.NameFormat = reqAttrs.NameFormat
-							embeddedAttribute.Value = attrVals.Value
+						for _, reqAttrVal := range reqAttr.Values {
+							embeddedAttribute.Name = reqAttr.Name
+							embeddedAttribute.NameFormat = reqAttr.NameFormat
+							embeddedAttribute.Value = reqAttrVal.Value
 						}
 						attrs = append(attrs, &embeddedAttribute)
 					}
@@ -402,5 +403,5 @@ func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSS
 		}
 	}
 
-	return teleportSAMLIdPIndex, attrs
+	return teleportEmbeddedSPSSODescriptorIndex, attrs
 }

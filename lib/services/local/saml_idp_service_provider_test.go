@@ -521,8 +521,8 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 	idpSPService, err := NewSAMLIdPServiceProviderService(backend)
 	require.NoError(t, err)
 
-	// 1. Verify attribute mapping works.
-	attributeMapping := []*types.SAMLAttributeMapping{
+	// 1. Verify attribute embedding works.
+	attributeMappingInput := []*types.SAMLAttributeMapping{
 		{
 			Name:       "username",
 			Value:      "user.spec.metadata.username",
@@ -541,136 +541,115 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityID:         "sp",
 			ACSURL:           "https://example.com",
-			AttributeMapping: attributeMapping,
+			AttributeMapping: attributeMappingInput,
 		})
 	require.NoError(t, err)
 
 	err = idpSPService.CreateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
 
-	spFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, "sp")
+	spFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, sp.GetName())
 	require.NoError(t, err)
 
-	edWithAttributes, err := samlsp.ParseMetadata([]byte(spFromBackend.GetEntityDescriptor()))
+	edWithEmbeddedAttributes, err := samlsp.ParseMetadata([]byte(spFromBackend.GetEntityDescriptor()))
 	require.NoError(t, err)
 
-	_, mapped := samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithAttributes.SPSSODescriptors)
+	_, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithEmbeddedAttributes.SPSSODescriptors)
 
-	require.Equal(t, attributeMapping, mapped)
+	require.Equal(t, attributeMappingInput, embeddedAttributes)
+	require.Contains(t, spFromBackend.GetEntityDescriptor(), `<ServiceName xml:lang="">TELEPORT_SAML_IDP</ServiceName>`)
 
-	// 2. Now using entity descriptor spFromBackend.GetEntityDescriptor(), update sp with new attribute
-	// mapping to check that the new attribute value is added to SSOdescriptor.
-	attributeMapping = append(attributeMapping, &types.SAMLAttributeMapping{
+	// 2. Now using previously embedded entity descriptor (spFromBackend.GetEntityDescriptor())
+	// update sp with one additional attribute mapping and test that:
+	// - the new attribute mapping is added to SPSSOdescriptor.
+	// - there is exactly one copy of Teleport embedded SPSSOdescriptor.
+	sp.SetEntityDescriptor(spFromBackend.GetEntityDescriptor())
+	attributeMappingInput = append(attributeMappingInput, &types.SAMLAttributeMapping{
 		Name:       "firstname",
 		Value:      "user.spec.traits.firstname",
 		NameFormat: "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
 	})
+	sp.SetAttributeMapping(attributeMappingInput)
 
-	sp2, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: spFromBackend.GetEntityDescriptor(),
-			AttributeMapping: attributeMapping,
-		})
+	err = idpSPService.UpdateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
 
-	err = idpSPService.UpdateSAMLIdPServiceProvider(ctx, sp2)
-	require.NoError(t, err)
-
-	updatedSPFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, "sp")
+	updatedSPFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, sp.GetName())
 	require.NoError(t, err)
 
 	edWithUpdatedAttributes, err := samlsp.ParseMetadata([]byte(updatedSPFromBackend.GetEntityDescriptor()))
 	require.NoError(t, err)
 
-	_, mapped = samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithUpdatedAttributes.SPSSODescriptors)
-	require.Equal(t, attributeMapping, mapped)
+	_, embeddedAttributes = samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithUpdatedAttributes.SPSSODescriptors)
+	require.Equal(t, attributeMappingInput, embeddedAttributes)
+	require.Equal(t, 1, countTeleportEmbeddedSPSSODescriptor(edWithUpdatedAttributes.SPSSODescriptors))
 
 	// 3. test we do not override SP managed SPSSODescriptor.
-	// We start by updating SP with edWithFourSPSSODescriptor. Then update it with
-	// attribute mapping. Then finally compare updated entity descriptor with
-	// edWithFourSPSSODescriptorUpdatedWithAttributeMapping.
-	attributeMapping = append(attributeMapping, &types.SAMLAttributeMapping{
-		Name:       "roles",
-		Value:      "user.spec.roles",
-		NameFormat: "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
-	})
-
-	sp3, err := types.NewSAMLIdPServiceProvider(
+	// We will create SP with test entity descriptor edWithMultipleSPSSODescriptor, which already
+	// has total 2 SPSSODescriptor elements. Once the SP is created with attribute mapping,
+	// we will test that attributes are correctly embedded and that total count of Teleport embedded
+	// SPSSODescriptor is exactly 1 and if we remove embedded element, the resulting entity descriptor
+	// matches original data.
+	newMultipleSSODescriptorSP, err := types.NewSAMLIdPServiceProvider(
 		types.Metadata{
-			Name: "sp",
+			Name: "newMultipleSSODescriptorSP",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: edWithFourSPSSODescriptor,
-			AttributeMapping: attributeMapping,
+			EntityDescriptor: edWithMultipleSPSSODescriptor,
+			AttributeMapping: attributeMappingInput,
 		})
 	require.NoError(t, err)
 
-	err = idpSPService.UpdateSAMLIdPServiceProvider(ctx, sp3)
+	err = idpSPService.CreateSAMLIdPServiceProvider(ctx, newMultipleSSODescriptorSP)
 	require.NoError(t, err)
 
-	updatedSPFromBackend, err = idpSPService.GetSAMLIdPServiceProvider(ctx, "sp")
+	newMultipleSSODescriptorSPFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, newMultipleSSODescriptorSP.GetName())
 	require.NoError(t, err)
 
-	edWithEmbeddedAttributes, err := samlsp.ParseMetadata([]byte(updatedSPFromBackend.GetEntityDescriptor()))
+	edWithEmbeddedAttributes, err = samlsp.ParseMetadata([]byte(newMultipleSSODescriptorSPFromBackend.GetEntityDescriptor()))
 	require.NoError(t, err)
 
-	_, mapped = samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithEmbeddedAttributes.SPSSODescriptors)
-	require.Equal(t, attributeMapping, mapped)
-	require.Equal(t, 4, len(edWithEmbeddedAttributes.SPSSODescriptors))
+	embeddedIndex, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithEmbeddedAttributes.SPSSODescriptors)
+	require.Equal(t, attributeMappingInput, embeddedAttributes)
+	require.Equal(t, 1, countTeleportEmbeddedSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors))
 
-	expected, err := samlsp.ParseMetadata([]byte(edWithFourSPSSODescriptorUpdatedWithAttributeMapping))
+	// and if we remove embedded SPSSODescriptor, the resulting entity descriptor should be exactly the same as before embedding.
+	edWithEmbeddedAttributes.SPSSODescriptors = append(edWithEmbeddedAttributes.SPSSODescriptors[:embeddedIndex], edWithEmbeddedAttributes.SPSSODescriptors[embeddedIndex+1:]...)
+	originalED, err := samlsp.ParseMetadata([]byte(edWithMultipleSPSSODescriptor))
 	require.NoError(t, err)
-
-	actual, err := samlsp.ParseMetadata([]byte(updatedSPFromBackend.GetEntityDescriptor()))
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(expected, actual))
+	require.Empty(t, cmp.Diff(originalED, edWithEmbeddedAttributes))
 }
 
-const edWithFourSPSSODescriptor = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-10T16:26:51.083Z" entityID="sp">
-<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-10T16:26:51.083029Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
-	<NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</NameIDFormat>
-	<AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" index="1"></AssertionConsumerService>
-	<AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://example.com" index="2"></AssertionConsumerService>
-</SPSSODescriptor>
-<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="">
-	<AttributeConsumingService index="0">
-		<RequestedAttribute FriendlyName="displayname" Name="displayname" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.username</AttributeValue>
-		</RequestedAttribute>
-		<RequestedAttribute FriendlyName="lastName" Name="lastName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.lastname</AttributeValue>
-		</RequestedAttribute>
-	</AttributeConsumingService>
-</SPSSODescriptor>
-<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="">
-	<AttributeConsumingService index="0">
-		<ServiceName xml:lang="">TELEPORT_SAML_IDP</ServiceName>
-		<RequestedAttribute FriendlyName="username" Name="username" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.metadata.username</AttributeValue>
-		</RequestedAttribute>
-		<RequestedAttribute FriendlyName="groups" Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.groups</AttributeValue>
-		</RequestedAttribute>
-	</AttributeConsumingService>
-</SPSSODescriptor>
-<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="">
-	<AttributeConsumingService index="0">
-		<RequestedAttribute FriendlyName="displayname" Name="displayname" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.username</AttributeValue>
-		</RequestedAttribute>
-		<RequestedAttribute FriendlyName="lastName" Name="lastName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.lastname</AttributeValue>
-		</RequestedAttribute>
-	</AttributeConsumingService>
-</SPSSODescriptor>
-</EntityDescriptor>
-`
+func countTeleportEmbeddedSPSSODescriptor(spSSODescriptor []saml.SPSSODescriptor) (teleportEmbeddedSPSSODescriptorAcount int) {
+	for _, ssoDescriptor := range spSSODescriptor {
+		for _, acs := range ssoDescriptor.AttributeConsumingServices {
+			for _, serviceName := range acs.ServiceNames {
+				if serviceName.Value == teleportSAMLIdP {
+					teleportEmbeddedSPSSODescriptorAcount++
+				}
+			}
+		}
+	}
+	return
+}
 
-const edWithFourSPSSODescriptorUpdatedWithAttributeMapping = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-10T16:26:51.083Z" entityID="sp">
+func countSPSSODescriptorNotEmbeddedByTeleport(spSSODescriptor []saml.SPSSODescriptor) (spSSODescriptorNotEmbeddedByTeleport int) {
+	for _, ssoDescriptor := range spSSODescriptor {
+		for _, acs := range ssoDescriptor.AttributeConsumingServices {
+			if len(acs.ServiceNames) == 0 {
+				spSSODescriptorNotEmbeddedByTeleport++
+			}
+			for _, serviceName := range acs.ServiceNames {
+				if serviceName.Value != teleportSAMLIdP {
+					spSSODescriptorNotEmbeddedByTeleport++
+				}
+			}
+		}
+	}
+	return
+}
+
+const edWithMultipleSPSSODescriptor = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-10T16:26:51.083Z" entityID="newMultipleSSODescriptorSP">
 <SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-12-10T16:26:51.083029Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
 	<NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</NameIDFormat>
 	<AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" index="1"></AssertionConsumerService>
@@ -683,23 +662,6 @@ const edWithFourSPSSODescriptorUpdatedWithAttributeMapping = `<EntityDescriptor 
 		</RequestedAttribute>
 		<RequestedAttribute FriendlyName="lastName" Name="lastName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
 			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.lastname</AttributeValue>
-		</RequestedAttribute>
-	</AttributeConsumingService>
-</SPSSODescriptor>
-<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="">
-	<AttributeConsumingService index="0">
-		<ServiceName xml:lang="">TELEPORT_SAML_IDP</ServiceName>
-		<RequestedAttribute FriendlyName="username" Name="username" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.metadata.username</AttributeValue>
-		</RequestedAttribute>
-		<RequestedAttribute FriendlyName="groups" Name="groups" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.groups</AttributeValue>
-		</RequestedAttribute>
-		<RequestedAttribute FriendlyName="firstname" Name="firstname" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.traits.firstname</AttributeValue>
-		</RequestedAttribute>
-		<RequestedAttribute FriendlyName="roles" Name="roles" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified">
-			<AttributeValue xmlns:_XMLSchema-instance="http://www.w3.org/2001/XMLSchema-instance" _XMLSchema-instance:type="">user.spec.roles</AttributeValue>
 		</RequestedAttribute>
 	</AttributeConsumingService>
 </SPSSODescriptor>
