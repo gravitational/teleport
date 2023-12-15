@@ -11,7 +11,8 @@ MAKE="${MAKE:-make}"
 SHASUMS=("shasum -a 512" "sha512sum")
 
 function print_for_user() {
-  local script_name=$(basename "$0")
+  local script_name
+  script_name=$(basename "$0")
   echo "$script_name: $1"
 }
 
@@ -42,7 +43,7 @@ if [ -z "$SHASUM" ]; then
 fi
 
 if [ "$#" -lt 4 ]; then
-  "Usage: $0 <type> <last-sha-file> <build-target> <directories...>"
+  echo "Usage: $0 <type> <last-sha-file> <build-target> <directories...>"
   exit 1
 fi
 
