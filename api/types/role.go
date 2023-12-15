@@ -1833,7 +1833,7 @@ func (r *RoleV6) SetOrigin(origin string) {
 // MatchSearch goes through select field values of a resource
 // and tries to match against the list of search values.
 func (r *RoleV6) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.Metadata.Description)
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 
