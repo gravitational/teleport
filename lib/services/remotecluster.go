@@ -73,15 +73,7 @@ func MarshalRemoteCluster(remoteCluster types.RemoteCluster, opts ...MarshalOpti
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *remoteCluster
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			remoteCluster = &copy
-		}
-		return utils.FastMarshal(remoteCluster)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, remoteCluster))
 	default:
 		return nil, trace.BadParameter("unrecognized remote cluster version %T", remoteCluster)
 	}

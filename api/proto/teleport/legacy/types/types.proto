@@ -2181,6 +2181,13 @@ message AccessReview {
   // AccessList is the access list that this request was promoted to.
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -2347,6 +2354,13 @@ message AccessRequestSpecV3 {
   // was promoted to. Used by WebUI to display the title of the access list.
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 21 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -3585,11 +3599,12 @@ message WebSessionV2 {
 message WebSessionSpecV2 {
   // User is the identity of the user to which the web session belongs.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Pub is the SSH certificate for the user.
+  // Pub is the SSH certificate for the user, marshaled in the authorized key
+  // format.
   bytes Pub = 2 [(gogoproto.jsontag) = "pub"];
   // Priv is the SSH private key for the user.
   bytes Priv = 3 [(gogoproto.jsontag) = "priv,omitempty"];
-  // TLSCert is the TLS certificate for the user.
+  // TLSCert is the X.509 certificate for the user (PEM-encoded).
   bytes TLSCert = 4 [(gogoproto.jsontag) = "tls_cert,omitempty"];
   // BearerToken is a token that is paired with the session cookie for
   // authentication. It is periodically rotated so a stolen cookie itself
@@ -5764,6 +5779,20 @@ message SAMLIdPServiceProviderSpecV1 {
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
   // ACSURL is the endpoint where SAML authentication response will be redirected.
   string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
+  // AttributeMapping is used to map Service Provider requested attributes to
+  // username, role and traits in Teleport.
+  repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+}
+
+// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// name, format and its values.
+message SAMLAttributeMapping {
+  //  name is an attribute name.
+  string name = 1 [(gogoproto.jsontag) = "name"];
+  //  name_format is an attribute name format.
+  string name_format = 2 [(gogoproto.jsontag) = "name_format"];
+  //  value is an attribute value definable with predicate expression.
+  string value = 3 [(gogoproto.jsontag) = "value"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.

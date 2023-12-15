@@ -91,8 +91,6 @@ type MakeAppsConfig struct {
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
-	userGroups := c.AppsToUserGroups[app.GetName()]
-	appsToUserGroups := map[string]types.UserGroups{}
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
@@ -104,10 +102,9 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		ugs = append(ugs, userGroup)
 	}
 	sort.Sort(ugs)
-	appsToUserGroups[app.GetName()] = ugs
 
-	userGroupAndDescriptions := make([]UserGroupAndDescription, len(userGroups))
-	for i, userGroup := range userGroups {
+	userGroupAndDescriptions := make([]UserGroupAndDescription, len(ugs))
+	for i, userGroup := range ugs {
 		userGroupAndDescriptions[i] = UserGroupAndDescription{
 			Name:        userGroup.GetName(),
 			Description: userGroup.GetMetadata().Description,

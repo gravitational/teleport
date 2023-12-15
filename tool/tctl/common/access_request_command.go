@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -60,6 +61,8 @@ type AccessRequestCommand struct {
 	force  bool
 
 	approve, deny bool
+	// assumeStartTimeRaw format is RFC3339
+	assumeStartTimeRaw string
 
 	requestList    *kingpin.CmdClause
 	requestGet     *kingpin.CmdClause
@@ -89,6 +92,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
+	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&c.assumeStartTimeRaw)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request.")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -228,13 +232,26 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var assumeStartTime *time.Time
+	if c.assumeStartTimeRaw != "" {
+		parsedAssumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
+		if err != nil {
+			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+		if time.Until(parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
+			return trace.BadParameter("assume-start-time too far in future: latest date %q",
+				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		assumeStartTime = &parsedAssumeStartTime
+	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-			RequestID:   reqID,
-			State:       types.RequestState_APPROVED,
-			Reason:      c.reason,
-			Annotations: annotations,
-			Roles:       c.splitRoles(),
+			RequestID:       reqID,
+			State:           types.RequestState_APPROVED,
+			Reason:          c.reason,
+			Annotations:     annotations,
+			Roles:           c.splitRoles(),
+			AssumeStartTime: assumeStartTime,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

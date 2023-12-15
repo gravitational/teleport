@@ -43,6 +43,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
+import { TshClient } from 'teleterm/services/tshd/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
@@ -63,6 +64,7 @@ export default class AppContext implements IAppContext {
   connectionTracker: ConnectionTrackerService;
   fileTransferService: FileTransferService;
   resourcesService: ResourcesService;
+  tshd: TshClient;
   /**
    * subscribeToTshdEvent lets you add a listener that's going to be called every time a client
    * makes a particular RPC to the tshd events service. The listener receives the request converted
@@ -88,6 +90,7 @@ export default class AppContext implements IAppContext {
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.logger = new Logger('AppContext');
+    this.tshd = tshClient;
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();

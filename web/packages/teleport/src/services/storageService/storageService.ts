@@ -38,7 +38,6 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.UNIFIED_RESOURCES_DISABLED,
-  KeysEnum.DISCOVER_CONNECT_MY_COMPUTER_NEW_CONNECTION_TEST_ENABABLED,
 ];
 
 export const storageService = {
@@ -277,14 +276,6 @@ export const storageService = {
     window.localStorage.setItem(
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
       JSON.stringify(true)
-    );
-  },
-
-  isDiscoverConnectMyComputerNewConnectionTestEnabled(): boolean {
-    return (
-      window.localStorage.getItem(
-        KeysEnum.DISCOVER_CONNECT_MY_COMPUTER_NEW_CONNECTION_TEST_ENABABLED
-      ) === 'true'
     );
   },
 };

@@ -61,13 +61,7 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *sp
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			sp = &copy
-		}
-		return utils.FastMarshal(sp)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, sp))
 	default:
 		return nil, trace.BadParameter("unsupported SAML IdP service provider resource %T", sp)
 	}

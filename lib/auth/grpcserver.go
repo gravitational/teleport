@@ -965,11 +965,12 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *authpb.Requ
 		ctx = authz.WithDelegator(ctx, req.Delegator)
 	}
 	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-		RequestID:   req.ID,
-		State:       req.State,
-		Reason:      req.Reason,
-		Annotations: req.Annotations,
-		Roles:       req.Roles,
+		RequestID:       req.ID,
+		State:           req.State,
+		Reason:          req.Reason,
+		Annotations:     req.Annotations,
+		Roles:           req.Roles,
+		AssumeStartTime: req.AssumeStartTime,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
