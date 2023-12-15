@@ -18,11 +18,11 @@ package accesslist
 
 import (
 	"encoding/json"
-	"github.com/jonboulle/clockwork"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
