@@ -37,8 +37,8 @@ const (
 	NoVersion = "none"
 
 	// AgentVersionHeader defines the header that contains the teleport agent version metadata.
-	AgentVersionHeader = "agent-version"
+	AgentVersionHeader = "Agent-Version"
 
 	// UpdaterVersionHeader defines the header that contains the teleport updater version metadata.
-	UpdaterVersionHeader = "updater-version"
+	UpdaterVersionHeader = "Updater-Version"
 )
