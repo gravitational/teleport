@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver"
@@ -110,6 +111,9 @@ type Channel struct {
 	versionGetter version.Getter
 	// criticalTrigger gets the criticality of the channel. It is populated by CheckAndSetDefaults.
 	criticalTrigger maintenance.Trigger
+	// teleportMajor stores the current teleport major for comparison.
+	// This field is initialized during CheckAndSetDefaults.
+	teleportMajor int
 }
 
 // CheckAndSetDefaults checks that the Channel configuration is valid and inits
@@ -132,6 +136,13 @@ func (c *Channel) CheckAndSetDefaults() error {
 	default:
 		return trace.BadParameter("either ForwardURL or StaticVersion must be set")
 	}
+
+	var err error
+	c.teleportMajor, err = parseMajorFromVersionString(teleport.Version)
+	if err != nil {
+		return trace.Wrap(err, "failed to process teleport version")
+	}
+
 	return nil
 }
 
@@ -153,14 +164,9 @@ func (c *Channel) GetVersion(ctx context.Context) (string, error) {
 		return "", trace.Wrap(err, "failed to process target version")
 	}
 
-	teleportMajor, err := parseMajorFromVersionString(teleport.Version)
-	if err != nil {
-		return "", trace.Wrap(err, "failed to process teleport version")
-	}
-
 	// The target version is officially incompatible with our version,
 	// we prefer returning our version rather than having a broken client
-	if targetMajor > teleportMajor {
+	if targetMajor > c.teleportMajor {
 		return teleport.Version, nil
 	}
 
@@ -179,17 +185,20 @@ func (c *Channel) GetCritical(ctx context.Context) (bool, error) {
 // or in other Teleport process such as integration services deploying and
 // updating teleport agents.
 func NewDefaultChannel() (*Channel, error) {
-	forwardURL := GetChannel()
-	if forwardURL == "" {
-		forwardURL = stableCloudVersionBaseURL
-	}
-	defaultChannel := &Channel{
-		ForwardURL: forwardURL,
-	}
-	if err := defaultChannel.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return defaultChannel, nil
+	return sync.OnceValues[*Channel, error](
+		func() (*Channel, error) {
+			forwardURL := GetChannel()
+			if forwardURL == "" {
+				forwardURL = stableCloudVersionBaseURL
+			}
+			defaultChannel := &Channel{
+				ForwardURL: forwardURL,
+			}
+			if err := defaultChannel.CheckAndSetDefaults(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return defaultChannel, nil
+		})()
 }
 
 func parseMajorFromVersionString(v string) (int, error) {
