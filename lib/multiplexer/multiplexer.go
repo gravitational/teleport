@@ -585,11 +585,11 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			return &Conn{
-				protocol:  proto,
-				Conn:      conn,
-				reader:    reader,
-				proxyLine: proxyLine,
-				writeSkip: len(m.FixedHeader),
+				protocol:       proto,
+				Conn:           conn,
+				reader:         reader,
+				proxyLine:      proxyLine,
+				alreadyWritten: []byte(m.FixedHeader),
 			}, nil
 		}
 	}
