@@ -21,7 +21,7 @@ func main() {
 		normPath = "/" + normPath
 	}
 
-	end := unit.NewUpgradeEndpoint()
+	end := unit.NewUpgradeEndpoint(normPath)
 	end.Addr = *addr
 	end.SetPath(normPath)
 	end.SetVersion(*version)

@@ -26,7 +26,8 @@ const (
 	nopInstallPrefix = "nop-install:"
 
 	// configVar is the variable used to override the default config dir location.
-	configVar = "TELEPORT_UPGRADE_CONFIG"
+	configVar      = "TELEPORT_UPGRADE_CONFIG"
+	agentConfigVar = "TELEPORT_AGENT_CONFIG"
 )
 
 // output
@@ -67,8 +68,9 @@ type upgradeParams struct {
 
 func runUpgrader(subcommand string, configDir string) (output, error) {
 
+	agentConfig := fmt.Sprintf("%s/%s", configDir, "teleport.yaml")
 	cmd := exec.Command(upgraderPath, subcommand)
-	cmd.Env = []string{fmt.Sprintf("%s=%s", configVar, configDir)}
+	cmd.Env = []string{fmt.Sprintf("%s=%s", configVar, configDir), fmt.Sprintf("%s=%s", agentConfigVar, agentConfig)}
 	cmd.Stdout = new(strings.Builder)
 	cmd.Stderr = new(strings.Builder)
 
@@ -92,6 +94,7 @@ type testCase struct {
 	cmd, dir string
 	cfg      map[string]string
 	exclude  []string
+	agentCfg string
 }
 
 func (t *testCase) Run() (output, error) {
@@ -107,6 +110,12 @@ func (t *testCase) Run() (output, error) {
 
 	for _, param := range t.exclude {
 		if err := t.del(param); err != nil {
+			return output{}, trace.Wrap(err)
+		}
+	}
+
+	if t.agentCfg != "" {
+		if err := t.set("teleport.yaml", t.agentCfg); err != nil {
 			return output{}, trace.Wrap(err)
 		}
 	}
@@ -218,7 +227,7 @@ func TestMissingInstaller(t *testing.T) {
 
 // TestUpgraderBasics verifies the standard paths to upgrade.
 func TestUpgraderBasics(t *testing.T) {
-	endpoint := NewUpgradeEndpoint()
+	endpoint := NewUpgradeEndpoint("")
 	endpoint.SetVersion("2.3.4")
 	endpoint.SetCritical("no")
 
@@ -306,7 +315,7 @@ func TestUpgraderBasics(t *testing.T) {
 
 // TestUpgraderCritical verifies the expected behavior of the 'critical' endpoint mode.
 func TestUpgraderCritical(t *testing.T) {
-	endpoint := NewUpgradeEndpoint()
+	endpoint := NewUpgradeEndpoint("")
 	endpoint.SetVersion("2.3.4")
 	endpoint.SetCritical("no")
 
@@ -376,7 +385,7 @@ func TestUpgraderCritical(t *testing.T) {
 }
 
 func TestUnknownVersionScenarios(t *testing.T) {
-	endpoint := NewUpgradeEndpoint()
+	endpoint := NewUpgradeEndpoint("")
 	endpoint.SetVersion("2.3.4")
 	endpoint.SetCritical("no")
 
@@ -434,4 +443,152 @@ func TestUnknownVersionScenarios(t *testing.T) {
 	// if there is no version endpoint, upgrader cannot function
 	require.False(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
 
+}
+
+const testAgentCfg = `
+# By default, this file should be stored in /etc/teleport.yaml
+
+# Configuration file version. The current version is "v3".
+version: v3
+
+# This section of the configuration file applies to all teleport
+# services.
+teleport:
+    nodename: graviton
+    data_dir: /var/lib/teleport
+    auth_token: xxxx-token-xxxx
+    join_params:
+        method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"
+        token_name: "token-name"
+    ca_pin:
+      "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
+    advertise_ip: 10.1.0.5
+    diag_addr: "127.0.0.1:3000"
+
+    # Only use one of auth_server or proxy_server.
+    #
+    # When you have either the application service or database service enabled,
+    # only tunneling through the proxy is supported, so you should specify proxy_server.
+    # All other services support both tunneling through the proxy and directly connecting
+    # to the auth server, so you can specify either auth_server or proxy_server.
+
+    # Auth Server address and port to connect to. If you enable the Teleport
+    # Auth Server to run in High Availability configuration, the address should
+    # point to a Load Balancer.
+    # If adding a node located behind NAT, use the Proxy URL (e.g. teleport-proxy.example.com:443)
+    # and set 'proxy_server' instead.
+    auth_server: 10.1.0.5:3025
+
+    # Proxy Server address and port to connect to. If you enable the Teleport
+    # Proxy Server to run in High Availability configuration, the address should
+    # point to a Load Balancer.
+    proxy_server: %s # this is an inline comment
+    log:
+        output: /var/lib/teleport/teleport.log
+        severity: INFO
+        format:
+          output: text
+          extra_fields: [level, timestamp, component, caller]`
+
+// TestUpgraderDetectProxyAddr verifies that the updater detects the proxy URL automatically
+func TestUpgraderDetectProxyAddr(t *testing.T) {
+	endpoint := NewUpgradeEndpoint("/v1/webapi/automaticupgrades/channel/stable/cloud")
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"schedule":               currentSchedule(),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+		agentCfg: fmt.Sprintf(testAgentCfg, fmt.Sprintf("localhost:%s", port)),
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+
+	// simulate a successful upgrade by overriding the upgrader's "current version" view to
+	// now equal the version served by the endpoint.
+	tc.cfg["state-version-override"] = "2.3.4"
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// expect that no install happened this time
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+}
+
+// TestUpgraderHonorOverride checks that the updater honors the override
+// even if it can detect the proxy configuration.
+func TestUpgraderHonorOverride(t *testing.T) {
+	endpoint := NewUpgradeEndpoint("")
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint":               fmt.Sprintf("localhost:%s/v1/stable/cloud", port),
+			"schedule":               currentSchedule(),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+		// This agent config should be ignored because the "endpoint" config is set
+		agentCfg: fmt.Sprintf(testAgentCfg, "invalid.localhost:0"),
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+
+	// simulate a successful upgrade by overriding the upgrader's "current version" view to
+	// now equal the version served by the endpoint.
+	tc.cfg["state-version-override"] = "2.3.4"
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// expect that no install happened this time
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
 }

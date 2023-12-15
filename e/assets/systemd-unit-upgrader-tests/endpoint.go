@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+const defaultEndpointPath = "/v1/stable/cloud"
+
 // UpgradeEndpoint is a helper for mocking the upgrade endpoint.
 type UpgradeEndpoint struct {
 	*http.Server
@@ -18,12 +20,15 @@ type UpgradeEndpoint struct {
 }
 
 // NewUpgradeEndpoint sets up a new upgrade endpoint.
-func NewUpgradeEndpoint() *UpgradeEndpoint {
+func NewUpgradeEndpoint(path string) *UpgradeEndpoint {
 	srv := &http.Server{}
+	if path == "" {
+		path = defaultEndpointPath
+	}
 
 	e := &UpgradeEndpoint{
 		Server: srv,
-		path:   "/v1/stable/cloud",
+		path:   path,
 	}
 
 	srv.Handler = e
