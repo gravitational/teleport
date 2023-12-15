@@ -1561,6 +1561,25 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
+func (a *Server) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	clusterName, err := a.Cache.GetClusterName(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if a.license == nil {
+		return clusterName, nil
+	}
+
+	anonymizationKey := string(a.license.AnonymizationKey)
+	if anonymizationKey == "" {
+		anonymizationKey = clusterName.GetClusterID()
+	}
+	clusterName.SetAnonymizationKey(anonymizationKey)
+
+	return clusterName, nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {

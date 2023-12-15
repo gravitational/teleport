@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/licensefile"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -127,20 +126,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// get anonymization key from license file if available, fallback to cluster ID
-		pem, err := authClient.GetLicense(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		licenseFile, err := licensefile.FromPEM([]byte(pem))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		anonymizationKey = licenseFile.License.GetAnonymizationKey()
-		if anonymizationKey == "" {
-			anonymizationKey = clusterName.GetClusterID()
-		}
+		anonymizationKey = clusterName.GetAnonymizationKey()
 
 		user, err = authClient.GetCurrentUser(ctx)
 		if err != nil {

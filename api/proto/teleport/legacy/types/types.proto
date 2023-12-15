@@ -1548,6 +1548,9 @@ message ClusterNameSpecV2 {
   // ClusterID is the unique cluster ID that is set once during the first
   // auth server startup.
   string ClusterID = 2 [(gogoproto.jsontag) = "cluster_id"];
+
+  // AnonymizationKey is the key used to anonymize sensitive data in usage stats
+  string AnonymizationKey = 3 [(gogoproto.jsontag) = "anonymization_key"];
 }
 
 // ClusterAuditConfigV2 represents audit log settings in the cluster.
