@@ -117,8 +117,8 @@ func createBotUser(
 	return user, nil
 }
 
-// createBot creates a new certificate renewal bot from a bot request.
-func (a *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+// CreateBot creates a new certificate renewal bot from a bot request.
+func (a *Server) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -234,7 +234,7 @@ func (a *Server) deleteBotRole(ctx context.Context, botName, resourceName string
 	return err
 }
 
-func (a *Server) deleteBot(ctx context.Context, botName string) error {
+func (a *Server) DeleteBot(ctx context.Context, botName string) error {
 	// Note: this does not remove any locks for the bot's user / role. That
 	// might be convenient in case of accidental bot locking but there doesn't
 	// seem to be any automatic deletion of locks in teleport today (other
