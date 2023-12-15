@@ -343,25 +343,6 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 	return true
 }
 
-// SelectNextReviewDate will select the next review date for the access list.
-func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
-	numMonths := int(accessList.Spec.Audit.Recurrence.Frequency)
-	dayOfMonth := int(accessList.Spec.Audit.Recurrence.DayOfMonth)
-
-	// If the last day of the month has been specified, use the 0 day of the
-	// next month, which will result in the last day of the target month.
-	if dayOfMonth == int(accesslist.LastDayOfMonth) {
-		numMonths += 1
-		dayOfMonth = 0
-	}
-
-	currentReviewDate := accessList.Spec.Audit.NextAuditDate
-	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
-		0, 0, 0, 0, time.UTC)
-
-	return nextDate
-}
-
 // AccessListReviews defines an interface for managing Access List reviews.
 type AccessListReviews interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
