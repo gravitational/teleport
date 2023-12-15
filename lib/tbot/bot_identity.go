@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"math"
 	"time"
 
@@ -159,7 +160,7 @@ func botIdentityFromAuth(
 	ctx context.Context,
 	log logrus.FieldLogger,
 	ident *identity.Identity,
-	client auth.ClientI,
+	client *apiclient.Client,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
 	log.Info("Fetching bot identity using existing bot identity.")
