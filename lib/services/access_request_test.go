@@ -1608,58 +1608,71 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 }
 
-// TestRequestTTL verifies that the TTL for the Access Request gets reduced by
-// requested access time and lifetime of the requesting certificate.
-func TestRequestTTL(t *testing.T) {
+// TestCalculatePendingRequesTTL verifies that the TTL for the Access Request is capped to the
+// request's access expiry or capped to the default const requestTTL, whichever is smaller.
+func TestCalculatePendingRequesTTL(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	now := clock.Now().UTC()
 
 	tests := []struct {
-		desc          string
-		expiry        time.Time
-		identity      tlsca.Identity
-		maxSessionTTL time.Duration
-		expectedTTL   time.Duration
-		assertion     require.ErrorAssertionFunc
+		desc string
+		// accessExpiryTTL == max access duration.
+		accessExpiryTTL time.Duration
+		// when the access request expires in the PENDING state.
+		requestPendingExpiryTTL time.Time
+		assertion               require.ErrorAssertionFunc
+		expectedDuration        time.Duration
 	}{
 		{
-			desc:          "access request with ttl, below limit",
-			expiry:        now.Add(8 * time.Hour),
-			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
-			maxSessionTTL: 10 * time.Hour,
-			expectedTTL:   8 * time.Hour,
-			assertion:     require.NoError,
+			desc:                    "valid: requested ttl < access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL - (4 * day)),
+			expectedDuration:        requestTTL - (4 * day),
+			assertion:               require.NoError,
 		},
 		{
-			desc:          "access request with ttl, above limit",
-			expiry:        now.Add(11 * time.Hour),
-			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
-			maxSessionTTL: 10 * time.Hour,
-			assertion:     require.Error,
+			desc:                    "valid: requested ttl == access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL - (3 * day)),
+			expectedDuration:        requestTTL - (3 * day),
+			assertion:               require.NoError,
 		},
 		{
-			desc:          "access request without ttl (default ttl)",
-			expiry:        time.Time{},
-			identity:      tlsca.Identity{Expires: now.Add(10 * time.Hour)},
-			maxSessionTTL: 10 * time.Hour,
-			expectedTTL:   defaults.PendingAccessDuration,
-			assertion:     require.NoError,
+			desc:                    "valid: requested ttl == default request ttl",
+			accessExpiryTTL:         requestTTL,
+			requestPendingExpiryTTL: now.Add(requestTTL),
+			expectedDuration:        requestTTL,
+			assertion:               require.NoError,
 		},
 		{
-			desc:          "access request without ttl (default ttl), truncation by identity expiration",
-			expiry:        time.Time{},
-			identity:      tlsca.Identity{Expires: now.Add(12 * time.Minute)},
-			maxSessionTTL: 13 * time.Minute,
-			expectedTTL:   12 * time.Minute,
-			assertion:     require.NoError,
+			desc:             "valid: no TTL request defaults to the const requestTTL if access expiry is larger",
+			accessExpiryTTL:  requestTTL + (3 * day),
+			expectedDuration: requestTTL,
+			assertion:        require.NoError,
 		},
 		{
-			desc:          "access request without ttl (default ttl), truncation by role max session ttl",
-			expiry:        time.Time{},
-			identity:      tlsca.Identity{Expires: now.Add(14 * time.Hour)},
-			maxSessionTTL: 13 * time.Minute,
-			expectedTTL:   13 * time.Minute,
-			assertion:     require.NoError,
+			desc:             "valid: no TTL request defaults to accessExpiry if const requestTTL is larger",
+			accessExpiryTTL:  requestTTL - (3 * day),
+			expectedDuration: requestTTL - (3 * day),
+			assertion:        require.NoError,
+		},
+		{
+			desc:                    "invalid: requested ttl > access expiry",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL - (2 * day)),
+			assertion:               require.Error,
+		},
+		{
+			desc:                    "invalid: requested ttl > default request TTL",
+			accessExpiryTTL:         requestTTL + (1 * day),
+			requestPendingExpiryTTL: now.Add(requestTTL + (1 * day)),
+			assertion:               require.Error,
+		},
+		{
+			desc:                    "invalid: requested ttl < now",
+			accessExpiryTTL:         requestTTL - (3 * day),
+			requestPendingExpiryTTL: now.Add(-(3 * day)),
+			assertion:               require.Error,
 		},
 	}
 
@@ -1674,11 +1687,7 @@ func TestRequestTTL(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			role, err := types.NewRole("bar", types.RoleSpecV6{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.NewDuration(tt.maxSessionTTL),
-				},
-			})
+			role, err := types.NewRole("bar", types.RoleSpecV6{})
 			require.NoError(t, err)
 
 			getter := &mockGetter{
@@ -1690,13 +1699,14 @@ func TestRequestTTL(t *testing.T) {
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
-			request.SetExpiry(tt.expiry)
 			require.NoError(t, err)
+			request.SetExpiry(tt.requestPendingExpiryTTL)
+			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
 
-			ttl, err := validator.requestTTL(context.Background(), tt.identity, request)
+			ttl, err := validator.calculatePendingRequestTTL(request)
 			tt.assertion(t, err)
 			if err == nil {
-				require.Equal(t, tt.expectedTTL, ttl)
+				require.Equal(t, tt.expectedDuration, ttl)
 			}
 		})
 	}
@@ -1897,7 +1907,7 @@ func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.Cluste
 	return mcg.localCluster, nil
 }
 
-func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
 		return cluster, nil
 	}
@@ -1961,7 +1971,10 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 	}
 }
 
-func TestMaxDuration(t *testing.T) {
+// TestValidate_RequestedMaxDuration tests requested max duration
+// and the default values for session and pending TTL as a result
+// of requested max duration.
+func TestValidate_RequestedMaxDuration(t *testing.T) {
 	// describes a collection of roles and their conditions
 	roleDesc := roleTestSet{
 		"requestedRole": {
@@ -2023,6 +2036,8 @@ func TestMaxDuration(t *testing.T) {
 		"david": {"maxDurationReqRole"},
 	}
 
+	defaultSessionTTL := 8 * time.Hour
+
 	g := getMockGetter(t, roleDesc, userDesc)
 
 	tts := []struct {
@@ -2032,101 +2047,122 @@ func TestMaxDuration(t *testing.T) {
 		requestor string
 		// the roles to be requested (defaults to "dictator")
 		roles []string
-		// maxDuration is the requested maxDuration duration
-		maxDuration time.Duration
+		// requestedMaxDuration is the requested requestedMaxDuration duration
+		requestedMaxDuration time.Duration
 		// expectedAccessDuration is the expected access duration
 		expectedAccessDuration time.Duration
 		// expectedSessionTTL is the expected session TTL
 		expectedSessionTTL time.Duration
+		// expectedPendingTTL is the time when request expires in PENDING state
+		expectedPendingTTL time.Duration
 		// DryRun is true if the request is a dry run
 		dryRun bool
 	}{
 		{
-			desc:                   "role maxDuration is respected",
+			desc:                   "role max_duration is respected and sessionTTL does not exceed the calculated max duration",
 			requestor:              "alice",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            7 * day,
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			requestedMaxDuration:   7 * day,                   // ignored b/c it's > role max_duration
 			expectedAccessDuration: 3 * day,
-			expectedSessionTTL:     8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour, // caps to defaultSessionTTL b/c it's < than the expectedAccessDuration
+			expectedPendingTTL:     3 * day,       // caps to expectedAccessDuration b/c it's < than the const default TTL
 		},
 		{
-			desc:                   "dry run allows for longer maxDuration then 7d",
+			desc:                   "role max_duration is still respected even with dry run (which requests for longer maxDuration)",
 			requestor:              "alice",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            10 * day,
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			requestedMaxDuration:   10 * day,                  // ignored b/c it's > role max_duration
 			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 			dryRun:                 true,
 		},
 		{
-			desc:                   "maxDuration not set, default maxTTL (8h)",
-			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			expectedAccessDuration: 8 * time.Hour,
+			desc:                   "role max_duration is ignored when requestedMaxDuration is not set",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"}, // role max_duration capped to 3 days
+			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
+			expectedPendingTTL:     8 * time.Hour,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration inside request is respected",
+			desc:                   "when role max_duration is not set: default to defaultSessionTTL when requestedMaxDuration is not set",
 			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            5 * time.Hour,
-			expectedAccessDuration: 8 * time.Hour,
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			expectedAccessDuration: 8 * time.Hour,             // caps to defaultSessionTTL since requestedMaxDuration was not set
+			expectedPendingTTL:     8 * time.Hour,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is respected when < defaultSessionTTL",
 			requestor:              "bob",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            2 * day,
-			expectedAccessDuration: 8 * time.Hour,
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			requestedMaxDuration:   5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour,
+			expectedPendingTTL:     5 * time.Hour,
+			expectedSessionTTL:     5 * time.Hour, // capped to expectedAccessDuration because it's < defaultSessionTTL (8h)
+		},
+		{
+			desc:                   "when role max_duration is not set: requestedMaxDuration is ignored if > defaultSessionTTL",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"}, // role max_duration is not set (0)
+			requestedMaxDuration:   10 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour, // caps to defaultSessionTTL (8h) which is < requestedMaxDuration
+			expectedPendingTTL:     8 * time.Hour,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can't exceed maxTTL by default",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is ignored if > role defined sesssionTTL (6h)",
 			requestor:              "bob",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            day,
-			expectedAccessDuration: 6 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration is not set (0), caps sessionTTL to 6 hours
+			requestedMaxDuration:   day,
+			expectedAccessDuration: 6 * time.Hour, // capped to the lowest sessionTTL found in role (6h) which is < requestedMaxDuration
+			expectedPendingTTL:     6 * time.Hour,
 			expectedSessionTTL:     6 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration is ignored if max_duration is not set in role",
+			desc:                   "when role max_duration is not set: requestedMaxDuration is respected when < role defined sessionTTL (6h)",
 			requestor:              "bob",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            2 * time.Hour,
-			expectedAccessDuration: 6 * time.Hour,
-			expectedSessionTTL:     6 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration is not set (0), caps sessionTTL to 6 hours
+			requestedMaxDuration:   5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour, // caps to requestedMaxDuration which is < role defined sessionTTL (6h)
+			expectedPendingTTL:     5 * time.Hour,
+			expectedSessionTTL:     5 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
+			desc:                   "requestedMaxDuration is respected if it's < the max_duration set in role",
 			requestor:              "david",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            day,
+			roles:                  []string{"setMaxTTLRole"}, // role max_duration capped to default MaxAccessDuration, caps sessionTTL to 6 hours
+			requestedMaxDuration:   day,                       // respected because it's < default const MaxAccessDuration
 			expectedAccessDuration: day,
-			expectedSessionTTL:     6 * time.Hour,
+			expectedPendingTTL:     day,
+			expectedSessionTTL:     6 * time.Hour, // capped to the lowest sessionTTL found in role which is < requestedMaxDuration
 		},
 		{
-			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
+			desc:                   "expectedSessionTTL does not exceed requestedMaxDuration",
 			requestor:              "david",
-			roles:                  []string{"setMaxTTLRole"},
-			maxDuration:            2 * time.Hour,
+			roles:                  []string{"setMaxTTLRole"}, // caps max_duration to default MaxAccessDuration, caps sessionTTL to 6 hours
+			requestedMaxDuration:   2 * time.Hour,             // respected because it's < default const MaxAccessDuration
 			expectedAccessDuration: 2 * time.Hour,
-			expectedSessionTTL:     2 * time.Hour,
+			expectedPendingTTL:     2 * time.Hour,
+			expectedSessionTTL:     2 * time.Hour, // capped to requestedMaxDuration because it's < role defined sessionTTL (6h)
 		},
 		{
-			desc:                   "only required roles are considered for maxDuration",
-			requestor:              "carol",
-			roles:                  []string{"requestedRole"},
-			maxDuration:            5 * day,
+			desc:                   "only the assigned role that allows the requested roles are considered for maxDuration",
+			requestor:              "carol",                   // has multiple roles assigned
+			roles:                  []string{"requestedRole"}, // caps max_duration to 3 days
+			requestedMaxDuration:   5 * day,
 			expectedAccessDuration: 3 * day,
+			expectedPendingTTL:     3 * day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
-			desc:                   "only required roles are considered for maxDuration #2",
-			requestor:              "carol",
-			roles:                  []string{"requestedRole2"},
-			maxDuration:            6 * day,
+			desc:                   "only the assigned role that allows the requested roles are considered for maxDuration #2",
+			requestor:              "carol",                    // has multiple roles assigned
+			roles:                  []string{"requestedRole2"}, // caps max_duration to 1 day
+			requestedMaxDuration:   6 * day,
 			expectedAccessDuration: day,
+			expectedPendingTTL:     day,
 			expectedSessionTTL:     8 * time.Hour,
 		},
 	}
@@ -2142,22 +2178,71 @@ func TestMaxDuration(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 			now := clock.Now().UTC()
 			identity := tlsca.Identity{
-				Expires: now.Add(8 * time.Hour),
+				Expires: now.Add(defaultSessionTTL),
 			}
 
 			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetMaxDuration(now.Add(tt.requestedMaxDuration))
 			req.SetDryRun(tt.dryRun)
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
+			require.Equal(t, now.Add(tt.expectedPendingTTL), req.Expiry())
 		})
 	}
+}
+
+// TestValidate_RequestedPendingTTLAndMaxDuration tests that both requested
+// max duration and pending TTL is respected (given within limits).
+func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
+	// describes a collection of roles and their conditions
+	roleDesc := roleTestSet{
+		"requestRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestRole"},
+					MaxDuration: types.Duration(5 * day),
+				},
+			},
+		},
+	}
+
+	// describes a collection of users with various roles
+	userDesc := map[string][]string{
+		"alice": {"requestRole"},
+	}
+
+	g := getMockGetter(t, roleDesc, userDesc)
+	req, err := types.NewAccessRequest("some-id", "alice", []string{"requestRole"}...)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
+	defaultSessionTTL := 8 * time.Hour
+	identity := tlsca.Identity{
+		Expires: now.Add(defaultSessionTTL),
+	}
+
+	validator, err := NewRequestValidator(context.Background(), clock, g, "alice", ExpandVars(true))
+	require.NoError(t, err)
+
+	requestedMaxDuration := 4 * day
+	requestedPendingTTL := 2 * day
+
+	req.SetCreationTime(now)
+	req.SetMaxDuration(now.Add(requestedMaxDuration))
+	req.SetExpiry(now.Add(requestedPendingTTL))
+
+	require.NoError(t, validator.Validate(context.Background(), req, identity))
+	require.Equal(t, now.Add(requestedMaxDuration), req.GetAccessExpiry())
+	require.Equal(t, now.Add(requestedMaxDuration), req.GetMaxDuration())
+	require.Equal(t, now.Add(defaultSessionTTL), req.GetSessionTLL())
+	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())
 }
 
 type roleTestSet map[string]struct {
