@@ -57,8 +57,7 @@ impl std::fmt::Debug for ScardBackend {
             .field("cert_der", &util::vec_u8_debug(&self.cert_der))
             // Important we don't leak key_der to the logs.
             .field("key_der", &util::vec_u8_debug(&self.key_der))
-            // Out of an abundance of caution, don't leak the PIN to the logs.
-            .field("pin", &util::str_debug(&self.pin))
+            .field("pin", &self.pin)
             .finish()
     }
 }
