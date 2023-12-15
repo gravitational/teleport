@@ -30,7 +30,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -38,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/accessrequests"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -542,6 +545,67 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		Roles:           response.RequestableRoles,
 		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
+}
+
+// PromoteAccessRequest promotes an access request to an access list.
+func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.ResourceURI, req *accesslistv1.AccessRequestPromoteRequest) (*clusters.AccessRequest, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response *clusters.AccessRequest
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		accessRequest, err := accessrequests.PromoteAccessRequest(ctx, authClient.AccessListClient(), req)
+		response = &clusters.AccessRequest{
+			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
+			AccessRequest: accessRequest,
+		}
+		return trace.Wrap(err)
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI uri.ResourceURI, accessRequestID string) ([]*accesslist.AccessList, error) {
+	_, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response []*accesslist.AccessList
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		accessLists, err := accessrequests.GetSuggestedAccessLists(ctx, authClient.AccessListClient(), accessRequestID)
+		response = accessLists
+		return trace.Wrap(err)
+	})
+
+	return response, trace.Wrap(err)
 }
 
 // GetAccessRequests returns all access requests with filtered input
