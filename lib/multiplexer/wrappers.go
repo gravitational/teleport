@@ -18,6 +18,7 @@ package multiplexer
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"net"
 
@@ -35,7 +36,11 @@ type Conn struct {
 	protocol  Protocol
 	proxyLine *ProxyLine
 	reader    *bufio.Reader
-	writeSkip int
+
+	// alreadyWritten is a slice of data that we expect the application to
+	// Write() on the connection (because it was already sent on the wire). As
+	// the application writes, the slice gets smaller.
+	alreadyWritten []byte
 }
 
 // NewConn returns a net.Conn wrapper that supports peeking into the connection.
@@ -58,25 +63,26 @@ func (c *Conn) Read(p []byte) (int, error) {
 
 // Write implements [io.Writer] and [net.Conn].
 func (c *Conn) Write(p []byte) (int, error) {
-	if c.writeSkip < 1 {
+	if len(c.alreadyWritten) < 1 {
 		return c.Conn.Write(p)
 	}
 
-	if len(p) <= c.writeSkip {
-		// we do a zero-length write here to check that the connection is still
-		// open and that we're not past a write deadline
-		if _, err := c.Conn.Write(nil); err != nil {
-			return 0, trace.Wrap(err)
-		}
-		c.writeSkip -= len(p)
-		return len(p), nil
+	s := min(len(p), len(c.alreadyWritten))
+	if !bytes.Equal(p[:s], c.alreadyWritten[:s]) {
+		return 0, trace.BadParameter("new application data doesn't match already written data (this is a bug)")
 	}
 
-	n, err := c.Conn.Write(p[c.writeSkip:])
+	// we should do the write even if it's zero-length to check that the
+	// connection is still open and that we're not past the write deadline
+	n, err := c.Conn.Write(p[s:])
 	if n > 0 || err == nil {
-		n += c.writeSkip
-		c.writeSkip = 0
+		n += s
+		c.alreadyWritten = c.alreadyWritten[s:]
+		if len(c.alreadyWritten) < 1 {
+			c.alreadyWritten = nil
+		}
 	}
+
 	return n, trace.Wrap(err)
 }
 
