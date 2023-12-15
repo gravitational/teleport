@@ -22,7 +22,7 @@ import Logger from 'teleterm/logger';
 
 const logger = new Logger('retryWithRelogin');
 
-let pendingLogin: Promise<void> | undefined;
+let pendingLoginDialog: Promise<void> | undefined;
 
 /**
  * `retryWithRelogin` executes `actionToRetry`. If `actionToRetry` throws an error, it checks if the
@@ -81,13 +81,13 @@ export async function retryWithRelogin<T>(
 
   const rootClusterUri = routing.ensureRootClusterUri(resourceUri);
 
-  if (!pendingLogin) {
-    pendingLogin = login(appContext, rootClusterUri).finally(() => {
-      pendingLogin = undefined;
+  if (!pendingLoginDialog) {
+    pendingLoginDialog = login(appContext, rootClusterUri).finally(() => {
+      pendingLoginDialog = undefined;
     });
   }
 
-  await pendingLogin;
+  await pendingLoginDialog;
 
   return await actionToRetry();
 }
