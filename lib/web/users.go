@@ -27,6 +27,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -155,7 +156,11 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := m.GetUser(r.Context(), req.Name, false)
+	// Remove the MFA resp from the context before getting the user.
+	// Otherwise, it will be consumed before the Update which actually
+	// requires the MFA.
+	getUserCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
+	user, err := m.GetUser(getUserCtx, req.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

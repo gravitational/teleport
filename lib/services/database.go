@@ -96,15 +96,7 @@ func MarshalDatabase(database types.Database, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *database
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			database = &copy
-		}
-		return utils.FastMarshal(database)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, database))
 	default:
 		return nil, trace.BadParameter("unsupported database resource %T", database)
 	}

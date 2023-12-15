@@ -2067,7 +2067,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	clientMeta := clientMetaFromReq(r)
 
 	var webSession types.WebSession
-
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
@@ -2108,7 +2107,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), req.User, webSession.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), webSession)
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
@@ -2267,7 +2266,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	sess := res.WebSession
-	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2503,7 +2502,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), user, session.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), session)
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}

@@ -1620,7 +1620,6 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 	if len(loggers) < 1 {
 		if externalAuditStorage.IsUsed() {
 			return nil, externalAuditMissingAthenaError
-
 		}
 		return nil, nil
 	}

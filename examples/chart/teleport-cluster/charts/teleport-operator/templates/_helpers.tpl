@@ -60,7 +60,15 @@ teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
 
 {{/* Teleport auth or proxy address */}}
 {{- define "teleport-cluster.operator.teleportAddress" -}}
-{{ coalesce (include "teleport-cluster.auth.serviceFQDN" . | printf "%s:3025") .Values.authServer }}
+{{- $clusterAddr := include "teleport-cluster.auth.serviceFQDN" . -}}
+{{- if empty $clusterAddr -}}
+    {{- required "The `teleportAddress` value is mandatory when deploying a standalone operator." .Values.teleportAddress -}}
+    {{- if and (eq .Values.joinMethod "kubernetes") (empty .Values.teleportClusterName) (not (hasSuffix ":3025" .Values.teleportAddress)) -}}
+        {{- fail "When joining using the Kubernetes JWKS join method, you must set the value `teleportClusterName`" -}}
+    {{- end -}}
+{{- else -}}
+    {{- $clusterAddr | printf "%s:3025" -}}
+{{- end -}}
 {{- end -}}
 
 {{- /* This template is a placeholder.
