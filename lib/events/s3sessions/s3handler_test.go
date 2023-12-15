@@ -22,6 +22,7 @@
 package s3sessions
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -40,10 +41,10 @@ func TestMain(m *testing.M) {
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	handler, err := NewHandler(Config{
+	handler, err := NewHandler(context.Background(), Config{
 		Region: "us-west-1",
 		Path:   "/test/",
-		Bucket: fmt.Sprintf("teleport-unit-tests"),
+		Bucket: "teleport-unit-tests",
 	})
 	require.NoError(t, err)
 

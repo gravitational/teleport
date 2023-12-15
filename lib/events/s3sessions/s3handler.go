@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -368,11 +368,11 @@ func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
-	return strings.TrimPrefix(filepath.Join(h.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), "/")
 }
 
-func (h *Handler) fromPath(path string) session.ID {
-	return session.ID(strings.TrimSuffix(filepath.Base(path), ".tar"))
+func (h *Handler) fromPath(p string) session.ID {
+	return session.ID(strings.TrimSuffix(path.Base(p), ".tar"))
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
