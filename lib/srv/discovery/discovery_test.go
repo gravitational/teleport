@@ -125,7 +125,6 @@ func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymiza
 		case *usagereporter.ResourceCreateEvent:
 			m.resourceAddedEventCount++
 		case *usagereporter.DiscoveryFetchEvent:
-			fmt.Printf("EVENT\n %+v\n\n", e)
 			m.discoveryFetchEventCount++
 		}
 	}
@@ -1880,7 +1879,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		t.Fatal("Didn't receive reconcile event after 1s")
 	}
 
-	require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is not fetchers actually being called")
+	require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
 
 	// Adding a Dynamic Matcher for a different Discovery Group, should not bring any new resources.
 	t.Run("DiscoveryGroup does not match: matcher is not loaded", func(t *testing.T) {
@@ -1919,7 +1918,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			t.Fatal("Didn't receive reconcile event after 1s")
 		}
 
-		require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is not fetchers actually being called")
+		require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
 	})
 
 	t.Run("New DiscoveryConfig with valid Group", func(t *testing.T) {
@@ -1945,7 +1944,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			return len(srv.dynamicDatabaseFetchers) > 0
 		}, 1*time.Second, 100*time.Millisecond)
 
-		require.Equal(t, 0, reporter.DiscoveryFetchEventCount())
+		require.Zero(t, reporter.DiscoveryFetchEventCount())
 		// Advance clock to trigger a poll.
 		clock.Advance(5 * time.Minute)
 

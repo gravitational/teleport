@@ -1056,9 +1056,11 @@ func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreate
 }
 
 func (s *Server) submitFetchersEvent(fetchers []common.Fetcher) {
-	// Some Matcher types have multiple fetchers.
-	// Eg, rds Matcher converts into `rds` and `aurora` Fetchers
-	// The Fetch Event is meant to represent the configured matcher type: rds
+	// Some Matcher Types have multiple fetchers, but we only care about the Matcher Type and not the actual Fetcher.
+	// Example:
+	// The `rds` Matcher Type creates two Fetchers: one for RDS and another one for Aurora
+	// Those fetchers's `FetcherType` both return `rds`, so we end up with two entries for `rds`.
+	// We must de-duplicate those entries before submitting the event.
 	type fetcherType struct {
 		cloud       string
 		fetcherType string
