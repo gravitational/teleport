@@ -311,7 +311,7 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 // embedAttributeMapping embeds attribute mapping details into entity descriptor.
 func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPServiceProvider) error {
 	if len(sp.GetAttributeMapping()) == 0 {
-		s.log.Infof("no custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
+		s.log.Debugf("no custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
 		return nil
 	}
 
@@ -326,10 +326,11 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 		return nil
 	}
 
+	// If there is an existing SPSSODescriptor with "TELEPORT_SAML_IDP" service, we'll replace it with
+	// newEmbeddedSPSSODescriptor(which has the updated attributes). Replacement is necessary to avoid duplication
+	// or possible fragmented SPSSODescriptor. Else, we will append newEmbeddedSPSSODescriptor to entity descriptor,
+	// creating new "TELEPORT_SAML_IDP" service.
 	newEmbeddedSPSSODescriptor := spSSODescriptorWithRequestedAttributes(sp.GetAttributeMapping())
-	// If there is an existing embedded SPSSODescriptor, we'll replace it with newEmbeddedSPSSODescriptor
-	// to avoid duplication or possible fragmented SPSSODescriptor. This is checked with embeddedSPSSODescriptorIndex
-	// value greater than 0. Otherwise, simply append to ed.SPSSODescriptors.
 	if embeddedSPSSODescriptorIndex == 0 {
 		ed.SPSSODescriptors = append(ed.SPSSODescriptors, newEmbeddedSPSSODescriptor)
 	} else {
@@ -341,7 +342,6 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 		return trace.Wrap(err)
 	}
 
-	s.log.Infof("attribute mapping embedded in entity descriptor")
 	sp.SetEntityDescriptor(string(edWithAttributes))
 	return nil
 }
@@ -351,14 +351,14 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
 	var reqs []saml.RequestedAttribute
 	for _, v := range attributeMapping {
-		var reqAttrs saml.RequestedAttribute
-		reqAttrs.FriendlyName = v.Name
-		reqAttrs.Name = v.Name
-		reqAttrs.NameFormat = v.NameFormat
-		reqAttrs.Values = append(reqAttrs.Values, saml.AttributeValue{
-			Value: v.Value,
+		reqs = append(reqs, saml.RequestedAttribute{
+			Attribute: saml.Attribute{
+				FriendlyName: v.Name,
+				Name:         v.Name,
+				NameFormat:   v.NameFormat,
+				Values:       []saml.AttributeValue{{Value: v.Value}},
+			},
 		})
-		reqs = append(reqs, reqAttrs)
 	}
 
 	return saml.SPSSODescriptor{
@@ -379,27 +379,26 @@ func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttrib
 // and returns SPSSODescriptor element index and converted attribute mapping values.
 // The correct SPSSODescriptor is determined by searching for AttributeConsumingService element with ServiceNames named
 // TELEPORT_SAML_IDP.
-func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSSODescriptor) (int, []*types.SAMLAttributeMapping) {
-	embeddedSPSSODescriptorIndex := 0
-	attrs := make([]*types.SAMLAttributeMapping, 0)
+func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSSODescriptor) (embeddedSPSSODescriptorIndex int, embeddedAttributes []*types.SAMLAttributeMapping) {
 	for descriptorIndex, descriptor := range spSSODescriptors {
 		for _, acs := range descriptor.AttributeConsumingServices {
 			for _, serviceName := range acs.ServiceNames {
 				if serviceName.Value == teleportSAMLIdP {
 					embeddedSPSSODescriptorIndex = descriptorIndex
 					for _, reqAttr := range acs.RequestedAttributes {
-						var embeddedAttribute types.SAMLAttributeMapping
 						for _, reqAttrVal := range reqAttr.Values {
-							embeddedAttribute.Name = reqAttr.Name
-							embeddedAttribute.NameFormat = reqAttr.NameFormat
-							embeddedAttribute.Value = reqAttrVal.Value
+							embeddedAttributes = append(embeddedAttributes, &types.SAMLAttributeMapping{
+								Name:       reqAttr.Name,
+								NameFormat: reqAttr.NameFormat,
+								Value:      reqAttrVal.Value,
+							})
 						}
-						attrs = append(attrs, &embeddedAttribute)
 					}
+					return
 				}
 			}
 		}
 	}
 
-	return embeddedSPSSODescriptorIndex, attrs
+	return
 }
