@@ -2,4 +2,4 @@
 .eslintrc.js
 
 # Ignore WASM generated files:
-web/packages/teleport/src/ironrdp/pkg/**
+web/packages/teleport/src/ironrdp/pkg
