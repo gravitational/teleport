@@ -37,6 +37,7 @@ import apiService, {
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
+import apiAccessList from 'gen-proto-js/teleport/accesslist/v1/accesslist_pb';
 
 import * as uri from 'teleterm/ui/uri';
 
@@ -81,6 +82,7 @@ export type GatewayCLICommand = apiGateway.GatewayCLICommand.AsObject;
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
 export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
+export type AccessList = apiAccessList.AccessList.AsObject;
 
 export interface GetServersResponse
   extends apiService.GetServersResponse.AsObject {
@@ -294,6 +296,14 @@ export type TshClient = {
     params: apiService.UpdateUserPreferencesRequest.AsObject,
     abortSignal?: TshAbortSignal
   ) => Promise<UserPreferences>;
+  getSuggestedAccessLists: (
+    params: apiService.GetSuggestedAccessListsRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<AccessList[]>;
+  promoteAccessRequest: (
+    params: apiService.PromoteAccessRequestRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<AccessRequest>;
 };
 
 export type TshAbortController = {
