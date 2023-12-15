@@ -329,6 +329,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		localCAs:  cas,
 	}
 
+	// Once we load the certs, we need to pass it to kube middleware config.
 	kubeMiddleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
 		Certs:        certs,
 		CertReissuer: kubeProxy.getCertReissuer(tc),
@@ -449,6 +450,7 @@ func (k *kubeLocalProxy) WriteKubeConfig() error {
 	return trace.Wrap(kubeconfig.Save(k.KubeConfigPath(), *k.kubeconfig))
 }
 
+// Connect needs to do the same.
 func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
 	ctx, span := tc.Tracer.Start(ctx, "loadKubeUserCerts")
 	defer span.End()
@@ -524,6 +526,8 @@ func kubeCertFromKey(key *client.Key, kubeCluster string) (tls.Certificate, erro
 
 // getCertReissuer returns a function that can reissue with MFA user certificate for accessing kubernetes cluster.
 // If required it performs relogin procedure.
+// This would have to be reused between tsh and teleterm. RetryWithRelogin needs to be custom, it
+// also needs to accept mfa prompt (or maybe just a function which returns a prompt?).
 func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 	return func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 		var proxy *client.ProxyClient
@@ -569,6 +573,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 		requesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
 	}
 
+	// This is how tsh does this.
 	key, err := proxy.IssueUserCertsWithMFA(
 		ctx,
 		client.ReissueParams{
