@@ -97,9 +97,9 @@ type FeatureLimits struct {
 	// Defines the max number of days to include in an access report if
 	// feature is not enabled.
 	AccessMonitoringMaxReportRangeLimit int `json:"accessMonitoringMaxReportRangeLimit"`
-	// MonthlyRequestLimit is the usage-based limit for the number of
+	// AccessRequestMonthlyRequestLimit is the usage-based limit for the number of
 	// access requests created in a calendar month.
-	AccessRequstMonthlyRequestLimit int `json:"accessRequstMonthlyRequestLimit"`
+	AccessRequestMonthlyRequestLimit int `json:"AccessRequestMonthlyRequestLimit"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
