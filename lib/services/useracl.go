@@ -104,6 +104,8 @@ type UserACL struct {
 	ExternalAuditStorage ResourceAccess `json:"externalAuditStorage"`
 	// AccessGraph defines access to access graph.
 	AccessGraph ResourceAccess `json:"accessGraph"`
+	// Bot defines access to manage Bots.
+	Bot ResourceAccess `json:"bot"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -180,6 +182,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
+	bot := newAccess(userRoles, ctx, types.KindBot)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -223,5 +226,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		SecurityReport:          securityReports,
 		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
+		Bot:                     bot,
 	}
 }

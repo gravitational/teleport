@@ -88,6 +88,7 @@ export interface Acl {
   securityReport: Access;
   externalAuditStorage: Access;
   accessGraph: Access;
+  bot: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
