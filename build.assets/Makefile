@@ -428,8 +428,8 @@ release-arm64:
 # We depend on webassets to pre-build them in the buildbox-node container
 # so that we don't need to install node.js and rust on the buildbox-arm container.
 .PHONY: release-arm
-release-arm: webassets
-	$(MAKE) release-unix-preserving-webassets ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
+release-arm:
+	$(MAKE) release-centos7 ARCH=arm BUILDBOX_CENTOS7=$(BUILDBOX_ARM)
 
 # Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
 # TODO(camscale): Remove these when drone no longer calls them.
