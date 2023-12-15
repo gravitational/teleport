@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"github.com/jonboulle/clockwork"
 	"strings"
 	"time"
 
@@ -332,7 +333,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	}
 
 	if a.Spec.Audit.NextAuditDate.IsZero() {
-		a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
+		a.setInitialAuditDate(clockwork.NewRealClock())
 	}
 
 	if a.Spec.Audit.Notifications.Start == 0 {
@@ -545,4 +546,14 @@ func (a *AccessList) SelectNextReviewDate() time.Time {
 		0, 0, 0, 0, time.UTC)
 
 	return nextDate
+}
+
+// setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
+// The function is extracted from CheckAndSetDefaults for the sake of testing
+// (we need to pass a fake clock).
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
+	// We act as if the AccessList just got reviewed (we just created it, so
+	// we're pretty sure of what it does) and pick the next review date.
+	a.Spec.Audit.NextAuditDate = clock.Now()
+	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
 }
