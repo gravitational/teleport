@@ -20,6 +20,7 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
 import "teleport/lib/teleterm/v1/cluster.proto";
@@ -73,6 +74,11 @@ service TerminalService {
   rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
   // AssumeRole assumes the role of the given access request
   rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
+  // PromoteAccessRequest promotes an access request to an access list.
+  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
+  // GetSuggestedAccessLists returns suggested access lists for an access request.
+  rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
   // AddCluster adds a cluster to profile
@@ -253,6 +259,26 @@ message ReviewAccessRequestRequest {
 
 message ReviewAccessRequestResponse {
   AccessRequest request = 1;
+}
+
+message PromoteAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string access_list_id = 2;
+  string reason = 3;
+  string access_request_id = 4;
+}
+
+message PromoteAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message GetSuggestedAccessListsRequest {
+  string root_cluster_uri = 1;
+  string access_request_id = 2;
+}
+
+message GetSuggestedAccessListsResponse {
+  repeated accesslist.v1.AccessList access_lists = 1;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
