@@ -1084,6 +1084,7 @@ tsh bench web sessions --max=5000 --web user ls
 
 - Direct mode (set `listen_addr`):
   - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to desktop defined in static `static_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - IoT mode (reverse tunnel through proxy):
   - [ ] Can connect to desktop defined in static `hosts` section.
@@ -1115,6 +1116,7 @@ tsh bench web sessions --max=5000 --web user ls
     Version, DNS hostname.
   - [ ] Regexp-based host labeling applies across all desktops, regardless of
     origin.
+  - [ ] Labels from `static_hosts` are applied to correct desktops
 - RBAC
   - [ ] RBAC denies access to a Windows desktop due to labels
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
@@ -1216,6 +1218,7 @@ tsh bench web sessions --max=5000 --web user ls
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
+  - [ ] Non-AD instance can be added to `static_hosts` section in config file and is visible in UI
   - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
   - [ ] Non-AD can be added as dynamic resource and is visible in UI
   - [ ] Non-AD instance has label `teleport.dev/ad: false`
