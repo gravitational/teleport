@@ -134,7 +134,7 @@ func (u *UserMonitor) reconciler(ctx context.Context) {
 		u.log.Info("Reconciling users.")
 
 		if err := u.reconcile(ctx); err != nil {
-			u.log.WithError(err).Error("Error during reconciliation")
+			u.log.Debugf("Error during reconciliation: %s", err.Error())
 		}
 
 		select {
@@ -195,7 +195,7 @@ func (u *UserMonitor) reconcile(ctx context.Context) error {
 
 		rebuilt, err := rebuildUserFromUserLoginState(uls)
 		if err != nil {
-			u.log.WithError(err).Warnf("Unable to rebuild user %s", uls.GetName())
+			u.log.Debugf("Unable to rebuild user %s: %s", uls.GetName(), err.Error())
 			continue
 		}
 		usersToProcess[uls.GetName()] = rebuilt
@@ -264,7 +264,7 @@ func (u *UserMonitor) watchEvents(ctx context.Context) error {
 		select {
 		case event := <-watcher.Events():
 			if err := u.processResource(ctx, event.Resource, event.Type); err != nil {
-				u.log.WithError(err).Error("Error while processing events")
+				u.log.Debugf("Error while processing events: %s", err.Error())
 			}
 		case <-watcher.Done():
 			return watcher.Error()
@@ -318,7 +318,7 @@ func (u *UserMonitor) processResource(ctx context.Context, resource types.Resour
 
 // processUserChange will re-process a user by re-calling the login hooks for the user.
 func (u *UserMonitor) processUserChange(ctx context.Context, user types.User) error {
-	u.log.Infof("User access has changed for user %s", user.GetName())
+	u.log.Debugf("User access has changed for user %s", user.GetName())
 	if err := u.authServer.CallLoginHooks(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
