@@ -912,10 +912,9 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
 
-	key := sessionDataKey(user, sessionID)
 	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
 	if trace.IsNotFound(err) {
-		return nil, trace.NotFound("item %q is not found", string(key))
+		return nil, trace.NotFound("webauthn session data is not found")
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -926,7 +925,7 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 		if err := s.Delete(ctx, item.Key); err != nil && !trace.IsNotFound(err) {
 			s.log.WithError(err).Debug("Failed to delete expired webauthn session")
 		}
-		return nil, trace.NotFound("item %q is not found", string(key))
+		return nil, trace.NotFound("webauthn session data is not found")
 	}
 
 	sd := &wanpb.SessionData{}
