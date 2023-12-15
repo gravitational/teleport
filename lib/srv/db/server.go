@@ -38,6 +38,7 @@ import (
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -780,12 +781,18 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 // startServiceHeartbeat sends the current DatabaseService server info.
 func (s *Server) startServiceHeartbeat() error {
+	labels := make(map[string]string)
+	if metadata.AWSOIDCDeployServiceInstallMethod() {
+		labels[types.AWSOIDCAgentLabel] = types.True
+	}
+
 	getDatabaseServiceServerInfo := func() (types.Resource, error) {
 		expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 		resource, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name:      s.cfg.HostID,
 			Namespace: apidefaults.Namespace,
 			Expires:   &expires,
+			Labels:    labels,
 		}, types.DatabaseServiceSpecV1{
 			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
 		})
