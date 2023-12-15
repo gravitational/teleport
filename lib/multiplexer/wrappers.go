@@ -65,6 +65,8 @@ func (c *Conn) Write(p []byte) (int, error) {
 	}
 
 	if len(p) <= c.writeSkip {
+		// we do a zero-length write here to check that the connection is still
+		// open and that we're not past a write deadline
 		if _, err := c.Conn.Write(nil); err != nil {
 			return 0, trace.Wrap(err)
 		}
