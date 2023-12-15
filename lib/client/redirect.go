@@ -84,6 +84,9 @@ type Redirector struct {
 	cancel context.CancelFunc
 	// RedirectorConfig allows customization of Redirector
 	RedirectorConfig
+	// callbackAddr is the alternate URL to give to the user during login,
+	// if present.
+	callbackAddr string
 }
 
 // RedirectorConfig allows customization of Redirector
@@ -106,18 +109,31 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorCon
 		return nil, trace.Wrap(err)
 	}
 
+	var callbackAddr string
+	if login.CallbackAddr != "" {
+		callbackURL, err := apiutils.ParseURL(login.CallbackAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if callbackURL.Scheme == "" {
+			callbackURL.Scheme = "http"
+		}
+		callbackAddr = callbackURL.String()
+	}
+
 	ctxCancel, cancel := context.WithCancel(ctx)
 	rd := &Redirector{
-		context:     ctxCancel,
-		cancel:      cancel,
-		proxyClient: clt,
-		proxyURL:    proxyURL,
-		SSHLoginSSO: login,
-		mux:         http.NewServeMux(),
-		key:         key,
-		shortPath:   "/" + uuid.New().String(),
-		responseC:   make(chan *auth.SSHLoginResponse, 1),
-		errorC:      make(chan error, 1),
+		context:      ctxCancel,
+		cancel:       cancel,
+		proxyClient:  clt,
+		proxyURL:     proxyURL,
+		SSHLoginSSO:  login,
+		mux:          http.NewServeMux(),
+		key:          key,
+		shortPath:    "/" + uuid.New().String(),
+		responseC:    make(chan *auth.SSHLoginResponse, 1),
+		errorC:       make(chan error, 1),
+		callbackAddr: callbackAddr,
 	}
 
 	if config != nil {
@@ -166,11 +182,7 @@ func (rd *Redirector) Start() error {
 	log.Infof("Waiting for response at: %v.", rd.server.URL)
 
 	// communicate callback redirect URL to the Teleport Proxy
-	baseURL, err := rd.baseURL()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	u, err := url.Parse(baseURL + "/callback")
+	u, err := url.Parse(rd.baseURL() + "/callback")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -225,29 +237,18 @@ func (rd *Redirector) Done() <-chan struct{} {
 }
 
 // ClickableURL returns a short clickable redirect URL
-func (rd *Redirector) ClickableURL() (string, error) {
+func (rd *Redirector) ClickableURL() string {
 	if rd.server == nil {
-		return "", trace.Errorf("server is not started")
+		return "<undefined - server is not started>"
 	}
-	baseURL, err := rd.baseURL()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return utils.ClickableURL(baseURL + rd.shortPath), nil
+	return utils.ClickableURL(rd.baseURL() + rd.shortPath)
 }
 
-func (rd *Redirector) baseURL() (string, error) {
-	if rd.CallbackAddr == "" {
-		return rd.server.URL, nil
+func (rd *Redirector) baseURL() string {
+	if rd.callbackAddr != "" {
+		return rd.callbackAddr
 	}
-	callbackURL, err := apiutils.ParseURL(rd.CallbackAddr)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if callbackURL.Scheme == "" {
-		callbackURL.Scheme = "http"
-	}
-	return callbackURL.String(), nil
+	return rd.server.URL
 }
 
 // ResponseC returns a channel with response
