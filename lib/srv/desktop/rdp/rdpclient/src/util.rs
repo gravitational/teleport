@@ -59,6 +59,10 @@ pub fn vec_u8_debug(v: &[u8]) -> String {
     format!("&[u8] of length {}", v.len())
 }
 
+pub fn str_debug(s: &str) -> String {
+    format!("&str of length {}", s.len())
+}
+
 /// # Safety
 ///
 /// s must be a C-style null terminated string.

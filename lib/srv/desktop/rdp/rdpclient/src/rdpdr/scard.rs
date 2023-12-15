@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::client::ClientHandle;
-use crate::piv;
+use crate::{piv, util};
 use ironrdp_pdu::utils::CharacterSet;
 use ironrdp_pdu::{custom_err, other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{DeviceControlRequest, DeviceControlResponse, NtStatus};
@@ -35,7 +35,6 @@ use uuid::Uuid;
 /// `ScardBackend` implements the smartcard device redirection backend as described in [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]
 ///
 /// [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/0428ca28-b4dc-46a3-97c3-01887fa44a90
-#[derive(Debug)]
 pub struct ScardBackend {
     client_handle: ClientHandle,
     /// contexts holds all the active contexts for the server, established using
@@ -47,6 +46,20 @@ pub struct ScardBackend {
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     pin: String,
+}
+
+impl std::fmt::Debug for ScardBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScardBackend")
+            .field("client_handle", &self.client_handle)
+            .field("contexts", &self.contexts)
+            .field("uuid", &self.uuid)
+            .field("cert_der", &util::vec_u8_debug(&self.cert_der))
+            // Important we don't leak key_der to the logs.
+            .field("key_der", &util::vec_u8_debug(&self.key_der))
+            .field("pin", &self.pin)
+            .finish()
+    }
 }
 
 impl ScardBackend {
