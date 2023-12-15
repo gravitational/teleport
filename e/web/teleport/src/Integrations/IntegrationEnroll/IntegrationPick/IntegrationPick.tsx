@@ -144,11 +144,10 @@ export function IntegrationPick() {
               Self-Hosted Plugins
             </Text>
             <Text mb={3} typography="body1">
-              There is a wide variety of plugins that you can source from the
-              Teleport GitHub repository. See below for a sampling, or check out
-              the base repo at{' '}
+              There is a wide variety of plugins that you can integrate with.
+              See below for a sampling, or check out the documented list at{' '}
               <ExternalLink
-                href="https://github.com/gravitational/teleport-plugins"
+                href="https://goteleport.com/docs/access-controls/access-request-plugins/"
                 target="_blank"
               >
                 https://github.com/gravitational/teleport-plugins

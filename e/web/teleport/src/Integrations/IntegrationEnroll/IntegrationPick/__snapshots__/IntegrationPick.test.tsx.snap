@@ -358,11 +358,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
         <div
           class="c23"
         >
-          There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
+          There is a wide variety of plugins that you can integrate with. See below for a sampling, or check out the documented list at
            
           <a
             class="c24"
-            href="https://github.com/gravitational/teleport-plugins"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/"
             rel="noreferrer"
             target="_blank"
           >
@@ -376,7 +376,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           <a
             class="c24 c8 c1 c16"
             data-testid="tile-email"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/"
             rel="noreferrer"
             target="_blank"
           >
@@ -398,7 +398,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           <a
             class="c24 c8 c1 c16"
             data-testid="tile-msteams"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/"
             rel="noreferrer"
             target="_blank"
           >
@@ -1462,11 +1462,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
         <div
           class="c25"
         >
-          There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
+          There is a wide variety of plugins that you can integrate with. See below for a sampling, or check out the documented list at
            
           <a
             class="c26"
-            href="https://github.com/gravitational/teleport-plugins"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/"
             rel="noreferrer"
             target="_blank"
           >
@@ -1480,7 +1480,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           <a
             class="c26 c8 c1 c21"
             data-testid="tile-email"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/"
             rel="noreferrer"
             target="_blank"
           >
@@ -1502,7 +1502,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           <a
             class="c26 c8 c1 c21"
             data-testid="tile-msteams"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/"
             rel="noreferrer"
             target="_blank"
           >
@@ -2754,11 +2754,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
         <div
           class="c25"
         >
-          There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
+          There is a wide variety of plugins that you can integrate with. See below for a sampling, or check out the documented list at
            
           <a
             class="c26"
-            href="https://github.com/gravitational/teleport-plugins"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/"
             rel="noreferrer"
             target="_blank"
           >
@@ -2772,7 +2772,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           <a
             class="c26 c8 c1 c16"
             data-testid="tile-email"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/"
             rel="noreferrer"
             target="_blank"
           >
@@ -2794,7 +2794,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           <a
             class="c26 c8 c1 c16"
             data-testid="tile-msteams"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/"
             rel="noreferrer"
             target="_blank"
           >
