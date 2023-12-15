@@ -89,6 +89,12 @@ func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
 			setup:      createUser,
 			cleanup:    deleteUser,
 		},
+		"tctl users reset": {
+			command:    "users reset teleuser",
+			cliCommand: &tctl.UserCommand{},
+			setup:      createUser,
+			cleanup:    deleteUser,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s.runTestCase(t, ctx, tc)
