@@ -1,0 +1,9 @@
+roles: app,kube,discovery
+apps:
+ - name: test
+   uri: https://console.aws.amazon.com/ec2/v2/home
+   labels:
+     env: test
+appResources:
+  - labels:
+      "*": "*"
