@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -378,6 +379,20 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
 func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+	if login.CallbackAddr != "" {
+		callbackPrompt := "Logging in from a remote host means that credentials will be stored on " +
+			"the remote host. Make sure that you trust the provided callback host " +
+			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
+		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
+			fmt.Sprintf(callbackPrompt, login.CallbackAddr, login.BindAddr),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			return nil, trace.BadParameter("Login canceled.")
+		}
+	}
 	rd, err := NewRedirector(ctx, login, config)
 	if err != nil {
 		return nil, trace.Wrap(err)

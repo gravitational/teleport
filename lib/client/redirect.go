@@ -115,9 +115,7 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorCon
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if callbackURL.Scheme == "" {
-			callbackURL.Scheme = "http"
-		}
+		callbackURL.Scheme = "https"
 		callbackAddr = callbackURL.String()
 	}
 

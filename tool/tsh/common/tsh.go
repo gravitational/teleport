@@ -687,7 +687,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
-	app.Flag("callback", "Override the base URL (scheme://host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
+	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
