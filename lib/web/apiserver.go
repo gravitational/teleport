@@ -2271,11 +2271,6 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	err = h.trySettingConnectorNameToPasswordless(r.Context(), ctx, req)
-	if err != nil {
-		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
-	}
-
 	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2295,45 +2290,6 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 			Created: &res.GetRecovery().Created,
 		},
 	}, nil
-}
-
-// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
-// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
-func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
-	// We use the presence of a WebAuthn response, along with the absence of a
-	// password, as a proxy to determine that a passwordless registration took
-	// place, as it is not possible to infer that just from the WebAuthn response.
-	isPasswordlessRegistration := req.WebauthnCreationResponse != nil && len(req.Password) == 0
-	if !isPasswordlessRegistration {
-		return nil
-	}
-
-	if !h.ClusterFeatures.GetCloud() {
-		return nil
-	}
-
-	authPreference, err := sessCtx.cfg.RootClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil
-	}
-
-	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
-		return nil
-	}
-
-	users, err := h.cfg.ProxyClient.GetUsers(ctx, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(users) != 1 {
-		return nil
-	}
-
-	authPreference.SetConnectorName(constants.PasswordlessConnector)
-
-	err = sessCtx.cfg.RootClient.SetAuthPreference(ctx, authPreference)
-	return trace.Wrap(err)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.

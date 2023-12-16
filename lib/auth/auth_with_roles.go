@@ -3146,7 +3146,49 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangeUserAuthentication(ctx, req)
+	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
+	isPasswordless := req.NewMFARegisterResponse != nil && len(req.NewPassword) == 0
+	if isPasswordless && modules.GetModules().Features().Cloud {
+		if err := a.trySettingConnectorNameToPasswordless(ctx); err != nil {
+			log.WithError(err).Error("Failed to set passwordless as connector name.")
+		}
+	}
+
+	return resp, nil
+}
+
+// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
+// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
+func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Context) error {
+	users, err := a.authServer.GetUsers(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only set the connector name on the first user registration.
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Don't overwrite an existing connector name.
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+	return trace.Wrap(a.authServer.SetAuthPreference(ctx, authPreference))
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -6869,7 +6911,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
