@@ -38,6 +38,7 @@ func opsgenieInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps i
 				StatusSink:       deps.statusSink,
 			},
 		},
+		pluginType: types.PluginTypeOpsgenie,
 	}
 
 	app := common.NewApp(pc, plugin.GetName())
