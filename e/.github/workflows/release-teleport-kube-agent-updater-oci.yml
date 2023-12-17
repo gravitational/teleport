@@ -48,6 +48,13 @@ on:
         required: true
         default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
 
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build` or `promote`.
+        type: string
+        default: promote
+
       workflow-tag:
         description: |
           Tag used to identify workflow runs spawned by this event
@@ -67,9 +74,11 @@ jobs:
   configure:
     name: Configure Build
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     outputs:
       teleport_version: ${{ steps.version.outputs.teleport_version }}
       buildbox: ${{ steps.get-buildbox.outputs.buildbox }}
+      public_ecr_login_role_arn: ${{ steps.get-buildbox.outputs.public_ecr_login_role_arn }}
     steps:
       - name: Parse version tag
         id: version
@@ -79,7 +88,7 @@ jobs:
             TAG=${{ inputs.oss-teleport-ref }}
           fi
           VERSION=${TAG#v}
-          echo teleport_version=$VERSION >> $GITHUB_OUTPUT
+          echo teleport_version=$VERSION >> "$GITHUB_OUTPUT"
       - name: Checkout OSS Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
@@ -90,10 +99,14 @@ jobs:
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       - name: Get buildbox image ref
         id: get-buildbox
+        env:
+          ECR_READ_ONLY_ROLE: ${{ vars.ECR_READ_ONLY_ROLE }}
         run: |
           BUILDBOX="$(make -s -C ./build.assets/ show-buildbox-base-image)"
           echo "buildbox: $BUILDBOX"
-          echo "buildbox=$BUILDBOX" >> $GITHUB_OUTPUT
+          echo "buildbox=$BUILDBOX" >> "$GITHUB_OUTPUT"
+          # pulling the buildbox needs public ecr auth to raise rate limits
+          echo "public_ecr_login_role_arn=$ECR_READ_ONLY_ROLE" >> "$GITHUB_OUTPUT"
 
   build-docker-images:
     name: Build OCI container images
@@ -125,6 +138,7 @@ jobs:
       dest-image-registry: ${{ inputs.dest-repo-prefix }}
       dest-image-repo: teleport-kube-agent-updater${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
+      public-ecr-login-role-arn: ${{ needs.configure.outputs.public_ecr_login_role_arn }}
       build-role-arn: ${{ inputs.build-role-arn }}
       signing-key-url: ${{ inputs.signing-key-url }}
       allow-overwrites: false

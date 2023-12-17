@@ -74,6 +74,17 @@ on:
         required: false
         type: string
 
+      public-ecr-login-role-arn:
+        description: |
+          ARN of the AWS role to assume to log into public ECR. This raises the
+          rate limits for pulling from public.ecr.aws which can be quite low when
+          unauthenticated. Leave this empty if the Dockerfile does not use any
+          images from public ECR.
+          Usually when needed, this would be set to vars.ECR_READ_ONLY_ROLE
+          but that is not the default here as the default is to not log into public
+          ECR at all.
+        type: string
+
       build-role-arn:
         description: |
           ARN of the AWS role to assume for storing and signing the OCI
@@ -209,6 +220,25 @@ jobs:
 
       - name: Install cosign
         uses: sigstore/cosign-installer@1fc5bd396d372bee37d608f955b336615edf79c8 # v3.2.0
+
+      - name: Assume Public ECR login role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        if: inputs.public-ecr-login-role-arn != ''
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ inputs.public-ecr-login-role-arn }}
+          role-session-name: "gha-oci-image-build-ecr-${{ github.run_attempt }}"
+          role-duration-seconds: 3600
+
+      # Authenticate with public ECR for higher rate limits
+      - name: Log into public ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+        if: inputs.public-ecr-login-role-arn != ''
+        with:
+          registry-type: public
+        env:
+          # GetAuthorizationToken command is only supported in us-east-1.
+          AWS_REGION: us-east-1
 
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
