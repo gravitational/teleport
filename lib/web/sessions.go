@@ -674,7 +674,7 @@ type sessionCache struct {
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
 	// This is the client-facing session handle
 	sessions map[string]*SessionContext
@@ -701,9 +701,8 @@ func (s *sessionCache) Close() error {
 }
 
 func (s *sessionCache) ActiveSessions() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return len(s.sessions)
 }
 
@@ -872,8 +871,8 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 }
 
 func (s *sessionCache) getContext(key string) (*SessionContext, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	ctx, ok := s.sessions[key]
 	return ctx, ok
 }
