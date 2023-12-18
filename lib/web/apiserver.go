@@ -2092,17 +2092,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get stuck in a
-	// racy session creation loop.
-	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
-		User:      req.User,
-		SessionID: webSession.GetName(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
