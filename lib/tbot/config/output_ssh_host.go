@@ -55,7 +55,7 @@ func (o *SSHHostOutput) templates() []template {
 func (o *SSHHostOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"SSHHostOutput.Render",
+		"SSHHostOutput/Render",
 	)
 	defer span.End()
 

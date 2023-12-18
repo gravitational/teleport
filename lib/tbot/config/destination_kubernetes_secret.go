@@ -168,7 +168,7 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, data []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"DestinationKubernetesSecret.Write",
+		"DestinationKubernetesSecret/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -202,7 +202,7 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 func (dks *DestinationKubernetesSecret) Read(ctx context.Context, name string) ([]byte, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"DestinationKubernetesSecret.Read",
+		"DestinationKubernetesSecret/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()

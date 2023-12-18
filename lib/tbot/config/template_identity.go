@@ -55,7 +55,7 @@ func (t *templateIdentity) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateIdentity.render",
+		"templateIdentity/render",
 	)
 	defer span.End()
 

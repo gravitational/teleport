@@ -99,7 +99,7 @@ func (b *Bot) markStarted() error {
 }
 
 func (b *Bot) Run(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "Bot.Run")
+	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer span.End()
 
 	if err := b.markStarted(); err != nil {
@@ -220,7 +220,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // initialize returns an unlock function which must be deferred.
 func (b *Bot) initialize(ctx context.Context) (func() error, error) {
-	ctx, span := tracer.Start(ctx, "Bot.initialize")
+	ctx, span := tracer.Start(ctx, "Bot/initialize")
 	defer span.End()
 
 	if b.cfg.AuthServer == "" {
@@ -333,7 +333,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 // It checks this loaded identity against the configured onboarding profile
 // and ignores the loaded identity if there has been a configuration change.
 func (b *Bot) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
-	ctx, span := tracer.Start(ctx, "Bot.loadIdentityFromStore")
+	ctx, span := tracer.Start(ctx, "Bot/loadIdentityFromStore")
 	defer span.End()
 	b.log.WithField("store", store).Info("Loading existing bot identity from store.")
 
@@ -445,7 +445,7 @@ func (b *Bot) checkIdentity(ident *identity.Identity) error {
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
 func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
-	ctx, span := tracer.Start(ctx, "Bot.AuthenticatedUserClientFromIdentity")
+	ctx, span := tracer.Start(ctx, "Bot/AuthenticatedUserClientFromIdentity")
 	defer span.End()
 
 	if id.SSHCert == nil || id.X509Cert == nil {

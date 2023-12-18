@@ -52,7 +52,7 @@ const renewalRetryLimit = 5
 func (b *Bot) renewOutputsLoop(
 	ctx context.Context, reloadChan <-chan struct{},
 ) error {
-	ctx, span := tracer.Start(ctx, "Bot.renewOutputsLoop")
+	ctx, span := tracer.Start(ctx, "Bot/renewOutputsLoop")
 	defer span.End()
 	b.log.Infof(
 		"Beginning output renewal loop: ttl=%s interval=%s",
@@ -185,7 +185,7 @@ func (b *Bot) generateIdentity(
 	defaultRoles []string,
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
-	ctx, span := tracer.Start(ctx, "Bot.generateIdentity")
+	ctx, span := tracer.Start(ctx, "Bot/generateIdentity")
 	defer span.End()
 
 	// TODO: enforce expiration > renewal period (by what margin?)
@@ -296,7 +296,7 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 }
 
 func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
-	ctx, span := tracer.Start(ctx, "Bot.getRouteToDatabase")
+	ctx, span := tracer.Start(ctx, "Bot/getRouteToDatabase")
 	defer span.End()
 
 	if output.Service == "" {
@@ -381,7 +381,7 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 }
 
 func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
-	ctx, span := tracer.Start(ctx, "Bot.getRouteToApp")
+	ctx, span := tracer.Start(ctx, "Bot/getRouteToApp")
 	defer span.End()
 
 	app, err := getApp(ctx, client, output.AppName)
@@ -422,7 +422,7 @@ func (b *Bot) generateImpersonatedIdentity(
 	output config.Output,
 	defaultRoles []string,
 ) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
-	ctx, span := tracer.Start(ctx, "Bot.generateImpersonatedIdentity")
+	ctx, span := tracer.Start(ctx, "Bot/generateImpersonatedIdentity")
 	defer span.End()
 
 	impersonatedIdentity, err = b.generateIdentity(
@@ -544,7 +544,7 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 func (b *Bot) renewOutputs(
 	ctx context.Context,
 ) error {
-	ctx, span := tracer.Start(ctx, "Bot.renewOutputs")
+	ctx, span := tracer.Start(ctx, "Bot/renewOutputs")
 	defer span.End()
 
 	botIdentity := b.ident()

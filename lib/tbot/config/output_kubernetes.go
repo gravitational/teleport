@@ -61,7 +61,7 @@ func (o *KubernetesOutput) templates() []template {
 func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"KubernetesOutput.Render",
+		"KubernetesOutput/Render",
 	)
 	defer span.End()
 

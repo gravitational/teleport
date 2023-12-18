@@ -206,9 +206,9 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 }
 
 func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
-		"DestinationDirectory.Write",
+		"DestinationDirectory/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -217,9 +217,9 @@ func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []b
 }
 
 func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
-		"DestinationDirectory.Read",
+		"DestinationDirectory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()

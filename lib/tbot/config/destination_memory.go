@@ -72,9 +72,9 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 }
 
 func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
-		"DestinationMemory.Write",
+		"DestinationMemory/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()
@@ -87,9 +87,9 @@ func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte
 }
 
 func (dm *DestinationMemory) Read(ctx context.Context, name string) ([]byte, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
-		"DestinationMemory.Read",
+		"DestinationMemory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
 	)
 	defer span.End()

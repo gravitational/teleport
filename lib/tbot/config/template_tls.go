@@ -66,7 +66,7 @@ func (t *templateTLS) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateTLS.render",
+		"templateTLS/render",
 	)
 	defer span.End()
 

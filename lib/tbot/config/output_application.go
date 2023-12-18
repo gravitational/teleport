@@ -63,7 +63,7 @@ func (o *ApplicationOutput) templates() []template {
 func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"ApplicationOutput.Render",
+		"ApplicationOutput/Render",
 	)
 	defer span.End()
 

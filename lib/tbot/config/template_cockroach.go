@@ -57,7 +57,7 @@ func (t *templateCockroach) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateCockroach.render",
+		"templateCockroach/render",
 	)
 	defer span.End()
 
