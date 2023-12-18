@@ -57,7 +57,7 @@ func (t *templateMongo) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateMongo.render",
+		"templateMongo/render",
 	)
 	defer span.End()
 

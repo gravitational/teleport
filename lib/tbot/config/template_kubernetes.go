@@ -132,7 +132,7 @@ func (t *templateKubernetes) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateKubernetes.render",
+		"templateKubernetes/render",
 	)
 	defer span.End()
 

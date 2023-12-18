@@ -98,9 +98,9 @@ func (o *UnstableClientCredentialOutput) SSHClientConfig() (*ssh.ClientConfig, e
 // bot with new credentials. Render passes these credentials down to the
 // underlying facade so that they can be used in TLS/SSH configs.
 func (o *UnstableClientCredentialOutput) Render(ctx context.Context, _ provider, ident *identity.Identity) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
-		"UnstableClientCredentialOutput.Render",
+		"UnstableClientCredentialOutput/Render",
 	)
 	defer span.End()
 

@@ -83,7 +83,7 @@ func (t *templateTLSCAs) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateTLSCAs.render",
+		"templateTLSCAs/render",
 	)
 	defer span.End()
 

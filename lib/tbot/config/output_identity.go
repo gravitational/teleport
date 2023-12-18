@@ -70,7 +70,7 @@ func (o *IdentityOutput) templates() []template {
 func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"IdentityOutput.Render",
+		"IdentityOutput/Render",
 	)
 	defer span.End()
 

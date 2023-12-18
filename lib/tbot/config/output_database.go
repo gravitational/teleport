@@ -107,7 +107,7 @@ func (o *DatabaseOutput) templates() []template {
 func (o *DatabaseOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"DatabaseOutput.Render",
+		"DatabaseOutput/Render",
 	)
 	defer span.End()
 

@@ -97,7 +97,7 @@ func (c *templateSSHClient) render(
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"templateSSHClient.render",
+		"templateSSHClient/render",
 	)
 	defer span.End()
 
