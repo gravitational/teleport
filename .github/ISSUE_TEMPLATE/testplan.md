@@ -1083,8 +1083,10 @@ tsh bench web sessions --max=5000 --web user ls
 ## Desktop Access
 
 - Direct mode (set `listen_addr`):
-  - [ ] Can connect to desktop defined in static `hosts` section.
-  - [ ] Can connect to desktop defined in static `static_hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - IoT mode (reverse tunnel through proxy):
   - [ ] Can connect to desktop defined in static `hosts` section.
@@ -1218,7 +1220,6 @@ tsh bench web sessions --max=5000 --web user ls
 - Non-AD setup
   - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
   - [ ] Installer works correctly invoked from command line
-  - [ ] Non-AD instance can be added to `static_hosts` section in config file and is visible in UI
   - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
   - [ ] Non-AD can be added as dynamic resource and is visible in UI
   - [ ] Non-AD instance has label `teleport.dev/ad: false`
