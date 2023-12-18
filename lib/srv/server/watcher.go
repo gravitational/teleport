@@ -44,6 +44,13 @@ type Fetcher interface {
 	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
 }
 
+// WithPollTrigger sets a poll trigger to manual start a resource polling.
+func WithPollTrigger(pollTrigger <-chan struct{}) Option {
+	return func(w *Watcher) {
+		w.pollTrigger = pollTrigger
+	}
+}
+
 // Watcher allows callers to discover cloud instances matching specified filters.
 type Watcher struct {
 	// InstancesC can be used to consume newly discovered instances.
@@ -52,6 +59,7 @@ type Watcher struct {
 
 	fetchersFn   func() []Fetcher
 	pollInterval time.Duration
+	pollTrigger  <-chan struct{}
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
@@ -72,14 +80,23 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 	}
 }
 
+// fetchAndSubmit fetches the resources and submits them for processing.
+func (w *Watcher) fetchAndSubmit() {
+	for _, fetcher := range w.fetchersFn() {
+		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
+	}
+}
+
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
-	for _, fetcher := range w.fetchersFn() {
-		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
+	if w.pollTrigger == nil {
+		w.pollTrigger = make(<-chan struct{})
 	}
+
+	w.fetchAndSubmit()
 
 	for {
 		select {
@@ -88,9 +105,9 @@ func (w *Watcher) Run() {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
 			}
 		case <-ticker.C:
-			for _, fetcher := range w.fetchersFn() {
-				w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
-			}
+			w.fetchAndSubmit()
+		case <-w.pollTrigger:
+			w.fetchAndSubmit()
 		case <-w.ctx.Done():
 			return
 		}

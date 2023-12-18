@@ -87,6 +87,7 @@ func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...O
 		ctx:          cancelCtx,
 		cancel:       cancelFn,
 		pollInterval: time.Minute,
+		pollTrigger:  make(<-chan struct{}),
 		InstancesC:   make(chan Instances),
 	}
 	for _, opt := range opts {
