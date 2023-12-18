@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -53,7 +55,7 @@ func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string
 		ClusterName:   clusterName,
 		PublicHostKey: hostPub,
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	return cert
 }
@@ -63,7 +65,7 @@ func generateOldHostEntry(
 ) *knownHostEntry {
 	formatted := fmt.Sprintf("%s %s", clusterName, strings.TrimSpace(string(cert)))
 	entry, err := parseKnownHost(formatted)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, formatted, entry.raw)
 
 	return entry
@@ -77,7 +79,7 @@ func generateNewHostEntry(
 		proxyName, clusterName, clusterName, strings.TrimSpace(string(cert)),
 	)
 	entry, err := parseKnownHost(formatted)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, formatted, entry.raw)
 
 	return entry
@@ -94,7 +96,7 @@ func TestParseKnownHost(t *testing.T) {
 	require.Equal(t, []string{"example.com"}, oldEntry.hosts)
 
 	oldCertParsed, _, _, _, err := ssh.ParseAuthorizedKey(oldCert)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, bytes.Equal(oldCertParsed.Marshal(), oldEntry.pubKey.Marshal()))
 
 	newCert := generateHostCert(t, &s, "example.com")
@@ -105,7 +107,7 @@ func TestParseKnownHost(t *testing.T) {
 	require.Equal(t, "type=host", newEntry.comment)
 
 	newCertParsed, _, _, _, err := ssh.ParseAuthorizedKey(newCert)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, bytes.Equal(newCertParsed.Marshal(), newEntry.pubKey.Marshal()))
 }
 
@@ -125,13 +127,13 @@ func TestIsOldHostsEntry(t *testing.T) {
 	// In this case, multiple hosts should invalidate the key.
 	hostsEntryString := fmt.Sprintf("foo,bar %s", strings.TrimSpace(string(cert)))
 	hostsEntry, err := parseKnownHost(hostsEntryString)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.False(t, isOldStyleHostsEntry(hostsEntry))
 
 	// Additionally, any comment invalidates it.
 	commentEntryString := fmt.Sprintf("foo %s comment", strings.TrimSpace(string(cert)))
 	commentEntry, err := parseKnownHost(commentEntryString)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.False(t, isOldStyleHostsEntry(commentEntry))
 }
 

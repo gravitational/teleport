@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -73,7 +75,7 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 
 // DeleteAllPlugins implements service.Plugins
 func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
-	startKey := backend.Key(pluginsPrefix, "")
+	startKey := backend.ExactKey(pluginsPrefix)
 	err := s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -92,7 +94,7 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -131,7 +133,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	maxLimit := limit + 1
 
 	startKeyBytes := backend.Key(pluginsPrefix, startKey)
-	endKey := backend.RangeEnd(backend.Key(pluginsPrefix, ""))
+	endKey := backend.RangeEnd(backend.ExactKey(pluginsPrefix))
 	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -139,7 +141,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 
 	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -156,6 +158,22 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	}
 
 	return plugins, nextKey, nil
+}
+
+// HasPluginType will return true if a plugin of the given type is registered.
+func (s *PluginsService) HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error) {
+	plugins, err := s.GetPlugins(ctx, false)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, plugin := range plugins {
+		if plugin.GetType() == pluginType {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // SetPluginCredentials implements services.Plugins
@@ -183,7 +201,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,16 +213,18 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		return trace.Wrap(err)
 	}
 
+	rev := newPlugin.GetRevision()
 	value, err := services.MarshalPlugin(newPlugin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
-		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
-		Value:   value,
-		Expires: plugin.Expiry(),
-		ID:      plugin.GetResourceID(),
+		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+		Value:    value,
+		Expires:  plugin.Expiry(),
+		ID:       plugin.GetResourceID(),
+		Revision: rev,
 	})
 
 	return trace.Wrap(err)

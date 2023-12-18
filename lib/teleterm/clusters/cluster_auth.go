@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package clusters
 
@@ -24,9 +26,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -42,11 +44,6 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Do the ALPN handshake test to decide if connection upgrades are required
-	// for TLS Routing. Only do the test once Ping verifies the cluster is
-	// reachable.
-	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
@@ -76,7 +73,7 @@ func (c *Cluster) Logout(ctx context.Context) error {
 	}
 
 	// Remove keys for this user from disk and running agent.
-	if err := c.clusterClient.Logout(); !trace.IsNotFound(err) {
+	if err := c.clusterClient.Logout(); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
@@ -160,6 +157,16 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 		return nil, trace.Wrap(err)
 	}
 
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = pingResp.Auth.DefaultSessionTTL.Duration()
+	}
+	// todo(lxea): DELETE IN v15 where the auth is guaranteed to
+	// send us a valid MaxSessionTTL or the auth is guaranteed to
+	// interpret 0 duration as the auth's default
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = defaults.CertDuration
+	}
+
 	return pingResp, nil
 }
 
@@ -179,12 +186,17 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 	c.clusterClient.LocalAgent().UpdateUsername(key.Username)
 	c.clusterClient.Username = key.Username
 
-	if err := c.clusterClient.ActivateKey(ctx, key); err != nil {
+	proxyClient, rootAuthClient, err := c.clusterClient.ConnectToRootCluster(ctx, key)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		rootAuthClient.Close()
+		proxyClient.Close()
+	}()
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -214,8 +226,9 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 				RouteToCluster:    c.clusterClient.SiteName,
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
-			User:     user,
-			Password: password,
+			User:      user,
+			Password:  password,
+			PromptMFA: c.clusterClient.NewMFAPrompt(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -283,6 +296,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 			},
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
+			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

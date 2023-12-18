@@ -5,30 +5,38 @@ description: How Teleport Machine ID works.
 
 This section provides an overview of Teleport Machine ID's inner workings.
 
-A more in-depth specification of the workings of Machine ID can be found in
+The initial specification and design for Machine ID can be found in
 [the Request For Discussion.](https://github.com/gravitational/teleport/blob/master/rfd/0064-bot-for-cert-renewals.md)
 
-## Bot creation
+## What is a bot?
 
-In order to use the Machine ID agent (`tbot`), a bot must first be created using
-`tctl bots add`.
+Within Teleport, "bot" refers to a special user that is intended to be used by
+a machine. Bots are similar to normal users, but do not authenticate using
+static username/password credentials.
 
-A "bot" within Teleport is comprised of three resources, which are created by
-the Auth Service when `tctl bots add` is executed:
+A bot does not exist as a single distinct resource within Teleport. Instead,
+they comprise three linked resources. These are:
 
 - Bot user: this will be the user that the Machine ID agent authenticates as.
 - Bot role: the bot user is assigned the bot role, and the bot role contains
   various permissions that the bot will need to function. For example, the
   ability to watch the certificate authorities and the ability to 
   [impersonate roles](#role-impersonation).
-- Token: for [onboarding](#onboarding), a token must exist that allows the
-  Machine ID agent to initially authenticate as the bot user. If an existing
-  token is not specified, then a single-use token will be created by the Auth 
-  Server.
+- Token: for [onboarding](#joining-and-authentication), a token must exist that
+  allows the Machine ID agent to initially authenticate as the bot user. If an
+  existing token is not specified, then a single-use token will be created by
+  the Auth Server.
+
+The creation of these resources is managed by `tctl bots add`.
+
+It is important to recognize the distinction between the bot and an instance
+of `tbot`. This is because this is not always a one-to-one relationship, in
+many cases there may be multiple `tbot`'s using the same bot identity.
 
 ## Role Impersonation
 
-At the core of Machine ID is the concept of role impersonation.
+Role Impersonation is an RBAC feature of Teleport that is used heavily by
+Machine ID.
 
 Role Impersonation allows a user to generate credentials with a set of requested
 roles. The user does not have to hold these roles, but must have been granted 
@@ -56,10 +64,10 @@ Before `tbot` can be started, at least two parts of configuration will need to
 be provided via the configuration file or as arguments provided to `tbot` when
 it is executed. This consists of:
 
-- [A join method](#onboarding) that the bot can use to prove that it should be
-  allowed to join the Teleport cluster.
-- A series of "destinations". A destination is a set of configuration that
-  specifies where a set of credentials should be output, and any options that
+- [A join method](#joining-and-authentication) that the bot can use to prove
+  that it should be allowed to join the Teleport cluster.
+- A series of **outputs**. An output consists of the configuration settings that
+  specify where a set of credentials should be output, and any options that
   should be applied to those credentials (for example, what roles should be
   impersonated).
 
@@ -74,21 +82,22 @@ Then on a configured regular period `tbot` begins its renewal process. It begins
 by refreshing the bot's own credentials, by renewing them or fetching a fresh 
 set of credentials depending on the configured onboarding method.
 
-For each destination provided in `tbot`'s configuration, `tbot` then uses
+For each output provided in the `tbot` configuration, the `tbot` program uses
 impersonation to obtain credentials from the Auth Service for the roles
-specified in the destination's configuration. Once these are fetched, these are
-then persisted to the destination in various formats along with other useful
-matter such as the current certificate authority certificates.
+specified in the configuration for that output. After `tbot` fetches the
+credentials for its roles, they are then persisted to the output's destination
+in various formats along with other useful artifacts such as the current
+certificate authority certificates.
 
 Concurrently to this, `tbot` monitors the Teleport certificate authorities to
 detect certificate rotations. When this occurs, it triggers additional renewals
-to ensure that destination's continue to have certificates that are signed by
-the latest certificate authority.
+to ensure that output destinations continue to have certificates that are signed
+by the latest certificate authority.
 
-## Onboarding
+## Joining and Authentication
 
-Onboarding is the process by which `tbot` initially authenticates with the 
-Teleport Auth Service in order to receive credentials.
+Joining is the process by which `tbot` initially authenticates as a bot with the
+Teleport Auth Service.
 
 Machine ID leverages the existing token resource within Teleport, with the
 token containing an additional `botName` field that identifies the bot user
@@ -103,8 +112,22 @@ differences.
   cluster. This means it must be stored and communicated securely.
 - Once used, the token resource self-destructs. This means it can only be used 
   to join a single bot to a Teleport cluster.
-- The certificates exchanged for the token are 
-  renewable, as we will explain in the next section.
+
+As these tokens can only be used once, the certificates that are issued when
+using an ephemeral token are renewable. This allows the short-lived certificate
+to be used to request new short-lived certificate.
+
+In order to mitigate the risk of bot user credentials being stolen, and then
+continually renewed by a malicious actor, renewable bot user certificates
+include a **generation counter**.
+
+The generation counter is stored against the user in the database and within the
+certificate. This counter is incremented each time the user renews their
+certificate. When a bot attempts to renew, the Auth Server ensures that the
+value within the certificate and in the database match. If they do not match,
+then the bot user is automatically locked. This means that if certificates are
+stolen, and attempted to be renewed whilst the bot is still running, the next
+renewal will render them useless.
 
 ### Dynamic join tokens (e.g AWS IAM)
 
@@ -119,26 +142,6 @@ differences.
 Where possible, you should prefer to use a dynamic join token over an ephemeral
 token as this eliminates the need to handle a secret.
 
-## Renewable certificates
-
-Human Teleport users are not able to renew their credentials without
-re-authenticating. As Machine ID must work without manual human intervention,
-bots that have joined using ephemeral tokens are granted credentials that are
-marked as renewable. This means that the bot can use these credentials to
-fetch a new set of credentials with an expiry date further in the future.
-
-In order to mitigate the risk of bot user credentials being stolen, and then
-continually renewed by a malicious actor, renewable bot user certificates
-include a **generation counter**.
-
-The generation counter is stored against the user in the database and within the
-certificate. This counter is incremented each time the user renews their 
-certificate. When a bot attempts to renew, the Auth Server ensures that the 
-value within the certificate and in the database match. If they do not match,
-then the bot user is automatically locked. This means that if certificates are
-stolen, and attempted to be renewed whilst the bot is still running, the next
-renewal will render them useless.
-
 ## File permissions
 
 There are two types of folder in use by `tbot`:
@@ -148,7 +151,7 @@ There are two types of folder in use by `tbot`:
   impersonation of any roles you have assigned to the bot user, they should be
   treated as exceptionally sensitive. The bot's own files are stored by default at 
   `/var/lib/teleport/bot/`.
-- Directory destinations: when a directory destination is configured, the bot 
+- Output destinations: when a directory destination is configured, the bot
   outputs the role impersonated credentials as files in the specified directory.
 
 It is important that we ensure that these files can only be accessed by the

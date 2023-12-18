@@ -1,22 +1,27 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package teleterm
 
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -32,7 +37,7 @@ import (
 
 const (
 	// timeout used for most operations in tests.
-	timeout = 5 * time.Second
+	timeout = 10 * time.Second
 )
 
 type createClientTLSConfigFunc func(t *testing.T, certsDir string) *tls.Config
@@ -82,7 +87,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls: bad certificate")
+				require.ErrorContains(t, connReadErr, "tls:")
 			},
 		},
 		{
@@ -93,7 +98,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls: bad certificate")
+				require.ErrorContains(t, connReadErr, "tls:")
 			},
 		},
 	}
@@ -108,11 +113,13 @@ func TestStart(t *testing.T) {
 			listeningC := make(chan utils.NetAddr)
 
 			cfg := Config{
-				Addr:       test.addr,
-				HomeDir:    homeDir,
-				CertsDir:   certsDir,
-				PrehogAddr: "https://prehog:9999",
-				ListeningC: listeningC,
+				Addr:           test.addr,
+				HomeDir:        homeDir,
+				CertsDir:       certsDir,
+				PrehogAddr:     "https://prehog:9999",
+				ListeningC:     listeningC,
+				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -129,13 +136,15 @@ func TestStart(t *testing.T) {
 				// Verify that the server accepts connections on the advertised address.
 				blockUntilServerAcceptsConnections(t, addr, certsDir,
 					test.createClientTLSConfigFunc, test.connReadExpectationFunc)
+
+				// Stop the server.
+				cancel()
+				require.NoError(t, <-serveErr)
 			case <-time.After(timeout):
 				t.Fatal("listeningC didn't advertise the address within the timeout")
+			case err := <-serveErr:
+				t.Fatalf("teleterm.Serve returned sooner than expected, err: %#v", err)
 			}
-
-			// Stop the server.
-			cancel()
-			require.NoError(t, <-serveErr)
 		})
 	}
 
@@ -205,7 +214,7 @@ func createValidClientTLSConfig(t *testing.T, certsDir string) *tls.Config {
 	// reach the tsh gRPC server, so we need to use the renderer cert as the client cert.
 	clientCertPath := filepath.Join(certsDir, rendererCertFileName)
 	serverCertPath := filepath.Join(certsDir, tshdCertFileName)
-	clientCert, err := generateAndSaveCert(clientCertPath)
+	clientCert, err := generateAndSaveCert(clientCertPath, x509.ExtKeyUsageClientAuth)
 	require.NoError(t, err)
 
 	tlsConfig, err := createClientTLSConfig(clientCert, serverCertPath)

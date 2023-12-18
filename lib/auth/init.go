@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -22,13 +24,18 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -39,7 +46,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -146,6 +156,9 @@ type InitConfig struct {
 	// Assist is a service that implements the Teleport Assist functionality.
 	Assist services.Assistant
 
+	// UserPreferences is a service that manages user preferences.
+	UserPreferences services.UserPreferences
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
@@ -195,6 +208,12 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
+	DiscoveryConfigs services.DiscoveryConfigs
+
+	// Embeddings is a service that manages Embeddings
+	Embeddings services.Embeddings
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -222,6 +241,18 @@ type InitConfig struct {
 	// Okta is a service that manages Okta resources.
 	Okta services.Okta
 
+	// AccessLists is a service that manages access list resources.
+	AccessLists services.AccessLists
+
+	// UserLoginStates is a service that manages user login states.
+	UserLoginState services.UserLoginStates
+
+	// SecReports is a service that manages security reports.
+	SecReports services.SecReports
+
+	// PluginData is a service that manages plugin data.
+	PluginData services.PluginData
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -229,10 +260,25 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// EmbeddingRetriever is a retriever for embeddings.
+	EmbeddingRetriever *ai.SimpleRetriever
+
+	// EmbeddingClient is a client that allows generating embeddings.
+	EmbeddingClient embedding.Embedder
+
+	// Tracer used to create spans.
+	Tracer oteltrace.Tracer
+
+	// AccessMonitoringEnabled is true if access monitoring is enabled.
+	AccessMonitoringEnabled bool
 }
 
 // Init instantiates and configures an instance of AuthServer
-func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
+func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, error) {
+	ctx, span := cfg.Tracer.Start(ctx, "auth/Init")
+	defer span.End()
+
 	if cfg.DataDir == "" {
 		return nil, trace.BadParameter("DataDir: data dir can not be empty")
 	}
@@ -240,39 +286,50 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
-	ctx := context.TODO()
-
-	domainName := cfg.ClusterName.GetClusterName()
-	lock, err := backend.AcquireLock(ctx, backend.LockConfiguration{
-		Backend:  cfg.Backend,
-		LockName: domainName,
-		TTL:      30 * time.Second,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer lock.Release(ctx, cfg.Backend)
-
-	// check that user CA and host CA are present and set the certs if needed
 	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	domainName := cfg.ClusterName.GetClusterName()
+	if err := backend.RunWhileLocked(ctx,
+		backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:  cfg.Backend,
+				LockName: domainName,
+				TTL:      30 * time.Second,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		}, func(ctx context.Context) error {
+			return trace.Wrap(initCluster(ctx, cfg, asrv))
+		}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return asrv, nil
+}
+
+// initCluster configures the cluster based on the user provided configuration. This should
+// only be called when the init lock is held to prevent multiple instances of Auth from attempting
+// to bootstrap the cluster at the same time.
+func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
+	span := oteltrace.SpanFromContext(ctx)
+	domainName := cfg.ClusterName.GetClusterName()
+	firstStart, err := isFirstStart(ctx, asrv, cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// if bootstrap resources are supplied, use them to bootstrap backend state
 	// on initial startup.
 	if len(cfg.BootstrapResources) > 0 {
-		firstStart, err := isFirstStart(ctx, asrv, cfg)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		if firstStart {
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.BootstrapResources))
 			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
-				return nil, trace.Wrap(err, "refusing to bootstrap backend")
+				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
-				return nil, trace.Wrap(err, "backend bootstrap failed")
+				return trace.Wrap(err, "backend bootstrap failed")
 			}
 		} else {
 			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.BootstrapResources))
@@ -284,7 +341,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Applying %v resources (apply-on-startup)", len(cfg.ApplyOnStartupResources))
 
 		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
-			return nil, trace.Wrap(err, "applying resources failed")
+			return trace.Wrap(err, "applying resources failed")
 		}
 	}
 
@@ -295,8 +352,8 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// same pattern as the rest of the configuration (they are not configuration
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
-		if err := asrv.UpsertRole(ctx, role); err != nil {
-			return nil, trace.Wrap(err)
+		if _, err := asrv.UpsertRole(ctx, role); err != nil {
+			return trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
 	}
@@ -313,7 +370,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// this part of code is only used in tests.
 		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		} else {
 			log.Infof("Created trusted certificate authority: %q, type: %q.", ca.GetName(), ca.GetType())
@@ -321,45 +378,73 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
 		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
 	}
 
-	err = asrv.SetClusterAuditConfig(ctx, cfg.ClusterAuditConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterAuditConfig")
+		defer span.End()
+		return trace.Wrap(asrv.SetClusterAuditConfig(ctx, cfg.ClusterAuditConfig))
+	})
 
-	err = initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterNetworkingConfig")
+		defer span.End()
+		return trace.Wrap(initSetClusterNetworkingConfig(ctx, asrv, cfg.ClusterNetworkingConfig))
+	})
 
-	err = initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetSessionRecordingConfig")
+		defer span.End()
+		return trace.Wrap(initSetSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
+	})
 
-	err = initSetAuthPreference(ctx, asrv, cfg.AuthPreference)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetAuthPreference")
+		defer span.End()
+		return trace.Wrap(initSetAuthPreference(ctx, asrv, cfg.AuthPreference))
+	})
 
-	// The first Auth Server that starts gets to set the name of the cluster.
-	// If a cluster name/ID is already stored in the backend, the attempt to set
-	// a new name returns an AlreadyExists error.
-	err = asrv.SetClusterName(cfg.ClusterName)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return nil, trace.Wrap(err)
-	}
-	// If the cluster name has already been set, log a warning if the user
-	// is trying to change the name.
-	if trace.IsAlreadyExists(err) {
-		// Get current name of cluster from the backend.
-		cn, err := asrv.Services.GetClusterName()
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
+		defer span.End()
+		log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
+		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
+	})
+
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterNamespace")
+		defer span.End()
+		log.Infof("Creating namespace: %q.", apidefaults.Namespace)
+		return trace.Wrap(asrv.UpsertNamespace(types.DefaultNamespace()))
+	})
+
+	var cn types.ClusterName
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
+		defer span.End()
+
+		// The first Auth Server that starts gets to set the name of the cluster.
+		// If a cluster name/ID is already stored in the backend, the attempt to set
+		// a new name returns an AlreadyExists error.
+		err := asrv.SetClusterName(cfg.ClusterName)
+		if err == nil {
+			cn = cfg.ClusterName
+			return nil
+		}
+
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+
+		// If the cluster name has already been set, log a warning if the user
+		// is trying to change the name.
+		cn, err = asrv.Services.GetClusterName()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
 			warnMessage := "Cannot rename cluster to %q: continuing with %q. Teleport " +
@@ -367,103 +452,131 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 				"warning for one of two reasons. Either you have not set \"cluster_name\" in " +
 				"Teleport configuration and changed the hostname of the auth server or you " +
 				"are trying to change the value of \"cluster_name\"."
-			log.Warnf(warnMessage,
-				cfg.ClusterName.GetClusterName(),
-				cn.GetClusterName())
+			log.Warnf(warnMessage, cfg.ClusterName.GetClusterName(), cn.GetClusterName())
 		}
-		// Override user passed in cluster name with what is in the backend.
-		cfg.ClusterName = cn
-	}
-	log.Debugf("Cluster configuration: %v.", cfg.ClusterName)
 
-	err = asrv.SetStaticTokens(cfg.StaticTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Infof("Updating cluster configuration: %v.", cfg.StaticTokens)
+		log.Debugf("Cluster configuration: %v.", cn.GetClusterName())
+		return nil
+	})
 
-	// always create the default namespace
-	err = asrv.UpsertNamespace(types.DefaultNamespace())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := g.Wait(); err != nil {
+		return trace.Wrap(err)
 	}
-	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
-	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
-	// generated which we don't want for existing installations.
-	if err := migrateDBAuthority(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err, "failed to migrate database CA")
+	// Override user passed in cluster name with what is in the backend.
+	cfg.ClusterName = cn
+
+	// Apply any outstanding migrations.
+	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+		return trace.Wrap(err, "applying migrations")
 	}
 
 	// generate certificate authorities if they don't exist
+	var (
+		mu         sync.Mutex
+		activeKeys [][]byte
+	)
+	g, gctx = errgroup.WithContext(ctx)
 	for _, caType := range types.CertAuthTypes {
-		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
-		ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Infof("First start: generating %s certificate authority.", caID.Type)
-			if err := asrv.createSelfSignedCA(ctx, caID); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else {
-			// Already have a CA. Make sure the keyStore has usable keys.
-			hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+		caType := caType
+		g.Go(func() error {
+			ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
+			defer span.End()
+
+			caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
+			ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
 			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !hasUsableActiveKeys {
-				// This could be one of a few cases:
-				// 1. A new auth server with an HSM being added to an HA cluster.
-				// 2. A new auth server with no HSM being added to an HA cluster
-				//    where all current auth servers have HSMs.
-				// 3. An existing auth server has restarted with a new HSM configured.
-				// 4. An existing HSM auth server has restarted no HSM configured.
-				// 5. An existing HSM auth server has restarted with a new UUID.
-				if ca.GetType() == types.HostCA {
-					// We need local keys to sign the Admin identity to support
-					// tctl. For this special case we add AdditionalTrustedKeys
-					// without any active keys. These keys will not be used for
-					// any signing operations until a CA rotation. Only the Host
-					// CA is necessary to issue the Admin identity.
-					if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
-						return nil, trace.Wrap(err)
-					}
-					// reload updated CA for below checks
-					if ca, err = asrv.Services.GetCertAuthority(ctx, caID, true); err != nil {
-						return nil, trace.Wrap(err)
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+
+				log.Infof("First start: generating %s certificate authority.", caID.Type)
+				if ca, err = generateAuthority(ctx, asrv, caID); err != nil {
+					return trace.Wrap(err)
+				}
+
+				if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				// Already have a CA. Make sure the keyStore has usable keys.
+				hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !hasUsableActiveKeys {
+					// This could be one of a few cases:
+					// 1. A new auth server with an HSM being added to an HA cluster.
+					// 2. A new auth server with no HSM being added to an HA cluster
+					//    where all current auth servers have HSMs.
+					// 3. An existing auth server has restarted with a new HSM configured.
+					// 4. An existing HSM auth server has restarted no HSM configured.
+					// 5. An existing HSM auth server has restarted with a new UUID.
+					if ca.GetType() == types.HostCA {
+						// We need local keys to sign the Admin identity to support
+						// tctl. For this special case we add AdditionalTrustedKeys
+						// without any active keys. These keys will not be used for
+						// any signing operations until a CA rotation. Only the Host
+						// CA is necessary to issue the Admin identity.
+						if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
+							return trace.Wrap(err)
+						}
+						// reload updated CA for below checks
+						if ca, err = asrv.Services.GetCertAuthority(ctx, caID, true); err != nil {
+							return trace.Wrap(err)
+						}
 					}
 				}
+				hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ctx, ca)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !hasUsableActiveKeys && hasUsableAdditionalKeys {
+					log.Warn("This auth server has a newly added or removed HSM and will not " +
+						"be able to perform any signing operations. You must rotate all CAs " +
+						"before routing traffic to this auth server. See https://goteleport.com/docs/management/operations/ca-rotation/")
+				}
+				allKeyTypes := ca.AllKeyTypes()
+				numKeyTypes := len(allKeyTypes)
+				if numKeyTypes > 1 {
+					log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
+						" configure HSM or KMS support, make sure it is configured on all auth servers in"+
+						" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
+						caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
+				}
 			}
-			hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
-			if err != nil {
-				return nil, trace.Wrap(err)
+
+			mu.Lock()
+			defer mu.Unlock()
+			for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+				for _, sshKeyPair := range keySet.SSH {
+					activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
+				}
+				for _, tlsKeyPair := range keySet.TLS {
+					activeKeys = append(activeKeys, tlsKeyPair.Key)
+				}
+				for _, jwtKeyPair := range keySet.JWT {
+					activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
+				}
 			}
-			hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ctx, ca)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !hasUsableActiveKeys && hasUsableAdditionalKeys {
-				log.Warn("This auth server has a newly added or removed HSM and will not " +
-					"be able to perform any signing operations. You must rotate all CAs " +
-					"before routing traffic to this auth server. See https://goteleport.com/docs/management/operations/ca-rotation/")
-			}
-			allKeyTypes := ca.AllKeyTypes()
-			numKeyTypes := len(allKeyTypes)
-			if numKeyTypes > 1 {
-				log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
-					" configure HSM or KMS support, make sure it is configured on all auth servers in"+
-					" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
-					caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
-			}
-		}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
 	// (or wasting) HSM resources.
-	if err := asrv.deleteUnusedKeys(ctx); err != nil {
-		return nil, trace.Wrap(err)
+	if err := asrv.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
 	}
 
 	if lib.IsInsecureDevMode() {
@@ -473,17 +586,25 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Warn(warningMessage)
 	}
 
+	span.AddEvent("migrating legacy resources")
 	// Migrate any legacy resources to new format.
-	err = migrateLegacyResources(ctx, asrv)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := migrateLegacyResources(ctx, asrv); err != nil {
+		return trace.Wrap(err)
 	}
+	span.AddEvent("completed migration legacy resources")
 
+	span.AddEvent("creating preset roles")
 	// Create presets - convenience and example resources.
-	err = createPresets(ctx, asrv)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := createPresetRoles(ctx, asrv); err != nil {
+		return trace.Wrap(err)
 	}
+	span.AddEvent("completed creating preset roles")
+
+	span.AddEvent("creating preset users")
+	if err := createPresetUsers(ctx, asrv); err != nil {
+		return trace.Wrap(err)
+	}
+	span.AddEvent("completed creating preset users")
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
@@ -492,7 +613,27 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		log.Infof("Auth server is skipping periodic operations.")
 	}
 
-	return asrv, nil
+	return nil
+}
+
+// generateAuthority creates a new self-signed authority of the provided type
+// and returns it to the caller. It is the responsibility of callers to persist
+// the authority.
+func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (types.CertAuthority, error) {
+	keySet, err := newKeySet(ctx, asrv.keyStore, caID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caID.Type,
+		ClusterName: caID.DomainName,
+		ActiveKeys:  keySet,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ca, nil
 }
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
@@ -606,44 +747,122 @@ type PresetRoleManager interface {
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// CreateRole creates a role.
-	CreateRole(ctx context.Context, role types.Role) error
+	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates a role and emits a related audit event.
-	UpsertRole(ctx context.Context, role types.Role) error
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 }
 
-// createPresets creates preset resources (eg, roles).
-func createPresets(ctx context.Context, rm PresetRoleManager) error {
-	roles := []types.Role{
+// GetPresetRoles returns a list of all preset roles expected to be available on
+// this cluster.
+func GetPresetRoles() []types.Role {
+	presets := []types.Role{
+		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
+		services.NewPresetReviewerRole(),
+		services.NewPresetRequesterRole(),
+		services.NewSystemAutomaticAccessApproverRole(),
+		services.NewPresetDeviceAdminRole(),
+		services.NewPresetDeviceEnrollRole(),
+		services.NewPresetRequireTrustedDeviceRole(),
 	}
+
+	// Certain `New$FooRole()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	return slices.DeleteFunc(presets, func(r types.Role) bool { return r == nil })
+}
+
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
+	roles := GetPresetRoles()
+
+	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {
-		err := rm.CreateRole(ctx, role)
-		if err != nil {
-			if !trace.IsAlreadyExists(err) {
-				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
+		// If the role is nil, skip because it doesn't apply to this Teleport installation.
+		if role == nil {
+			continue
+		}
+
+		role := role
+		g.Go(func() error {
+			if types.IsSystemResource(role) {
+				// System resources *always* get reset on every auth startup
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
+					return trace.Wrap(err, "failed upserting system role %s", role.GetName())
+				}
+
+				return nil
 			}
 
-			currentRole, err := rm.GetRole(ctx, role.GetName())
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			if _, err := rm.CreateRole(gctx, role); err != nil {
+				if !trace.IsAlreadyExists(err) {
+					return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
+				}
 
-			role, err := services.AddDefaultAllowConditions(currentRole)
-			if trace.IsAlreadyExists(err) {
-				continue
-			}
-			if err != nil {
-				return trace.Wrap(err)
-			}
+				currentRole, err := rm.GetRole(gctx, role.GetName())
+				if err != nil {
+					return trace.Wrap(err)
+				}
 
-			err = rm.UpsertRole(ctx, role)
-			if err != nil {
-				return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
+				role, err := services.AddRoleDefaults(currentRole)
+				if trace.IsAlreadyExists(err) {
+					return nil
+				}
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				if _, err := rm.UpsertRole(gctx, role); err != nil {
+					return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
+				}
 			}
+			return nil
+		})
+	}
+	return trace.Wrap(g.Wait())
+}
+
+// PresetUsers contains the required User Management methods to
+// create a preset User. Method names represent the appropriate
+// subset
+type PresetUsers interface {
+	// CreateUser creates a new user record based on the supplied `user` instance.
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+	// GetUser fetches a user from the repository by name, optionally fetching
+	// any associated secrets.
+	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	// UpsertUser user creates or updates a user record as needed.
+	UpsertUser(ctx context.Context, user types.User) (types.User, error)
+}
+
+// createPresetUsers creates all of the required user presets. No attempt is
+// made to migrate any existing users to the lastest preset.
+func createPresetUsers(ctx context.Context, um PresetUsers) error {
+	users := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+	for _, user := range users {
+		// Some users are only valid for enterprise Teleport, and so will be
+		// nil for an OSS build and can be skipped
+		if user == nil {
+			continue
+		}
+
+		if types.IsSystemResource(user) {
+			// System resources *always* get reset on every auth startup
+			if user, err := um.UpsertUser(ctx, user); err != nil {
+				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
+			}
+			continue
+		}
+
+		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}
+
 	return nil
 }
 
@@ -770,6 +989,18 @@ type Identity struct {
 	XCert *x509.Certificate
 	// ClusterName is a name of host's cluster
 	ClusterName string
+	// SystemRoles is a list of additional system roles.
+	SystemRoles []string
+}
+
+// HasSystemRole checks if this identity encompasses the supplied system role.
+func (i *Identity) HasSystemRole(role types.SystemRole) bool {
+	// check identity's primary system role
+	if i.ID.Role == role {
+		return true
+	}
+
+	return slices.Contains(i.SystemRoles, string(role))
 }
 
 // String returns user-friendly representation of the identity.
@@ -944,6 +1175,7 @@ func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, 
 		identity.XCert = i.XCert
 		identity.TLSCertBytes = certs.TLS
 		identity.TLSCACertsBytes = certs.TLSCACerts
+		identity.SystemRoles = i.SystemRoles
 	}
 
 	return identity, nil
@@ -984,6 +1216,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
 		XCert:           cert,
+		SystemRoles:     id.SystemRoles,
 	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?
@@ -1135,100 +1368,43 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
-// migrateDBAuthority copies Host CA as Database CA. Before v9.0 database access was using host CA to sign all
-// DB certificates. In order to support existing installations Teleport copies Host CA as Database CA on
-// the first run after update to v9.0+.
-// Function does nothing for databases created with Teleport v9.0+.
-// https://github.com/gravitational/teleport/issues/5029
-//
-// DELETE IN 11.0
-func migrateDBAuthority(ctx context.Context, asrv *Server) error {
-	migrationStart(ctx, "db_authority")
-	defer migrationEnd(ctx, "db_authority")
-
-	localClusterName, err := asrv.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	trustedClusters, err := asrv.Services.GetTrustedClusters(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	allClusters := []string{
-		localClusterName.GetClusterName(),
-	}
-
-	for _, tr := range trustedClusters {
-		allClusters = append(allClusters, tr.GetName())
-	}
-
-	for _, clusterName := range allClusters {
-		dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName}
-		_, err = asrv.Services.GetCertAuthority(ctx, dbCaID, false)
-		if err == nil {
-			continue // no migration needed. DB cert already exists.
-		}
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// Database CA doesn't exist, check for Host.
-		hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName}
-		hostCA, err := asrv.Services.GetCertAuthority(ctx, hostCaID, true)
-		if trace.IsNotFound(err) {
-			// DB CA and Host CA are missing. Looks like the first start. No migration needed.
-			continue
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Database CA is missing, but Host CA has been found. Database was created with pre v9.
-		// Copy the Host CA as Database CA.
-		log.Infof("Migrating Database CA cluster: %s", clusterName)
-
-		cav2, ok := hostCA.(*types.CertAuthorityV2)
-		if !ok {
-			return trace.BadParameter("expected host CA to be of *types.CertAuthorityV2 type, got: %T", hostCA)
-		}
-
-		dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.DatabaseCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				// Copy only TLS keys as SSH are not needed.
-				TLS: cav2.Spec.ActiveKeys.TLS,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = asrv.CreateCertAuthority(ctx, dbCA)
-		switch {
-		case trace.IsAlreadyExists(err):
-			// Probably another auth server have created the DB CA since we last check.
-			// This shouldn't be a problem, but let's log it to know when it happens.
-			log.Warn("DB CA has already been created by a different Auth server instance")
-		case err != nil:
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+// ResourceApplyPriority specifies in which order the resources must be applied
+// to avoid consistency issues. A lower priority means the resource is applied
+// before.
+var ResourceApplyPriority = map[string]int{
+	types.KindRole:                    1,
+	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindToken:                   3,
+	types.KindClusterNetworkingConfig: 3,
+	types.KindClusterAuthPreference:   3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
-// This means consistency is checked. This function does not currently support applying resources
-// with dependencies (like a user referring to a role) as it won't necessarily apply them in the
-// right order.
+// This means consistency is checked. This function support applying resources
+// with dependencies (like a user referring to a role).
 func applyResources(ctx context.Context, service *Services, resources []types.Resource) error {
 	var err error
+	slices.SortFunc(resources, func(a, b types.Resource) int {
+		priorityA := ResourceApplyPriority[a.GetKind()]
+		priorityB := ResourceApplyPriority[b.GetKind()]
+		return priorityA - priorityB
+	})
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
+		case types.User:
+			err = services.ValidateUserRoles(ctx, r, service.Access)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			_, err = service.Identity.UpsertUser(ctx, r)
+		case types.Role:
+			_, err = service.Access.UpsertRole(ctx, r)
+		case types.ClusterNetworkingConfig:
+			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
+		case types.AuthPreference:
+			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

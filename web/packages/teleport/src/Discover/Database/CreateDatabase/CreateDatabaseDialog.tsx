@@ -1,18 +1,21 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 import React from 'react';
 import {
   Text,
@@ -50,10 +53,11 @@ export function CreateDatabaseDialog({
   if (attempt.status === 'failed') {
     content = (
       <>
-        <Text mb={5}>
-          <Icons.Warning ml={1} mr={2} color="error.main" />
-          {attempt.statusText}
-        </Text>
+        <Flex mb={5} alignItems="center">
+          {' '}
+          <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
+          <Text>{attempt.statusText}</Text>
+        </Flex>
         <Flex>
           <ButtonPrimary mr={3} width="50%" onClick={retry}>
             Retry
@@ -74,7 +78,7 @@ export function CreateDatabaseDialog({
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Clock size="medium" />
           <Timeout
             timeout={pollTimeout}
             message=""
@@ -90,8 +94,8 @@ export function CreateDatabaseDialog({
     // success
     content = (
       <>
-        <Text mb={5}>
-          <Icons.Check ml={1} mr={2} color="success" />
+        <Text mb={5} style={{ display: 'flex' }}>
+          <Icons.Check size="small" ml={1} mr={2} color="success" />
           Database "{dbName}" successfully registered
         </Text>
         <ButtonPrimary width="100%" onClick={next}>

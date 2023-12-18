@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
@@ -30,10 +32,16 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { Props as CredentialsProps, SliderProps } from './NewCredentials';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import {
+  SliderProps,
+  UseTokenState,
+} from 'teleport/Welcome/NewCredentials/types';
+
 import secKeyGraphic from './sec-key-with-bg.png';
 
-export function NewMfaDevice(props: Props) {
+export function NewMfaDevice(props: NewMfaDeviceProps) {
   const {
     resetToken,
     submitAttempt,
@@ -48,7 +56,7 @@ export function NewMfaDevice(props: Props) {
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType,
+    auth2faType: auth2faType as Auth2faType,
   });
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
@@ -99,10 +107,10 @@ export function NewMfaDevice(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Box p={5} ref={refCallback}>
+        <OnboardCard ref={refCallback}>
           <Flex mb={3} alignItems="center">
             <ArrowBack
-              fontSize={30}
+              size="large"
               mr={3}
               onClick={() => {
                 clearSubmitAttempt();
@@ -111,10 +119,10 @@ export function NewMfaDevice(props: Props) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text color="text.slightlyMuted">Step 2 of 2</Text>
               <Text typography="h4" color="text.main" bold>
                 Set Two-Factor Device
               </Text>
+              <Text color="text.slightlyMuted">Step 2 of 2</Text>
             </Box>
           </Flex>
           {submitAttempt.status === 'failed' && (
@@ -191,7 +199,7 @@ export function NewMfaDevice(props: Props) {
             <Flex alignItems="center" height={100}>
               <FieldInput
                 rule={requiredField('Device name is required')}
-                label="Device name"
+                label="Device Name"
                 placeholder="Name"
                 ref={deviceNameInputRef}
                 width={mfaType?.value === 'otp' ? '50%' : '100%'}
@@ -204,7 +212,7 @@ export function NewMfaDevice(props: Props) {
               {mfaType?.value === 'otp' && (
                 <FieldInput
                   width="50%"
-                  label="Authenticator code"
+                  label="Authenticator Code"
                   rule={requiredToken}
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -225,7 +233,7 @@ export function NewMfaDevice(props: Props) {
           >
             Submit
           </ButtonPrimary>
-        </Box>
+        </OnboardCard>
       )}
     </Validation>
   );
@@ -241,7 +249,7 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   return '';
 }
 
-type Props = CredentialsProps &
+export type NewMfaDeviceProps = UseTokenState &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

@@ -114,6 +114,24 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	return data, nil
 }
 
+// WriteJSONArray marshals values as a JSON array.
+func WriteJSONArray[T any](w io.Writer, values []T) error {
+	if len(values) == 0 {
+		_, err := w.Write([]byte("[]"))
+		return err
+	}
+	return WriteJSON(w, values)
+}
+
+// WriteJSONObject marshals m as a JSON object.
+func WriteJSONObject[M ~map[K]V, K comparable, V any](w io.Writer, m M) error {
+	if len(m) == 0 {
+		_, err := w.Write([]byte("{}"))
+		return err
+	}
+	return WriteJSON(w, m)
+}
+
 // WriteJSON marshals multiple documents as a JSON list with indentation.
 func WriteJSON(w io.Writer, values interface{}) error {
 	encoder := json.NewEncoder(w)
@@ -156,6 +174,11 @@ func WriteYAML(w io.Writer, values interface{}) error {
 	}
 	// first pass makes sure that all values are documents (objects or maps)
 	slice := reflect.ValueOf(values)
+	if slice.Len() == 0 {
+		_, err := w.Write([]byte("[]"))
+		return err
+	}
+
 	allDocs := func() bool {
 		for i := 0; i < slice.Len(); i++ {
 			if !isDoc(slice.Index(i)) {

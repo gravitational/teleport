@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 // package: 
@@ -53,15 +55,12 @@ export class PtyCreate extends jspb.Message {
     getCwd(): string;
     setCwd(value: string): PtyCreate;
 
-    hasInitCommand(): boolean;
-    clearInitCommand(): void;
-    getInitCommand(): string | undefined;
-    setInitCommand(value: string): PtyCreate;
-
     hasEnv(): boolean;
     clearEnv(): void;
     getEnv(): google_protobuf_struct_pb.Struct | undefined;
     setEnv(value?: google_protobuf_struct_pb.Struct): PtyCreate;
+    getInitMessage(): string;
+    setInitMessage(value: string): PtyCreate;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PtyCreate.AsObject;
@@ -78,8 +77,8 @@ export namespace PtyCreate {
         path: string,
         argsList: Array<string>,
         cwd: string,
-        initCommand?: string,
         env?: google_protobuf_struct_pb.Struct.AsObject,
+        initMessage: string,
     }
 }
 
@@ -150,6 +149,11 @@ export class PtyServerEvent extends jspb.Message {
     getExit(): PtyEventExit | undefined;
     setExit(value?: PtyEventExit): PtyServerEvent;
 
+    hasStartError(): boolean;
+    clearStartError(): void;
+    getStartError(): PtyEventStartError | undefined;
+    setStartError(value?: PtyEventStartError): PtyServerEvent;
+
     getEventCase(): PtyServerEvent.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -168,6 +172,7 @@ export namespace PtyServerEvent {
         data?: PtyEventData.AsObject,
         open?: PtyEventOpen.AsObject,
         exit?: PtyEventExit.AsObject,
+        startError?: PtyEventStartError.AsObject,
     }
 
     export enum EventCase {
@@ -176,6 +181,7 @@ export namespace PtyServerEvent {
         DATA = 2,
         OPEN = 3,
         EXIT = 4,
+        START_ERROR = 5,
     }
 
 }
@@ -286,6 +292,26 @@ export namespace PtyEventExit {
     export type AsObject = {
         exitCode: number,
         signal?: number,
+    }
+}
+
+export class PtyEventStartError extends jspb.Message { 
+    getMessage(): string;
+    setMessage(value: string): PtyEventStartError;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PtyEventStartError.AsObject;
+    static toObject(includeInstance: boolean, msg: PtyEventStartError): PtyEventStartError.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PtyEventStartError, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PtyEventStartError;
+    static deserializeBinaryFromReader(message: PtyEventStartError, reader: jspb.BinaryReader): PtyEventStartError;
+}
+
+export namespace PtyEventStartError {
+    export type AsObject = {
+        message: string,
     }
 }
 

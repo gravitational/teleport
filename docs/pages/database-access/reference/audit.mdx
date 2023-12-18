@@ -3,6 +3,9 @@ title: Database Access Audit Events Reference
 description: Audit events reference for Teleport database access.
 ---
 
+
+(!docs/pages/includes/database-access/db-audit-events.mdx!)
+
 ## db.session.start (TDB00I/W)
 
 Emitted when a client successfully connects to a database, or when a connection
@@ -41,7 +44,7 @@ Access denied event:
   "db_protocol": "postgres", // Database protocol.
   "db_service": "local", // Database service name.
   "db_uri": "localhost:5432", // Database server endpoint.
-  "db_user": "superuser", // Database account name user attempted to connect as.
+  "db_user": "superuser", // Database account name user attempted to log in as.
   "ei": 0, // Event index within the session.
   "error": "access to database denied", // Connection error.
   "event": "db.session.start", // Event name.

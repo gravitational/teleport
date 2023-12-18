@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
@@ -22,9 +24,11 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { Props, SliderProps } from './NewCredentials';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
-export function NewPasswordlessDevice(props: Props & SliderProps) {
+import { SliderProps, UseTokenState } from './types';
+
+export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
   const {
     submitAttempt,
     onSubmitWithWebauthn,
@@ -72,7 +76,7 @@ export function NewPasswordlessDevice(props: Props & SliderProps) {
   return (
     <Validation>
       {({ validator }) => (
-        <Box px={5} pb={4} pt={5} ref={refCallback} data-testid="passwordless">
+        <OnboardCard ref={refCallback} data-testid="passwordless">
           <Text typography="h4" mb={3} color="text.main" bold>
             Set A Passwordless Device
           </Text>
@@ -87,7 +91,7 @@ export function NewPasswordlessDevice(props: Props & SliderProps) {
           )}
           <FieldInput
             rule={requiredField('Device name is required')}
-            label="Device name"
+            label="Device Name"
             placeholder="Name"
             width="100%"
             ref={deviceNameInputRef}
@@ -125,7 +129,7 @@ export function NewPasswordlessDevice(props: Props & SliderProps) {
               </ButtonText>
             </Box>
           )}
-        </Box>
+        </OnboardCard>
       )}
     </Validation>
   );

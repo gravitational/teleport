@@ -1,18 +1,20 @@
 /*
-Copyright 2021-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -90,31 +92,44 @@ func (forest *Forest) addFile(fileDesc *gogodesc.FileDescriptorProto) *File {
 
 	// Build messages list.
 	for i, msgDesc := range msgs {
-		msgDesc.GetName()
-		flds := msgDesc.GetField()
-		message := Message{
-			index:    i,
-			desc:     msgDesc,
-			parent:   &file,
-			Fields:   make([]*Field, 0, len(flds)),
-			fieldMap: make(map[string]*Field, len(flds)),
-		}
-		for j, fld := range flds {
-			field := Field{
-				index:  j,
-				parent: &message,
-				desc:   fld,
-			}
-			message.Fields = append(message.Fields, &field)
-			message.fieldMap[field.Name()] = &field
-		}
-		file.Messages[i] = &message
-		file.messageMap[msgDesc] = &message
-		file.messageByName[message.Name()] = &message
-		forest.messageMap[msgDesc] = &message
+		message := forest.addMessageFromDesc(msgDesc, i, &file, nil)
+		file.Messages[i] = message
+		file.messageMap[msgDesc] = message
+		file.messageByName[message.Name()] = message
 	}
 
 	return &file
+}
+
+// addMessageFromDesc generates a message from a gogodesc.DescriptorProto and registers the message into the forest messageMap.
+// This function will recursively register all nested messages if any, but only returns the root message.
+func (forest *Forest) addMessageFromDesc(msgDesc *gogodesc.DescriptorProto, index int, file *File, parentMsg *Message) *Message {
+	msgDesc.GetName()
+	flds := msgDesc.GetField()
+	message := Message{
+		index:     index,
+		desc:      msgDesc,
+		parent:    file,
+		parentMsg: parentMsg,
+		Fields:    make([]*Field, 0, len(flds)),
+		fieldMap:  make(map[string]*Field, len(flds)),
+	}
+	for j, fld := range flds {
+		field := Field{
+			index:  j,
+			parent: &message,
+			desc:   fld,
+		}
+		message.Fields = append(message.Fields, &field)
+		message.fieldMap[field.Name()] = &field
+	}
+	forest.messageMap[msgDesc] = &message
+
+	for i, nestedType := range msgDesc.GetNestedType() {
+		forest.addMessageFromDesc(nestedType, i, file, &message)
+	}
+
+	return &message
 }
 
 func (file File) Forest() *Forest {
@@ -130,6 +145,9 @@ func (file File) Package() string {
 }
 
 func (message Message) Name() string {
+	if message.parentMsg != nil {
+		return message.parentMsg.Name() + "/" + message.desc.GetName()
+	}
 	return message.desc.GetName()
 }
 
@@ -206,8 +224,8 @@ func (field Field) JSONName() string {
 	if res := gogoproto.GetJsonTag(field.desc); res != nil {
 		return strings.Split(*res, ",")[0]
 	}
-	if field.desc.JsonName != nil {
-		return *field.desc.JsonName
+	if field.desc.Name != nil {
+		return *field.desc.Name
 	}
 	return ""
 }

@@ -7,17 +7,12 @@ In this guide, we will explain how to address issues or unexpected behavior in y
 Teleport cluster.
 
 You can use these steps to get more visibility into the `teleport` process so
-you can troubleshoot <ScopedBlock scope={["oss", "enterprise"]}>the Auth
-Service, Proxy Service, and </ScopedBlock> resource-specific services such as
-the Application Service and Database Service.
+you can troubleshoot the Auth Service, Proxy Service, and Teleport agent
+services such as the Application Service and Database Service.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
-<ScopedBlock scope="cloud">
-- A host where you have installed and configured the `teleport` binary.
-</ScopedBlock>
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -121,8 +116,6 @@ Teleport v8.3.7 git:v8.3.7-0-ga8d066935 go1.17.3
 You can also collect the versions of the Teleport Auth Service, Proxy
 Service, and client tools to rule out version compatibility issues.
 
-<ScopedBlock scope="cloud">
-
 To see the version of the Auth Service and Proxy Service, run the following
 command:
 
@@ -136,8 +129,6 @@ Jwt CA   never updated
 CA pin   (=presets.ca_pin=)
 ```
 
-</ScopedBlock>
-
 Get the versions of your client tools:
 
 ```code
@@ -150,11 +141,11 @@ Teleport v9.0.4 git: go1.18
 ### Pose your question
 
 <Tabs>
-<TabItem scope={["cloud", "enterprise"]} label="Commercial">
+<TabItem scope={["cloud", "enterprise","team"]} label="Commercial Teleport Editions">
 If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues) or create a ticket through your [Teleport account](https://teleport.sh).
 
 </TabItem>
-<TabItem scope={["oss"]} label="Open Source">
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues).
 
 For more information about custom features, or to try our [Enterprise edition](../../choose-an-edition/teleport-enterprise/introduction.mdx) of Teleport, please reach out to us at [sales](https://goteleport.com/signup/enterprise/).
@@ -197,6 +188,7 @@ tunnel via the Proxy Service. This means that `teleport.cluster.local` appears
 in log messages that show the URL of a request made to the Auth Service, and
 does not explicitly indicate that something is misconfigured.
 
-## `ssh: overflow reading version string`
+### `ssh: overflow reading version string`
 
 (!docs/pages/includes/tls-multiplexing-warnings.mdx!)
+

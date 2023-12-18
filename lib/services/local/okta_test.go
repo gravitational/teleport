@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -118,13 +120,13 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	importRule, err := service.CreateOktaImportRule(ctx, importRule1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule1, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	importRule, err = service.CreateOktaImportRule(ctx, importRule2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule2, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch all import rules.
@@ -132,7 +134,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule1, importRule2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of import rules
@@ -149,14 +151,14 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 
 	require.Len(t, paginatedOut, 2)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule1, importRule2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific import rule.
 	importRule, err = service.GetOktaImportRule(ctx, importRule2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule2, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an import rule that doesn't exist.
@@ -174,7 +176,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	importRule, err = service.GetOktaImportRule(ctx, importRule1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(importRule1, importRule,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an import rule
@@ -184,7 +186,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an import rule that doesn't exist.
@@ -198,6 +200,102 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+}
+
+func TestValidateOktaImportRuleRegexes(t *testing.T) {
+	t.Parallel()
+
+	createRegexMatch := func(appNameRegex, groupNameRegex string) *types.OktaImportRuleMatchV1 {
+		return &types.OktaImportRuleMatchV1{
+			AppNameRegexes:   []string{appNameRegex},
+			GroupNameRegexes: []string{groupNameRegex},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		spec    types.OktaImportRuleSpecV1
+		wantErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no regex validation issues",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "no regex present",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{{AppIDs: []string{"1"}}},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{{GroupIDs: []string{"1"}}},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app regex validation issues",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch("^(bad$", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing regexp")
+			},
+		},
+		{
+			name: "group regex validation issues",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", "^(bad$")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing regexp")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			importRule, err := types.NewOktaImportRule(types.Metadata{
+				Name: "test",
+			}, test.spec)
+			require.NoError(t, err)
+			test.wantErr(t, validateOktaImportRuleRegexes(importRule))
+		})
+	}
 }
 
 // TestOktaAssignmentCRUD tests backend operations with Okta assignment resources.
@@ -234,13 +332,13 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err := service.CreateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	assignment, err = service.CreateOktaAssignment(ctx, assignment2)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment2, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch all assignments.
@@ -248,7 +346,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{assignment1, assignment2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a paginated list of assignments
@@ -267,14 +365,14 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{assignment1, assignment2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific assignment.
 	assignment, err = service.GetOktaAssignment(ctx, assignment2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment2, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an assignment that doesn't exist.
@@ -296,7 +394,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fail to update the status for an assignment due to a bad transition.
@@ -314,7 +412,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an assignment
@@ -324,7 +422,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{assignment2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an assignment that doesn't exist.

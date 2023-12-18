@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -42,17 +44,17 @@ import (
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
 func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
-	if err := sc.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(sc); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if sc.GetEntityDescriptorURL() != "" {
 		resp, err := http.Get(sc.GetEntityDescriptorURL())
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
 		}
 		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, sc.GetEntityDescriptorURL())
+			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
 		}
 		defer resp.Body.Close()
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
@@ -60,7 +62,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 			return trace.Wrap(err)
 		}
 		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %q", sc.GetEntityDescriptorURL())
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
 	}
 
 	if sc.GetEntityDescriptor() != "" {
@@ -162,7 +164,13 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 
 	for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
 		for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
-			certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
+			// The certificate is base64 encoded and can be split into multiple lines.
+			// Each line can be padded with spaces/tabs, so we need to remove them first
+			// before decoding otherwise we'll get an error.
+			// We need to run this through strings.Fields to remove spaces/tabs
+			// from each line and then join them back with newlines.
+			// The last step isn't strictly necessary, but it makes payload more readable.
+			certData, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(samlCert.Data), "\n"))
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to decode certificate defined in entity_descriptor")
 			}
@@ -293,6 +301,9 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 		if cfg.ID != 0 {
 			c.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			c.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			c.SetExpiry(cfg.Expires)
 		}
@@ -316,14 +327,7 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 
 	switch samlConnector := samlConnector.(type) {
 	case *types.SAMLConnectorV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *samlConnector
-			copy.SetResourceID(0)
-			samlConnector = &copy
-		}
-		return utils.FastMarshal(samlConnector)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, samlConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}

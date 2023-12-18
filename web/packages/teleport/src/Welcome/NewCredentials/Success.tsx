@@ -1,35 +1,37 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
-import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
+import { ButtonPrimary, Flex, Image, Text } from 'design';
+
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import shieldCheck from 'teleport/assets/shield-check.png';
 
-import shieldCheck from './shield-check.png';
+import { RegisterSuccessProps } from './types';
 
 export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
-}: {
-  redirect(): void;
-  resetMode: boolean;
-  username?: string;
-}) {
+  isDashboard,
+}: RegisterSuccessProps) {
   const actionTxt = resetMode ? 'reset' : 'registration';
 
   const handleRedirect = () => {
@@ -44,16 +46,9 @@ export function RegisterSuccess({
   };
 
   return (
-    <Card
-      width="540px"
-      p={6}
-      bg="levels.surface"
-      mt={6}
-      mx="auto"
-      textAlign="center"
-    >
+    <OnboardCard center>
       <Text
-        typography="h3"
+        typography="h4"
         color="text"
         mb={3}
         style={{ textTransform: 'capitalize' }}
@@ -69,8 +64,8 @@ export function RegisterSuccess({
         Proceed to access your account.
       </Text>
       <ButtonPrimary width="100%" size="large" onClick={handleRedirect}>
-        Go to Dashboard
+        Go to {isDashboard ? 'Dashboard' : 'Cluster'}
       </ButtonPrimary>
-    </Card>
+    </OnboardCard>
   );
 }

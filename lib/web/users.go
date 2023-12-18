@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -25,8 +27,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -55,7 +58,7 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 		return nil, trace.Wrap(err)
 	}
 
-	return getUsers(clt)
+	return getUsers(r.Context(), clt)
 }
 
 func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -68,7 +71,7 @@ func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.BadParameter("missing username")
 	}
 
-	return getUser(username, clt)
+	return getUser(r.Context(), username, clt)
 }
 
 func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -108,11 +111,12 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		Time: time.Now().UTC(),
 	})
 
-	if err := m.CreateUser(r.Context(), user); err != nil {
+	created, err := m.CreateUser(r.Context(), user)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewUser(user)
+	return ui.NewUser(created)
 }
 
 // updateUserTraits receives a saveUserRequest and updates the user traits accordingly
@@ -152,7 +156,11 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := m.GetUser(req.Name, false)
+	// Remove the MFA resp from the context before getting the user.
+	// Otherwise, it will be consumed before the Update which actually
+	// requires the MFA.
+	getUserCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
+	user, err := m.GetUser(getUserCtx, req.Name, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,21 +169,26 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 
 	updateUserTraits(req, user)
 
-	if err := m.UpdateUser(r.Context(), user); err != nil {
+	updated, err := m.UpdateUser(r.Context(), user)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewUser(user)
+	return ui.NewUser(updated)
 }
 
-func getUsers(m userAPIGetter) ([]ui.UserListEntry, error) {
-	users, err := m.GetUsers(false)
+func getUsers(ctx context.Context, m userAPIGetter) ([]ui.UserListEntry, error) {
+	users, err := m.GetUsers(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var uiUsers []ui.UserListEntry
 	for _, u := range users {
+		// Do not display system users in the WebUI
+		if types.IsSystemResource(u) {
+			continue
+		}
 		uiuser, err := ui.NewUserListEntry(u)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -186,8 +199,8 @@ func getUsers(m userAPIGetter) ([]ui.UserListEntry, error) {
 	return uiUsers, nil
 }
 
-func getUser(username string, m userAPIGetter) (*ui.User, error) {
-	user, err := m.GetUser(username, false)
+func getUser(ctx context.Context, username string, m userAPIGetter) (*ui.User, error) {
+	user, err := m.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,7 +234,7 @@ type privilegeTokenRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnResponse is the response from authenticators.
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
@@ -240,7 +253,7 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 		}}
 	case req.WebauthnResponse != nil:
 		protoReq.ExistingMFAResponse = &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnResponse),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnResponse),
 		}}
 	default:
 		// Can be empty, which means user did not have a second factor registered.
@@ -261,13 +274,13 @@ func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Requ
 
 type userAPIGetter interface {
 	// GetUser returns user by name
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	// CreateUser creates a new user
-	CreateUser(ctx context.Context, user types.User) error
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	// UpdateUser updates a user
-	UpdateUser(ctx context.Context, user types.User) error
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
 	// GetUsers returns a list of users
-	GetUsers(withSecrets bool) ([]types.User, error)
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// DeleteUser deletes a user by name.
 	DeleteUser(ctx context.Context, user string) error
 }

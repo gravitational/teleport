@@ -1,23 +1,30 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+import React, { FocusEvent } from 'react';
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+import { StylesConfig } from 'react-select';
 
 export type Props = {
   inputId?: string;
   hasError?: boolean;
   isClearable?: boolean;
+  closeMenuOnSelect?: boolean;
   isSimpleValue?: boolean;
   isSearchable?: boolean;
   isDisabled?: boolean;
@@ -26,15 +33,16 @@ export type Props = {
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
   onChange(e: Option<any, any> | Option<any, any>[]): void;
-  onKeyDown?(e: KeyboardEvent): void;
+  onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
   value: null | Option<any, any> | Option<any, any>[];
   isMulti?: boolean;
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
-  options: Option<any, any>[];
+  options: Option<any, any>[] | GroupOption[];
   width?: string | number;
   menuPlacement?: string;
+  name?: string;
   minMenuHeight?: number;
   components?: any;
   customProps?: Record<string, any>;
@@ -44,6 +52,7 @@ export type Props = {
   onInputChange?(value: string, actionMeta: ActionMeta): void;
   // Whether or not the element is on an elevated platform (such as a dialog).
   elevated?: boolean;
+  stylesConfig?: StylesConfig;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {
@@ -54,6 +63,13 @@ export type AsyncProps = Omit<Props, 'options'> & {
   noOptionsMessage(): string;
 };
 
+/**
+ * Properties specific to `react-select`'s Creatable widget.
+ */
+export type CreatableProps = Omit<Props, 'options'> & {
+  onBlur?(e: FocusEvent): void;
+};
+
 // Option defines the data type for select dropdown list.
 export type Option<T = string, S = string> = {
   // value is the actual value used inlieu of label.
@@ -62,6 +78,35 @@ export type Option<T = string, S = string> = {
   label: S;
 };
 
+export type GroupOption = {
+  label: string;
+  options: Option[];
+};
+
 export type ActionMeta = {
   action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close';
+};
+
+/**
+ * CustomSelectComponentProps defines a prop type for the custom
+ * components you define for react-select's `components` prop.
+ *
+ * @template CustomProps - type defining all the custom props being passed
+ * down to custom component.
+ *
+ * @template CustomOption - the data type used for react-select `options`
+ */
+// prettier-ignore
+export type CustomSelectComponentProps<
+  CustomProps,
+  CustomOption = Option,
+> = CustomOption & {
+  /**
+   * selectProps is the field to use to access the props that were
+   * passed down to react-select's component.
+   *
+   * Use `customProps` field to easily identify non react-select props
+   * that are intended to be used in custom components.
+   */
+  selectProps: { customProps: CustomProps };
 };

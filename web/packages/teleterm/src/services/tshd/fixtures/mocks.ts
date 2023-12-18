@@ -1,112 +1,106 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  AuthSettings,
-  AccessRequest,
-  Cluster,
-  CreateAccessRequestParams,
-  CreateGatewayParams,
-  Gateway,
-  GetDatabasesResponse,
-  GetKubesResponse,
-  GetRequestableRolesParams,
-  GetServersResponse,
-  LoginLocalParams,
-  LoginPasswordlessParams,
-  LoginSsoParams,
-  ReviewAccessRequestParams,
-  GetResourcesParams,
-  TshAbortController,
-  TshAbortSignal,
-  TshClient,
-  GetRequestableRolesResponse,
-} from '../types';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
-export class MockTshClient implements TshClient {
-  listRootClusters: () => Promise<Cluster[]>;
-  listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
+import * as types from '../types';
+
+export class MockTshClient implements types.TshClient {
+  listRootClusters: () => Promise<types.Cluster[]>;
+  listLeafClusters = () => Promise.resolve([]);
+  getKubes: (
+    params: types.GetResourcesParams
+  ) => Promise<types.GetKubesResponse>;
+  getDatabases: (
+    params: types.GetResourcesParams
+  ) => Promise<types.GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
   getRequestableRoles: (
-    params: GetRequestableRolesParams
-  ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
+    params: types.GetRequestableRolesParams
+  ) => Promise<types.GetRequestableRolesResponse>;
+  getServers: (
+    params: types.GetResourcesParams
+  ) => Promise<types.GetServersResponse>;
   assumeRole: (
     clusterUri: string,
     requestIds: string[],
     dropIds: string[]
   ) => Promise<void>;
   deleteAccessRequest: (clusterUri: string, requestId: string) => Promise<void>;
-  getAccessRequests: (clusterUri: string) => Promise<AccessRequest[]>;
+  getAccessRequests: (clusterUri: string) => Promise<types.AccessRequest[]>;
   getAccessRequest: (
     clusterUri: string,
     requestId: string
-  ) => Promise<AccessRequest>;
+  ) => Promise<types.AccessRequest>;
   reviewAccessRequest: (
     clusterUri: string,
-    params: ReviewAccessRequestParams
-  ) => Promise<AccessRequest>;
+    params: types.ReviewAccessRequestParams
+  ) => Promise<types.AccessRequest>;
   createAccessRequest: (
-    params: CreateAccessRequestParams
-  ) => Promise<AccessRequest>;
-  createAbortController: () => TshAbortController;
-  addRootCluster: (addr: string) => Promise<Cluster>;
+    params: types.CreateAccessRequestParams
+  ) => Promise<types.AccessRequest>;
+  createAbortController: () => types.TshAbortController;
+  addRootCluster: (addr: string) => Promise<types.Cluster>;
 
-  listGateways: () => Promise<Gateway[]>;
-  createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
+  listGateways: () => Promise<types.Gateway[]>;
+  createGateway: (params: types.CreateGatewayParams) => Promise<types.Gateway>;
   removeGateway: (gatewayUri: string) => Promise<undefined>;
   setGatewayTargetSubresourceName: (
     gatewayUri: string,
     targetSubresourceName: string
-  ) => Promise<Gateway>;
+  ) => Promise<types.Gateway>;
   setGatewayLocalPort: (
     gatewayUri: string,
     localPort: string
-  ) => Promise<Gateway>;
+  ) => Promise<types.Gateway>;
 
-  getCluster: (clusterUri: string) => Promise<Cluster>;
-  getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
+  getCluster = () => Promise.resolve(makeRootCluster());
+  getAuthSettings: (clusterUri: string) => Promise<types.AuthSettings>;
   removeCluster = () => Promise.resolve();
   loginLocal: (
-    params: LoginLocalParams,
-    abortSignal?: TshAbortSignal
+    params: types.LoginLocalParams,
+    abortSignal?: types.TshAbortSignal
   ) => Promise<undefined>;
   loginSso: (
-    params: LoginSsoParams,
-    abortSignal?: TshAbortSignal
+    params: types.LoginSsoParams,
+    abortSignal?: types.TshAbortSignal
   ) => Promise<undefined>;
   loginPasswordless: (
-    params: LoginPasswordlessParams,
-    abortSignal?: TshAbortSignal
+    params: types.LoginPasswordlessParams,
+    abortSignal?: types.TshAbortSignal
   ) => Promise<undefined>;
   logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
-}
 
-export const gateway: Gateway = {
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-  cliCommand: 'psql postgres://alice@localhost:59116',
-};
+  createConnectMyComputerRole = () => Promise.resolve({ certsReloaded: true });
+  createConnectMyComputerNodeToken = () =>
+    Promise.resolve({ token: 'abc', labelsList: [] });
+  deleteConnectMyComputerToken = () => Promise.resolve();
+  waitForConnectMyComputerNodeJoin: () => Promise<types.WaitForConnectMyComputerNodeJoinResponse>;
+
+  updateHeadlessAuthenticationState: (
+    params: types.UpdateHeadlessAuthenticationStateParams
+  ) => Promise<void>;
+  deleteConnectMyComputerNode = () => Promise.resolve();
+  getConnectMyComputerNodeName = () => Promise.resolve('');
+
+  listUnifiedResources = async () => ({ resources: [], nextKey: '' });
+  getUserPreferences = async () => ({});
+  updateUserPreferences = async () => ({});
+}

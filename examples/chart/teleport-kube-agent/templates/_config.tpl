@@ -1,5 +1,8 @@
 {{- define "teleport-kube-agent.config" -}}
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
+{{- $appRolePresent := contains "app" (.Values.roles | toString) -}}
+{{- $discoveryEnabled := contains "discovery" (.Values.roles | toString) -}}
+{{- $appDiscoveryEnabled := and ($appRolePresent) ($discoveryEnabled) -}}
 {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
 version: v3
 {{- end }}
@@ -13,7 +16,7 @@ teleport:
   auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
   {{- end }}
   {{- if .Values.caPin }}
-  ca_pin: {{- toYaml .Values.caPin | nindent 8 }}
+  ca_pin: {{- toYaml .Values.caPin | nindent 4 }}
   {{- end }}
   log:
     severity: {{ $logLevel }}
@@ -27,18 +30,22 @@ kubernetes_service:
   enabled: true
   kube_cluster_name: {{ required "kubeClusterName is required in chart values when kube role is enabled, see README" .Values.kubeClusterName }}
     {{- if .Values.labels }}
-  labels: {{- toYaml .Values.labels | nindent 8 }}
+  labels: {{- toYaml .Values.labels | nindent 4 }}
     {{- end }}
   {{- else }}
   enabled: false
   {{- end }}
 
+{{- if and (or (.Values.apps) (.Values.appResources)) (not ($appRolePresent)) }}
+  {{- fail "app role should be enabled if one of 'apps' or 'appResources' is set, see README" }}
+{{- end }}
+
 app_service:
-  {{- if contains "app" (.Values.roles | toString) }}
+  {{- if $appRolePresent }}
+    {{- if not (or (.Values.apps) (.Values.appResources) ($appDiscoveryEnabled)) }}
+      {{- fail "app service is enabled, but no application source is enabled. You must either statically define apps through `apps`, dynamically through `appResources`, or enable in-cluster discovery." }}
+    {{- end }}
   enabled: true
-  {{- if not (or (.Values.apps) (.Values.appResources)) }}
-    {{- fail "at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README" }}
-  {{- end }}
   {{- if .Values.apps }}
     {{- range $app := .Values.apps }}
       {{- if not (hasKey $app "name") }}
@@ -49,12 +56,17 @@ app_service:
       {{- end }}
     {{- end }}
   apps:
-    {{- toYaml .Values.apps | nindent 8 }}
-  {{- end }}
-  {{- if .Values.appResources }}
+    {{- toYaml .Values.apps | nindent 4 }}
+    {{- end }}
   resources:
-    {{- toYaml .Values.appResources | nindent 8 }}
-  {{- end }}
+    {{- if .Values.appResources }}
+      {{- toYaml .Values.appResources | nindent 4 }}
+    {{- end }}
+    {{- if $appDiscoveryEnabled }}
+    - labels:
+        "teleport.dev/kubernetes-cluster": "{{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}"
+        "teleport.dev/origin": "discovery-kubernetes"
+    {{- end }}
   {{- else }}
   enabled: false
   {{- end }}
@@ -78,11 +90,11 @@ db_service:
         {{- fail "'tags' is required for all 'awsDatabases' in chart values when key is set and db role is enabled, see README" }}
       {{- end }}
     {{- end }}
-    {{- toYaml .Values.awsDatabases | nindent 6 }}
+    {{- toYaml .Values.awsDatabases | nindent 4 }}
   {{- end }}
   {{- if .Values.azureDatabases }}
   azure:
-    {{- toYaml .Values.azureDatabases | nindent 6 }}
+    {{- toYaml .Values.azureDatabases | nindent 4 }}
   {{- end}}
   {{- if .Values.databases }}
   databases:
@@ -97,12 +109,21 @@ db_service:
         {{- fail "'protocol' is required for all 'databases' in chart values when db role is enabled, see README" }}
       {{- end }}
     {{- end }}
-    {{- toYaml .Values.databases | nindent 6 }}
+    {{- toYaml .Values.databases | nindent 4 }}
   {{- end }}
   {{- if .Values.databaseResources }}
   resources:
-    {{- toYaml .Values.databaseResources | nindent 6 }}
+    {{- toYaml .Values.databaseResources | nindent 4 }}
   {{- end }}
+{{- else }}
+  enabled: false
+{{- end }}
+
+discovery_service:
+{{- if $discoveryEnabled }}
+  enabled: true
+  discovery_group: {{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}
+  kubernetes: {{- toYaml .Values.kubernetesDiscovery | nindent 4 }}
 {{- else }}
   enabled: false
 {{- end }}

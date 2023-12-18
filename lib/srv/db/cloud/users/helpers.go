@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package users
 
@@ -30,16 +32,22 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// lookupMap is a mapping of database objects to their managed users.
+// lookupEntry is the entry value for lookupMap.
+type lookupEntry struct {
+	database types.Database
+	users    []User
+}
+
+// lookupMap is a mapping of database names to their managed users.
 type lookupMap struct {
-	byDatabase map[types.Database][]User
-	mu         sync.RWMutex
+	byName map[string]lookupEntry
+	mu     sync.RWMutex
 }
 
 // newLookupMap creates a new lookup map.
 func newLookupMap() *lookupMap {
 	return &lookupMap{
-		byDatabase: make(map[types.Database][]User),
+		byName: make(map[string]lookupEntry),
 	}
 }
 
@@ -48,7 +56,7 @@ func (m *lookupMap) getDatabaseUser(database types.Database, username string) (U
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, user := range m.byDatabase[database] {
+	for _, user := range m.byName[database.GetName()].users {
 		if user.GetDatabaseUsername() == username {
 			return user, true
 		}
@@ -62,9 +70,12 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 	defer m.mu.Unlock()
 
 	if len(users) > 0 {
-		m.byDatabase[database] = users
+		m.byName[database.GetName()] = lookupEntry{
+			database: database,
+			users:    users,
+		}
 	} else {
-		delete(m.byDatabase, database)
+		delete(m.byName, database.GetName())
 
 		// Short circuit.
 		if len(database.GetManagedUsers()) == 0 {
@@ -80,27 +91,29 @@ func (m *lookupMap) setDatabaseUsers(database types.Database, users []User) {
 	database.SetManagedUsers(usernames)
 }
 
+func (m *lookupMap) removeIfURIChanged(database types.Database) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	current, ok := m.byName[database.GetName()]
+	if !ok || current.database.GetURI() == database.GetURI() {
+		return
+	}
+	delete(m.byName, database.GetName())
+}
+
 // removeUnusedDatabases removes unused databases by comparing with provided
 // active databases.
 func (m *lookupMap) removeUnusedDatabases(activeDatabases types.Databases) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for database := range m.byDatabase {
-		if isActive := findDatabase(activeDatabases, database); !isActive {
-			delete(m.byDatabase, database)
+	activeDatabasesMap := activeDatabases.ToMap()
+	for databaseName := range m.byName {
+		if _, isActive := activeDatabasesMap[databaseName]; !isActive {
+			delete(m.byName, databaseName)
 		}
 	}
-}
-
-// findDatabase finds the database object in provided list of databases.
-func findDatabase(databases types.Databases, database types.Database) bool {
-	for i := range databases {
-		if databases[i] == database {
-			return true
-		}
-	}
-	return false
 }
 
 // usersByID returns a map of users by their IDs.
@@ -109,8 +122,8 @@ func (m *lookupMap) usersByID() map[string]User {
 	defer m.mu.RUnlock()
 
 	usersByID := make(map[string]User)
-	for _, users := range m.byDatabase {
-		for _, user := range users {
+	for _, entry := range m.byName {
+		for _, user := range entry.users {
 			usersByID[user.GetID()] = user
 		}
 	}
@@ -157,7 +170,10 @@ func newSecretStore(ctx context.Context, database types.Database, clients cloud.
 	secretStoreConfig := database.GetSecretStore()
 
 	meta := database.GetAWS()
-	client, err := clients.GetAWSSecretsManagerClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := clients.GetAWSSecretsManagerClient(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

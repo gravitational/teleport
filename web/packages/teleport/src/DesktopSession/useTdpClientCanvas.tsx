@@ -1,24 +1,26 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
@@ -66,18 +68,26 @@ export default function useTdpClientCanvas(props: Props) {
     setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
-  const syncCanvasSizeToDisplaySize = (canvas: HTMLCanvasElement) => {
+  const syncCanvasResolutionAndSize = (canvas: HTMLCanvasElement) => {
     const { width, height } = getDisplaySize();
 
+    // Set a fixed canvas resolution and display size. This ensures
+    // that neither of these change when the user resizes the browser
+    // window. Instead, the canvas will remain the same size and the
+    // browser will add scrollbars if necessary. This is the behavior
+    // we want until https://github.com/gravitational/teleport/issues/9702
+    // is resolved.
     canvas.width = width;
     canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
   };
 
   // Default TdpClientEvent.TDP_PNG_FRAME handler (buffered)
   const onPngFrame = (ctx: CanvasRenderingContext2D, pngFrame: PngFrame) => {
     // The first image fragment we see signals a successful tdp connection.
     if (!initialTdpConnectionSucceeded.current) {
-      syncCanvasSizeToDisplaySize(ctx.canvas);
+      syncCanvasResolutionAndSize(ctx.canvas);
       setTdpConnection({ status: 'success' });
       initialTdpConnectionSucceeded.current = true;
     }
@@ -131,7 +141,7 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection('open');
   };
 
-  const { isMac } = getPlatform();
+  const { isMac } = getPlatformType();
   /**
    * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
    * as either a single DOWN or single UP, with DOWN corresponding to

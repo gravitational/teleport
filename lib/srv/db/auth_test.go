@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -64,6 +67,8 @@ func TestAuthTokens(t *testing.T) {
 		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
 		withElastiCacheRedis("redis-elasticache-correct-token", elastiCacheRedisToken, "7.0.0"),
 		withElastiCacheRedis("redis-elasticache-incorrect-token", "qwe123", "7.0.0"),
+		withMemoryDBRedis("redis-memorydb-correct-token", memorydbToken, "7.0"),
+		withMemoryDBRedis("redis-memorydb-incorrect-token", "qwe123", "7.0"),
 	}
 	databases := make([]types.Database, 0, len(withDBs))
 	for _, withDB := range withDBs {
@@ -75,9 +80,16 @@ func TestAuthTokens(t *testing.T) {
 		Authentication: &elasticache.Authentication{Type: aws.String("iam")},
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
+	memorydbMock := &mocks.MemoryDBMock{}
+	memorydbIAMUser := &memorydb.User{
+		Name:           aws.String("default"),
+		Authentication: &memorydb.Authentication{Type: aws.String("iam")},
+	}
+	memorydbMock.AddMockUser(memorydbIAMUser, nil)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases:   databases,
 		ElastiCache: ecMock,
+		MemoryDB:    memorydbMock,
 	})
 	go testCtx.startHandlingConnections()
 
@@ -169,6 +181,18 @@ func TestAuthTokens(t *testing.T) {
 			// Make sure we print a user-friendly IAM auth error.
 			err: "Make sure that IAM auth is enabled",
 		},
+		{
+			desc:     "correct MemoryDB auth token",
+			service:  "redis-memorydb-correct-token",
+			protocol: defaults.ProtocolRedis,
+		},
+		{
+			desc:     "incorrect MemoryDB auth token",
+			service:  "redis-memorydb-incorrect-token",
+			protocol: defaults.ProtocolRedis,
+			// Make sure we print a user-friendly IAM auth error.
+			err: "Make sure that IAM auth is enabled",
+		},
 	}
 
 	for _, test := range tests {
@@ -245,6 +269,14 @@ const (
 	azureRedisToken = "azure-redis-token"
 	// elastiCacheRedisToken is a mock ElastiCache Redis token.
 	elastiCacheRedisToken = "elasticache-redis-token"
+	// memorydbToken is a mock MemoryDB auth token.
+	memorydbToken = "memorydb-token"
+	// atlasAuthUser is a mock Mongo Atlas IAM auth user.
+	atlasAuthUser = "arn:aws:iam::111111111111:role/alice"
+	// atlasAuthToken is a mock Mongo Atlas IAM auth token.
+	atlasAuthToken = "atlas-auth-token"
+	// atlasAuthSessionToken is a mock Mongo Atlas IAM auth session token.
+	atlasAuthSessionToken = "atlas-session-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -265,6 +297,10 @@ func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCt
 
 func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	return elastiCacheRedisToken, nil
+}
+
+func (a *testAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	return memorydbToken, nil
 }
 
 // GetCloudSQLAuthToken generates Cloud SQL auth token.
@@ -289,6 +325,13 @@ func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.S
 func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
 	return azureRedisToken, nil
+}
+
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *testAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
+	a.Infof("Generating AWS IAM credentials for %v.", sessionCtx)
+	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
 }
 
 func TestDBCertSigning(t *testing.T) {
@@ -375,6 +418,58 @@ func TestDBCertSigning(t *testing.T) {
 			// Verify if the generated certificate can be verified with the correct CA.
 			_, err = dbCert.Verify(opts)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestMongoDBAtlas(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t,
+		withAtlasMongo("iam-auth", atlasAuthUser, atlasAuthSessionToken),
+		withAtlasMongo("certs-auth", "", ""),
+	)
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	for name, tt := range map[string]struct {
+		service   string
+		dbUser    string
+		expectErr require.ErrorAssertionFunc
+	}{
+		"authenticates with arn username": {
+			service:   "iam-auth",
+			dbUser:    "arn:aws:iam::111111111111:role/alice",
+			expectErr: require.NoError,
+		},
+		"disabled iam authentication": {
+			service:   "certs-auth",
+			dbUser:    "arn:aws:iam::111111111111:role/alice",
+			expectErr: require.Error,
+		},
+		"partial arn authentication": {
+			service:   "iam-auth",
+			dbUser:    "role/alice",
+			expectErr: require.NoError,
+		},
+		"IAM user arn": {
+			service:   "iam-auth",
+			dbUser:    "arn:aws:iam::111111111111:user/alice",
+			expectErr: require.Error,
+		},
+		"certs authentication": {
+			service:   "certs-auth",
+			dbUser:    "alice",
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			conn, err := testCtx.mongoClient(ctx, "alice", tt.service, tt.dbUser)
+			tt.expectErr(t, err)
+			if err != nil {
+				require.NoError(t, conn.Disconnect(ctx))
+			}
 		})
 	}
 }

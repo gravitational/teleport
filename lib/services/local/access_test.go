@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -78,7 +80,7 @@ func TestLockCRUD(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, locks, 2)
 				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 			}
 		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
@@ -88,7 +90,7 @@ func TestLockCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 2)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Match only one of the locks.
 			roleTarget := types.LockTarget{Role: "role-A"}
@@ -96,7 +98,7 @@ func TestLockCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, locks, 1)
 			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Match none of the locks.
 			locks, err = access.GetLocks(ctx, false, roleTarget)
@@ -109,7 +111,7 @@ func TestLockCRUD(t *testing.T) {
 			lock, err := access.GetLock(ctx, lock1.GetName())
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(lock1, lock,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// Attempt to get a nonexistent lock.
 			_, err = access.GetLock(ctx, "lock3")
@@ -166,7 +168,7 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, locks, 2)
 		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		for _, lock := range locks {
 			require.True(t, strings.HasPrefix(lock.GetName(), clusterName+"/"))
 		}
@@ -181,7 +183,7 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, locks, 1)
 		require.Empty(t, cmp.Diff(newRemoteLocks, locks,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 		_, err = access.GetLock(ctx, lock2.GetName())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -25,7 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -43,23 +47,31 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Creating a role should emit a RoleCreatedEvent.
-	err = p.a.UpsertRole(ctx, role)
+	role, err = p.a.CreateRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
+	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())
 	p.mockEmitter.Reset()
 
-	// Updating a role should emit a RoleCreatedEvent.
-	err = p.a.UpsertRole(ctx, role)
+	// Upserting a role should emit a RoleCreatedEvent.
+	role, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
+	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())
+	p.mockEmitter.Reset()
+
+	// Updating a role should emit a RoleUpdatedEvent.
+	role.SetLogins(types.Allow, []string{"llama"})
+	role, err = p.a.UpdateRole(ctx, role)
+	require.NoError(t, err)
+	require.Equal(t, events.RoleUpdatedEvent, p.mockEmitter.LastEvent().GetType())
+	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleUpdate).Name, role.GetName())
 	p.mockEmitter.Reset()
 
 	// Deleting a role should emit a RoleDeletedEvent.
 	err = p.a.DeleteRole(ctx, role.GetName())
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleDeletedEvent)
+	require.Equal(t, events.RoleDeletedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleDelete).Name, role.GetName())
 	p.mockEmitter.Reset()
 
@@ -67,6 +79,98 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	err = p.a.DeleteRole(ctx, role.GetName())
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, p.mockEmitter.LastEvent())
+}
+
+func TestUpsertDeleteDependentRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	// test create new role
+	role, err := types.NewRole("test-role", types.RoleSpecV6{
+		Options: types.RoleOptions{},
+		Allow:   types.RoleConditions{},
+	})
+	require.NoError(t, err)
+
+	// Create a role and assign it to a user.
+	role, err = p.a.UpsertRole(ctx, role)
+	require.NoError(t, err)
+	user, err := types.NewUser("test-user")
+	require.NoError(t, err)
+	user.AddRole(role.GetName())
+	_, err = p.a.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	// Deletion should fail.
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleUser)
+	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
+
+	clusterName, err := p.a.GetClusterName()
+	require.NoError(t, err)
+
+	// Update the user CA with the role.
+	ca, err := p.a.GetCertAuthority(ctx, types.CertAuthID{Type: types.UserCA, DomainName: clusterName.GetClusterName()}, true)
+	require.NoError(t, err)
+	ca.AddRole(role.GetName())
+	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
+
+	// Deletion should fail.
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleCA)
+
+	// Clear out the roles for the CA.
+	ca.SetRoles([]string{})
+	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
+
+	// Create an access list that references the role.
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title: "simple",
+		Owners: []accesslist.Owner{
+			{Name: "some-user"},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{role.GetName()},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: time.Now(),
+		},
+		MembershipRequires: accesslist.Requires{
+			Roles: []string{role.GetName()},
+		},
+		OwnershipRequires: accesslist.Requires{
+			Roles: []string{role.GetName()},
+		},
+	})
+	require.NoError(t, err)
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should fail due to the grant.
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+
+	accessList.Spec.Grants.Roles = []string{"non-existent-role"}
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should fail due to membership requires.
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+
+	accessList.Spec.MembershipRequires.Roles = []string{"non-existent-role"}
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should fail due to ownership requires.
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+
+	accessList.Spec.OwnershipRequires.Roles = []string{"non-existent-role"}
+	_, err = p.a.UpsertAccessList(ctx, accessList)
+	require.NoError(t, err)
+
+	// Deletion should succeed
+	require.NoError(t, p.a.DeleteRole(ctx, role.GetName()))
 }
 
 func TestUpsertDeleteLockEventsEmitted(t *testing.T) {

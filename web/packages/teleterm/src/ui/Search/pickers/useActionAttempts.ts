@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import {
@@ -21,12 +23,7 @@ import {
   useRef,
   useCallback,
 } from 'react';
-import {
-  makeEmptyAttempt,
-  makeSuccessAttempt,
-  mapAttempt,
-  useAsync,
-} from 'shared/hooks/useAsync';
+import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import {
@@ -34,12 +31,14 @@ import {
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
-import { mapToActions } from 'teleterm/ui/Search/actions';
+import { mapToAction } from 'teleterm/ui/Search/actions';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
+
+import { useDisplayResults } from './useDisplayResults';
 
 export function useActionAttempts() {
   const ctx = useAppContext();
@@ -68,7 +67,11 @@ export function useActionAttempts() {
   const runRetryableResourceSearch = useCallback(
     async (search: string, filters: SearchFilter[]): Promise<void> => {
       const activeRootClusterUri = workspacesService.getRootClusterUri();
-      const [results, err] = await runResourceSearch(search, filters);
+      const [results, err] = await runResourceSearch(
+        search,
+        filters,
+        searchContext.advancedSearchEnabled
+      );
       // Since resource search uses Promise.allSettled underneath, the only error that could be
       // returned here is CanceledError from useAsync. In that case, we can just return early.
       if (err) {
@@ -89,8 +92,11 @@ export function useActionAttempts() {
       await pauseUserInteraction(
         () =>
           new Promise<void>(resolve => {
-            modalsService.openClusterConnectDialog({
+            modalsService.openRegularDialog({
+              kind: 'cluster-connect',
               clusterUri: activeRootClusterUri,
+              reason: undefined,
+              prefill: undefined,
               onSuccess: () => resolve(),
               onCancel: () => resolve(),
             });
@@ -99,9 +105,15 @@ export function useActionAttempts() {
 
       // Retrying the request no matter if the user logged in through the modal or not, for the same
       // reasons as described in retryWithRelogin.
-      runResourceSearch(search, filters);
+      runResourceSearch(search, filters, searchContext.advancedSearchEnabled);
     },
-    [modalsService, workspacesService, runResourceSearch, pauseUserInteraction]
+    [
+      searchContext.advancedSearchEnabled,
+      workspacesService,
+      runResourceSearch,
+      pauseUserInteraction,
+      modalsService,
+    ]
   );
   const runDebouncedResourceSearch = useDebounce(
     runRetryableResourceSearch,
@@ -109,22 +121,32 @@ export function useActionAttempts() {
   );
   const resourceActionsAttempt = useMemo(
     () =>
-      mapAttempt(resourceSearchAttempt, ({ results, search }) => {
-        const sortedResults = rankResults(results, search);
-
-        return mapToActions(ctx, searchContext, sortedResults);
-      }),
+      mapAttempt(resourceSearchAttempt, ({ results, search }) =>
+        rankResults(results, search).map(result =>
+          mapToAction(ctx, searchContext, result)
+        )
+      ),
     [ctx, resourceSearchAttempt, searchContext]
   );
 
   const runFilterSearch = useFilterSearch();
-  const filterActionsAttempt = useMemo(() => {
-    // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
-    const filterSearchResults = runFilterSearch(inputValue, filters);
-    const filterActions = mapToActions(ctx, searchContext, filterSearchResults);
+  const filterActions = useMemo(
+    () =>
+      // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
+      runFilterSearch(inputValue, filters).map(result =>
+        mapToAction(ctx, searchContext, result)
+      ),
+    [runFilterSearch, inputValue, filters, ctx, searchContext]
+  );
 
-    return makeSuccessAttempt(filterActions);
-  }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
+  const displayResultsAction = mapToAction(
+    ctx,
+    searchContext,
+    useDisplayResults({
+      inputValue,
+      filters,
+    })
+  );
 
   useEffect(() => {
     // Reset the resource search attempt as soon as the input changes. If we didn't do that, then
@@ -142,14 +164,20 @@ export function useActionAttempts() {
     setResourceSearchAttempt,
     runFilterSearch,
     runDebouncedResourceSearch,
+    searchContext.advancedSearchEnabled,
   ]);
 
   return {
-    filterActionsAttempt,
+    displayResultsAction,
+    filterActions,
     resourceActionsAttempt,
-    // resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been
-    // mapped to actions. Returning this will allow ActionPicker to inspect errors returned from the
-    // resource search.
+    /**
+     * resourceSearchAttempt is the raw version of useResourceSearch attempt that has not been
+     * mapped to actions. Returning this will allow ActionPicker to inspect errors returned from the
+     * resource search.
+     *
+     * The status of this attempt never equals to 'error'.
+     * */
     resourceSearchAttempt,
   };
 }

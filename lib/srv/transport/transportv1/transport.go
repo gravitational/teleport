@@ -1,21 +1,26 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package transportv1
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/netip"
@@ -40,13 +45,13 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
 }
 
-// ConnMonitor monitors authorized connections and terminates them when
+// ConnectionMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnectionMonitor interface {
-	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ServerConfig holds creation parameters for Service.
@@ -279,7 +284,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target host")
 	}
@@ -296,8 +301,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// monitor the user connection
-	userConn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
-	monitorCtx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, userConn)
+	conn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
+	monitorCtx, userConn, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -311,7 +316,11 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// copy data to/from the host/user
-	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
+	err = utils.ProxyConn(monitorCtx, hostConn, userConn)
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return trace.Wrap(err)
 }
 
 // getDestinationAddress is used to get client destination for connection coming from gRPC. We don't have a way to get

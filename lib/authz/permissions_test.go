@@ -1,35 +1,42 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package authz
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -40,37 +47,101 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const clusterName = "test-cluster"
+const (
+	clusterName   = "test-cluster"
+	validTOTPCode = "valid"
+)
 
 func TestContextLockTargets(t *testing.T) {
 	t.Parallel()
-	authContext := &Context{
-		Identity: BuiltinRole{
-			Role:        types.RoleNode,
-			ClusterName: "cluster",
-			Identity: tlsca.Identity{
-				Username: "node.cluster",
-				Groups:   []string{"role1", "role2"},
-				DeviceExtensions: tlsca.DeviceExtensions{
-					DeviceID: "device1",
-				},
+
+	tests := []struct {
+		role types.SystemRole
+		want []types.LockTarget
+	}{
+		{
+			role: types.RoleNode,
+			want: []types.LockTarget{
+				{Node: "node", ServerID: "node"},
+				{Node: "node.cluster", ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
 			},
 		},
-		UnmappedIdentity: WrapIdentity(tlsca.Identity{
-			Username: "node.cluster",
-			Groups:   []string{"mapped-role"},
-		}),
+		{
+			role: types.RoleAuth,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
+		{
+			role: types.RoleProxy,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
+		{
+			role: types.RoleKube,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
+		{
+			role: types.RoleDatabase,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
 	}
-	expected := []types.LockTarget{
-		{Node: "node"},
-		{Node: "node.cluster"},
-		{User: "node.cluster"},
-		{Role: "role1"},
-		{Role: "role2"},
-		{Role: "mapped-role"},
-		{Device: "device1"},
+	for _, tt := range tests {
+		t.Run(tt.role.String(), func(t *testing.T) {
+			authContext := &Context{
+				Identity: BuiltinRole{
+					Role:        tt.role,
+					ClusterName: "cluster",
+					Identity: tlsca.Identity{
+						Username: "node.cluster",
+						Groups:   []string{"role1", "role2"},
+						DeviceExtensions: tlsca.DeviceExtensions{
+							DeviceID: "device1",
+						},
+					},
+				},
+				UnmappedIdentity: WrapIdentity(tlsca.Identity{
+					Username: "node.cluster",
+					Groups:   []string{"mapped-role"},
+				}),
+			}
+			require.ElementsMatch(t, authContext.LockTargets(), tt.want)
+		})
 	}
-	require.ElementsMatch(t, authContext.LockTargets(), expected)
 }
 
 func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
@@ -141,29 +212,32 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	ctx := context.Background()
 
 	client, watcher, authorizer := newTestResources(t)
+	for _, role := range types.LocalServiceMappings() {
+		t.Run(role.String(), func(t *testing.T) {
+			builtinRole := BuiltinRole{
+				Username: "node",
+				Role:     role,
+				Identity: tlsca.Identity{
+					Username: "node",
+				},
+			}
 
-	builtinRole := BuiltinRole{
-		Username: "node",
-		Role:     types.RoleNode,
-		Identity: tlsca.Identity{
-			Username: "node",
-		},
+			// Apply a node lock.
+			nodeLock, err := types.NewLock("node-lock", types.LockSpecV2{
+				Target: types.LockTarget{ServerID: builtinRole.Identity.Username},
+			})
+			require.NoError(t, err)
+			upsertLockWithPutEvent(ctx, t, client, watcher, nodeLock)
+
+			_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+
+			builtinRole.Identity.Username = ""
+			_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
+			require.NoError(t, err)
+		})
 	}
-
-	// Apply a node lock.
-	nodeLock, err := types.NewLock("node-lock", types.LockSpecV2{
-		Target: types.LockTarget{Node: builtinRole.Identity.Username},
-	})
-	require.NoError(t, err)
-	upsertLockWithPutEvent(ctx, t, client, watcher, nodeLock)
-
-	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	builtinRole.Identity.Username = ""
-	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
-	require.NoError(t, err)
 }
 
 func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClient, watcher *services.LockWatcher, lock types.Lock) {
@@ -172,15 +246,18 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClien
 	defer lockWatch.Close()
 
 	require.NoError(t, client.UpsertLock(ctx, lock))
-	select {
-	case event := <-lockWatch.Events():
-		require.Equal(t, types.OpPut, event.Type)
-		require.Empty(t, resourceDiff(lock, event.Resource))
-	case <-lockWatch.Done():
-		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for lock put.")
-	}
+
+	// Retry a few times to wait for the resource event we expect as the
+	// resource watcher can potentially return events for previously
+	// created resources as well.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-lockWatch.Events():
+			return types.OpPut == event.Type && resourceDiff(lock, event.Resource) == ""
+		case <-lockWatch.Done():
+			return false
+		}
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func TestGetClientUserIsSSO(t *testing.T) {
@@ -240,10 +317,10 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	tests := []struct {
 		name                 string
 		deviceMode           string
-		disableDeviceAuthz   bool
+		deviceAuthz          DeviceAuthorizationOpts // aka AuthorizerOpts.DeviceAuthorization
 		user                 IdentityGetter
 		wantErr              string
-		wantCtxAuthnDisabled bool // defaults to disableDeviceAuthz
+		wantCtxAuthnDisabled bool // defaults to deviceAuthz.disableDeviceRoleMode
 	}{
 		{
 			name:       "user without extensions and mode=off",
@@ -254,13 +331,24 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			name:       "nok: user without extensions and mode=required",
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
-			wantErr:    "unauthorized device",
+			wantErr:    "trusted device",
 		},
 		{
-			name:               "device authorization disabled",
-			deviceMode:         constants.DeviceTrustModeRequired,
-			disableDeviceAuthz: true,
-			user:               userWithoutExtensions,
+			name:       "global mode disabled only",
+			deviceMode: constants.DeviceTrustModeRequired,
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+			},
+			user: userWithoutExtensions,
+		},
+		{
+			name:       "global and role modes disabled",
+			deviceMode: constants.DeviceTrustModeRequired,
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+				DisableRoleMode:   true,
+			},
+			user: userWithoutExtensions,
 		},
 		{
 			name:       "user with extensions and mode=required",
@@ -278,8 +366,11 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			wantCtxAuthnDisabled: true, // BuiltinRole ctx validation disabled by default
 		},
 		{
-			name:               "BuiltinRole: device authorization disabled",
-			disableDeviceAuthz: true,
+			name: "BuiltinRole: device authorization disabled",
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+				DisableRoleMode:   true,
+			},
 			user: BuiltinRole{
 				Role:        types.RoleProxy,
 				Username:    user.GetName(),
@@ -288,8 +379,11 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			},
 		},
 		{
-			name:               "RemoteBuiltinRole: device authorization disabled",
-			disableDeviceAuthz: true,
+			name: "RemoteBuiltinRole: device authorization disabled",
+			deviceAuthz: DeviceAuthorizationOpts{
+				DisableGlobalMode: true,
+				DisableRoleMode:   true,
+			},
 			user: RemoteBuiltinRole{
 				Role:        types.RoleProxy,
 				Username:    user.GetName(),
@@ -313,10 +407,10 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 
 			// Create a new authorizer.
 			authorizer, err := NewAuthorizer(AuthorizerOpts{
-				ClusterName:                clusterName,
-				AccessPoint:                client,
-				LockWatcher:                watcher,
-				DisableDeviceAuthorization: test.disableDeviceAuthz,
+				ClusterName:         clusterName,
+				AccessPoint:         client,
+				LockWatcher:         watcher,
+				DeviceAuthorization: test.deviceAuthz,
 			})
 			require.NoError(t, err, "NewAuthorizer failed")
 
@@ -334,11 +428,209 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			}
 
 			// Verify that the auth.Context has the correct disableDeviceAuthorization
-			// value.
-			wantDisabled := test.disableDeviceAuthz || test.wantCtxAuthnDisabled
+			// value, based on either the global toggle or role mode.
+			wantDisabled := test.deviceAuthz.DisableRoleMode || test.wantCtxAuthnDisabled
 			assert.Equal(
-				t, wantDisabled, authCtx.disableDeviceAuthorization,
+				t, wantDisabled, authCtx.disableDeviceRoleMode,
 				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
+		})
+	}
+}
+
+// hostFQDN consists of host UUID and cluster name joined via .
+func hostFQDN(hostUUID, clusterName string) string {
+	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
+}
+
+func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
+	ctx := context.Background()
+	client, watcher, _ := newTestResources(t)
+
+	// Enable Webauthn.
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.SetAuthPreference(ctx, authPreference))
+
+	// Create a new local user.
+	localUser, _, err := createUserAndRole(client, "localuser", []string{"local"}, nil)
+	require.NoError(t, err)
+
+	// Create new local user with a host-like username.
+	userWithHostName, _, err := createUserAndRole(client, hostFQDN(uuid.NewString(), clusterName), []string{"local"}, nil)
+	require.NoError(t, err)
+
+	// Create a new bot user.
+	bot, err := types.NewUser("robot")
+	require.NoError(t, err)
+	botMetadata := bot.GetMetadata()
+	botMetadata.Labels = map[string]string{
+		types.BotLabel:           bot.GetName(),
+		types.BotGenerationLabel: "0",
+	}
+	bot.SetMetadata(botMetadata)
+	_, err = client.CreateUser(ctx, bot)
+	require.NoError(t, err)
+
+	// Create a new authorizer.
+	authorizer, err := NewAuthorizer(AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: client,
+		LockWatcher: watcher,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	for _, tt := range []struct {
+		name                      string
+		user                      IdentityGetter
+		withTOTPInContext         string
+		contextGetter             func() context.Context
+		wantErr                   string
+		wantAdminActionAuthorized bool
+	}{
+		{
+			name: "NOK local user no mfa",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username: localUser.GetName(),
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: false,
+		}, {
+			name: "NOK local user with mfa verified cert",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:    localUser.GetName(),
+					MFAVerified: "mfa-verified-test",
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: false,
+		}, {
+			// edge case for the admin role check.
+			name: "NOK local user with host-like username",
+			user: LocalUser{
+				Username: userWithHostName.GetName(),
+				Identity: tlsca.Identity{
+					Username: userWithHostName.GetName(),
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: false,
+		}, {
+			name: "NOK local user with invalid mfa from context",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username: localUser.GetName(),
+				},
+			},
+			withTOTPInContext:         "invalid",
+			wantErr:                   "invalid MFA",
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK local user with valid mfa from context",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username: localUser.GetName(),
+				},
+			},
+			withTOTPInContext:         validTOTPCode,
+			wantErr:                   "",
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK local user with mfa verified private key policy",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:         localUser.GetName(),
+					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK admin",
+			user: BuiltinRole{
+				Role:     types.RoleAdmin,
+				Username: hostFQDN(uuid.NewString(), clusterName),
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK bot",
+			user: LocalUser{
+				Username: bot.GetName(),
+				Identity: tlsca.Identity{
+					Username: bot.GetName(),
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK admin impersonating local user",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:     localUser.GetName(),
+					Impersonator: hostFQDN(uuid.NewString(), clusterName),
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK bot impersonating local user",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username:     localUser.GetName(),
+					Impersonator: bot.GetName(),
+				},
+			},
+			wantErr:                   "",
+			wantAdminActionAuthorized: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.withTOTPInContext != "" {
+				mfaResp := &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{
+							Code: tt.withTOTPInContext,
+						},
+					},
+				}
+				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(mfaResp)
+				require.NoError(t, err)
+				md := metadata.MD(map[string][]string{
+					mfa.ResponseMetadataKey: {encodedMFAResp},
+				})
+				ctx = metadata.NewIncomingContext(ctx, md)
+			}
+			userCtx := context.WithValue(ctx, contextUser, tt.user)
+			authCtx, err := authorizer.Authorize(userCtx)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr, "Expected matching Authorize error")
+				return
+			}
+			require.NoError(t, err)
+
+			authAdminActionErr := AuthorizeAdminAction(ctx, authCtx)
+			if tt.wantAdminActionAuthorized {
+				require.NoError(t, authAdminActionErr)
+			} else {
+				require.ErrorIs(t, authAdminActionErr, &mfa.ErrAdminActionMFARequired)
+			}
 		})
 	}
 }
@@ -427,7 +719,7 @@ func TestContext_GetAccessState(t *testing.T) {
 				localUser := ctx.Identity.(LocalUser)
 				localUser.Identity.DeviceExtensions = deviceExt
 				ctx.Identity = localUser
-				ctx.disableDeviceAuthorization = true
+				ctx.disableDeviceRoleMode = true
 				return &ctx
 			},
 			want: services.AccessState{
@@ -475,27 +767,34 @@ func TestCheckIPPinning(t *testing.T) {
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "",
 			pinIP:      true,
-			wantErr:    "pinned IP is required for the user, but is not present on identity",
+			wantErr:    ErrIPPinningMissing.Error(),
 		},
 		{
 			desc:       "Pinned IP doesn't match",
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "127.0.0.2",
 			pinIP:      true,
-			wantErr:    "pinned IP doesn't match observed client IP",
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
 			clientAddr: "127.0.0.1:444",
 			pinnedIP:   "127.0.0.2",
 			pinIP:      false,
-			wantErr:    "pinned IP doesn't match observed client IP",
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "expected type net.Addr, got <nil>",
+			wantErr:  "client source address was not found in the context",
+		},
+		{
+			desc:       "IP pinning enabled, port=0 (marked by proxyProtocolMode unspecified)",
+			clientAddr: "127.0.0.1:0",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+			wantErr:    ErrIPPinningMismatch.Error(),
 		},
 		{
 			desc:       "correct IP pinning",
@@ -508,7 +807,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+			ctx = ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 
@@ -539,7 +838,7 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = accessService.CreateRole(context.Background(), role)
+	_, err = accessService.CreateRole(context.Background(), role)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -621,6 +920,124 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 	}
 }
 
+func TestRoleSetForBuiltinRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		clusterName   string
+		recConfig     types.SessionRecordingConfig
+		roles         []types.SystemRole
+		assertRoleSet func(t *testing.T, rs services.RoleSet)
+	}{
+		{
+			name:        "RoleMDM is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rs, err := RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
+			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
+			test.assertRoleSet(t, rs)
+		})
+	}
+}
+
+func TestIsUserFunctions(t *testing.T) {
+	localIdentity := Context{
+		Identity:         LocalUser{},
+		UnmappedIdentity: LocalUser{},
+	}
+	remoteIdentity := Context{
+		Identity:         RemoteUser{},
+		UnmappedIdentity: RemoteUser{},
+	}
+	systemIdentity := Context{
+		Identity:         BuiltinRole{Role: types.RoleProxy},
+		UnmappedIdentity: BuiltinRole{Role: types.RoleProxy},
+	}
+
+	tests := []struct {
+		funcName, scenario string
+		isUserFunc         func(Context) bool
+		authCtx            Context
+		want               bool
+	}{
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalUser,
+			authCtx:    remoteIdentity,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalUser,
+			authCtx:    systemIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    localIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    systemIdentity,
+		},
+
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    systemIdentity,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.funcName+"/"+test.scenario, func(t *testing.T) {
+			got := test.isUserFunc(test.authCtx)
+			assert.Equal(t, test.want, got, "%s mismatch", test.funcName)
+		})
+	}
+}
+
 // fakeCtxUser is used for auth.Context tests.
 type fakeCtxUser struct {
 	types.User
@@ -642,6 +1059,14 @@ type testClient struct {
 	services.Access
 	services.Identity
 	types.Events
+}
+
+func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	if resp.GetTOTP().Code == validTOTPCode {
+		return &types.MFADevice{}, "", nil
+	}
+
+	return nil, "", trace.AccessDenied("invalid MFA")
 }
 
 func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authorizer) {
@@ -708,13 +1133,13 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 		role.SetRules(types.Allow, allowRules)
 	}
 
-	err = client.UpsertRole(ctx, role)
+	role, err = client.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	user.AddRole(role.GetName())
-	err = client.UpsertUser(user)
+	user, err = client.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -723,6 +1148,6 @@ func createUserAndRole(client *testClient, username string, allowedLogins []stri
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }

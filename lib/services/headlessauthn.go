@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -25,19 +27,22 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// HeadlessAuthenticationUserStubID is the ID of a headless authentication stub.
+const HeadlessAuthenticationUserStubID = "stub"
+
 // ValidateHeadlessAuthentication verifies that the headless authentication has
-// all of the required fields set. headless authentication stubs created with
-// CreateHeadlessAuthenticationStub will not pass this validation.
+// all of the required fields set. Headless authentication stubs will not pass
+// this validation.
 func ValidateHeadlessAuthentication(h *types.HeadlessAuthentication) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch {
+	case h.State.IsUnspecified():
+		return trace.BadParameter("headless authentication resource state must be specified")
 	case h.Version != types.V1:
 		return trace.BadParameter("unsupported headless authentication resource version %q, current supported version is %s", h.Version, types.V1)
-	case h.User == "":
-		return trace.BadParameter("headless authentication resource must have non-empty user")
 	case h.PublicKey == nil:
 		return trace.BadParameter("headless authentication resource must have non-empty publicKey")
 	case h.Metadata.Name != NewHeadlessAuthenticationID(h.PublicKey):

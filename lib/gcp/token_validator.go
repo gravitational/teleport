@@ -1,24 +1,27 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package gcp
 
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -92,5 +95,43 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if claims.Google.ComputeEngine != (ComputeEngine{}) {
+		return &claims, nil
+	}
+
+	if gcpDefaultServiceAccountEmailRegex.MatchString(claims.Email) {
+		return nil, trace.BadParameter("default compute engine service account %q is not supported", claims.Email)
+	}
+
+	// GKE Workload Identity tokens do not have the `google.compute_engine` claim
+	// and so to support Teleport services running on GKE, we need to extract the
+	// project ID from the email claim.
+	// Managed Service accounts running on GKE are not guaranteed to have domain emails
+	// with the following format: <sa_name>@<project_id>.iam.gserviceaccount.com
+	// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#authenticating_to_other_services
+	// See https://cloud.google.com/iam/docs/service-accounts#service_account_email_addresses
+	// See https://cloud.google.com/iam/docs/service-account-types#user-managed
+	matches := gcpUserManagedServiceAccountEmailRegex.FindStringSubmatch(claims.Email)
+	if len(matches) != 2 {
+		return nil, trace.BadParameter("invalid email claim: %q", claims.Email)
+	}
+
+	// Assign the project ID exatracted from the email to the Google claims.
+	claims.Google.ComputeEngine.ProjectID = matches[1]
+
 	return &claims, nil
 }
+
+var (
+	// gcpUserManagedServiceAccountEmailRegex is the regex used to extract the project ID from
+	// the email claim of a GCP service account.
+	// See https://cloud.google.com/iam/docs/service-accounts#service_account_email_addresses
+	// See https://cloud.google.com/iam/docs/service-account-types#user-managed
+	gcpUserManagedServiceAccountEmailRegex = regexp.MustCompile(`(?s)^[^@]+@([^\.]+)\.iam\.gserviceaccount\.com$`)
+
+	// gcpDefaultServiceAccountEmailRegex is the regex used to identify when the default
+	// compute engine service account is being used. When this is the case, we return an
+	// error because the default compute engine service account is not supported.
+	gcpDefaultServiceAccountEmailRegex = regexp.MustCompile(`(?s)^[^@]+@developer\.gserviceaccount\.com$`)
+)

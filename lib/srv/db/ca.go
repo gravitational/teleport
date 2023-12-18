@@ -1,18 +1,20 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -59,13 +61,42 @@ func (s *Server) startCARenewer(ctx context.Context) {
 // initCACert initializes the provided server's CA certificate in case of a
 // cloud hosted database instance.
 func (s *Server) initCACert(ctx context.Context, database types.Database) error {
+	s.mu.RLock()
+	if !s.shouldInitCACertLocked(database) {
+		s.mu.RUnlock()
+		return nil
+	}
+	// make a copy so we can safely unlock before doing expensive CA cert
+	// version checking or downloading.
+	copy := database.Copy()
+	s.mu.RUnlock()
+	bytes, err := s.getCACerts(ctx, copy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure the cert we got is valid just in case.
+	if _, err := tlsca.ParseCertificatePEM(bytes); err != nil {
+		return trace.Wrap(err, "CA certificate for %v doesn't appear to be a valid x509 certificate: %s",
+			copy, bytes)
+	}
+	s.mu.Lock()
+	// update the original database under a lock, since we're mutating it.
+	database.SetStatusCA(string(bytes))
+	s.mu.Unlock()
+	return nil
+}
+
+// shouldInitCACertLocked returns whether a given database needs to have its
+// CA cert initialized.
+// The caller must call RLock on `s.mu` before calling this function.
+func (s *Server) shouldInitCACertLocked(database types.Database) bool {
 	// To identify if the CA cert was set automatically, compare the result of
 	// `GetCA` (which can return user-provided CA) with `GetStatusCA`, which
 	// only returns the CA set by the Teleport. If both contents differ, we will
 	// not download CAs for the database. Both sides will be empty at the first
 	// pass, downloading and populating the `StatusCA`.
 	if database.GetCA() != database.GetStatusCA() {
-		return nil
+		return false
 	}
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
@@ -78,24 +109,10 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeDynamoDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
-
+		return true
 	default:
-		return nil
+		return false
 	}
-	// It's not set so download it or see if it's already downloaded.
-	// When initializing the CAs do not update the certificates, instead use the
-	// cached ones.
-	bytes, err := s.getCACerts(ctx, database)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Make sure the cert we got is valid just in case.
-	if _, err := tlsca.ParseCertificatePEM(bytes); err != nil {
-		return trace.Wrap(err, "CA certificate for %v doesn't appear to be a valid x509 certificate: %s",
-			database, bytes)
-	}
-	database.SetStatusCA(string(bytes))
-	return nil
 }
 
 // getCACerts updates and returns automatically downloaded root certificate for

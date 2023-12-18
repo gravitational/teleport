@@ -1,21 +1,60 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render correct dialog after creating a new account 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c2 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.c5 {
+  box-sizing: border-box;
+  min-width: 584px;
+  padding: 32px;
+  background-color: #222C59;
+  flex: 4;
+}
+
+.c7 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c8 {
+.c12 {
   box-sizing: border-box;
+  padding: 8px;
+  padding-bottom: 24px;
+  padding-left: 16px;
+  background-color: #0C143D;
+  border-radius: 8px;
 }
 
-.c18 {
+.c15 {
+  box-sizing: border-box;
+  margin-left: 8px;
+}
+
+.c20 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  flex: 2;
+}
+
+.c22 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c13 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -41,22 +80,22 @@ exports[`render correct dialog after creating a new account 1`] = `
   padding: 0px 24px;
 }
 
-.c13:hover,
-.c13:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c13:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c13:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -83,22 +122,22 @@ exports[`render correct dialog after creating a new account 1`] = `
   margin-top: 8px;
 }
 
-.c15:hover,
-.c15:focus {
+.c18:hover,
+.c18:focus {
   background: #B29DFF;
 }
 
-.c15:active {
+.c18:active {
   background: #C5B6FF;
 }
 
-.c15:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c16 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -126,59 +165,52 @@ exports[`render correct dialog after creating a new account 1`] = `
   width: 100%;
 }
 
-.c16:hover,
-.c16:focus {
+.c19:hover,
+.c19:focus {
   background: #B29DFF;
 }
 
-.c16:active {
+.c19:active {
   background: #C5B6FF;
 }
 
-.c16:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c2 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  background-color: #222C59;
-  border-radius: 8px;
-  overflow: hidden;
+.c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
-.c5 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
 
-.c6 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 4px;
 }
 
-.c7 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c9 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -187,14 +219,14 @@ exports[`render correct dialog after creating a new account 1`] = `
   margin-bottom: 8px;
 }
 
-.c11 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-top: 8px;
 }
 
-.c19 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -204,63 +236,33 @@ exports[`render correct dialog after creating a new account 1`] = `
   margin-bottom: 8px;
 }
 
-.c20 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
 
-.c1 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  background-color: levels.surface;
-  border-radius: 8px;
-  overflow: hidden;
+.c3 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c3 {
-  box-sizing: border-box;
-  min-width: 584px;
-  padding: 32px;
-  background-color: #222C59;
-  flex: 4;
+.c6 {
   display: flex;
   flex-direction: column;
 }
 
-.c10 {
-  box-sizing: border-box;
-  padding: 8px;
-  padding-bottom: 24px;
-  padding-left: 16px;
-  background-color: #0C143D;
-  border-radius: 8px;
+.c13 {
   display: flex;
   justify-content: space-between;
 }
 
-.c12 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  display: flex;
-  flex-direction: column;
-}
-
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0 .print-only {
+.c1 .print-only {
   visibility: hidden;
 }
 
-.c14 {
+.c17 {
   max-width: 48px;
   width: 100%;
   padding: 4px 8px;
@@ -268,80 +270,74 @@ exports[`render correct dialog after creating a new account 1`] = `
   font-size: 10px;
 }
 
-.c17 {
-  box-sizing: border-box;
-  min-width: 384px;
-  padding: 32px;
-  flex: 2;
-  display: flex;
-  flex-direction: column;
+.c21 {
   background: rgba(255,255,255,0.07);
 }
 
 @media print {
-  .c0 {
+  .c1 {
     overflow: hidden;
   }
 
-  .c0 .print,
-  .c0 .print-only {
+  .c1 .print,
+  .c1 .print-only {
     visibility: visible;
   }
 
-  .c0 .no-print {
+  .c1 .no-print {
     visibility: hidden;
   }
 
-  .c0 .codes {
+  .c1 .codes {
     font-size: 16px;
   }
 }
 
 <div
-  class="c0"
+  class="c0 c1"
 >
   <div
-    class="c1 sc-AxirZ c2 no-print"
+    class="c2 c3 sc-gEvEer c2 c4 no-print"
     overflow="hidden"
   >
     <div
-      class="c3 print"
+      class="c5 c6 print"
     >
       <div
-        class="c4"
+        class="c7"
       >
         <div
-          class="c5"
+          class="c8"
           color="text.main"
         >
           Backup & Recovery Codes
         </div>
         <div
-          class="c6"
+          class="c9"
         >
           Please save these account recovery codes in a safe offline place.
         </div>
         <div
-          class="c7"
+          class="c10"
         >
           You can use each code once if you lose your second factor authenticator or password.
         </div>
       </div>
       <div
-        class="c8"
+        class="c0"
       >
         <div
-          class="c9"
+          class="c11"
         >
           Recovery Codes (
           3
            Total)
         </div>
         <div
-          class="c10"
+          class="c12 c13"
         >
           <div
-            class="c11 codes"
+            class="c14 codes"
             style="white-space: pre-wrap;"
           >
             tele-testword-testword-testword-testword-testword-testword-testword
@@ -351,16 +347,16 @@ tele-testword-testword-testword-testword-testword-testword-testword-testword
 tele-testword-testword-testword-testword-testword-testword-testword
           </div>
           <div
-            class="c12 no-print"
+            class="c15 c6 no-print"
           >
             <button
-              class="c13 c14"
+              class="c16 c17"
               kind="primary"
             >
               COPY
             </button>
             <button
-              class="c15 c14"
+              class="c18 c17"
               kind="primary"
             >
               PRINT
@@ -368,12 +364,12 @@ tele-testword-testword-testword-testword-testword-testword-testword
           </div>
         </div>
         <div
-          class="c7 print-only"
+          class="c10 print-only"
         >
           Created: Fri Aug 30 2019 11:00:00 GMT+0000 (Coordinated Universal Time)
         </div>
         <button
-          class="c16 no-print"
+          class="c19 no-print"
           kind="primary"
           width="100%"
         >
@@ -382,33 +378,33 @@ tele-testword-testword-testword-testword-testword-testword-testword
       </div>
     </div>
     <div
-      class="c17"
+      class="c20 c6 c21"
     >
       <div
-        class="c18"
+        class="c22"
       >
         <div
-          class="c19"
+          class="c23"
         >
           Why do I need these codes?
         </div>
         <div
-          class="c20"
+          class="c24"
           color="text.slightlyMuted"
         >
           Use them in the event of losing your password or two-factor device.
         </div>
       </div>
       <div
-        class="c18"
+        class="c22"
       >
         <div
-          class="c19"
+          class="c23"
         >
           How long do the codes last for?
         </div>
         <div
-          class="c20"
+          class="c24"
           color="text.slightlyMuted"
         >
           Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
@@ -420,21 +416,60 @@ tele-testword-testword-testword-testword-testword-testword-testword
 `;
 
 exports[`render correct dialog after resetting account 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+}
+
+.c2 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.c5 {
+  box-sizing: border-box;
+  min-width: 584px;
+  padding: 32px;
+  background-color: #222C59;
+  flex: 4;
+}
+
+.c7 {
   box-sizing: border-box;
   margin-bottom: 32px;
 }
 
-.c8 {
+.c12 {
   box-sizing: border-box;
+  padding: 8px;
+  padding-bottom: 24px;
+  padding-left: 16px;
+  background-color: #0C143D;
+  border-radius: 8px;
 }
 
-.c18 {
+.c15 {
+  box-sizing: border-box;
+  margin-left: 8px;
+}
+
+.c20 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  flex: 2;
+}
+
+.c22 {
   box-sizing: border-box;
   margin-bottom: 24px;
 }
 
-.c13 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -460,22 +495,22 @@ exports[`render correct dialog after resetting account 1`] = `
   padding: 0px 24px;
 }
 
-.c13:hover,
-.c13:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c13:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c13:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -502,22 +537,22 @@ exports[`render correct dialog after resetting account 1`] = `
   margin-top: 8px;
 }
 
-.c15:hover,
-.c15:focus {
+.c18:hover,
+.c18:focus {
   background: #B29DFF;
 }
 
-.c15:active {
+.c18:active {
   background: #C5B6FF;
 }
 
-.c15:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c16 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -545,59 +580,52 @@ exports[`render correct dialog after resetting account 1`] = `
   width: 100%;
 }
 
-.c16:hover,
-.c16:focus {
+.c19:hover,
+.c19:focus {
   background: #B29DFF;
 }
 
-.c16:active {
+.c19:active {
   background: #C5B6FF;
 }
 
-.c16:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c2 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  background-color: #222C59;
-  border-radius: 8px;
-  overflow: hidden;
+.c4 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
-.c5 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
   color: #FFFFFF;
 }
 
-.c6 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 4px;
 }
 
-.c7 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c9 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -606,14 +634,14 @@ exports[`render correct dialog after resetting account 1`] = `
   margin-bottom: 8px;
 }
 
-.c11 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-top: 8px;
 }
 
-.c19 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -623,63 +651,33 @@ exports[`render correct dialog after resetting account 1`] = `
   margin-bottom: 8px;
 }
 
-.c20 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   color: rgba(255,255,255,0.72);
 }
 
-.c1 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  min-width: 584px;
-  margin-left: auto;
-  margin-right: auto;
-  background-color: levels.surface;
-  border-radius: 8px;
-  overflow: hidden;
+.c3 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c3 {
-  box-sizing: border-box;
-  min-width: 584px;
-  padding: 32px;
-  background-color: #222C59;
-  flex: 4;
+.c6 {
   display: flex;
   flex-direction: column;
 }
 
-.c10 {
-  box-sizing: border-box;
-  padding: 8px;
-  padding-bottom: 24px;
-  padding-left: 16px;
-  background-color: #0C143D;
-  border-radius: 8px;
+.c13 {
   display: flex;
   justify-content: space-between;
 }
 
-.c12 {
-  box-sizing: border-box;
-  margin-left: 8px;
-  display: flex;
-  flex-direction: column;
-}
-
-.c0 {
-  box-sizing: border-box;
-}
-
-.c0 .print-only {
+.c1 .print-only {
   visibility: hidden;
 }
 
-.c14 {
+.c17 {
   max-width: 48px;
   width: 100%;
   padding: 4px 8px;
@@ -687,80 +685,74 @@ exports[`render correct dialog after resetting account 1`] = `
   font-size: 10px;
 }
 
-.c17 {
-  box-sizing: border-box;
-  min-width: 384px;
-  padding: 32px;
-  flex: 2;
-  display: flex;
-  flex-direction: column;
+.c21 {
   background: rgba(255,255,255,0.07);
 }
 
 @media print {
-  .c0 {
+  .c1 {
     overflow: hidden;
   }
 
-  .c0 .print,
-  .c0 .print-only {
+  .c1 .print,
+  .c1 .print-only {
     visibility: visible;
   }
 
-  .c0 .no-print {
+  .c1 .no-print {
     visibility: hidden;
   }
 
-  .c0 .codes {
+  .c1 .codes {
     font-size: 16px;
   }
 }
 
 <div
-  class="c0"
+  class="c0 c1"
 >
   <div
-    class="c1 sc-AxirZ c2 no-print"
+    class="c2 c3 sc-gEvEer c2 c4 no-print"
     overflow="hidden"
   >
     <div
-      class="c3 print"
+      class="c5 c6 print"
     >
       <div
-        class="c4"
+        class="c7"
       >
         <div
-          class="c5"
+          class="c8"
           color="text.main"
         >
           New Backup & Recovery Codes
         </div>
         <div
-          class="c6"
+          class="c9"
         >
           Please save these account recovery codes in a safe offline place.
         </div>
         <div
-          class="c7"
+          class="c10"
         >
           You can use each code once if you lose your second factor authenticator or password.
         </div>
       </div>
       <div
-        class="c8"
+        class="c0"
       >
         <div
-          class="c9"
+          class="c11"
         >
           Recovery Codes (
           3
            Total)
         </div>
         <div
-          class="c10"
+          class="c12 c13"
         >
           <div
-            class="c11 codes"
+            class="c14 codes"
             style="white-space: pre-wrap;"
           >
             tele-testword-testword-testword-testword-testword-testword-testword
@@ -770,16 +762,16 @@ tele-testword-testword-testword-testword-testword-testword-testword-testword
 tele-testword-testword-testword-testword-testword-testword-testword
           </div>
           <div
-            class="c12 no-print"
+            class="c15 c6 no-print"
           >
             <button
-              class="c13 c14"
+              class="c16 c17"
               kind="primary"
             >
               COPY
             </button>
             <button
-              class="c15 c14"
+              class="c18 c17"
               kind="primary"
             >
               PRINT
@@ -787,12 +779,12 @@ tele-testword-testword-testword-testword-testword-testword-testword
           </div>
         </div>
         <div
-          class="c7 print-only"
+          class="c10 print-only"
         >
           Created: Fri Aug 30 2019 11:00:00 GMT+0000 (Coordinated Universal Time)
         </div>
         <button
-          class="c16 no-print"
+          class="c19 no-print"
           kind="primary"
           width="100%"
         >
@@ -801,48 +793,48 @@ tele-testword-testword-testword-testword-testword-testword-testword
       </div>
     </div>
     <div
-      class="c17"
+      class="c20 c6 c21"
     >
       <div
-        class="c18"
+        class="c22"
       >
         <div
-          class="c19"
+          class="c23"
         >
           Why do I need these codes?
         </div>
         <div
-          class="c20"
+          class="c24"
           color="text.slightlyMuted"
         >
           Use them in the event of losing your password or two-factor device.
         </div>
       </div>
       <div
-        class="c18"
+        class="c22"
       >
         <div
-          class="c19"
+          class="c23"
         >
           How long do the codes last for?
         </div>
         <div
-          class="c20"
+          class="c24"
           color="text.slightlyMuted"
         >
           Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
         </div>
       </div>
       <div
-        class="c8"
+        class="c0"
       >
         <div
-          class="c19"
+          class="c23"
         >
           What about my old codes?
         </div>
         <div
-          class="c20"
+          class="c24"
           color="text.slightlyMuted"
         >
           Your old recovery codes are no longer valid, please replace them with these new ones.

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package conntest
 
@@ -264,11 +266,8 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 		// For this reason, messages are not shared between this connection test and
 		// `kubernetes_service` to force detection of incompatible messages.
 		//
-		// TODO(tigrato): Remove this check once we no longer support Teleport versions bellow 12.
-		// DELETE IN 14.0.0
-		noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
 		noConfiguredGroups := strings.Contains(kubeErr.ErrStatus.Message, "Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set.")
-		if noAssignedGroups || noConfiguredGroups {
+		if noConfiguredGroups {
 			message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
 			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 

@@ -1,28 +1,28 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
-
-// pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
-func pushCheckoutCommands(b buildType) []string {
-	return pushCheckoutCommandsWithPath(b, "/go/src/github.com/gravitational/teleport")
-}
 
 func pushCheckoutCommandsWithPath(b buildType, checkoutPath string) []string {
 	var commands []string
@@ -41,67 +41,27 @@ func pushCheckoutCommandsWithPath(b buildType, checkoutPath string) []string {
 	return commands
 }
 
-// pushBuildCommands generates a list of commands for Drone to build an artifact as part of a push build
-func pushBuildCommands(b buildType) []string {
-	commands := []string{
-		`apk add --no-cache make`,
-		`chown -R $UID:$GID /go`,
-		`cd /go/src/github.com/gravitational/teleport`,
-	}
-	if b.fips || b.hasTeleportConnect() {
-		commands = append(commands,
-			`export VERSION=$(cat /go/.version.txt)`,
-		)
-	}
-	commands = append(commands,
-		fmt.Sprintf(`make -C build.assets %s`, releaseMakefileTarget(b)),
-	)
-
-	if b.hasTeleportConnect() {
-		commands = append(commands, `make -C build.assets teleterm`)
-	}
-	return commands
-}
-
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
-	for _, arch := range []string{"amd64", "386", "arm"} {
-		for _, fips := range []bool{false, true} {
-			if arch != "amd64" && fips {
-				// FIPS mode only supported on linux/amd64
-				continue
-			}
-			ps = append(ps, pushPipeline(buildType{os: "linux", arch: arch, fips: fips}))
-		}
-	}
 
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", arch: "arm64"},
-		trigger:      triggerPush,
-		pipelineName: "push-build-linux-arm64",
-		workflows: []ghaWorkflow{
-			{
-				name:              "release-linux-arm64.yml",
-				timeout:           150 * time.Minute,
-				slackOnError:      true,
-				srcRefVar:         "DRONE_COMMIT",
-				ref:               "${DRONE_BRANCH}",
-				shouldTagWorkflow: true,
-				inputs:            map[string]string{"upload-artifacts": "false"},
-			},
-		},
-	}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: false, buildConnect: true}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: true}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "386", fips: false}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm64", fips: false}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm", fips: false}))
+	ps = append(ps, ghaWindowsPushPipeline())
 
-	// Only amd64 Windows is supported for now.
-	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
-
-	ps = append(ps, windowsPushPipeline())
 	return ps
 }
 
-// pushPipeline generates a push pipeline for a given combination of os/arch/FIPS
-func pushPipeline(b buildType) pipeline {
+// ghaLinuxPushPipeline generates a push pipeline for a given combination of
+// os/arch/FIPS that calls a GitHub Actions workflow to perform the build on
+// a Linux buildbox. This dispatches to the release-linux.yaml workflow in
+// the teleport.e repo, which is a little more generic than the
+// release-linux-arm64.yml workflow used for the arm64 build. The two will
+// be unified shortly.
+func ghaLinuxPushPipeline(b buildType) pipeline {
 	if b.os == "" {
 		panic("b.os must be set")
 	}
@@ -110,54 +70,28 @@ func pushPipeline(b buildType) pipeline {
 	}
 
 	pipelineName := fmt.Sprintf("push-build-%s-%s", b.os, b.arch)
-	pushEnvironment := map[string]value{
-		"UID":     {raw: "1000"},
-		"GID":     {raw: "1000"},
-		"GOCACHE": {raw: "/go/cache"},
-		"GOPATH":  {raw: "/go"},
-		"OS":      {raw: b.os},
-		"ARCH":    {raw: b.arch},
-	}
 	if b.fips {
 		pipelineName += "-fips"
-		pushEnvironment["FIPS"] = value{raw: "yes"}
 	}
-
-	p := newKubePipeline(pipelineName)
-	p.Environment = map[string]value{
-		"BUILDBOX_VERSION": buildboxVersion,
-		"RUNTIME":          goRuntime,
-		"UID":              {raw: "1000"},
-		"GID":              {raw: "1000"},
-	}
-	p.Trigger = triggerPush
-	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeDocker, volumeDockerConfig}
-	p.Services = []service{
-		dockerService(),
-	}
-	p.Steps = []step{
-		{
-			Name:  "Check out code",
-			Image: "docker:git",
-			Pull:  "if-not-exists",
-			Environment: map[string]value{
-				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
-			},
-			Commands: pushCheckoutCommands(b),
+	wf := ghaWorkflow{
+		name:              "release-linux.yaml",
+		timeout:           150 * time.Minute,
+		slackOnError:      true,
+		srcRefVar:         "DRONE_COMMIT",
+		ref:               "${DRONE_BRANCH}",
+		shouldTagWorkflow: true,
+		inputs: map[string]string{
+			"release-target": releaseMakefileTarget(b),
+			"build-connect":  strconv.FormatBool(b.buildConnect),
 		},
-		waitForDockerStep(),
-		{
-			Name:        "Build artifacts",
-			Image:       "docker",
-			Pull:        "if-not-exists",
-			Environment: pushEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
-			Commands:    pushBuildCommands(b),
-		},
-		sendErrorToSlackStep(),
 	}
-	return p
+	bt := ghaBuildType{
+		buildType:    buildType{os: b.os, arch: b.arch},
+		trigger:      triggerPush,
+		pipelineName: pipelineName,
+		workflows:    []ghaWorkflow{wf},
+	}
+	return ghaBuildPipeline(bt)
 }
 
 func sendErrorToSlackStep() step {

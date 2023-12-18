@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package joinserver
 
@@ -33,7 +35,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 type mockJoinServiceClient struct {
@@ -73,8 +76,8 @@ func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerI
 func newGRPCServer(t *testing.T, opts ...grpc.ServerOption) (*grpc.Server, *bufconn.Listener) {
 	lis := bufconn.Listen(1024)
 	opts = append(opts,
-		grpc.ChainUnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
-		grpc.ChainStreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 	s := grpc.NewServer(opts...)
 	return s, lis
@@ -171,16 +174,18 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 		certs                *proto.Certs
 	}{
 		{
-			desc:              "pass case",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar")},
-			certs:             &proto.Certs{SSH: []byte("baz")},
+			desc:      "pass case",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar"),
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			certs: &proto.Certs{SSH: []byte("baz")},
 		},
 		{
-			desc:              "auth error",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar")},
-			authErr:           trace.AccessDenied("test auth error"),
+			desc:      "auth error",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingIAMMethodRequest{StsIdentityRequest: []byte("bar"),
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			authErr: trace.AccessDenied("test auth error"),
 		},
 		{
 			desc:                 "challenge response error",
@@ -221,8 +226,10 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 					require.NoError(t, err)
 					// client should get the certs from auth
 					require.Equal(t, tc.certs, certs)
-					// auth should get the challenge response from client
-					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
+					// auth should get the challenge response from client with remote addr set to connection src addr
+					expectedResponse := tc.challengeResponse
+					expectedResponse.RegisterUsingTokenRequest.RemoteAddr = "bufconn"
+					require.Equal(t, expectedResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
 				})
 			}
 		})
@@ -242,16 +249,18 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 		certs                *proto.Certs
 	}{
 		{
-			desc:              "pass case",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
-			certs:             &proto.Certs{SSH: []byte("qux")},
+			desc:      "pass case",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz",
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			certs: &proto.Certs{SSH: []byte("qux")},
 		},
 		{
-			desc:              "auth error",
-			challenge:         "foo",
-			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
-			authErr:           trace.AccessDenied("test auth error"),
+			desc:      "auth error",
+			challenge: "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz",
+				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{}},
+			authErr: trace.AccessDenied("test auth error"),
 		},
 		{
 			desc:                 "challenge response error",
@@ -285,7 +294,9 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 					}
 					require.NoError(t, err)
 					require.Equal(t, tc.certs, certs)
-					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
+					expectedResponse := tc.challengeResponse
+					expectedResponse.RegisterUsingTokenRequest.RemoteAddr = "bufconn"
+					require.Equal(t, expectedResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
 				})
 			}
 		})

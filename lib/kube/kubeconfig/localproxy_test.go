@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package kubeconfig
 
@@ -50,6 +54,7 @@ func TestLocalProxy(t *testing.T) {
 		KubeClusters:        []string{"kube2"},
 		Credentials:         creds,
 		Exec:                exec,
+		SelectCluster:       "kube2",
 	}, false))
 	require.NoError(t, Update(kubeconfigPath, Values{
 		TeleportClusterName: leafClusterName,
@@ -86,6 +91,63 @@ func TestLocalProxy(t *testing.T) {
 		}, clusters)
 	})
 
+	t.Run("FindTeleportClusterForLocalProxy", func(t *testing.T) {
+		inputConfig := configAfterLogins.DeepCopy()
+
+		// Simulate a scenario that kube3 is already pointing to a local proxy
+		// through ProxyURL.
+		inputConfig.Clusters[leafClusterName].ProxyURL = "https://localhost:8443"
+
+		tests := []struct {
+			name          string
+			selectContext string
+			checkResult   require.BoolAssertionFunc
+			wantCluster   LocalProxyCluster
+		}{
+			{
+				name:          "not Teleport cluster",
+				selectContext: "dev",
+				checkResult:   require.False,
+			},
+			{
+				name:          "context not found",
+				selectContext: "not-found",
+				checkResult:   require.False,
+			},
+			{
+				name:          "find Teleport cluster by context name",
+				selectContext: rootClusterName + "-kube1",
+				checkResult:   require.True,
+				wantCluster: LocalProxyCluster{
+					TeleportCluster: rootClusterName,
+					KubeCluster:     "kube1",
+				},
+			},
+			{
+				name:          "find Teleport cluster by current context",
+				selectContext: "",
+				checkResult:   require.True,
+				wantCluster: LocalProxyCluster{
+					TeleportCluster: rootClusterName,
+					KubeCluster:     "kube2",
+				},
+			},
+			{
+				name:          "skip local proxy config",
+				selectContext: leafClusterName + "-kube3",
+				checkResult:   require.False,
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				cluster, found := FindTeleportClusterForLocalProxy(inputConfig, rootKubeClusterAddr, test.selectContext)
+				test.checkResult(t, found)
+				require.Equal(t, test.wantCluster, cluster)
+			})
+		}
+	})
+
 	t.Run("CreateLocalProxyConfig", func(t *testing.T) {
 		caData := []byte("CAData")
 		clientKeyData := []byte("clientKeyData")
@@ -103,8 +165,9 @@ func TestLocalProxy(t *testing.T) {
 			}},
 		}
 
-		newConfig := CreateLocalProxyConfig(&initialConfig, values)
-		err := Save(kubeconfigPath, *newConfig)
+		newConfig, err := CreateLocalProxyConfig(&initialConfig, values)
+		require.NoError(t, err)
+		err = Save(kubeconfigPath, *newConfig)
 		require.NoError(t, err)
 
 		generatedConfig, err := Load(kubeconfigPath)

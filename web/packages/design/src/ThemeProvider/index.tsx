@@ -1,58 +1,83 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
+  ThemeProvider as StyledThemeProvider,
 } from 'styled-components';
 
-import storage, { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
-import { darkTheme, lightTheme } from '../theme';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
+import cfg from 'teleport/config';
+
+import { darkTheme, lightTheme, bblpTheme } from '../theme';
 
 import { GlobalStyle } from './globals';
 
-import type { ThemeOption } from '../theme';
+function themePreferenceToTheme(themePreference: ThemePreference) {
+  return themePreference === ThemePreference.Light ? lightTheme : darkTheme;
+}
 
 const ThemeProvider = props => {
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    storageService.getThemePreference()
+  );
+
   useEffect(() => {
-    storage.subscribe(receiveMessage);
+    storageService.subscribe(receiveMessage);
 
     function receiveMessage(event) {
       const { key, newValue } = event;
-      if (key === KeysEnum.THEME && newValue) {
-        setThemeOption(newValue);
+
+      if (!newValue || key !== KeysEnum.USER_PREFERENCES) {
+        return;
+      }
+
+      const preferences = JSON.parse(newValue);
+      if (preferences.theme !== themePreference) {
+        setThemePreference(preferences.theme);
       }
     }
 
     // Cleanup on unmount
     return function unsubscribe() {
-      storage.unsubscribe(receiveMessage);
+      storageService.unsubscribe(receiveMessage);
     };
-  }, []);
+  }, [themePreference]);
 
-  const [themeOption, setThemeOption] = useState<ThemeOption>(
-    storage.getThemeOption()
-  );
+  const customThemes = {
+    bblp: bblpTheme,
+  };
 
-  const theme = themeOption === 'dark' ? darkTheme : lightTheme;
+  // If no props.theme is defined, use the custom theme instead of the user preference theme.
+  let theme;
+  if (props.theme) {
+    theme = props.theme;
+  } else if (customThemes[cfg.customTheme]) {
+    theme = customThemes[cfg.customTheme];
+  } else {
+    theme = themePreferenceToTheme(themePreference);
+  }
 
   return (
-    <StyledThemeProvider theme={props.theme || theme}>
+    <StyledThemeProvider theme={theme}>
       <StyleSheetManager disableVendorPrefixes>
         <React.Fragment>
           <GlobalStyle />

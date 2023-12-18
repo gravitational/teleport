@@ -18,8 +18,10 @@ func main() {
 		"port=1234 ",
 		"dbname=example ",
 		"user=alice ",
+		// The next four options should be omitted if the local proxy has been
+		// placed in "authenticated tunnel" mode.
 		"sslmode=verify-full ",
-		"sslrootcert=/opt/machine-id/teleport-database-ca.crt ",
+		"sslrootcert=/opt/machine-id/teleport-host-ca.crt ",
 		"sslkey=/opt/machine-id/key ",
 		"sslcert=/opt/machine-id/tlscert ",
 	))

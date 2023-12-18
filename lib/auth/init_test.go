@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -30,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
@@ -43,8 +46,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -73,10 +77,10 @@ func TestReadIdentity(t *testing.T) {
 
 	id, err := ReadSSHIdentityFromKeyPair(priv, cert)
 	require.NoError(t, err)
-	require.Equal(t, id.ClusterName, "example.com")
-	require.Equal(t, id.ID, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode})
-	require.Equal(t, id.CertBytes, cert)
-	require.Equal(t, id.KeyBytes, priv)
+	require.Equal(t, "example.com", id.ClusterName)
+	require.Equal(t, IdentityID{HostUUID: "id1.example.com", Role: types.RoleNode}, id.ID)
+	require.Equal(t, cert, id.CertBytes)
+	require.Equal(t, priv, id.KeyBytes)
 
 	// test TTL by converting the generated cert to text -> back and making sure ExpireAfter is valid
 	ttl := 10 * time.Second
@@ -161,7 +165,7 @@ type testDynamicallyConfigurableParams struct {
 
 func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurableParams) {
 	initAuthServer := func(t *testing.T, conf InitConfig) *Server {
-		authServer, err := Init(conf)
+		authServer, err := Init(context.Background(), conf)
 		require.NoError(t, err)
 		t.Cleanup(func() { authServer.Close() })
 		return authServer
@@ -400,29 +404,29 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
 	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
-	require.NotEqual(t, clusterID, "")
+	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(conf)
+	authServer, err = Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
 	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
-	require.Equal(t, cc.GetClusterID(), clusterID)
+	require.Equal(t, clusterID, cc.GetClusterID())
 }
 
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -433,7 +437,7 @@ func TestClusterName(t *testing.T) {
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
-	authServer, err = Init(newConfig)
+	authServer, err = Init(context.Background(), newConfig)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -443,13 +447,22 @@ func TestClusterName(t *testing.T) {
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
+func keysIn[K comparable, V any](m map[K]V) []K {
+	result := make([]K, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
+}
+
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
-	roles := []types.Role{
-		services.NewPresetEditorRole(),
-		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole(),
+
+	presetRoleNames := []string{
+		teleport.PresetEditorRoleName,
+		teleport.PresetAccessRoleName,
+		teleport.PresetAuditorRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -457,16 +470,16 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresets(ctx, as)
+		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
-		for _, role := range roles {
-			_, err := as.GetRole(ctx, role.GetName())
+		for _, role := range presetRoleNames {
+			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
 	})
@@ -479,15 +492,15 @@ func TestPresets(t *testing.T) {
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
-		err := as.CreateRole(ctx, access)
+		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
-		for _, role := range roles {
-			_, err := as.GetRole(ctx, role.GetName())
+		for _, role := range presetRoleNames {
+			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
 
@@ -505,9 +518,9 @@ func TestPresets(t *testing.T) {
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
 
-		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
+		// Create a new set of rules based on the Editor Role, excluding the ConnectionDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
-		outdatedRules := []types.Rule{}
+		var outdatedRules []types.Rule
 		for _, r := range rules {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 				continue
@@ -515,17 +528,17 @@ func TestPresets(t *testing.T) {
 			outdatedRules = append(outdatedRules, r)
 		}
 		editorRole.SetRules(types.Allow, outdatedRules)
-		err := as.CreateRole(ctx, editorRole)
+		editorRole, err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
 		// Set up an old Access Role.
 		// Remove the new DatabaseServiceLabels default
 		accessRole := services.NewPresetAccessRole()
 		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
-		err = as.CreateRole(ctx, accessRole)
+		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -560,7 +573,7 @@ func TestPresets(t *testing.T) {
 
 		// Create a new set of rules based on the Editor Role,
 		// setting a deny rule for a default allow rule
-		outdateAllowRules := []types.Rule{}
+		var outdateAllowRules []types.Rule
 		for _, r := range allowRules {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 				continue
@@ -575,7 +588,7 @@ func TestPresets(t *testing.T) {
 		denyRules = append(denyRules, denyConnectionDiagnosticRule)
 		editorRole.SetRules(types.Deny, denyRules)
 
-		err := as.CreateRole(ctx, editorRole)
+		editorRole, err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
 		// Set up a changed Access Role
@@ -585,11 +598,11 @@ func TestPresets(t *testing.T) {
 		// Explicitly deny DatabaseServiceLabels
 		accessRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
 
-		err = as.CreateRole(ctx, accessRole)
+		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -613,34 +626,106 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 3
+	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
+		// test state
+		ctx := context.Background()
+		// mu protects created resource maps
+		var mu sync.Mutex
+		createdSystemRoles := make(map[string]types.Role)
+		createdPresets := make(map[string]types.Role)
 
-		roleManager := &mockRoleManager{
-			roles: make(map[string]types.Role, presetRoleCount),
+		//
+		// Test #1 - populating an empty cluster
+		//
+		roleManager := newMockRoleManager(t)
+
+		// EXPECT that non-system resources will be created once
+		// and once only.
+		roleManager.
+			On("CreateRole", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				r := args[1].(types.Role)
+				mu.Lock()
+				defer mu.Unlock()
+				require.Contains(t, expectedPresetRoles, r.GetName())
+				require.NotContains(t, createdPresets, r.GetName())
+				require.False(t, types.IsSystemResource(r))
+				createdPresets[r.GetName()] = r
+			}).
+			Return(func(_ context.Context, r types.Role) (types.Role, error) {
+				return r, nil
+			})
+
+		// EXPECT that any (and ONLY) system resources will be upserted
+		roleManager.
+			On("UpsertRole", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				r := args[1].(types.Role)
+				mu.Lock()
+				defer mu.Unlock()
+				require.True(t, types.IsSystemResource(r))
+				require.Contains(t, expectedSystemRoles, r.GetName())
+				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
+				createdSystemRoles[r.GetName()] = r
+			}).
+			Maybe().
+			Return(func(_ context.Context, r types.Role) (types.Role, error) {
+				return r, nil
+			})
+
+		err := createPresetRoles(ctx, roleManager)
+		require.NoError(t, err)
+		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
+		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
+		roleManager.AssertExpectations(t)
+
+		//
+		// Test #2 - populating an already-populated cluster
+		//
+		roleManager = newMockRoleManager(t)
+
+		// EXPECT that createPresets will try to create all expected
+		// non-system roles
+		roleManager.
+			On("CreateRole", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				mu.Lock()
+				defer mu.Unlock()
+				require.Contains(t, createdPresets, args[1].(types.Role).GetName())
+			}).
+			Return(nil, trace.AlreadyExists("dupe"))
+
+		// EXPECT that any (and ONLY) expected system roles will be
+		// automatically upserted
+		roleManager.
+			On("UpsertRole", mock.Anything, mock.Anything).
+			Run(requireSystemResource(t, 1)).
+			Maybe().
+			Return(func(_ context.Context, r types.Role) (types.Role, error) {
+				return r, nil
+			})
+
+		// EXPECT that all of the roles created in the previous step (and ONLY the
+		// roles created in the previous step will be queried.
+		for name, role := range createdPresets {
+			roleManager.
+				On("GetRole", mock.Anything, name).
+				Return(role, nil)
 		}
 
-		err := createPresets(ctx, roleManager)
+		err = createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
+		roleManager.AssertExpectations(t)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
-		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpected call to GetRole")
-		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+		//
+		// Test #3 - populating an already-populated cluster with updated presets
+		//
+		roleManager = newMockRoleManager(t)
 
-		// Running a second time should return Already Exists, so it fetches the role.
-		// The role was not changed, so it can't call the UpsertRole method.
-		roleManager.ResetCallCounters()
-
-		err = createPresets(ctx, roleManager)
-		require.NoError(t, err)
-
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
-		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
-		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
-
-		// Removing a specific resource which is part of the Default Allow Rules should trigger an UpsertRole call
-		editorRole := roleManager.roles[teleport.PresetEditorRoleName]
-		allowRulesWithoutConnectionDiag := []types.Rule{}
+		// Removing a specific resource which is part of the Default Allow Rules
+		// should trigger an UpsertRole call
+		editorRole := createdPresets[teleport.PresetEditorRoleName]
+		var allowRulesWithoutConnectionDiag []types.Rule
 
 		for _, r := range editorRole.GetRules(types.Allow) {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -649,63 +734,240 @@ func TestPresets(t *testing.T) {
 			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
 		}
 		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
-		err = roleManager.UpsertRole(ctx, editorRole)
-		require.NoError(t, err)
 
-		roleManager.ResetCallCounters()
-		err = createPresets(ctx, roleManager)
-		require.NoError(t, err)
+		// EXPECT that createPresets will try to create all expected
+		// non-system roles
+		remainingPresets := toSet(expectedPresetRoles)
+		roleManager.
+			On("CreateRole", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				mu.Lock()
+				defer mu.Unlock()
+				r := args[1].(types.Role)
+				require.Contains(t, createdPresets, r.GetName())
+				delete(remainingPresets, r.GetName())
+			}).
+			Return(nil, trace.AlreadyExists("dupe"))
 
-		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
-		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
-		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+		// EXPECT that all of the roles created in the first step (and ONLY the
+		// roles created in the first step will be queried.
+		for name, role := range createdPresets {
+			roleManager.
+				On("GetRole", mock.Anything, name).
+				Return(role, nil)
+		}
+
+		// EXPECT that any system roles will be automatically upserted
+		// AND our modified editor resource will be updated using an upsert
+		roleManager.
+			On("UpsertRole", mock.Anything, mock.Anything).
+			Return(func(_ context.Context, r types.Role) (types.Role, error) {
+				if types.IsSystemResource(r) {
+					require.Contains(t, expectedSystemRoles, r.GetName())
+					return r, nil
+				}
+				require.Equal(t, teleport.PresetEditorRoleName, r.GetName())
+				return r, nil
+			})
+
+		err = createPresetRoles(ctx, roleManager)
+		require.NoError(t, err)
+		require.Empty(t, remainingPresets)
+		roleManager.AssertExpectations(t)
+	}
+
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		upsertRoleTest(t, presetRoleNames, nil)
+	})
+
+	t.Run("Enterprise", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+		})
+
+		enterprisePresetRoleNames := append([]string{
+			teleport.PresetGroupAccessRoleName,
+			teleport.PresetRequesterRoleName,
+			teleport.PresetReviewerRoleName,
+			teleport.PresetDeviceAdminRoleName,
+			teleport.PresetDeviceEnrollRoleName,
+			teleport.PresetRequireTrustedDeviceRoleName,
+		}, presetRoleNames...)
+
+		enterpriseSystemRoleNames := []string{
+			teleport.SystemAutomaticAccessApprovalRoleName,
+		}
+
+		enterpriseUsers := []types.User{
+			services.NewSystemAutomaticAccessBotUser(),
+		}
+
+		t.Run("EmptyCluster", func(t *testing.T) {
+			as := newTestAuthServer(ctx, t)
+			clock := clockwork.NewFakeClock()
+			as.SetClock(clock)
+
+			// Run multiple times to simulate starting auth on an
+			// existing cluster and asserting that everything still
+			// returns success
+			for i := 0; i < 2; i++ {
+				err := createPresetRoles(ctx, as)
+				require.NoError(t, err)
+
+				err = createPresetUsers(ctx, as)
+				require.NoError(t, err)
+			}
+
+			// Preset Roles were created
+			for _, role := range append(enterprisePresetRoleNames, enterpriseSystemRoleNames...) {
+				_, err := as.GetRole(ctx, role)
+				require.NoError(t, err)
+			}
+
+			// Preset Users were created
+			for _, user := range enterpriseUsers {
+				_, err := as.GetUser(ctx, user.GetName(), false)
+				require.NoError(t, err)
+			}
+		})
+
+		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+			upsertRoleTest(t, enterprisePresetRoleNames, enterpriseSystemRoleNames)
+		})
+
+		t.Run("System users are always upserted", func(t *testing.T) {
+			ctx := context.Background()
+			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
+
+			// GIVEN a user database...
+			auth := newMockUserManager(t)
+
+			// Set the expectation that all user creations will succeed EXCEPT
+			// for our known system user
+			auth.On("CreateUser", mock.Anything, mock.Anything).
+				Run(requireSystemResource(t, 1)).
+				Maybe().
+				Return(sysUser, nil)
+
+			// All attempts to upsert should succeed, and record the being upserted
+			var upsertedUsers []string
+			auth.On("UpsertUser", mock.Anything, mock.Anything).
+				Run(func(args mock.Arguments) {
+					u := args.Get(1).(types.User)
+					upsertedUsers = append(upsertedUsers, u.GetName())
+				}).
+				Return(sysUser, nil)
+
+			// WHEN I attempt to create the preset users...
+			err := createPresetUsers(ctx, auth)
+
+			// EXPECT that the process succeeds and the system user was upserted
+			require.NoError(t, err)
+			auth.AssertExpectations(t)
+			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
+		})
 	})
 }
 
-type mockRoleManager struct {
-	roles                map[string]types.Role
-	getRoleCallsCount    int
-	createRoleCallsCount int
-	upsertRoleCallsCount int
+type mockUserManager struct {
+	mock.Mock
 }
 
-// ResetCallCounters resets the method call counters.
-func (m *mockRoleManager) ResetCallCounters() {
-	m.getRoleCallsCount = 0
-	m.createRoleCallsCount = 0
-	m.upsertRoleCallsCount = 0
+func newMockUserManager(t *testing.T) *mockUserManager {
+	m := &mockUserManager{}
+	m.Test(t)
+	return m
 }
 
-// GetRole returns role by name.
-func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
-	m.getRoleCallsCount = m.getRoleCallsCount + 1
-
-	role, ok := m.roles[name]
-	if !ok {
-		return nil, trace.NotFound("role not found")
+func (m *mockUserManager) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	type delegateFn = func(context.Context, types.User) (types.User, error)
+	args := m.Called(ctx, user)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(ctx, user)
 	}
-	return role, nil
+	return args.Get(0).(types.User), args.Error(1)
+}
+
+func (m *mockUserManager) GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error) {
+	type delegateFn = func(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	args := m.Called(ctx, username, withSecrets)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(ctx, username, withSecrets)
+	}
+	return args.Get(0).(types.User), args.Error(1)
+}
+
+func (m *mockUserManager) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
+	type delegateFn = func(context.Context, types.User) (types.User, error)
+	args := m.Called(ctx, user)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(ctx, user)
+	}
+	return args.Get(0).(types.User), args.Error(1)
+}
+
+var _ PresetUsers = &mockUserManager{}
+
+type mockRoleManager struct {
+	mock.Mock
+}
+
+var _ PresetRoleManager = &mockRoleManager{}
+
+func newMockRoleManager(t *testing.T) *mockRoleManager {
+	m := &mockRoleManager{}
+	m.Test(t)
+	return m
 }
 
 // CreateRole creates a role.
-func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
-	m.createRoleCallsCount = m.createRoleCallsCount + 1
-
-	_, ok := m.roles[role.GetName()]
-	if ok {
-		return trace.AlreadyExists("role not found")
+func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	type delegateFn = func(context.Context, types.Role) (types.Role, error)
+	args := m.Called(ctx, role)
+	if delegate, ok := args[0].(delegateFn); ok {
+		return delegate(ctx, role)
 	}
-
-	m.roles[role.GetName()] = role
-	return nil
+	if args[0] == nil {
+		return nil, args.Error(1)
+	}
+	return args[0].(types.Role), args.Error(1)
 }
 
-// UpsertRole creates or updates a role and emits a related audit event.
-func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
-	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
-	m.roles[role.GetName()] = role
+func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	type delegateFn = func(context.Context, string) (types.Role, error)
+	args := m.Called(ctx, name)
+	if delegate, ok := args[0].(delegateFn); ok {
+		return delegate(ctx, name)
+	}
+	if args[0] == nil {
+		return nil, args.Error(1)
+	}
+	return args[0].(types.Role), args.Error(1)
+}
 
-	return nil
+func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	type delegateFn = func(context.Context, types.Role) (types.Role, error)
+	args := m.Called(ctx, role)
+	if delegate, ok := args[0].(delegateFn); ok {
+		return delegate(ctx, role)
+	}
+	return args[0].(types.Role), args.Error(1)
+}
+
+func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
+	return func(args mock.Arguments) {
+		argOfInterest := args[argno]
+		require.Implements(t, (*types.Resource)(nil), argOfInterest)
+		require.True(t, types.IsSystemResource(argOfInterest.(types.Resource)))
+	}
+}
+
+func toSet(items []string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, v := range items {
+		result[v] = struct{}{}
+	}
+	return result
 }
 
 func setupConfig(t *testing.T) InitConfig {
@@ -737,6 +999,7 @@ func setupConfig(t *testing.T) InitConfig {
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
+		Tracer: tracing.NoopTracer(teleport.ComponentAuth),
 	}
 }
 
@@ -1012,7 +1275,7 @@ func TestInit_bootstrap(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(cfg)
+			_, err := Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1022,7 +1285,7 @@ const (
 	userYAML = `kind: user
 version: v2
 metadata:
-  name: joe
+  name: myuser
 spec:
   roles: ["admin"]`
 	tokenYAML = `kind: token
@@ -1037,6 +1300,51 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	roleYAML = `kind: role
+version: v7
+metadata:
+  name: admin
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  allow:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']`
+	lockYAML = `
+kind: lock
+version: v2
+metadata:
+  name: b1c785d8-8165-41fc-8dd6-252d534334d3
+spec:
+  created_at: "2023-11-07T18:44:35.361806Z"
+  created_by: Admin
+  target:
+    user: myuser
+`
+	clusterNetworkingConfYAML = `
+kind: cluster_networking_config
+metadata:
+  name: cluster-networking-config
+spec:
+  proxy_listener_mode: 1
+`
+	authPrefYAML = `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2
+`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1044,6 +1352,10 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	role := resourceFromYAML(t, roleYAML).(types.Role)
+	lock := resourceFromYAML(t, lockYAML).(types.Lock)
+	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
+	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
 
 	tests := []struct {
 		name         string
@@ -1053,7 +1365,10 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 		{
 			name: "Apply unsupported resource",
 			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, lock)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
 			},
 			assertError: require.Error,
 		},
@@ -1064,13 +1379,58 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			},
 			assertError: require.NoError,
 		},
+		{
+			name: "Apply User (invalid, missing role)",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+			},
+			assertError: require.Error,
+		},
+		// We test both user+role and role+user to validate that ordering doesn't matter
+		{
+			name: "Apply User+Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Role+User",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply Role",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply ClusterNetworkingConfig",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, clusterNetworkingConfig)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply AuthPreference",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, authPref)
+			},
+			assertError: require.NoError,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(cfg)
+			_, err := Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1090,7 +1450,7 @@ func resourceFromYAML(t *testing.T, value string) types.Resource {
 
 func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
 }
 
@@ -1100,7 +1460,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
@@ -1239,7 +1599,7 @@ func TestIdentityChecker(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
@@ -1330,42 +1690,18 @@ func TestIdentityChecker(t *testing.T) {
 }
 
 func TestInitCreatesCertsIfMissing(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
-	auth, err := Init(conf)
+	auth, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
 		require.NoError(t, err)
 	})
 
-	ctx := context.Background()
 	for _, caType := range types.CertAuthTypes {
 		cert, err := auth.GetCertAuthorities(ctx, caType, false)
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
-}
-
-func TestMigrateDatabaseCA(t *testing.T) {
-	conf := setupConfig(t)
-
-	// Create only HostCA and UserCA. DatabaseCA should be created on Init().
-	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
-	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
-
-	conf.Authorities = []types.CertAuthority{hostCA, userCA}
-
-	// Here is where migration happens.
-	auth, err := Init(conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = auth.Close()
-		require.NoError(t, err)
-	})
-
-	dbCAs, err := auth.GetCertAuthorities(context.Background(), types.DatabaseCA, true)
-	require.NoError(t, err)
-	require.Len(t, dbCAs, 1)
-	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
-	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
 }

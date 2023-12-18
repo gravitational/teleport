@@ -68,6 +68,10 @@ LINUX_SYSTEMD_DIR=/lib/systemd/system
 LINUX_CONFIG_DIR=/etc
 LINUX_DATA_DIR=/var/lib/teleport
 
+# Image containing fpm for building linux packages. Built from gravitational/docker-fpm repo.
+FPM_IMAGE_DEB="public.ecr.aws/gravitational/fpm:debian12-1.15.1-1"
+FPM_IMAGE_RPM="public.ecr.aws/gravitational/fpm:centos8-1.15.1-1"
+
 # extra package information for linux
 MAINTAINER="info@goteleport.com"
 LICENSE="Apache-2.0"
@@ -125,9 +129,9 @@ else
 
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
-        DOCKER_IMAGE="public.ecr.aws/gravitational/fpm:debian8"
+        FPM_IMAGE="${FPM_IMAGE_DEB}"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        DOCKER_IMAGE="public.ecr.aws/gravitational/fpm:centos8"
+        FPM_IMAGE="${FPM_IMAGE_RPM}"
     fi
 fi
 
@@ -243,7 +247,7 @@ else
             # it needs to contain the "Gravitational, Inc" private key and signing key.
             # we also use the rpm-sign/rpmmacros file instead which contains extra directives used for signing.
             EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
-            RPM_SIGN_STANZA="--rpm-sign"
+            RPM_SIGN_STANZA="--rpm-sign --rpm-digest sha256"
         fi
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         PACKAGE_ARCH="${DEB_PACKAGE_ARCH}"
@@ -343,7 +347,7 @@ else
     rm -vf ${OUTPUT_FILENAME}
 
     # build for other platforms
-    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${EXTRA_DOCKER_OPTIONS} ${DOCKER_IMAGE} \
+    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${EXTRA_DOCKER_OPTIONS} ${FPM_IMAGE} \
         fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \

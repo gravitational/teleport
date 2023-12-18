@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package service
 
@@ -33,7 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
@@ -108,7 +112,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
 		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
-		shtl := reversetunnel.NewServerHandlerToListener(reversetunnel.LocalWindowsDesktop)
+		shtl := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalWindowsDesktop)
 		listener = shtl
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
@@ -158,7 +162,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		LockWatcher: lockWatcher,
 		Logger:      log,
 		// Device authorization breaks browser-based access.
-		DisableDeviceAuthorization: true,
+		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			DisableGlobalMode: true,
+			DisableRoleMode:   true,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,12 +227,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
-			StaticHosts: cfg.WindowsDesktop.Hosts,
-			NonADHosts:  cfg.WindowsDesktop.NonADHosts,
+			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
@@ -247,7 +254,26 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			log.Infof("Starting Windows desktop service on %v.", listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
-		err := srv.Serve(listener)
+
+		mux, err := multiplexer.New(multiplexer.Config{
+			Context:             process.ExitContext(),
+			Listener:            listener,
+			PROXYProtocolMode:   multiplexer.PROXYProtocolOff, // Desktop service never should process unsigned PROXY headers.
+			ID:                  teleport.Component(teleport.ComponentWindowsDesktop),
+			CertAuthorityGetter: accessPoint.GetCertAuthority,
+			LocalClusterName:    clusterName,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		go func() {
+			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				mux.Entry.WithError(err).Error("mux encountered err serving")
+			}
+		}()
+
+		err = srv.Serve(mux.TLS())
 		if err != nil {
 			if err == http.ErrServerClosed {
 				return nil

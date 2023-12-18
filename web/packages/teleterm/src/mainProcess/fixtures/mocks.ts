@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { RuntimeSettings, MainProcessClient } from 'teleterm/types';
@@ -20,6 +22,7 @@ import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mo
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
+import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
@@ -32,12 +35,27 @@ export class MockMainProcessClient implements MainProcessClient {
     });
   }
 
+  subscribeToNativeThemeUpdate() {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToAgentUpdate() {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToDeepLinkLaunch() {
+    return { cleanup: () => undefined };
+  }
+
   getRuntimeSettings(): RuntimeSettings {
-    return { ...defaultRuntimeSettings, ...this.runtimeSettings };
+    return makeRuntimeSettings(this.runtimeSettings);
   }
 
   getResolvedChildProcessAddresses = () =>
-    Promise.resolve({ tsh: '', shared: '' });
+    Promise.resolve({
+      tsh: '',
+      shared: '',
+    });
 
   openTerminalContextMenu() {}
 
@@ -46,7 +64,10 @@ export class MockMainProcessClient implements MainProcessClient {
   openTabContextMenu() {}
 
   showFileSaveDialog() {
-    return Promise.resolve({ canceled: false, filePath: '' });
+    return Promise.resolve({
+      canceled: false,
+      filePath: '',
+    });
   }
 
   fileStorage = createMockFileStorage();
@@ -68,18 +89,67 @@ export class MockMainProcessClient implements MainProcessClient {
   async openConfigFile() {
     return '';
   }
+
+  shouldUseDarkColors() {
+    return true;
+  }
+
+  downloadAgent() {
+    return Promise.resolve();
+  }
+
+  createAgentConfigFile() {
+    return Promise.resolve();
+  }
+
+  isAgentConfigFileCreated() {
+    return Promise.resolve(false);
+  }
+
+  openAgentLogsDirectory() {
+    return Promise.resolve();
+  }
+
+  killAgent(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  runAgent(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  getAgentState(): AgentProcessState {
+    return { status: 'not-started' };
+  }
+
+  getAgentLogs(): string {
+    return '';
+  }
+
+  async removeAgentDirectory() {}
+
+  async tryRemoveConnectMyComputerAgentBinary() {}
+
+  signalUserInterfaceReadiness() {}
 }
 
-const defaultRuntimeSettings = {
+export const makeRuntimeSettings = (
+  runtimeSettings?: Partial<RuntimeSettings>
+): RuntimeSettings => ({
   platform: 'darwin' as const,
   dev: true,
+  debug: true,
+  insecure: true,
   userDataDir: '',
+  sessionDataDir: '',
+  tempDataDir: '',
+  agentBinaryPath: '',
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',
+  logsDir: '',
   defaultShell: '',
   tshd: {
-    insecure: true,
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',
@@ -94,5 +164,10 @@ const defaultRuntimeSettings = {
   installationId: '123e4567-e89b-12d3-a456-426614174000',
   arch: 'arm64',
   osVersion: '22.2.0',
+  // Should be kept in sync with the default proxyVersion of makeRootCluster.
   appVersion: '11.1.0',
-};
+  isLocalBuild: runtimeSettings?.appVersion === '1.0.0-dev',
+  username: 'alice',
+  hostname: 'staging-mac-mini',
+  ...runtimeSettings,
+});

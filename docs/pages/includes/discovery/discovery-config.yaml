@@ -7,38 +7,56 @@ discovery_service:
     # managing discovered resources.
     discovery_group: "disc-group"
     aws:
-       # AWS resource types. Valid options are:
-       # ec2 - discovers and registers AWS EC2 instances
-       # eks - discovers and registers AWS EKS clusters
-     - types: ["ec2"]
-       # AWS regions to search for resources from
-       regions: ["us-east-1","us-west-1"]
-       # AWS resource tags to match when registering resources
-       # Optional section: Defaults to "*":"*"
-       tags:
-         "*": "*"
-       # Optional section: install is used to provide parameters to the AWS SSM document.
-       # If the install section isn't provided, the below defaults are used.
-       # Only applicable for EC2 discovery.
-       install:
-         join_params:
-           # token_name is the name of the Teleport invite token to use.
-           # Optional, defaults to: "aws-discovery-iam-token".
-           token_name:  "aws-discovery-iam-token"
-         # script_name is the name of the Teleport install script to use.
-         # Optional, defaults to: "default-installer".
-         script_name: "default-installer"
-       # Optional section: ssm is used to configure which AWS SSM document to use
-       # If the ssm section isnt provided the below defaults are used.
-       ssm:
-         # document_name is the name of the SSM document that should be
-         # executed when installing teleport on matching nodes
-         # Optional, defaults to: "TeleportDiscoveryInstaller".
-         document_name: "TeleportDiscoveryInstaller"
+      # AWS resource types. Valid options are:
+      # 'ec2' - discovers and registers AWS EC2 instances.
+      # 'eks' - discovers and registers AWS EKS clusters.
+      # 'rds' - discovers and registers AWS RDS and Aurora databases.
+      # 'rdsproxy' - discovers and registers AWS RDS Proxy databases.
+      # 'redshift' - discovers and registers AWS Redshift databases.
+      # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
+      # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
+      # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+      # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
+    - types: ["ec2"]
+      # AWS regions to search for resources from
+      regions: ["us-east-1","us-west-1"]
+      # AWS resource tags to match when registering resources
+      # Optional section: Defaults to "*":"*"
+      tags:
+        "*": "*"
+      # Optional AWS role that the Discovery Service will assume to discover
+      # and register AWS-hosted databases and EKS clusters.
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      # Optional AWS external ID that the Discovery Service will use to assume
+      # a role in an external AWS account.
+      external_id: "example-external-id"
+      # Optional section: install is used to provide parameters to the AWS SSM document.
+      # If the install section isn't provided, the below defaults are used.
+      # Only applicable for EC2 discovery.
+      install:
+        join_params:
+          # token_name is the name of the Teleport invite token to use.
+          # Optional, defaults to: "aws-discovery-iam-token".
+          token_name:  "aws-discovery-iam-token"
+        # script_name is the name of the Teleport install script to use.
+        # Optional, defaults to: "default-installer".
+        script_name: "default-installer"
+      # Optional section: ssm is used to configure which AWS SSM document to use
+      # If the ssm section isnt provided the below defaults are used.
+      ssm:
+        # document_name is the name of the SSM document that should be
+        # executed when installing teleport on matching nodes
+        # Optional, defaults to: "TeleportDiscoveryInstaller".
+        document_name: "TeleportDiscoveryInstaller"
     # Matchers for discovering Azure-hosted resources.
     azure:
       # Azure resource types. Valid options are:
       # 'aks' - discovers and registers Azure AKS Kubernetes Clusters.
+      # 'vm' - discovers and registers Azure virtual machines.
+      # 'mysql' - discovers and registers Azure MySQL databases.
+      # 'postgres' - discovers and registers Azure PostgreSQL databases.
+      # 'redis' - discovers and registers Azure Cache for Redis databases.
+      # 'sqlserver' - discovers and registers Azure SQL Server databases.
     - types: ["aks"]
       # Azure regions to search for resources from. Valid options are:
       # '*' - discovers resources in all regions (default).
@@ -55,3 +73,35 @@ discovery_service:
       # Azure resource tag filters used to match resources.
       tags:
         "*": "*"
+    # Matchers for discovering GCP-hosted resources.
+    gcp:
+      # GCP resource types. Valid options are:
+      # 'gke' - discovers and registers GKE Kubernetes clusters.
+      # 'gce' - discovers and registers GCP compute instances.
+      - types: ["gce"]
+        # IDs of GCP projects to search for resources from.
+        project_ids: ["project-id"]
+        # GCP locations to search for resources from. Valid options are:
+        # '*' - discovers resources in all locations.
+        # Any valid GCP region (e.g. "us-west1").
+        # Any valid GCP zone (e.g. "us-west1-b").
+        locations: ["us-east2", "us-west1-b"]
+        # Email addresses of service accounts that instances can join with.
+        # If empty, any service account is allowed.
+        service_accounts: []
+        # GCP resource label filters used to match resources.
+        labels:
+          "*": "*"
+    # Matchers for discovering services inside Kubernetes clusters and exposing them as Teleport apps
+    # When the `kubernetes` value is set, the `discovery_group` parameter is mandatory and should be set to
+    # the name of Kubernetes cluster where the discovery service is running.
+    kubernetes:
+      # Type of services to discover. Currently, only "app" is supported. Default value is `["app"]`
+    - types: ["app"]
+      # List of namespaces of the Kubernetes cluster to search in. Default value is `*` to search all namespaces.
+      namespaces: ["test", "staging"]
+      # List of Kubernetes labels to match when the Discovery service queries Kubernetes cluster services.
+      # Default value is `*`: `*` to match any labels.
+      labels:
+        "purpose": "monitoring"
+        "department": "security"

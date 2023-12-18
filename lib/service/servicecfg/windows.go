@@ -1,21 +1,26 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package servicecfg
 
 import (
 	"crypto/x509"
+	"maps"
 	"regexp"
 
 	"github.com/gravitational/teleport/lib/limiter"
@@ -35,26 +40,37 @@ type WindowsDesktopConfig struct {
 	ShowDesktopWallpaper bool
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
+	// PKIDomain optionally configures a separate Active Directory domain
+	// for PKI operations. If empty, the domain from the LDAP config is used.
+	// This can be useful for cases where PKI is configured in a root domain
+	// but Teleport is used to provide access to users and computers in a child
+	// domain.
+	PKIDomain string
 
 	// Discovery configures automatic desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig
 
-	// Hosts is an optional list of static Windows hosts to expose through this
+	// StaticHosts is an optional list of static Windows hosts to expose through this
 	// service.
-	// Hosts is an optional list of static, AD-connected Windows hosts. This gives users
-	// a way to specify AD-connected hosts that won't be found by the filters
-	// specified in Discovery (or if Discovery is omitted).
-	Hosts []utils.NetAddr
-
-	// NonADHosts is an optional list of static Windows hosts to expose through this
-	// service. These hosts are not part of Active Directory.
-	NonADHosts []utils.NetAddr
+	StaticHosts []WindowsHost
 
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
 	Labels     map[string]string
+}
+
+// WindowsHost is configuration for single Windows desktop host
+type WindowsHost struct {
+	// Name that will be used in the Teleport UI
+	Name string
+	// Address of the remote Windows host
+	Address utils.NetAddr
+	// AD is true if the host is part of the Active Directory domain
+	AD bool
+	// Labels to be applied to the host
+	Labels map[string]string
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
@@ -98,9 +114,7 @@ func (h HostLabelRules) LabelsForHost(host string) map[string]string {
 	result := make(map[string]string)
 	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
-			for k, v := range rule.Labels {
-				result[k] = v
-			}
+			maps.Copy(result, rule.Labels)
 		}
 	}
 

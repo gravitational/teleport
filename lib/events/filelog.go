@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
@@ -35,7 +37,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -165,6 +166,7 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			MetricStoredTrimmedEvents.Inc()
 		default:
 			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
 			l.WithFields(fields).Warnf("Got a event that exceeded max allowed size.")
@@ -210,12 +212,12 @@ type messageSizeTrimmer interface {
 // The only mandatory requirement is a date range (UTC).
 //
 // This function may never return more than 1 MiB of event data.
-func (l *FileLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startAfter string) ([]apievents.AuditEvent, string, error) {
-	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", fromUTC, toUTC, namespace, eventTypes, limit)
-	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startAfter, searchEventsFilter{eventTypes: eventTypes})
+func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	l.Debugf("SearchEvents(%v, %v,  eventType=%v, limit=%v)", req.From, req.To, req.EventTypes, req.Limit)
+	return l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 }
 
-func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
+func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -361,17 +363,17 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	return event.GetID(), nil
 }
 
-func (l *FileLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", fromUTC, toUTC, order, limit, cond)
+func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.From, req.To, req.Order, req.Limit, req.Cond)
 	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent}}
-	if cond != nil {
-		condFn, err := utils.ToFieldsCondition(cond)
+	if req.Cond != nil {
+		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condition = condFn
 	}
-	events, lastKey, err := l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter)
+	events, lastKey, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
 	return events, lastKey, trace.Wrap(err)
 }
 

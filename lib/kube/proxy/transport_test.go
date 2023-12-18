@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -26,7 +28,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -157,12 +159,14 @@ func TestForwarderClusterDialer(t *testing.T) {
 	tests := []struct {
 		name          string
 		dialerCreator func(kubeClusterName string) dialContextFunc
-		want          reversetunnel.DialParams
+		want          reversetunnelclient.DialParams
 	}{
 		{
-			name:          "local site",
-			dialerCreator: f.localClusterDialer,
-			want: reversetunnel.DialParams{
+			name: "local site",
+			dialerCreator: func(kubeClusterName string) dialContextFunc {
+				return f.localClusterDialer(kubeClusterName)
+			},
+			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
 					AddrNetwork: "tcp",
@@ -179,13 +183,13 @@ func TestForwarderClusterDialer(t *testing.T) {
 		{
 			name:          "remote site",
 			dialerCreator: f.remoteClusterDialer,
-			want: reversetunnel.DialParams{
+			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
 					AddrNetwork: "tcp",
 				},
 				To: &utils.NetAddr{
-					Addr:        reversetunnel.LocalKubernetes,
+					Addr:        reversetunnelclient.LocalKubernetes,
 					AddrNetwork: "tcp",
 				},
 				ConnType: types.KubeTunnel,
@@ -204,12 +208,12 @@ func TestForwarderClusterDialer(t *testing.T) {
 }
 
 type fakeReverseTunnel struct {
-	reversetunnel.Server
-	want reversetunnel.DialParams
+	reversetunnelclient.Server
+	want reversetunnelclient.DialParams
 	t    *testing.T
 }
 
-func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnel.RemoteSite, error) {
+func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
 	return &fakeRemoteSiteTunnel{
 		want: f.want,
 		t:    f.t,
@@ -217,12 +221,12 @@ func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnel.RemoteSite, error) 
 }
 
 type fakeRemoteSiteTunnel struct {
-	reversetunnel.RemoteSite
-	want reversetunnel.DialParams
+	reversetunnelclient.RemoteSite
+	want reversetunnelclient.DialParams
 	t    *testing.T
 }
 
-func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnel.DialParams) (net.Conn, error) {
+func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Conn, error) {
 	require.Equal(f.t, f.want, p)
 	return nil, nil
 }

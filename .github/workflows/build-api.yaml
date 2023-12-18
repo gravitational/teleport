@@ -22,7 +22,6 @@ on:
 jobs:
   build:
     name: Build API
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -30,16 +29,14 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           # use the version declared in API's go.mod
           go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
 
-      - name: Init workspace
-        run: go work init . ./api/
-        
       - name: Build
-        run: go build ./api/...
+        run: cd api; go build ./...

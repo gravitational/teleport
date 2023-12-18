@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aws
 
@@ -397,6 +399,93 @@ func TestBuildRoleARN(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, got)
 			require.Equal(t, tt.wantARN, got)
+		})
+	}
+}
+
+func TestIsRoleARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:role/role-name", true},
+		"valid partial arn":   {"role/role-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:user/user-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:role/role-name", false},
+		"invalid partial arn": {"user/user-name", false},
+		"invalid value":       {"role-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsRoleARN(tt.arn))
+		})
+	}
+}
+
+func TestIsUserARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:user/user-name", true},
+		"valid partial arn":   {"user/user-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:role/role-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:user/user-name", false},
+		"invalid partial arn": {"role/role-name", false},
+		"invalid value":       {"user-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsUserARN(tt.arn))
+		})
+	}
+}
+
+func FuzzParseSigV4(f *testing.F) {
+	f.Add("")
+	f.Add("Authorization: AWS4-HMAC-SHA256 " +
+		"Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, " +
+		"SignedHeaders=host;range;x-amz-date, " +
+		"Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024")
+
+	f.Fuzz(func(t *testing.T, str string) {
+		require.NotPanics(t, func() {
+			_, _ = ParseSigV4(str)
+		})
+	})
+}
+
+func TestResourceARN(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		resourceType string
+		partition    string
+		accountID    string
+		resourceName string
+		expected     string
+	}{
+		{
+			name:         "role",
+			resourceType: "role",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyRole",
+			expected:     "arn:aws:iam::123456789012:role/MyRole",
+		},
+		{
+			name:         "policy",
+			resourceType: "policy",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyPolicy",
+			expected:     "arn:aws:iam::123456789012:policy/MyPolicy",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.resourceType {
+			case "role":
+				require.Equal(t, tt.expected, RoleARN(tt.partition, tt.accountID, tt.resourceName))
+			case "policy":
+				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
+			}
 		})
 	}
 }

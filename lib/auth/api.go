@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -37,11 +40,11 @@ type Announcer interface {
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(s types.Server) error
+	UpsertProxy(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(s types.Server) error
+	UpsertAuthServer(ctx context.Context, s types.Server) error
 
 	// UpsertKubernetesServer registers a kubernetes server
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
@@ -86,6 +89,10 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
+
+	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
+	// Returns the device used to solve the challenge (if applicable) and the username.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -188,7 +195,7 @@ type ReadProxyAccessPoint interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
@@ -427,7 +434,7 @@ type ReadKubernetesAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -493,7 +500,7 @@ type ReadAppsAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -560,7 +567,7 @@ type ReadDatabaseAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -627,7 +634,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -696,6 +703,20 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetApps returns all application resources.
+	GetApps(context.Context) ([]types.Application, error)
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
+
+	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
+	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -720,6 +741,21 @@ type DiscoveryAccessPoint interface {
 	UpdateDatabase(ctx context.Context, database types.Database) error
 	// DeleteDatabase deletes a database resource.
 	DeleteDatabase(ctx context.Context, name string) error
+	// UpsertServerInfo upserts a server info resource.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// CreateApp creates a new application resource.
+	CreateApp(context.Context, types.Application) error
+	// UpdateApp updates an existing application resource.
+	UpdateApp(context.Context, types.Application) error
+	// DeleteApp removes the specified application resource.
+	DeleteApp(ctx context.Context, name string) error
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -745,7 +781,10 @@ type ReadOktaAccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
+	// GetUsers returns a list of users with the cluster
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
 	// ListUserGroups returns a paginated list of all user group resources.
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
@@ -762,7 +801,7 @@ type ReadOktaAccessPoint interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
 
-	// GetOktaAssignmen treturns the specified Okta assignment resources.
+	// GetOktaAssignment returns the specified Okta assignment resource.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 
 	// GetApplicationServers returns all registered application servers.
@@ -779,6 +818,15 @@ type OktaAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// CreateUser creates a new user in the cluster
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// UpdateUser updates the given user record
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// DeleteUser deletes the given user from the cluster
+	DeleteUser(ctx context.Context, user string) error
 
 	// CreateUserGroup creates a new user group resource.
 	CreateUserGroup(context.Context, types.UserGroup) error
@@ -888,10 +936,10 @@ type Cache interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetUsers returns a list of local users registered with this domain
-	GetUsers(withSecrets bool) ([]types.User, error)
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -1182,6 +1230,18 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 	}
 }
 
+func (w *DiscoveryWrapper) CreateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.CreateApp(ctx, app)
+}
+
+func (w *DiscoveryWrapper) UpdateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.UpdateApp(ctx, app)
+}
+
+func (w *DiscoveryWrapper) DeleteApp(ctx context.Context, name string) error {
+	return w.NoCache.DeleteApp(ctx, name)
+}
+
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
@@ -1212,6 +1272,21 @@ func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) erro
 	return w.NoCache.DeleteDatabase(ctx, name)
 }
 
+// UpsertServerInfo upserts a server info resource.
+func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	return w.NoCache.UpsertServerInfo(ctx, si)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	return w.NoCache.SubmitUsageEvent(ctx, req)
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
+}
+
 // Close closes all associated resources
 func (w *DiscoveryWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1231,6 +1306,21 @@ func NewOktaWrapper(base OktaAccessPoint, cache ReadOktaAccessPoint) OktaAccessP
 		accessPoint:         base,
 		ReadOktaAccessPoint: cache,
 	}
+}
+
+// CreateUser creates a new user in the cluster
+func (w *OktaWrapper) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	return w.NoCache.CreateUser(ctx, user)
+}
+
+// UpdateUser updates a user in the cluster
+func (w *OktaWrapper) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	return w.NoCache.UpdateUser(ctx, user)
+}
+
+// DeleteUser removes a user from the cluster
+func (w *OktaWrapper) DeleteUser(ctx context.Context, user string) error {
+	return w.NoCache.DeleteUser(ctx, user)
 }
 
 // CreateUserGroup creates a new user group resource.

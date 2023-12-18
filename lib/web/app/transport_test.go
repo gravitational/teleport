@@ -1,31 +1,40 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package app
 
 import (
+	"context"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -139,6 +148,19 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			wantLocation:   "/admin/blah",
 		},
 		{
+			name: "remote app, redirect to app public addr, preserve query params",
+			transportConfig: makeTransportConfig(
+				rootCluster,
+				&tlsca.Identity{RouteToApp: tlsca.RouteToApp{
+					ClusterName: leafCluster,
+					PublicAddr:  "dumper.leaf.teleport.example.com",
+				}},
+				makeAppServer(leafCluster, "dumper")),
+			respStatusCode: 302,
+			respLocation:   "https://dumper.leaf.teleport.example.com:3080/admin/blah?foo=bar&baz=bar",
+			wantLocation:   "/admin/blah?foo=bar&baz=bar",
+		},
+		{
 			name: "canonicalize empty location to /",
 			transportConfig: makeTransportConfig(
 				rootCluster,
@@ -150,6 +172,19 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			respStatusCode: 302,
 			respLocation:   "https://dumper.leaf.teleport.example.com:3080",
 			wantLocation:   "/",
+		},
+		{
+			name: "canonicalize empty location to /, preserve query params",
+			transportConfig: makeTransportConfig(
+				rootCluster,
+				&tlsca.Identity{RouteToApp: tlsca.RouteToApp{
+					ClusterName: leafCluster,
+					PublicAddr:  "dumper.leaf.teleport.example.com",
+				}},
+				makeAppServer(leafCluster, "dumper")),
+			respStatusCode: 302,
+			respLocation:   "https://dumper.leaf.teleport.example.com:3080?foo=bar&baz=bar",
+			wantLocation:   "/?foo=bar&baz=bar",
 		},
 	}
 
@@ -167,5 +202,58 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 
 			require.Equal(t, tt.wantLocation, response.Header.Get("Location"))
 		})
+	}
+}
+
+type fakeTunnel struct {
+	reversetunnelclient.Tunnel
+
+	fakeSite *reversetunnelclient.FakeRemoteSite
+	err      error
+}
+
+func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
+	return f.fakeSite, f.err
+}
+
+func TestTransport_DialContextNoServersAvailable(t *testing.T) {
+	tp := transport{
+		c: &transportConfig{
+			proxyClient: fakeTunnel{
+				err: trace.ConnectionProblem(errors.New(reversetunnelclient.NoApplicationTunnel), ""),
+			},
+			identity: &tlsca.Identity{},
+			servers: []types.AppServer{
+				&types.AppServerV3{},
+				&types.AppServerV3{},
+				&types.AppServerV3{},
+			},
+			log: utils.NewLoggerForTests(),
+		},
+	}
+
+	ctx := context.Background()
+	type dialRes struct {
+		conn net.Conn
+		err  error
+	}
+
+	count := len(tp.c.servers) + 1
+	resC := make(chan dialRes, count)
+
+	for i := 0; i < count; i++ {
+		go func() {
+			conn, err := tp.DialContext(ctx, "", "")
+			resC <- dialRes{
+				conn: conn,
+				err:  err,
+			}
+		}()
+	}
+
+	for i := 0; i < count; i++ {
+		res := <-resC
+		require.Error(t, res.err)
+		require.Nil(t, res.conn)
 	}
 }

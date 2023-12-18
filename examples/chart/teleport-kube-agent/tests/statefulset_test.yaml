@@ -7,8 +7,8 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/stateful.yaml
-    elease:
-      isupgrade: true
+    release:
+      upgrade: true
     asserts:
       - isKind:
           of: StatefulSet
@@ -217,6 +217,37 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should have only one container when no `extraContainers` is set in values
+    template: statefulset.yaml
+    set:
+      extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: statefulset.yaml
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+
   - it: should mount extraVolumes and extraVolumeMounts
     template: statefulset.yaml
     values:
@@ -372,7 +403,7 @@ tests:
   - it: should not add emptyDir for data when using StatefulSet
     template: statefulset.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       unitTestUpgrade: true
     values:
@@ -404,11 +435,11 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
-      isupgrade: true
+      upgrade: true
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates[0].spec
@@ -420,7 +451,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
        # https://github.com/helm/helm/issues/8137
        unitTestUpgrade: true
     release:
@@ -435,9 +466,9 @@ tests:
     values:
       - ../.lint/stateful.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
@@ -455,11 +486,11 @@ tests:
     values:
       - ../.lint/stateful.yaml
     release:
-      isupgrade: true
+      upgrade: true
     set:
       storage:
         requests: 256Mi
-      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
     asserts:
@@ -594,7 +625,7 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-      storage: 
+      storage:
         enabled: false
     asserts:
       - contains:
@@ -624,12 +655,12 @@ tests:
   - it: should generate Statefulset when storage is disabled and mode is a Upgrade
     template: statefulset.yaml
     release:
-      isupgrade: true
+      upgrade: true
     values:
       - ../.lint/stateful.yaml
     set:
-      unitTestUpgrade: false
-      storage: 
+      unitTestUpgrade: true
+      storage:
         enabled: false
     asserts:
       - contains:
@@ -682,14 +713,20 @@ tests:
   - it: should enable maintenance schedule export when updater is enabled
     template: statefulset.yaml
     values:
-      - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/updater.yaml
+    set:
+      teleportVersionOverride: 13.4.5
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: TELEPORT_EXT_UPGRADER
             value: kube
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER_VERSION
+            value: 13.4.5
 
   - it: should set the installation method environment variable
     template: statefulset.yaml
@@ -701,3 +738,21 @@ tests:
           content:
             name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
             value: "true"
+
+  - it: should set the hostAliases when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/host-aliases.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.hostAliases
+          value:
+            - ip: "127.0.0.1"
+              hostnames:
+                - "foo.local"
+                - "bar.local"
+            - ip: "10.1.2.3"
+              hostnames:
+                - "foo.remote"
+                - "bar.remote"

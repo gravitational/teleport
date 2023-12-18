@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package ui
 
@@ -23,9 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -37,8 +39,6 @@ type Cluster struct {
 	LastConnected time.Time `json:"lastConnected"`
 	// Status is the cluster status
 	Status string `json:"status"`
-	// NodeCount is this cluster number of registered servers
-	NodeCount int `json:"nodeCount"`
 	// PublicURL is this cluster public URL (its first available proxy URL),
 	// or possibly empty if no proxies could be loaded.
 	PublicURL string `json:"publicURL"`
@@ -50,7 +50,7 @@ type Cluster struct {
 }
 
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
-func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
+func NewClusters(remoteClusters []reversetunnelclient.RemoteSite) ([]Cluster, error) {
 	clusters := make([]Cluster, 0, len(remoteClusters))
 	for _, site := range remoteClusters {
 		// Other fields such as node count, url, and proxy/auth versions are not set
@@ -87,13 +87,8 @@ func NewClustersFromRemote(remoteClusters []types.RemoteCluster) ([]Cluster, err
 }
 
 // GetClusterDetails retrieves and sets details about a cluster
-func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts ...services.MarshalOption) (*Cluster, error) {
+func GetClusterDetails(ctx context.Context, site reversetunnelclient.RemoteSite, opts ...services.MarshalOption) (*Cluster, error) {
 	clt, err := site.CachingAccessPoint()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,7 +97,7 @@ func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxyHost, proxyVersion, err := services.GuessProxyHostAndVersion(proxies)
+	proxyHost, _, err := services.GuessProxyHostAndVersion(proxies)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -112,9 +107,12 @@ func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts 
 		return nil, trace.Wrap(err)
 	}
 
+	// sort auth servers newest first, so we get the most up to date version
 	authVersion := ""
+	sort.Slice(authServers, func(i, j int) bool {
+		return authServers[i].Expiry().After(authServers[j].Expiry())
+	})
 	if len(authServers) > 0 {
-		// use the first auth server
 		authVersion = authServers[0].GetTeleportVersion()
 	}
 
@@ -122,9 +120,11 @@ func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts 
 		Name:          site.GetName(),
 		LastConnected: site.GetLastConnected(),
 		Status:        site.GetStatus(),
-		NodeCount:     len(nodes),
 		PublicURL:     proxyHost,
 		AuthVersion:   authVersion,
-		ProxyVersion:  proxyVersion,
+
+		// this code runs in the proxy service, so we can safely
+		// use the version embedded in the binary
+		ProxyVersion: teleport.Version,
 	}, nil
 }

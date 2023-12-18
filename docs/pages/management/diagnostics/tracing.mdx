@@ -21,9 +21,6 @@ tracing_service:
    sampling_rate_per_million: 1000000
 ```
 
-Please note that tracing was added in the following versions: 8.3.18, 9.3.15, and 10.1.0. Enabling the above configuration
-on a version prior to the versions with tracing support will result in a failure to parse the config file.
-
 ### Sampling rate
 
 It is important to choose the sampling rate wisely. Sampling at a rate of 100% could have a negative impact on the

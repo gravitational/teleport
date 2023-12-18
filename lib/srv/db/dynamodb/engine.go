@@ -1,20 +1,20 @@
 /*
-
- Copyright 2022 Gravitational, Inc.
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package dynamodb
 
@@ -35,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
@@ -67,9 +68,8 @@ type Engine struct {
 	// RoundTrippers is a cache of RoundTrippers, mapped by service endpoint.
 	// It is not guarded by a mutex, since requests are processed serially.
 	RoundTrippers map[string]http.RoundTripper
-	// GetSigningCredsFn allows to set the function responsible for obtaining STS credentials.
-	// Used in tests to set static AWS credentials and skip API call.
-	GetSigningCredsFn libaws.GetSigningCredentialsFunc
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter libaws.CredentialsGetter
 }
 
 var _ common.Engine = (*Engine)(nil)
@@ -128,6 +128,7 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target DynamoDB server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(e.sessionCtx.Database)
 	err := e.checkAccess(ctx, e.sessionCtx)
 	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
@@ -136,27 +137,36 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
 	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
+		Clock:             e.Clock,
+		Session:           awsSession,
+		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	observe()
+
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req, signer); err != nil {
+		if err := e.process(ctx, req, signer, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -164,7 +174,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService) (err error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
+	msgFromClient.Inc()
+
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
@@ -229,6 +241,8 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	defer resp.Body.Close()
 	responseStatusCode = uint32(resp.StatusCode)
 
+	msgFromServer.Inc()
+
 	return trace.Wrap(e.sendResponse(resp))
 }
 
@@ -288,11 +302,11 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	}
 
 	state := sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		sessionCtx.Database,
-		sessionCtx.DatabaseUser,
-		sessionCtx.DatabaseName,
-	)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     sessionCtx.Database,
+		DatabaseUser: sessionCtx.DatabaseUser,
+		DatabaseName: sessionCtx.DatabaseName,
+	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		state,

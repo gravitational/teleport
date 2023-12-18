@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -62,6 +64,9 @@ const (
 
 	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
 	ProtocolDynamoDB Protocol = "teleport-dynamodb"
+
+	// ProtocolClickhouse is TLS ALPN protocol value used to indicate Clickhouse Protocol.
+	ProtocolClickhouse Protocol = "teleport-clickhouse"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
@@ -167,6 +172,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolOpenSearch, nil
 	case defaults.ProtocolDynamoDB:
 		return ProtocolDynamoDB, nil
+	case defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP:
+		return ProtocolClickhouse, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -188,6 +195,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolElasticsearch,
 		ProtocolOpenSearch,
 		ProtocolDynamoDB,
+		ProtocolClickhouse,
 	}
 
 	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
@@ -208,6 +216,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
+	ProtocolClickhouse,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

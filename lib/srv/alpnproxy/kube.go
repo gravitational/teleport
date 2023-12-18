@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package alpnproxy
 
@@ -20,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/http"
@@ -37,6 +40,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,6 +51,10 @@ import (
 // returning error to the client, indicating that local kube proxy requires user input. It should be short to
 // bring user's attention to the local proxy sooner. It doesn't abort cert reissuing itself.
 const certReissueClientWait = time.Second * 3
+
+// certReissueClientWaitHeadless is used when proxy works in headless mode - since user works in reexeced shell,
+// we give them longer time to perform the headless login flow.
+const certReissueClientWaitHeadless = defaults.HeadlessLoginTimeout
 
 // KubeClientCerts is a map of Kubernetes client certs.
 type KubeClientCerts map[string]tls.Certificate
@@ -66,9 +75,10 @@ type KubeMiddleware struct {
 	// certReissuer is used to reissue a client certificate for a Kubernetes cluster if existing cert expired.
 	certReissuer KubeCertReissuer
 	// Clock specifies the time provider. Will be used to override the time anchor
-	// for TLS certificate verification.
-	// Defaults to real clock if unspecified
+	// for TLS certificate verification. Defaults to real clock if unspecified.
 	clock clockwork.Clock
+	// headless controls whether proxy is working in headless login mode.
+	headless bool
 
 	logger logrus.FieldLogger
 
@@ -80,13 +90,22 @@ type KubeMiddleware struct {
 	certs KubeClientCerts
 }
 
+type KubeMiddlewareConfig struct {
+	Certs        KubeClientCerts
+	CertReissuer KubeCertReissuer
+	Headless     bool
+	Clock        clockwork.Clock
+	Logger       logrus.FieldLogger
+}
+
 // NewKubeMiddleware creates a new KubeMiddleware.
-func NewKubeMiddleware(certs KubeClientCerts, certReissuer KubeCertReissuer, clock clockwork.Clock, logger logrus.FieldLogger) LocalProxyHTTPMiddleware {
+func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 	return &KubeMiddleware{
-		certs:        certs,
-		certReissuer: certReissuer,
-		clock:        clock,
-		logger:       logger,
+		certs:        cfg.Certs,
+		certReissuer: cfg.CertReissuer,
+		headless:     cfg.Headless,
+		clock:        cfg.Clock,
+		logger:       cfg.Logger,
 	}
 }
 
@@ -203,6 +222,10 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 		return nil
 	}
 
+	if m.certReissuer == nil {
+		return trace.BadParameter("can't reissue expired proxy certificate - reissuer is not available")
+	}
+
 	// If certificate has expired we try to reissue it.
 	identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
 	if err != nil {
@@ -228,8 +251,13 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 		return trace.Wrap(ErrUserInputRequired)
 	}
 
+	reissueClientWait := certReissueClientWait
+	if m.headless {
+		reissueClientWait = certReissueClientWaitHeadless
+	}
+
 	select {
-	case <-time.After(certReissueClientWait):
+	case <-time.After(reissueClientWait):
 		return trace.Wrap(ErrUserInputRequired)
 	case err := <-errCh:
 		return trace.Wrap(err)
@@ -270,30 +298,93 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 	return listener, trace.Wrap(err)
 }
 
-// NewKubeForwardProxy creates a forward proxy for kube access.
-func NewKubeForwardProxy(ctx context.Context, listenPort, forwardAddr string) (*ForwardProxy, error) {
-	listenAddr := "localhost:0"
-	if listenPort != "" {
-		listenAddr = "localhost:" + listenPort
-	}
+// KubeForwardProxyConfig is the config for making kube forward proxy.
+type KubeForwardProxyConfig struct {
+	// CloseContext is the close context.
+	CloseContext context.Context
+	// ListenPort is the localhost port to listen.
+	ListenPort string
+	// Listener is the listener for the forward proxy. A listener is created
+	// from ListenPort if Listener is not provided.
+	Listener net.Listener
+	// ForwardAddr is the target address the requests get forwarded to.
+	ForwardAddr string
+}
 
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
+// CheckAndSetDefaults checks and sets default config values.
+func (c *KubeForwardProxyConfig) CheckAndSetDefaults() error {
+	if c.ForwardAddr == "" {
+		return trace.BadParameter("missing forward address")
+	}
+	if c.CloseContext == nil {
+		c.CloseContext = context.Background()
+	}
+	if c.Listener == nil {
+		if c.ListenPort == "" {
+			c.ListenPort = "0"
+		}
+
+		listener, err := net.Listen("tcp", "localhost:"+c.ListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Listener = listener
+	}
+	return nil
+}
+
+// NewKubeForwardProxy creates a forward proxy for kube access.
+func NewKubeForwardProxy(config KubeForwardProxyConfig) (*ForwardProxy, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	fp, err := NewForwardProxy(ForwardProxyConfig{
-		Listener:     listener,
-		CloseContext: ctx,
+		Listener:     config.Listener,
+		CloseContext: config.CloseContext,
 		Handlers: []ConnectRequestHandler{
 			NewForwardToHostHandler(ForwardToHostHandlerConfig{
 				MatchFunc: MatchAllRequests,
-				Host:      forwardAddr,
+				Host:      config.ForwardAddr,
 			}),
 		},
 	})
 	if err != nil {
-		return nil, trace.NewAggregate(listener.Close(), err)
+		return nil, trace.NewAggregate(config.Listener.Close(), err)
 	}
 	return fp, nil
+}
+
+// CreateKubeLocalCAs generate local CAs used for kube local proxy with provided key.
+func CreateKubeLocalCAs(key *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
+	cas := make(map[string]tls.Certificate)
+	for _, teleportCluster := range teleportClusters {
+		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), common.KubeLocalProxyWildcardDomain(teleportCluster))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cas[teleportCluster] = ca
+	}
+	return cas, nil
+}
+
+func createLocalCA(key *keys.PrivateKey, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    dnsNames,
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         time.Until(validUntil),
+	})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	tlsCert, err := keys.X509KeyPair(cert, key.PrivateKeyPEM())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }

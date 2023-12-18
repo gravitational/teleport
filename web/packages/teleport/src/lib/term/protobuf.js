@@ -1,18 +1,20 @@
 /*
-Copyright 2019-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { Buffer } from 'buffer/';
 
@@ -30,6 +32,7 @@ export const MessageTypeEnum = {
   FILE_TRANSFER_REQUEST: 'f',
   FILE_TRANSFER_DECISION: 't',
   WEBAUTHN_CHALLENGE: 'n',
+  LATENCY: 'l',
 };
 
 export const messageFields = {
@@ -56,6 +59,7 @@ export const messageFields = {
       data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
+      challengeResponse: MessageTypeEnum.WEBAUTHN_CHALLENGE.charCodeAt(0),
     },
   },
 };
@@ -73,6 +77,10 @@ export class Protobuf {
     return this.encode(messageFields.type.values.resize, message);
   }
 
+  encodeChallengeResponse(message) {
+    return this.encode(messageFields.type.values.challengeResponse, message);
+  }
+
   encodeFileTransferRequest(message) {
     return this.encode(messageFields.type.values.fileTransferRequest, message);
   }
@@ -83,6 +91,11 @@ export class Protobuf {
 
   encodeRawMessage(message) {
     return this.encode(messageFields.type.values.data, message);
+  }
+
+  encodeCloseMessage() {
+    // Close message has no payload
+    return this.encode(messageFields.type.values.close, '');
   }
 
   encodePayload(buffer, text) {

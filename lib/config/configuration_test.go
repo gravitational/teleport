@@ -1,25 +1,26 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -52,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type testConfigFiles struct {
@@ -206,8 +209,8 @@ func TestSampleConfig(t *testing.T) {
 			require.NoError(t, err)
 
 			// validate a couple of values:
-			require.Equal(t, fc.Global.DataDir, defaults.DataDir)
-			require.Equal(t, fc.Logger.Severity, "INFO")
+			require.Equal(t, defaults.DataDir, fc.Global.DataDir)
+			require.Equal(t, "INFO", fc.Logger.Severity)
 			require.Equal(t, testCase.expectClusterName, fc.Auth.ClusterName)
 			require.Equal(t, testCase.expectLicenseFile, fc.Auth.LicenseFile)
 			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
@@ -219,8 +222,8 @@ func TestSampleConfig(t *testing.T) {
 	}
 }
 
-// TestBooleanParsing tests that boolean options
-// are parsed properly
+// TestBooleanParsing tests that types.Bool and *types.BoolOption are parsed
+// properly
 func TestBooleanParsing(t *testing.T) {
 	testCases := []struct {
 		s string
@@ -240,11 +243,15 @@ func TestBooleanParsing(t *testing.T) {
 		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
+proxy_service:
+  enabled: yes
+  trust_x_forwarded_for: %v
 auth_service:
   enabled: yes
   disconnect_expired_cert: %v
-`, tc.s))))
+`, tc.s, tc.s))))
 		require.NoError(t, err, msg)
+		require.Equal(t, tc.b, conf.Proxy.TrustXForwardedFor.Value(), msg)
 		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
 	}
 }
@@ -356,15 +363,6 @@ func TestConfigReading(t *testing.T) {
 					},
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID:    "externalID123",
-					InstallParams: &InstallParams{
-						JoinParams: JoinParams{
-							TokenName: "aws-discovery-iam-token",
-							Method:    "iam",
-						},
-						SSHDConfig: "/etc/ssh/sshd_config",
-						ScriptName: "default-installer",
-					},
-					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				},
 			},
 			AzureMatchers: []AzureMatcher{
@@ -382,7 +380,7 @@ func TestConfigReading(t *testing.T) {
 				{
 					Types:     []string{"gke"},
 					Locations: []string{"uswest1"},
-					Tags: map[string]apiutils.Strings{
+					Labels: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 					ProjectIDs: []string{"p1", "p2"},
@@ -462,7 +460,16 @@ func TestConfigReading(t *testing.T) {
 			ResourceMatchers: []ResourceMatcher{
 				{
 					Labels: map[string]apiutils.Strings{
-						"*": {"*"},
+						"a": {"b"},
+					},
+				},
+				{
+					Labels: map[string]apiutils.Strings{
+						"c": {"d"},
+					},
+					AWS: ResourceMatcherAWS{
+						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+						ExternalID:    "externalID123",
 					},
 				},
 			},
@@ -536,7 +543,7 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress: "tcp://windows_desktop",
 			},
 			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
-			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+			ADHosts:    apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
 		Tracing: TracingService{
 			EnabledFlag: "yes",
@@ -587,7 +594,7 @@ func TestLabelParsing(t *testing.T) {
 	var err error
 	// empty spec. no errors, no labels
 	err = parseLabelsApply("", &conf)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Nil(t, conf.CmdLabels)
 	require.Nil(t, conf.Labels)
 
@@ -595,7 +602,7 @@ func TestLabelParsing(t *testing.T) {
 	err = parseLabelsApply(`key=value,more="much better"`, &conf)
 	require.NoError(t, err)
 	require.NotNil(t, conf.CmdLabels)
-	require.Len(t, conf.CmdLabels, 0)
+	require.Empty(t, conf.CmdLabels)
 	require.Equal(t, map[string]string{
 		"key":  "value",
 		"more": "much better",
@@ -603,7 +610,7 @@ func TestLabelParsing(t *testing.T) {
 
 	// static labels + command labels
 	err = parseLabelsApply(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, map[string]string{
 		"key":  "value",
 		"more": "much better",
@@ -753,7 +760,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddress.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
-	require.Equal(t, true, cfg.Proxy.IdP.SAMLIdP.Enabled)
+	require.True(t, cfg.Proxy.IdP.SAMLIdP.Enabled)
 	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
@@ -802,11 +809,13 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
 			AllowHeadless:         types.NewBoolOption(true),
+			DefaultSessionTTL:     types.Duration(apidefaults.CertDuration),
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
 					Enabled: types.NewBoolOption(true),
 				},
 			},
+			Okta: &types.OktaOptions{},
 		},
 	}, protocmp.Transform()))
 
@@ -817,8 +826,21 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Databases.ResourceMatchers,
+		[]services.ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{
+					"*": {"*"},
+				},
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+					ExternalID:    "externalID123",
+				},
+			},
+		},
+	))
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
-		[]services.AzureMatcher{
+		[]types.AzureMatcher{
 			{
 				Subscriptions:  []string{"sub1", "sub2"},
 				ResourceGroups: []string{"group1", "group2"},
@@ -839,11 +861,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 		}))
 	require.Empty(t, cmp.Diff(cfg.Databases.AWSMatchers,
-		[]services.AWSMatcher{
+		[]types.AWSMatcher{
 			{
 				Types:   []string{"rds"},
 				Regions: []string{"us-west-1"},
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID: "externalID123",
 				},
@@ -860,7 +882,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 		},
 	))
-	require.Equal(t, cfg.Kube.KubeconfigPath, "/tmp/kubeconfig")
+	require.Equal(t, "/tmp/kubeconfig", cfg.Kube.KubeconfigPath)
 	require.Empty(t, cmp.Diff(cfg.Kube.StaticLabels,
 		map[string]string{
 			"testKey": "testValue",
@@ -868,21 +890,22 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	))
 
 	require.True(t, cfg.Discovery.Enabled)
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
+	require.Equal(t, []string{"eu-central-1"}, cfg.Discovery.AWSMatchers[0].Regions)
+	require.Equal(t, []string{"ec2"}, cfg.Discovery.AWSMatchers[0].Types)
+	require.Equal(t, "arn:aws:iam::123456789012:role/DBDiscoverer", cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN)
+	require.Equal(t, "externalID123", cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID)
+	require.Equal(t, &types.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
-		JoinToken:       defaults.IAMInviteTokenName,
+		JoinToken:       types.IAMInviteTokenName,
 		ScriptName:      "default-installer",
-		SSHDConfig:      defaults.SSHDConfigPath,
-	})
+		SSHDConfig:      types.SSHDConfigPath,
+	}, cfg.Discovery.AWSMatchers[0].Params)
 
 	require.True(t, cfg.Okta.Enabled)
-	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
-	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
+	require.Equal(t, "https://some-endpoint", cfg.Okta.APIEndpoint)
+	require.Equal(t, oktaAPITokenPath, cfg.Okta.APITokenPath)
+	require.Equal(t, time.Second*300, cfg.Okta.SyncPeriod)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -999,7 +1022,7 @@ func TestApplyCustomSessionRecordingConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, cfg.Auth.Enabled)
-	require.Equal(t, cfg.Auth.ClusterName.GetClusterName(), "example.com")
+	require.Equal(t, "example.com", cfg.Auth.ClusterName.GetClusterName())
 	require.Equal(t, types.OriginDefaults, cfg.Auth.Preference.Origin())
 	require.Equal(t, types.OriginDefaults, cfg.Auth.NetworkingConfig.Origin())
 	require.Equal(t, types.OriginConfigFile, cfg.Auth.SessionRecordingConfig.Origin())
@@ -1186,8 +1209,8 @@ func TestBackendDefaults(t *testing.T) {
        type: dir
        path: /var/lib/teleport/mybackend
 `)
-	require.Equal(t, cfg.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, cfg.Auth.StorageConfig.Params[defaults.BackendPath], "/var/lib/teleport/mybackend")
+	require.Equal(t, lite.GetName(), cfg.Auth.StorageConfig.Type)
+	require.Equal(t, "/var/lib/teleport/mybackend", cfg.Auth.StorageConfig.Params[defaults.BackendPath])
 
 	// Kubernetes proxy is disabled by default.
 	cfg = read(`teleport:
@@ -1302,9 +1325,9 @@ func TestParseCachePolicy(t *testing.T) {
 }
 
 func checkStaticConfig(t *testing.T, conf *FileConfig) {
-	require.Equal(t, conf.AuthToken, "xxxyyy")
-	require.Equal(t, conf.AdvertiseIP, "10.10.10.1:3022")
-	require.Equal(t, conf.PIDFile, "/var/run/teleport.pid")
+	require.Equal(t, "xxxyyy", conf.AuthToken)
+	require.Equal(t, "10.10.10.1:3022", conf.AdvertiseIP)
+	require.Equal(t, "/var/run/teleport.pid", conf.PIDFile)
 
 	require.Empty(t, cmp.Diff(conf.Limits, ConnectionLimits{
 		MaxConnections: 90,
@@ -1484,7 +1507,7 @@ func makeConfigFixture() string {
 		{
 			Types:     []string{"gke"},
 			Locations: []string{"uswest1"},
-			Tags: map[string]apiutils.Strings{
+			Labels: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 			ProjectIDs: []string{"p1", "p2"},
@@ -1553,7 +1576,14 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.ResourceMatchers = []ResourceMatcher{
 		{
-			Labels: map[string]apiutils.Strings{"*": {"*"}},
+			Labels: map[string]apiutils.Strings{"a": {"b"}},
+		},
+		{
+			Labels: map[string]apiutils.Strings{"c": {"d"}},
+			AWS: ResourceMatcherAWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+				ExternalID:    "externalID123",
+			},
 		},
 	}
 	conf.Databases.AWSMatchers = []AWSMatcher{
@@ -1619,7 +1649,7 @@ func makeConfigFixture() string {
 			ListenAddress: "tcp://windows_desktop",
 		},
 		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
-		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+		ADHosts:    apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
 	// Tracing service.
@@ -1703,7 +1733,6 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				ReverseTunnelListenAddr: *utils.MustParseAddr("0.0.0.0:3024"),
 				SSHAddr:                 *utils.MustParseAddr("0.0.0.0:3023"),
 				Enabled:                 true,
-				EnableProxyProtocol:     true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: false,
 				},
@@ -1730,9 +1759,8 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
-				Enabled:             true,
-				EnableProxyProtocol: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -1942,13 +1970,13 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 			}},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:         true,
 				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -1979,7 +2007,7 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 				},
 			},
 			want: servicecfg.KubeProxyConfig{
@@ -2033,9 +2061,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:3080"),
-				Enabled:             true,
-				EnableProxyProtocol: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:3080"),
+				Enabled: true,
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -2063,9 +2090,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				},
 			},
 			want: servicecfg.ProxyConfig{
-				Enabled:             true,
-				EnableProxyProtocol: true,
-				WebAddr:             *utils.MustParseAddr("0.0.0.0:9999"),
+				Enabled: true,
+				WebAddr: *utils.MustParseAddr("0.0.0.0:9999"),
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
@@ -2104,7 +2130,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid static host addr",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
+				fc.WindowsDesktop.ADHosts = []string{"badscheme://foo:1:2"}
 			},
 		},
 		{
@@ -2136,7 +2162,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - hosts specified but ldap not specified",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "",
 				}
@@ -2146,7 +2172,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - hosts specified and ldap specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2156,7 +2182,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - no hosts specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.ADHosts = []string{}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "",
 				}
@@ -2166,7 +2192,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - no hosts specified and ldap specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.ADHosts = []string{}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2226,7 +2252,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.EnabledFlag = "yes"
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2302,6 +2328,24 @@ app_service:
       public_addr: "foo.example.com"
 `,
 			inComment: "config is missing internal address",
+			outError:  true,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+  resources:
+  - labels:
+      '*': '*'
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
+`,
+			inComment: "assume_role_arn is not supported",
 			outError:  true,
 		},
 	}
@@ -2450,7 +2494,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -2742,7 +2786,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
 				DatabaseProtocol:     defaults.ProtocolSQLServer,
-				DatabaseURI:          "localhost:1433",
+				DatabaseURI:          "sqlserver.example.com:1433",
 				DatabaseADKeytabFile: "/etc/keytab",
 				DatabaseADDomain:     "EXAMPLE.COM",
 				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
@@ -2750,7 +2794,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			outDatabase: servicecfg.Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
+				URI:      "sqlserver.example.com:1433",
 				TLS: servicecfg.DatabaseTLS{
 					Mode: servicecfg.VerifyFull,
 				},
@@ -2863,10 +2907,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.Contains(t, err.Error(), tt.outError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t,
-					config.Databases.Databases,
-					[]servicecfg.Database{tt.outDatabase},
-				)
+				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 			}
 		})
 	}
@@ -2892,7 +2933,7 @@ func TestTextFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &utils.TextFormatter{
+			formatter := &logutils.TextFormatter{
 				ExtraFields: tt.formatConfig,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
@@ -2920,7 +2961,7 @@ func TestJSONFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &utils.JSONFormatter{
+			formatter := &logutils.JSONFormatter{
 				ExtraFields: tt.extraFields,
 			}
 			tt.assertErr(t, formatter.CheckAndSetDefaults())
@@ -3384,6 +3425,145 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 	}
 }
 
+func TestApplyConfig_JamfService(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Write a password file, valid configs require one.
+	const password = "supersecret!!1!"
+	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
+	require.NoError(t,
+		os.WriteFile(passwordFile, []byte(password+"\n"), 0o400),
+		"WriteFile(%q) failed", passwordFile)
+
+	minimalYAML := fmt.Sprintf(`
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: %v
+`, passwordFile)
+
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+		want    servicecfg.JamfConfig
+	}{
+		{
+			name: "minimal config",
+			yaml: minimalYAML,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+				},
+			},
+		},
+		{
+			name: "all fields",
+			yaml: minimalYAML + `  name: jamf2
+  sync_delay: 1m
+  exit_on_sync: true
+  inventory:
+  - filter_rsql: 1==1
+    sync_period_partial: 4h
+    sync_period_full: 48h
+    on_missing: NOOP
+  - {}`,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					Name:        "jamf2",
+					SyncDelay:   types.Duration(1 * time.Minute),
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+					Inventory: []*types.JamfInventoryEntry{
+						{
+							FilterRsql:        "1==1",
+							SyncPeriodPartial: types.Duration(4 * time.Hour),
+							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							OnMissing:         "NOOP",
+						},
+						{},
+					},
+				},
+				ExitOnSync: true,
+			},
+		},
+
+		{
+			name:    "listen_addr not supported",
+			yaml:    minimalYAML + `  listen_addr: localhost:55555`,
+			wantErr: "listen_addr",
+		},
+		{
+			name: "password_file empty",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file required",
+		},
+		{
+			name: "password_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "password_file",
+		},
+		{
+			name: "spec is validated",
+			yaml: minimalYAML + `  inventory:
+  - on_missing: BANANA`,
+			wantErr: "on_missing",
+		},
+
+		{
+			name: "absent config ignored",
+			yaml: ``,
+		},
+		{
+			name: "empty config ignored",
+			yaml: `jamf_service: {}`,
+		},
+		{
+			name: "disabled config is validated",
+			yaml: `
+jamf_service:
+  enabled: false
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(strings.NewReader(test.yaml))
+			require.NoError(t, err, "ReadConfig failed")
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(fc, cfg)
+			if test.wantErr == "" {
+				require.NoError(t, err, "ApplyFileConfig failed")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "ApplyFileConfig error mismatch")
+				return
+			}
+
+			if diff := cmp.Diff(test.want, cfg.Jamf, protocmp.Transform()); diff != "" {
+				t.Errorf("ApplyFileConfig: JamfConfig mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestAuthHostedPlugins(t *testing.T) {
 	t.Parallel()
 
@@ -3393,7 +3573,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 	}
 	notExist := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.Error(t, err)
-		require.True(t, errors.Is(err, os.ErrNotExist), `expected "does not exist", but got %v`)
+		require.ErrorIs(t, err, os.ErrNotExist, `expected "does not exist", but got %v`, err)
 	}
 
 	tmpDir := t.TempDir()
@@ -3412,7 +3592,7 @@ func TestAuthHostedPlugins(t *testing.T) {
 		assert   func(t *testing.T, p servicecfg.HostedPluginsConfig)
 	}{
 		{
-			desc: "Plugins disabled by default",
+			desc: "Plugins enabled by default",
 			config: strings.Join([]string{
 				"auth_service:",
 				"  enabled: yes",
@@ -3420,19 +3600,8 @@ func TestAuthHostedPlugins(t *testing.T) {
 			readErr:  require.NoError,
 			applyErr: require.NoError,
 			assert: func(t *testing.T, p servicecfg.HostedPluginsConfig) {
-				require.False(t, p.Enabled)
+				require.True(t, p.Enabled)
 			},
-		},
-		{
-			desc: "Plugins enabled but zero providers defined",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"  hosted_plugins:",
-				"    enabled: yes",
-			}, "\n"),
-			readErr:  require.NoError,
-			applyErr: badParameter,
 		},
 		{
 			desc: "Unknown OAuth provider specified",
@@ -3560,22 +3729,31 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							},
 							ScriptName:      "default-installer",
 							PublicProxyAddr: "proxy.example.com",
+							Azure: &AzureInstallParams{
+								ClientID: "abcd1234",
+							},
 						},
 					},
 				},
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks", "vm"},
-						Params: services.InstallerParams{
+						Params: &types.InstallerParams{
 							JoinMethod:      "azure",
 							JoinToken:       "azure-token",
 							ScriptName:      "default-installer",
 							PublicProxyAddr: "proxy.example.com",
+							Azure: &types.AzureInstallerParams{
+								ClientID: "abcd1234",
+							},
 						},
+						Regions:        []string{"*"},
+						ResourceTags:   types.Labels{"*": []string{"*"}},
+						ResourceGroups: []string{"*"},
 					},
 				},
 			},
@@ -3592,10 +3770,13 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
-						Subscriptions: []string{"abcd"},
-						Types:         []string{"aks"},
+						Subscriptions:  []string{"abcd"},
+						Types:          []string{"aks"},
+						Regions:        []string{"*"},
+						ResourceTags:   types.Labels{"*": []string{"*"}},
+						ResourceGroups: []string{"*"},
 					},
 				},
 			},
@@ -3799,6 +3980,739 @@ proxy_service:
 			}
 
 			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
+		})
+	}
+}
+
+func TestApplyKubeConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		inputFileConfig   Kube
+		wantServiceConfig servicecfg.KubeConfig
+		wantError         bool
+	}{
+		{
+			name: "invalid listener address",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:a",
+				},
+				KubeconfigFile: "path-to-kubeconfig",
+			},
+			wantError: true,
+		},
+		{
+			name: "assume_role_arn is not supported",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:8888",
+				},
+				KubeconfigFile: "path-to-kubeconfig",
+				ResourceMatchers: []ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+			},
+			wantError: false,
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:     utils.MustParseAddr("0.0.0.0:8888"),
+				KubeconfigPath: "path-to-kubeconfig",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: services.ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+		{
+			name: "valid",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:8888",
+				},
+				PublicAddr:      apiutils.Strings{"example.com", "example.with.port.com:4444"},
+				KubeconfigFile:  "path-to-kubeconfig",
+				KubeClusterName: "kube-name",
+				ResourceMatchers: []ResourceMatcher{{
+					Labels: map[string]apiutils.Strings{"a": {"b"}},
+				}},
+				StaticLabels: map[string]string{
+					"env":     "dev",
+					"product": "test",
+				},
+				DynamicLabels: []CommandLabel{{
+					Name:    "hostname",
+					Command: []string{"hostname"},
+					Period:  time.Hour,
+				}},
+			},
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:      utils.MustParseAddr("0.0.0.0:8888"),
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("example.com:3026"), *utils.MustParseAddr("example.with.port.com:4444")},
+				KubeconfigPath:  "path-to-kubeconfig",
+				KubeClusterName: "kube-name",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+					},
+				},
+				StaticLabels: map[string]string{
+					"env":     "dev",
+					"product": "test",
+				},
+				DynamicLabels: services.CommandLabels{
+					"hostname": &types.CommandLabelV2{
+						Period:  types.Duration(time.Hour),
+						Command: []string{"hostname"},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+			require.NoError(t, err)
+			fc.Kube = test.inputFileConfig
+			fc.Kube.EnabledFlag = "yes"
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = applyKubeConfig(fc, cfg)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantServiceConfig, cfg.Kube)
+			}
+		})
+	}
+}
+
+func TestGetInstallerProxyAddr(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		installParams     *InstallParams
+		fc                *FileConfig
+		expectedProxyAddr string
+	}{
+		{
+			name:              "empty",
+			fc:                &FileConfig{},
+			expectedProxyAddr: "",
+		},
+		{
+			name: "explicit proxy addr",
+			installParams: &InstallParams{
+				PublicProxyAddr: "explicit.example.com",
+			},
+			fc: &FileConfig{
+				Global: Global{
+					ProxyServer: "proxy.example.com",
+				},
+			},
+			expectedProxyAddr: "explicit.example.com",
+		},
+		{
+			name: "proxy server",
+			fc: &FileConfig{
+				Global: Global{
+					ProxyServer: "proxy.example.com",
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "local proxy service",
+			fc: &FileConfig{
+				Global: Global{
+					AuthServer: "auth.example.com",
+				},
+				Proxy: Proxy{
+					Service: Service{
+						EnabledFlag: "yes",
+					},
+					PublicAddr: apiutils.Strings{"proxy.example.com"},
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "v1/v2 auth servers",
+			fc: &FileConfig{
+				Version: "v2",
+				Global: Global{
+					AuthServers: []string{"proxy.example.com"},
+				},
+			},
+			expectedProxyAddr: "proxy.example.com",
+		},
+		{
+			name: "auth server",
+			fc: &FileConfig{
+				Global: Global{
+					AuthServer: "auth.example.com",
+				},
+			},
+			expectedProxyAddr: "auth.example.com",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
+		})
+	}
+}
+
+func TestDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc                  string
+		mutate                func(cfgMap)
+		expectError           require.ErrorAssertionFunc
+		expectEnabled         require.BoolAssertionFunc
+		expectedTotalMatchers int
+		expectedAWSMatchers   []types.AWSMatcher
+		expectedAzureMatchers []types.AzureMatcher
+		expectedGCPMatchers   []types.GCPMatcher
+	}{
+		{
+			desc:          "default",
+			mutate:        func(cfgMap) {},
+			expectError:   require.NoError,
+			expectEnabled: require.False,
+		},
+		{
+			desc:          "GCP section without project_ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types": []string{"gke"},
+					},
+				}
+			},
+		},
+		{
+			desc:          "GCP section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":       []string{"gke"},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gke"},
+				Locations: []string{"*"},
+				Labels: map[string]apiutils.Strings{
+					"*": []string{"*"},
+				},
+				ProjectIDs: []string{"p1", "p2"},
+			}},
+		},
+		{
+			desc:          "GCP section is filled",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gke"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				ProjectIDs: []string{"p1", "p2"},
+			}},
+		},
+		{
+			desc:          "GCP section is filled with installer",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gce"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids":      []string{"p1", "p2"},
+						"service_accounts": []string{"a@example.com", "b@example.com"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gce"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				ProjectIDs:      []string{"p1", "p2"},
+				ServiceAccounts: []string{"a@example.com", "b@example.com"},
+				Params: &types.InstallerParams{
+					JoinMethod: types.JoinMethodGCP,
+					JoinToken:  types.GCPInviteTokenName,
+					ScriptName: installers.InstallerScriptName,
+				},
+			}},
+		},
+		{
+			desc:          "Azure section is filled with defaults (aks)",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types": []string{"aks"},
+					},
+				}
+			},
+			expectedAzureMatchers: []types.AzureMatcher{{
+				Types:   []string{"aks"},
+				Regions: []string{"*"},
+				ResourceTags: map[string]apiutils.Strings{
+					"*": []string{"*"},
+				},
+				Subscriptions:  []string{"*"},
+				ResourceGroups: []string{"*"},
+			}},
+		},
+		{
+			desc:          "Azure section is filled with values",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types":   []string{"aks"},
+						"regions": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"subscriptions":   []string{"sub1", "sub2"},
+						"resource_groups": []string{"group1", "group2"},
+					},
+				}
+			},
+			expectedAzureMatchers: []types.AzureMatcher{{
+				Types:   []string{"aks"},
+				Regions: []string{"eucentral1"},
+				ResourceTags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Subscriptions:  []string{"sub1", "sub2"},
+				ResourceGroups: []string{"group1", "group2"},
+			}},
+		},
+		{
+			desc:          "AWS section is filled with defaults",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      installers.InstallerScriptName,
+					InstallTeleport: true,
+				},
+				SSM: &types.AWSSSM{DocumentName: types.AWSInstallerDocument},
+			}},
+		},
+		{
+			desc:          "AWS section is filled with custom configs",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "iam",
+							},
+							"script_name": "installer-custom",
+						},
+						"ssm": cfgMap{
+							"document_name": "hello_document",
+						},
+						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
+						"external_id":     "externalID123",
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "hello-iam-a-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "installer-custom",
+					InstallTeleport: true,
+				},
+				SSM: &types.AWSSSM{DocumentName: "hello_document"},
+				AssumeRole: &types.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID: "externalID123",
+				},
+			}},
+		},
+		{
+			desc:          "AWS section is filled with invalid region",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"*"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "AWS section is filled with invalid join method",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "token",
+							},
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "AWS section is filled with external_id but empty assume_role_arn",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"rds"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "",
+						"external_id":     "externalid123",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "AWS section is filled with external_id but empty assume_role_arn is ok for redshift serverless",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"redshift-serverless"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "",
+						"external_id":     "externalid123",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"redshift-serverless"},
+				Regions: []string{"us-west-1"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "aws-discovery-iam-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "default-installer",
+					InstallTeleport: true,
+				},
+				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				AssumeRole: &types.AssumeRole{
+					RoleARN:    "",
+					ExternalID: "externalid123",
+				},
+			}},
+		},
+		{
+			desc:          "AWS section is filled with invalid assume_role_arn",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"rds"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "foobar",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "AWS section is filled with assume_role_arn that is not an iam ARN",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"rds"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "arn:aws:sts::123456789012:federated-user/Alice",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "AWS section is filled with no token",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-west-1"},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types: []string{"ec2"},
+				SSM: &types.AWSSSM{
+					DocumentName: types.AWSInstallerDocument,
+				},
+				Regions: []string{"eu-west-1"},
+				Tags:    map[string]apiutils.Strings{"*": {"*"}},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					InstallTeleport: true,
+				},
+			}},
+		},
+		{
+			desc:          "Azure section is filled with defaults (vm)",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{
+						"types":           []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAzureMatchers: []types.AzureMatcher{{
+				Types:          []string{"vm"},
+				Regions:        []string{"westcentralus"},
+				ResourceGroups: []string{"rg1"},
+				Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
+				ResourceTags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod: "azure",
+					JoinToken:  "azure-discovery-token",
+					ScriptName: "default-installer",
+					Azure:      &types.AzureInstallerParams{},
+				},
+			}},
+		},
+		{
+			desc:          "Azure section is filled with custom config",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{"types": []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "custom-azure-token",
+								"method":     "azure",
+							},
+							"script_name":       "custom-installer",
+							"public_proxy_addr": "teleport.example.com",
+						},
+					},
+				}
+			},
+			expectedAzureMatchers: []types.AzureMatcher{{
+				Types:          []string{"vm"},
+				Regions:        []string{"westcentralus"},
+				ResourceGroups: []string{"rg1"},
+				Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
+				ResourceTags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      "azure",
+					JoinToken:       "custom-azure-token",
+					ScriptName:      "custom-installer",
+					PublicProxyAddr: "teleport.example.com",
+					Azure:           &types.AzureInstallerParams{},
+				},
+			}},
+		},
+		{
+			desc:          "Azure section is filled with invalid join method",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{"types": []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "custom-azure-token",
+								"method":     "token",
+							},
+						},
+					},
+				}
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, testCase.mutate))
+			fc, err := ReadConfig(text)
+			require.NoError(t, err)
+
+			cfg := servicecfg.MakeDefaultConfig()
+
+			err = ApplyFileConfig(fc, cfg)
+			testCase.expectError(t, err)
+			if cfg == nil {
+				return
+			}
+
+			testCase.expectEnabled(t, cfg.Discovery.Enabled)
+			require.Equal(t, testCase.expectedAWSMatchers, cfg.Discovery.AWSMatchers)
+			require.Equal(t, testCase.expectedAzureMatchers, cfg.Discovery.AzureMatchers)
+			require.Equal(t, testCase.expectedGCPMatchers, cfg.Discovery.GCPMatchers)
 		})
 	}
 }

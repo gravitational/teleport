@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
@@ -19,6 +21,14 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { Document, isDocumentTshNodeWithServerId } from './types';
 
+/**
+ * getResourceUri returns the URI of the cluster resource that is the subject of the document.
+ *
+ * For example, for DocumentGateway it's targetUri rather than gatewayUri because the gateway
+ * doesn't belong to the cluster.
+ *
+ * At the moment it's used only to get the breadcrumbs for the status bar.
+ */
 export function getResourceUri(
   document: Document
 ): ClusterOrResourceUri | undefined {
@@ -26,6 +36,8 @@ export function getResourceUri(
     case 'doc.cluster':
       return document.clusterUri;
     case 'doc.gateway':
+    case 'doc.gateway_cli_client':
+    case 'doc.gateway_kube':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
       return isDocumentTshNodeWithServerId(document)
@@ -40,6 +52,8 @@ export function getResourceUri(
         rootClusterId: document.rootClusterId,
         leafClusterId: document.leafClusterId,
       });
+    case 'doc.connect_my_computer':
+      return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
     default:

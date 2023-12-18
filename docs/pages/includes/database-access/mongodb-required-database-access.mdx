@@ -1,0 +1,5 @@
+If you opt for a stricter selection of database names for your user, which
+differs from the wildcard approach illustrated in this guide, it is essential
+to include the `admin` database. This ensures MongoDB clients won't have
+issues while connecting and executing operations such as retrieving server
+information, listing databases, and aborting transactions.

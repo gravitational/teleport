@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthncli_test
 
@@ -33,10 +37,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestLogin(t *testing.T) {
@@ -155,7 +160,7 @@ func TestLogin(t *testing.T) {
 			require.NotNil(t, mfaResp.GetWebauthn())
 			require.Equal(t, test.wantRawID, mfaResp.GetWebauthn().RawId)
 
-			_, err = loginFlow.Finish(ctx, username, wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
+			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
 			require.NoError(t, err)
 		})
 	}
@@ -184,33 +189,33 @@ func TestLogin_errors(t *testing.T) {
 	tests := []struct {
 		name         string
 		origin       string
-		getAssertion func() *wanlib.CredentialAssertion
+		getAssertion func() *wantypes.CredentialAssertion
 	}{
 		{
 			name:   "NOK origin empty",
 			origin: "",
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				return okAssertion
 			},
 		},
 		{
 			name:   "NOK assertion nil",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				return nil
 			},
 		},
 		{
 			name:   "NOK assertion empty",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
-				return &wanlib.CredentialAssertion{}
+			getAssertion: func() *wantypes.CredentialAssertion {
+				return &wantypes.CredentialAssertion{}
 			},
 		},
 		{
 			name:   "NOK assertion missing challenge",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.Challenge = nil
@@ -220,7 +225,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing RPID",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = ""
@@ -230,7 +235,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing credentials",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.AllowedCredentials = nil
@@ -240,7 +245,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion invalid user verification requirement",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.UserVerification = protocol.VerificationRequired
@@ -421,7 +426,7 @@ type fakeIdentity struct {
 	User        string
 	Devices     []*types.MFADevice
 	LocalAuth   *types.WebauthnLocalAuth
-	SessionData *wantypes.SessionData
+	SessionData *wanpb.SessionData
 }
 
 func (f *fakeIdentity) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
@@ -452,12 +457,12 @@ func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *type
 	return nil
 }
 
-func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	f.SessionData = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	return f.SessionData, nil
 }
 

@@ -85,6 +85,12 @@ func TestParseTeleportRoles(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			// case insensitive
+			in:      "nOdE,prOXY",
+			out:     SystemRoles{RoleNode, RoleProxy},
+			wantErr: false,
+		},
+		{
 			in:      "windowsdesktop",
 			out:     SystemRoles{RoleWindowsDesktop},
 			wantErr: false,

@@ -1,4 +1,7 @@
 version: v1
+deps:
+    # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
+    - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
 lint:
   use:
     - DEFAULT
@@ -10,10 +13,10 @@ lint:
     - COMMENT_RPC
     - COMMENT_SERVICE
   except:
-   # Allow Google API-style responses (CreateFoo returns Foo).
-   # See https://cloud.google.com/apis/design/standard_methods.
-   - RPC_REQUEST_RESPONSE_UNIQUE
-   - RPC_RESPONSE_STANDARD_NAME
+    # Allow Google API-style responses (CreateFoo returns Foo).
+    # See https://cloud.google.com/apis/design/standard_methods.
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_RESPONSE_STANDARD_NAME
   ignore:
     # "legacy" lib protos.
     - teleport/lib/multiplexer/test/ping.proto
@@ -31,9 +34,10 @@ lint:
     # https://github.com/twitchtv/twirp/issues/70#issuecomment-470367807
     UNARY_RPC:
       - teleport/lib/teleterm/v1/service.proto
+      - accessgraph/v1alpha/access_graph_service.proto
     # TODO(ravicious): Fix protos and re-enable lib/teleterm lint rules below.
     RPC_REQUEST_STANDARD_NAME:
-      - teleport/lib/teleterm
+      - teleport/lib/teleterm/v1/service.proto
     # TODO(espadolini): Fix protos and re-enable prehog lint rules below.
     COMMENT_MESSAGE:
       - teleport/lib/teleterm
@@ -44,4 +48,4 @@ lint:
       - prehog
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

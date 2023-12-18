@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package keystore
 
@@ -31,6 +35,7 @@ import (
 	kms "cloud.google.com/go/kms/apiv1"
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/option"
@@ -40,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -225,15 +231,15 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 	return resp, nil
 }
 
-func (f *fakeGCPKMSServer) ListCryptoKeys(context.Context, *kmspb.ListCryptoKeysRequest) (*kmspb.ListCryptoKeysResponse, error) {
+func (f *fakeGCPKMSServer) ListCryptoKeys(ctx context.Context, req *kmspb.ListCryptoKeysRequest) (*kmspb.ListCryptoKeysResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	var cryptoKeys []*kmspb.CryptoKey
-	for keyVersionName := range f.keyVersions {
-		cryptoKey := &kmspb.CryptoKey{
-			Name: strings.TrimSuffix(keyVersionName, "/cryptoKeyVersions/1"),
+	for keyVersionName, keyState := range f.keyVersions {
+		if !strings.HasPrefix(keyVersionName, req.Parent) {
+			continue
 		}
-		cryptoKeys = append(cryptoKeys, cryptoKey)
+		cryptoKeys = append(cryptoKeys, keyState.cryptoKey)
 	}
 	resp := &kmspb.ListCryptoKeysResponse{
 		CryptoKeys: cryptoKeys,
@@ -251,12 +257,7 @@ func (f *fakeGCPKMSServer) DestroyCryptoKeyVersion(ctx context.Context, req *kms
 	}
 
 	keyState.cryptoKeyVersion.State = kmspb.CryptoKeyVersion_DESTROY_SCHEDULED
-
-	resp := &kmspb.CryptoKeyVersion{
-		Name:  req.Name,
-		State: keyState.cryptoKeyVersion.State,
-	}
-	return resp, nil
+	return keyState.cryptoKeyVersion, nil
 }
 
 // deleteKey is a test helper to delete a key by the raw ID which would be
@@ -287,8 +288,8 @@ func (f *fakeGCPKMSServer) activateAllKeys() {
 func newTestGRPCServer() *grpc.Server {
 	// Set up some helpful interceptors so that we return compliant error types.
 	return grpc.NewServer(
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 }
 
@@ -590,5 +591,159 @@ func TestGCPKMSKeystore(t *testing.T) {
 				require.NoError(t, err, "unexpected error signing JWT")
 			})
 		})
+	}
+}
+
+func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const (
+		localHostID  = "local-host-id"
+		otherHostID  = "other-host-id"
+		localKeyring = "local-keyring"
+		otherKeyring = "other-keyring"
+	)
+
+	for _, tc := range []struct {
+		desc            string
+		existingKeys    []keySpec
+		activeKeys      []keySpec
+		expectDestroyed []keySpec
+	}{
+		{
+			// Only inactive keys should be destroyed.
+			desc: "active and inactive",
+			existingKeys: []keySpec{
+				{keyring: localKeyring, id: "id_active", host: localHostID},
+				{keyring: localKeyring, id: "id_inactive", host: localHostID},
+			},
+			activeKeys: []keySpec{
+				{keyring: localKeyring, id: "id_active", host: localHostID},
+			},
+			expectDestroyed: []keySpec{
+				{keyring: localKeyring, id: "id_inactive", host: localHostID},
+			},
+		},
+		{
+			// Inactive key from other host should not be destroyed, it may
+			// be recently created and just not added to Teleport CA yet, or the
+			// other Auth might be in a completely different Teleport cluster
+			// using the same keyring (I wouldn't advise this but someone might
+			// do it).
+			desc: "inactive key from other host",
+			existingKeys: []keySpec{
+				{keyring: localKeyring, id: "id_inactive_local", host: localHostID},
+				{keyring: localKeyring, id: "id_inactive_remote", host: otherHostID},
+			},
+			expectDestroyed: []keySpec{
+				{keyring: localKeyring, id: "id_inactive_local", host: localHostID},
+			},
+		},
+		{
+			// The presence of active keys created by a remote host in the local
+			// keyring should not break the DeleteUnusedKeys operation.
+			desc: "active key from other host",
+			existingKeys: []keySpec{
+				{keyring: localKeyring, id: "id_active_local", host: localHostID},
+				{keyring: localKeyring, id: "id_inactive_local", host: localHostID},
+				{keyring: localKeyring, id: "id_active_remote", host: otherHostID},
+				{keyring: localKeyring, id: "id_inactive_remote", host: otherHostID},
+			},
+			activeKeys: []keySpec{
+				{keyring: localKeyring, id: "id_active_local", host: localHostID},
+				{keyring: localKeyring, id: "id_active_remote", host: otherHostID},
+			},
+			expectDestroyed: []keySpec{
+				{keyring: localKeyring, id: "id_inactive_local", host: localHostID},
+			},
+		},
+		{
+			// Keys in other keyring should never be destroyed.
+			desc: "keys in other keyring",
+			existingKeys: []keySpec{
+				{keyring: localKeyring, id: "id_inactive_local", host: localHostID},
+				{keyring: otherKeyring, id: "id_inactive_other1", host: localHostID},
+				{keyring: otherKeyring, id: "id_inactive_other2", host: otherHostID},
+			},
+			expectDestroyed: []keySpec{
+				{keyring: localKeyring, id: "id_inactive_local", host: localHostID},
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fakeKMSServer, dialer := newTestGCPKMSService(t)
+			kmsClient := newTestGCPKMSClient(t, dialer)
+			manager, err := NewManager(ctx, Config{
+				GCPKMS: GCPKMSConfig{
+					ProtectionLevel:   "HSM",
+					HostUUID:          localHostID,
+					KeyRing:           localKeyring,
+					kmsClientOverride: kmsClient,
+				},
+			})
+			require.NoError(t, err, "error while creating test keystore manager")
+
+			// Pre-req: create existing keys in fake KMS backend
+			for _, ks := range tc.existingKeys {
+				_, err := fakeKMSServer.CreateCryptoKey(ctx, createKeyRequest(ks))
+				require.NoError(t, err)
+			}
+
+			// Test: DeleteUnusedKeys with activeKeys from the testcase
+			activeKeyIDs := make([][]byte, len(tc.activeKeys))
+			for i, ks := range tc.activeKeys {
+				activeKeyIDs[i] = ks.keyID()
+			}
+			err = manager.DeleteUnusedKeys(ctx, activeKeyIDs)
+			assert.NoError(t, err)
+
+			expectDestroyedSet := make(map[string]bool, len(tc.expectDestroyed))
+			for _, ks := range tc.expectDestroyed {
+				expectDestroyedSet[ks.keyVersionName()] = true
+			}
+			require.Len(t, fakeKMSServer.keyVersions, len(tc.existingKeys))
+			for keyVersionName, state := range fakeKMSServer.keyVersions {
+				if expectDestroyedSet[keyVersionName] {
+					// Fake KMS server only sets state to DESTROY_SCHEDULED,
+					// that's good enough for the test.
+					require.Equal(t, kmspb.CryptoKeyVersion_DESTROY_SCHEDULED.String(), state.cryptoKeyVersion.State.String())
+				} else {
+					require.Equal(t, kmspb.CryptoKeyVersion_ENABLED.String(), state.cryptoKeyVersion.State.String())
+				}
+			}
+		})
+	}
+}
+
+type keySpec struct {
+	keyring, id, host string
+}
+
+func (ks *keySpec) keyVersionName() string {
+	return ks.keyring + "/cryptoKeys/" + ks.id + keyVersionSuffix
+}
+
+func (ks *keySpec) keyID() []byte {
+	return gcpKMSKeyID{
+		keyVersionName: ks.keyVersionName(),
+	}.marshal()
+}
+
+func createKeyRequest(ks keySpec) *kmspb.CreateCryptoKeyRequest {
+	return &kmspb.CreateCryptoKeyRequest{
+		Parent:      ks.keyring,
+		CryptoKeyId: ks.id,
+		CryptoKey: &kmspb.CryptoKey{
+			Purpose: kmspb.CryptoKey_ASYMMETRIC_SIGN,
+			Labels: map[string]string{
+				hostLabel: ks.host,
+			},
+			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
+				ProtectionLevel: kmspb.ProtectionLevel_SOFTWARE,
+				Algorithm:       kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256,
+			},
+		},
 	}
 }

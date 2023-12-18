@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package protocol
 
@@ -84,7 +86,7 @@ func (m *MessageOpCompressed) GetOriginal() Message {
 }
 
 // readOpCompressed converts OP_COMPRESSED wire message bytes to a structured form.
-func readOpCompressed(header MessageHeader, payload []byte) (message *MessageOpCompressed, err error) {
+func readOpCompressed(header MessageHeader, payload []byte, maxMessageSize uint32) (message *MessageOpCompressed, err error) {
 	originalOpcode, rem, ok := wiremessage.ReadCompressedOriginalOpCode(payload)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: missing original opcode %v", payload)
@@ -115,9 +117,11 @@ func readOpCompressed(header MessageHeader, payload []byte) (message *MessageOpC
 	}
 	if uncompressedSize <= 0 || len(compressedMessage) == 0 {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: invalid message size %v", payload)
+	} else if uncompressedSize > int32(maxMessageSize) {
+		return nil, trace.BadParameter("malformed OP_COMPRESSED: uncompressed size exceeded max %v", payload)
 	}
 
-	message.originalMessage, err = decompress(message)
+	message.originalMessage, err = decompress(message, maxMessageSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,7 +140,7 @@ func (m *MessageOpCompressed) ToWire(responseTo int32) (dst []byte) {
 }
 
 // decompress returns the original message from the compressed message.
-func decompress(message *MessageOpCompressed) (Message, error) {
+func decompress(message *MessageOpCompressed, maxMessageSize uint32) (Message, error) {
 	// Make the uncompressed message's header.
 	header := make([]byte, 0, headerSizeBytes)
 	header = wiremessage.AppendHeader(header,
@@ -158,5 +162,5 @@ func decompress(message *MessageOpCompressed) (Message, error) {
 
 	// Parse the uncompressed message.
 	return ReadMessage(bytes.NewReader(append(
-		header, decompressedPayload...)))
+		header, decompressedPayload...)), maxMessageSize)
 }

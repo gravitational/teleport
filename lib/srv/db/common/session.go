@@ -1,23 +1,26 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -42,10 +45,14 @@ type Session struct {
 	Identity tlsca.Identity
 	// Checker is the access checker for the identity.
 	Checker services.AccessChecker
+	// AutoCreateUserMode indicates whether the database user should be auto-created.
+	AutoCreateUserMode types.CreateDatabaseUserMode
 	// DatabaseUser is the requested database user.
 	DatabaseUser string
 	// DatabaseName is the requested database name.
 	DatabaseName string
+	// DatabaseRoles is a list of roles for auto-provisioned users.
+	DatabaseRoles []string
 	// StartupParameters define initial connection parameters such as date style.
 	StartupParameters map[string]string
 	// Log is the logger with session specific fields.
@@ -58,16 +65,32 @@ type Session struct {
 
 // String returns string representation of the session parameters.
 func (c *Session) String() string {
-	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
-		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
+	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v] autoCreate[%v] dbRoles[%v]",
+		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName,
+		c.AutoCreateUserMode, strings.Join(c.DatabaseRoles, ","))
 }
 
 // GetAccessState returns the AccessState based on the underlying
 // [services.AccessChecker] and [tlsca.Identity].
 func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
 	state := c.Checker.GetAccessState(authPref)
-	state.MFAVerified = c.Identity.MFAVerified != ""
+	state.MFAVerified = c.Identity.IsMFAVerified()
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
 	return state
+}
+
+// WithUser returns a shallow copy of the session with overridden database user.
+func (c *Session) WithUser(user string) *Session {
+	copy := *c
+	copy.DatabaseUser = user
+	return &copy
+}
+
+// WithUserAndDatabase returns a shallow copy of the session with overridden
+// database user and overridden database name.
+func (c *Session) WithUserAndDatabase(user string, defaultDatabase string) *Session {
+	copy := c.WithUser(user)
+	copy.DatabaseName = defaultDatabase
+	return copy
 }

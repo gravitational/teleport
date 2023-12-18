@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package kubeconfig
 
@@ -319,8 +323,13 @@ func TestUpdateWithExec(t *testing.T) {
 				Cluster:          clusterName,
 				AuthInfo:         authInfoName,
 				LocationOfOrigin: kubeconfigPath,
-				Extensions:       map[string]runtime.Object{},
-				Namespace:        tt.namespace,
+				Extensions: map[string]runtime.Object{
+					teleportKubeClusterNameExtension: &runtime.Unknown{
+						Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+						ContentType: "application/json",
+					},
+				},
+				Namespace: tt.namespace,
 			}
 			config, err := Load(kubeconfigPath)
 			require.NoError(t, err)
@@ -386,7 +395,12 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		Cluster:          clusterName,
 		AuthInfo:         contextName,
 		LocationOfOrigin: kubeconfigPath,
-		Extensions:       map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			teleportKubeClusterNameExtension: &runtime.Unknown{
+				Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+				ContentType: "application/json",
+			},
+		},
 	}
 
 	config, err := Load(kubeconfigPath)
@@ -576,4 +590,76 @@ func genUserKey(hostname string) (*client.Key, []byte, error) {
 			TLSCertificates: [][]byte{caCert},
 		}},
 	}, caCert, nil
+}
+
+func TestKubeClusterFromContext(t *testing.T) {
+	type args struct {
+		contextName     string
+		ctx             *clientcmdapi.Context
+		teleportCluster string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "context name is cluster name",
+			args: args{
+				contextName:     "cluster1",
+				ctx:             &clientcmdapi.Context{Cluster: "cluster1"},
+				teleportCluster: "cluster1",
+			},
+			want: "cluster1",
+		},
+		{
+			name: "context name is {teleport-cluster}-cluster name",
+			args: args{
+				contextName:     "telecluster-cluster1",
+				ctx:             &clientcmdapi.Context{Cluster: "cluster1"},
+				teleportCluster: "telecluster",
+			},
+			want: "cluster1",
+		},
+		{
+			name: "context name is {kube-cluster} name",
+			args: args{
+				contextName:     "cluster1",
+				ctx:             &clientcmdapi.Context{Cluster: "telecluster"},
+				teleportCluster: "telecluster",
+			},
+			want: "cluster1",
+		},
+		{
+			name: "kube cluster name is set in extension",
+			args: args{
+				contextName: "cluster1",
+				ctx: &clientcmdapi.Context{
+					Cluster: "telecluster",
+					Extensions: map[string]runtime.Object{
+						teleportKubeClusterNameExtension: &runtime.Unknown{
+							Raw: []byte("\"another\""),
+						},
+					},
+				},
+				teleportCluster: "telecluster",
+			},
+			want: "another",
+		},
+		{
+			name: "context isn't from teleport",
+			args: args{
+				contextName:     "cluster1",
+				ctx:             &clientcmdapi.Context{Cluster: "someothercluster"},
+				teleportCluster: "telecluster",
+			},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := KubeClusterFromContext(tt.args.contextName, tt.args.ctx, tt.args.teleportCluster)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

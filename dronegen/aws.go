@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -21,7 +25,7 @@ import (
 
 // awsRoleSettings contains the information necessary to assume an AWS Role
 //
-// This is intended to be imbedded, please use the kubernetes/mac/windows versions
+// This is intended to be embedded, please use the kubernetes/mac versions
 // with their corresponding pipelines.
 type awsRoleSettings struct {
 	awsAccessKeyID     value
@@ -36,14 +40,6 @@ type kubernetesRoleSettings struct {
 	name         string
 	profile      string
 	append       bool
-}
-
-// kuberentesS3Settings contains all info needed to download from S3 in a kubernetes pipeline
-type kubernetesS3Settings struct {
-	region       string
-	source       string
-	target       string
-	configVolume volumeRef
 }
 
 // assumeRoleCommands is a helper to build the role assumption commands on a *nix platform
@@ -92,23 +88,5 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 		},
 		Volumes:  []volumeRef{s.configVolume},
 		Commands: assumeRoleCommands(s.profile, configPath, s.append),
-	}
-}
-
-// kubernetesUploadToS3Step generates an S3 upload step
-func kubernetesUploadToS3Step(s kubernetesS3Settings) step {
-	return step{
-		Name:  "Upload to S3",
-		Image: "amazon/aws-cli",
-		Pull:  "if-not-exists",
-		Environment: map[string]value{
-			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
-			"AWS_REGION":    {raw: s.region},
-		},
-		Volumes: []volumeRef{s.configVolume},
-		Commands: []string{
-			`cd ` + s.source,
-			`aws s3 sync . s3://$AWS_S3_BUCKET/` + s.target,
-		},
 	}
 }

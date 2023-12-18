@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.devicetrust.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
 // DeviceEnrollToken encapsulates the permission, granted by a device
@@ -24,4 +26,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 message DeviceEnrollToken {
   // Opaque enrollement token required by the EnrollDevice RPC.
   string token = 1;
+
+  // Expiration time for the token.
+  google.protobuf.Timestamp expire_time = 2;
 }

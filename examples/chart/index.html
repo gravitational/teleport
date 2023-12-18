@@ -28,9 +28,21 @@
       helm install ${RELEASE_NAME?} teleport/teleport-kube-agent \
         --create-namespace \
         --namespace ${NAMESPACE?} \
+        --set roles="kube\,app\,discovery" \
         --set proxyAddr=${PROXY_ENDPOINT?} \
         --set authToken=${JOIN_TOKEN?} \
         --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}</pre>
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster/charts/teleport-operator">teleport-operator:</a></b>
+      # Install the Teleport Kubernetes Operator to manage Teleport resources from Kubernetes.
+      # The operator can run against any remote Teleport cluster and reconcile its resources.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/teleport-operator \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set authAddr="${TELEPORT_ADDR?}" \
+        --set token="${JOIN_TOKEN?}"</pre>
+    <br />
     <h3>Changelog</h3>
     <pre>See the <a href="https://goteleport.com/docs/changelog/">Teleport Changelog</a> for a list of important changes between Helm chart versions.</pre>
   </body>

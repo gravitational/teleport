@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package dbcmd
 
@@ -317,7 +321,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			execer: &fakeExec{
-				execOutput: map[string][]byte{},
+				execOutput: map[string][]byte{
+					"mongo": []byte("legacy"),
+				},
 			},
 			cmd: []string{"mongo",
 				"--ssl",
@@ -327,12 +333,14 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "mongodb no TLS",
+			name:         "mongodb no TLS (legacy)",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
-				execOutput: map[string][]byte{},
+				execOutput: map[string][]byte{
+					"mongo": []byte("legacy"),
+				},
 			},
 			cmd: []string{"mongo",
 				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
@@ -388,11 +396,40 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
+			name:         "mongosh preferred",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{}, // Cannot find either bin.
+			},
+			cmd: []string{"mongosh",
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
+		},
+		{
 			name:         "sqlserver",
 			dbProtocol:   defaults.ProtocolSQLServer,
 			databaseName: "mydb",
 			execer:       &fakeExec{},
 			cmd: []string{mssqlBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name:         "sqlserver sqlcmd",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"sqlcmd": {},
+				},
+			},
+			cmd: []string{sqlcmdBin,
 				"-S", "localhost,12345",
 				"-U", "myUser",
 				"-P", fixtures.UUID,
@@ -598,7 +635,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    tt.databaseName,
 				Username:    "myUser",
@@ -761,7 +798,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    tt.databaseName,
 				Username:    "myUser",
@@ -848,7 +885,7 @@ func TestConvertCommandError(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    "DBName",
 				Username:    "myUser",

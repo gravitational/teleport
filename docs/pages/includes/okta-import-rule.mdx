@@ -27,4 +27,16 @@ spec:
     # These labels will be added to the groups.
     add_labels:
       label1: value1
+  - match:
+    # Regexes based on the app name can be used to create matches.
+    - app_name_regexes: ["^okta.*$", "app*"]
+    # These labels will be added to matching applications.
+    add_labels:
+      app_label: app_label_value
+  - match:
+    # Similarly, regexes based on the group name can be used as well.
+    - group_name_regexes: ["^okta.*$", "app*"]
+    # These labels will be added to the groups.
+    add_labels:
+      label1: value1
 ```

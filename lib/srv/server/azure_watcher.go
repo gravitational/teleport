@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package server
 
@@ -23,12 +25,16 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+const azureEventPrefix = "azure/"
 
 // AzureInstances contains information about discovered Azure virtual machines.
 type AzureInstances struct {
@@ -48,84 +54,130 @@ type AzureInstances struct {
 	Parameters []string
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
+	// ClientID is the client ID of the managed identity to use for installation.
+	ClientID string
+}
+
+// MakeEvents generates MakeEvents for these instances.
+func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+	resourceType := types.DiscoveredResourceNode
+	if instances.ScriptName == installers.InstallerScriptNameAgentless {
+		resourceType = types.DiscoveredResourceAgentlessNode
+	}
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	for _, inst := range instances.Instances {
+		events[azureEventPrefix+aws.StringValue(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
+			ResourceType:   resourceType,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  types.CloudAzure,
+		}
+	}
+	return events
+}
+
+type azureClientGetter interface {
+	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
+func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:      []Fetcher{},
-		ctx:           cancelCtx,
-		cancel:        cancelFn,
-		fetchInterval: time.Minute,
-		InstancesC:    make(chan Instances),
+		fetchersFn:   fetchersFn,
+		ctx:          cancelCtx,
+		cancel:       cancelFn,
+		pollInterval: time.Minute,
+		InstancesC:   make(chan Instances),
 	}
-	for _, matcher := range matchers {
-		for _, subscription := range matcher.Subscriptions {
-			for _, resourceGroup := range matcher.ResourceGroups {
-				cl, err := clients.GetAzureVirtualMachinesClient(subscription)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:       matcher,
-					Subscription:  subscription,
-					ResourceGroup: resourceGroup,
-					AzureClient:   cl,
-				})
-				watcher.fetchers = append(watcher.fetchers, fetcher)
-			}
-		}
+	for _, opt := range opts {
+		opt(&watcher)
 	}
 	return &watcher, nil
 }
 
+// MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
+func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azureClientGetter) []Fetcher {
+	ret := make([]Fetcher, 0)
+	for _, matcher := range matchers {
+		for _, subscription := range matcher.Subscriptions {
+			for _, resourceGroup := range matcher.ResourceGroups {
+				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
+					Matcher:           matcher,
+					Subscription:      subscription,
+					ResourceGroup:     resourceGroup,
+					AzureClientGetter: clients,
+				})
+				ret = append(ret, fetcher)
+			}
+		}
+	}
+	return ret
+}
+
 type azureFetcherConfig struct {
-	Matcher       services.AzureMatcher
-	Subscription  string
-	ResourceGroup string
-	AzureClient   azure.VirtualMachinesClient
+	Matcher           types.AzureMatcher
+	Subscription      string
+	ResourceGroup     string
+	AzureClientGetter azureClientGetter
 }
 
 type azureInstanceFetcher struct {
-	Azure         azure.VirtualMachinesClient
-	Regions       []string
-	Subscription  string
-	ResourceGroup string
-	Labels        types.Labels
-	Parameters    map[string]string
+	AzureClientGetter azureClientGetter
+	Regions           []string
+	Subscription      string
+	ResourceGroup     string
+	Labels            types.Labels
+	Parameters        map[string]string
+	ClientID          string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
-	return &azureInstanceFetcher{
-		Azure:         cfg.AzureClient,
-		Regions:       cfg.Matcher.Regions,
-		Subscription:  cfg.Subscription,
-		ResourceGroup: cfg.ResourceGroup,
-		Labels:        cfg.Matcher.ResourceTags,
-		Parameters: map[string]string{
+	ret := &azureInstanceFetcher{
+		AzureClientGetter: cfg.AzureClientGetter,
+		Regions:           cfg.Matcher.Regions,
+		Subscription:      cfg.Subscription,
+		ResourceGroup:     cfg.ResourceGroup,
+		Labels:            cfg.Matcher.ResourceTags,
+	}
+
+	if cfg.Matcher.Params != nil {
+		ret.Parameters = map[string]string{
 			"token":           cfg.Matcher.Params.JoinToken,
 			"scriptName":      cfg.Matcher.Params.ScriptName,
 			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
-		},
+		}
+		ret.ClientID = cfg.Matcher.Params.Azure.ClientID
 	}
+
+	return ret
+}
+
+func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+	return nil, trace.NotImplemented("not implemented for azure fetchers")
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, error) {
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
+	client, err := f.AzureClientGetter.GetAzureVirtualMachinesClient(f.Subscription)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
-	for _, region := range f.Regions {
-		instancesByRegion[region] = []*armcompute.VirtualMachine{}
+	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
+	if !allowAllRegions {
+		for _, region := range f.Regions {
+			instancesByRegion[region] = []*armcompute.VirtualMachine{}
+		}
 	}
 
-	vms, err := f.Azure.ListVirtualMachines(ctx, f.ResourceGroup)
+	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, vm := range vms {
 		location := aws.StringValue(vm.Location)
-		if _, ok := instancesByRegion[location]; !ok {
+		if _, ok := instancesByRegion[location]; !ok && !allowAllRegions {
 			continue
 		}
 		vmTags := make(map[string]string, len(vm.Tags))
@@ -141,7 +193,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, e
 	var instances []Instances
 	for region, vms := range instancesByRegion {
 		if len(vms) > 0 {
-			instances = append(instances, Instances{AzureInstances: &AzureInstances{
+			instances = append(instances, Instances{Azure: &AzureInstances{
 				SubscriptionID:  f.Subscription,
 				Region:          region,
 				ResourceGroup:   f.ResourceGroup,
@@ -149,6 +201,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, e
 				ScriptName:      f.Parameters["scriptName"],
 				PublicProxyAddr: f.Parameters["publicProxyAddr"],
 				Parameters:      []string{f.Parameters["token"]},
+				ClientID:        f.ClientID,
 			}})
 		}
 	}

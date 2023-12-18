@@ -1,43 +1,50 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -74,24 +81,24 @@ func init() {
 	metrics.RegisterPrometheusCollectors(proxiedSessions, failedConnectingToNode, connectingToNode)
 }
 
-// proxiedMetricConn wraps [net.Conn] opened by
+// ProxiedMetricConn wraps [net.Conn] opened by
 // the [Router] so that the proxiedSessions counter
 // can be decremented when it is closed.
-type proxiedMetricConn struct {
+type ProxiedMetricConn struct {
 	// once ensures that proxiedSessions is only decremented
 	// a single time per [net.Conn]
 	once sync.Once
 	net.Conn
 }
 
-// newProxiedMetricConn increments proxiedSessions and creates
-// a proxiedMetricConn that defers to the provided [net.Conn].
-func newProxiedMetricConn(conn net.Conn) *proxiedMetricConn {
+// NewProxiedMetricConn increments proxiedSessions and creates
+// a ProxiedMetricConn that defers to the provided [net.Conn].
+func NewProxiedMetricConn(conn net.Conn) *ProxiedMetricConn {
 	proxiedSessions.Inc()
-	return &proxiedMetricConn{Conn: conn}
+	return &ProxiedMetricConn{Conn: conn}
 }
 
-func (c *proxiedMetricConn) Close() error {
+func (c *ProxiedMetricConn) Close() error {
 	c.once.Do(proxiedSessions.Dec)
 	return trace.Wrap(c.Conn.Close())
 }
@@ -101,7 +108,7 @@ type serverResolverFn = func(ctx context.Context, host, port string, site site) 
 // SiteGetter provides access to connected local or remote sites
 type SiteGetter interface {
 	// GetSite returns the site matching the provided clusterName
-	GetSite(clusterName string) (reversetunnel.RemoteSite, error)
+	GetSite(clusterName string) (reversetunnelclient.RemoteSite, error)
 }
 
 // RemoteClusterGetter provides access to remote cluster resources
@@ -163,10 +170,12 @@ type Router struct {
 	clusterName    string
 	log            *logrus.Entry
 	clusterGetter  RemoteClusterGetter
-	localSite      reversetunnel.RemoteSite
+	localSite      reversetunnelclient.RemoteSite
 	siteGetter     SiteGetter
 	tracer         oteltrace.Tracer
 	serverResolver serverResolverFn
+	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
+	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -182,22 +191,21 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:           cfg.ClusterName,
+		log:                   cfg.Log,
+		clusterGetter:         cfg.RemoteClusterGetter,
+		localSite:             localSite,
+		siteGetter:            cfg.SiteGetter,
+		tracer:                cfg.TracerProvider.Tracer("Router"),
+		serverResolver:        cfg.serverResolver,
+		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
 	}, nil
 }
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
-// configuration is not set to route to the most recent an error is returned. Also returns teleport version of the
-// target server if it's a teleport server
-// DELETE IN 14.0: remove returning teleport version, it was needed for compatibility
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
+// configuration is not set to route to the most recent an error is returned.
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -214,12 +222,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		span.End()
 	}()
 
-	var targetTeleportVersion string
 	site := r.localSite
 	if clusterName != r.clusterName {
 		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
 		if err != nil {
-			return nil, targetTeleportVersion, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		site = remoteSite
 	}
@@ -227,7 +234,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	span.AddEvent("looking up server")
 	target, err := r.serverResolver(ctx, host, port, remoteSite{site})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	span.AddEvent("retrieved target server")
 
@@ -238,10 +245,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		serverID        string
 		serverAddr      string
 		proxyIDs        []string
+		sshSigner       ssh.Signer
 	)
 
 	if target != nil {
-		isAgentlessNode = target.GetSubKind() == types.SubKindOpenSSHNode
 		proxyIDs = target.GetProxyIDs()
 		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
 
@@ -255,16 +262,36 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		case serverAddr != "":
 			h, _, err := net.SplitHostPort(serverAddr)
 			if err != nil {
-				return nil, "", trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			principals = append(principals, h)
 		case serverAddr == "" && target.GetUseTunnel():
-			serverAddr = reversetunnel.LocalNode
+			serverAddr = reversetunnelclient.LocalNode
+		}
+		// If the node is a registered openssh node don't set agentGetter
+		// so a SSH user agent will not be created when connecting to the remote node.
+		if target.IsOpenSSHNode() {
+			agentGetter = nil
+			isAgentlessNode = true
+
+			if target.GetSubKind() == types.SubKindOpenSSHNode {
+				// If the node is of SubKindOpenSSHNode, create the signer.
+				client, err := r.GetSiteClient(ctx, clusterName)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				sshSigner, err = signer(ctx, client)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 
-		targetTeleportVersion = target.GetTeleportVersion()
 	} else {
+		if !r.permitUnlistedDialing {
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		}
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
@@ -273,46 +300,70 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
-	// if the node is a registered openssh node, create a signer for auth
-	// and don't set agentGetter so a SSH user agent will not be created
-	// when connecting to the remote node
-	var sshSigner ssh.Signer
-	if isAgentlessNode {
-		client, err := r.GetSiteClient(ctx, clusterName)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		sshSigner, err = signer(ctx, client)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		agentGetter = nil
-	}
-
-	conn, err := site.Dial(reversetunnel.DialParams{
+	conn, err := site.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
+		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            principals,
 		ServerID:              serverID,
 		ProxyIDs:              proxyIDs,
-		TeleportVersion:       targetTeleportVersion,
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), targetTeleportVersion, trace.Wrap(err)
+	// SSH connection MUST start with "SSH-2.0" bytes according to https://datatracker.ietf.org/doc/html/rfc4253#section-4.2
+	conn = newCheckedPrefixWriter(conn, []byte("SSH-2.0"))
+	return NewProxiedMetricConn(conn), trace.Wrap(err)
+}
+
+// checkedPrefixWriter checks that first data written into it has the specified prefix.
+type checkedPrefixWriter struct {
+	net.Conn
+
+	requiredPrefix  []byte
+	requiredPointer int
+}
+
+func newCheckedPrefixWriter(conn net.Conn, requiredPrefix []byte) *checkedPrefixWriter {
+	return &checkedPrefixWriter{
+		Conn:           conn,
+		requiredPrefix: requiredPrefix,
+	}
+}
+
+// Write writes data into connection, checking if it has required prefix. Not safe for concurrent calls.
+func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
+	// If pointer reached end of required prefix the check is done
+	if len(c.requiredPrefix) == c.requiredPointer {
+		n, err := c.Conn.Write(p)
+		return n, trace.Wrap(err)
+	}
+
+	// Decide which is smaller, provided data or remaining portion of the required prefix
+	small, big := c.requiredPrefix[c.requiredPointer:], p
+	if len(small) > len(big) {
+		big, small = small, big
+	}
+
+	if !bytes.HasPrefix(big, small) {
+		return 0, trace.AccessDenied("required prefix %q was not found", c.requiredPrefix)
+	}
+	n, err := c.Conn.Write(p)
+	// Advance pointer by confirmed portion of the prefix.
+	c.requiredPointer += min(n, len(small))
+	return n, trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
 // that name and determines if the user has access to it.
-func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, checker services.AccessChecker) (reversetunnel.RemoteSite, error) {
+func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, checker services.AccessChecker) (reversetunnelclient.RemoteSite, error) {
 	_, span := r.tracer.Start(
 		ctx,
 		"router/getRemoteCluster",
@@ -340,16 +391,16 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 }
 
 // site is the minimum interface needed to match servers
-// for a reversetunnel.RemoteSite. It makes testing easier.
+// for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
 	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
 }
 
 // remoteSite is a site implementation that wraps
-// a reversetunnel.RemoteSite
+// a reversetunnelclient.RemoteSite
 type remoteSite struct {
-	site reversetunnel.RemoteSite
+	site reversetunnelclient.RemoteSite
 }
 
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
@@ -381,48 +432,31 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	}
 
 	strategy := types.RoutingStrategy_UNAMBIGUOUS_MATCH
+	var caseInsensitiveRouting bool
 	if cfg, err := site.GetClusterNetworkingConfig(ctx); err == nil {
 		strategy = cfg.GetRoutingStrategy()
+		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	_, err := uuid.Parse(host)
-	dialByID := err == nil || utils.IsEC2NodeID(host)
+	routeMatcher := apiutils.NewSSHRouteMatcher(host, port, caseInsensitiveRouting)
 
-	ips, _ := net.LookupHost(host)
-
-	var unambiguousIDMatch bool
 	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
-		if unambiguousIDMatch {
-			return false
-		}
-
-		// if host is a UUID or EC2 ID match only
-		// by server name and treat matches as unambiguous
-		if dialByID && server.GetName() == host {
-			unambiguousIDMatch = true
-			return true
-		}
-
-		// if the server has connected over a reverse tunnel
-		// then match only by hostname
-		if server.GetUseTunnel() {
-			return host == server.GetHostname()
-		}
-
-		ip, nodePort, err := net.SplitHostPort(server.GetAddr())
-		if err != nil {
-			return false
-		}
-
-		if (host == ip || host == server.GetHostname() || slices.Contains(ips, ip)) &&
-			(port == "" || port == "0" || port == nodePort) {
-			return true
-		}
-
-		return false
+		return routeMatcher.RouteToServer(server)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if routeMatcher.MatchesServerIDs() && len(matches) > 1 {
+		// if a dial request for an id-like target creates multiple matches,
+		// give precedence to the exact match if one exists. If not, handle
+		// multiple matchers per-usual below.
+		for _, m := range matches {
+			if m.GetName() == host {
+				matches = []types.Server{m}
+				break
+			}
+		}
 	}
 
 	var server types.Server
@@ -439,9 +473,9 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 		server = matches[0]
 	}
 
-	if dialByID && server == nil {
+	if routeMatcher.MatchesServerIDs() && server == nil {
 		idType := "UUID"
-		if utils.IsEC2NodeID(host) {
+		if aws.IsEC2NodeID(host) {
 			idType = "EC2"
 		}
 
@@ -471,7 +505,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 
 	// dial the local auth server
 	if clusterName == r.clusterName {
-		conn, err := r.localSite.DialAuthServer(reversetunnel.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
+		conn, err := r.localSite.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
 		return conn, trace.Wrap(err)
 	}
 
@@ -481,12 +515,12 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := site.DialAuthServer(reversetunnel.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
+	conn, err := site.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), trace.Wrap(err)
+	return NewProxiedMetricConn(conn), trace.Wrap(err)
 }
 
 // GetSiteClient returns an auth client for the provided cluster.

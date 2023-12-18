@@ -1,7 +1,0 @@
-teleport:
-  data_dir: data/teleport
-  storage:
-      type: etcd
-      peers: ["http://127.0.0.1:2379"]
-      prefix: /teleport.secrets/
-      insecure: true

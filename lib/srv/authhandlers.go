@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -34,9 +36,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/connectmycomputer"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -324,12 +328,44 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
+		_, isConnectMyComputerNode := h.c.Server.GetInfo().GetLabel(types.ConnectMyComputerNodeOwnerLabel)
+		principal := conn.User()
 
-		message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.", conn.User())
+		message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.", principal)
+		if isConnectMyComputerNode {
+			// This message ends up being used only when the cert does not include the principal in the
+			// role, not when the principal is denied by a role.
+			//
+			// It's unlikely we'll ever run into this scenario as the connection test UI for Connect My
+			// Computer lets the user select only among the logins defined within the Connect My Computer
+			// role. It fails early if the list of logins is empty or if the user does not hold the
+			// Connect My Computer role.
+			//
+			// The only way this could happen is if the backend state got updated between fetching the
+			// logins from the role and actually performing the test.
+			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(teleportUser)
+
+			message = fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure that the role %q includes %q in the 'login' property. ",
+				principal, connectMyComputerRoleName, principal) +
+				"Removing the agent in Teleport Connect and starting the Connect My Computer setup again should fix this problem."
+		}
 		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
 		if trace.IsAccessDenied(err) {
 			message = "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property."
+			if isConnectMyComputerNode {
+				// It's more likely that a role denies the login rather than node_labels matching
+				// types.ConnectMyComputerNodeOwnerLabel. If a role denies access to the Connect My Computer
+				// node through node_labels, the user would never be able to see that the node has joined
+				// the cluster and would not be able to get to the connection test step.
+				connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(teleportUser)
+				nodeLabel := fmt.Sprintf("%s: %s", types.ConnectMyComputerNodeOwnerLabel, teleportUser)
+				message = fmt.Sprintf(
+					"You are not authorized to access this node. Ensure that you hold the role %q and that "+
+						"no role denies you access to the login %q and to nodes labeled with %q.",
+					connectMyComputerRoleName, principal, nodeLabel)
+			}
+
 			traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
 		}
 
@@ -347,7 +383,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Code: events.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
-				Login:         conn.User(),
+				Login:         principal,
 				User:          teleportUser,
 				TrustedDevice: eventDeviceMetadataFromCert(cert),
 			},
@@ -364,7 +400,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		}
 
 		auditdMsg := auditd.Message{
-			SystemUser:   conn.User(),
+			SystemUser:   principal,
 			TeleportUser: teleportUser,
 			ConnAddress:  conn.RemoteAddr().String(),
 		}
@@ -433,7 +469,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// exists and it is an agentless node, preform an RBAC check.
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
-		if h.c.TargetServer != nil && h.c.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
 			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
 		}
 	} else {
@@ -514,6 +550,11 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	// Use the server's shutdown context.
 	ctx := h.c.Server.Context()
 
+	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
+	if h.c.Server.TargetMetadata().ServerSubKind == types.SubKindOpenSSHEICENode {
+		return nil
+	}
+
 	// If strict host key checking is enabled, reject host key fallback.
 	recConfig, err := h.c.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
@@ -583,17 +624,36 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		return trace.Wrap(err)
 	}
 
-	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
-		return nil
-	}
-
 	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	state := accessChecker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if policyString, ok := cert.Extensions[teleport.CertExtensionPrivateKeyPolicy]; ok {
+		if keys.PrivateKeyPolicy(policyString).MFAVerified() {
+			state.MFAVerified = true
+		}
+	}
+
+	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	if osUser == teleport.SSHSessionJoinPrincipal &&
+		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+
+		// allow joining if cluster wide MFA is not required
+		if state.MFARequired != services.MFARequiredAlways {
+			return nil
+		}
+
+		// only allow joining if the MFA ceremony was completed
+		// first if cluster wide MFA is enabled
+		if state.MFAVerified {
+			return nil
+		}
+	}
+
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 

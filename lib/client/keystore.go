@@ -1,22 +1,26 @@
 /*
-Copyright 2016 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
 import (
+	"errors"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -120,6 +125,11 @@ func (fs *FSKeyStore) sshCertPath(idx KeyIndex) string {
 // ppkFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
 func (fs *FSKeyStore) ppkFilePath(idx KeyIndex) string {
 	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// kubeCredLockfilePath returns kube credentials lockfile path for the given KeyIndex.
+func (fs *FSKeyStore) kubeCredLockfilePath(idx KeyIndex) string {
+	return keypaths.KubeCredLockfilePath(fs.KeyDir, idx.ProxyHost)
 }
 
 // publicKeyPath returns the public key path for the given KeyIndex.
@@ -228,7 +238,7 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 		fs.tlsCertPath(idx),
 	}
 	for _, fn := range files {
-		if err := os.Remove(fn); err != nil {
+		if err := utils.RemoveSecure(fn); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
@@ -236,7 +246,13 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
 	// as such, deletion should be best-effort and not generate an error if it fails.
 	if runtime.GOOS == constants.WindowsOS {
-		os.Remove(fs.ppkFilePath(idx))
+		_ = utils.RemoveSecure(fs.ppkFilePath(idx))
+	}
+
+	// And try to delete kube credentials lockfile in case it exists
+	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		log.Debugf("Could not remove kube credentials file: %v", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -253,7 +269,7 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 func (fs *FSKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	for _, o := range opts {
 		certPath := o.certPath(fs.KeyDir, idx)
-		if err := os.RemoveAll(certPath); err != nil {
+		if err := utils.RemoveAllSecure(certPath); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
@@ -276,13 +292,13 @@ func (fs *FSKeyStore) DeleteKeys() error {
 			continue
 		}
 		if file.IsDir() {
-			err := os.RemoveAll(filepath.Join(fs.KeyDir, file.Name()))
+			err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 			if err != nil {
 				return trace.ConvertSystemError(err)
 			}
 			continue
 		}
-		err := os.Remove(filepath.Join(fs.KeyDir, file.Name()))
+		err := utils.RemoveAllSecure(filepath.Join(fs.KeyDir, file.Name()))
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}

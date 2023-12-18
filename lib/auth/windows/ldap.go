@@ -1,23 +1,26 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package windows
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -164,6 +167,39 @@ func (c *LDAPClient) Close() {
 	c.mu.Unlock()
 }
 
+// convertLDAPError attempts to convert LDAP error codes to their
+// equivalent trace errors.
+func convertLDAPError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var ldapErr *ldap.Error
+	if errors.As(err, &ldapErr) {
+		switch ldapErr.ResultCode {
+		case ldap.ErrorNetwork:
+			// this one is especially important, because Teleport will
+			// try to re-establish the connection when a ConnectionProblem
+			// is detected
+			return trace.ConnectionProblem(err, "network error")
+		case ldap.LDAPResultOperationsError:
+			if strings.Contains(err.Error(), "successful bind must be completed") {
+				return trace.AccessDenied(
+					"the LDAP server did not accept Teleport's client certificate, " +
+						"has the Teleport CA been imported correctly?")
+			}
+		case ldap.LDAPResultEntryAlreadyExists:
+			return trace.AlreadyExists("LDAP object already exists: %v", err)
+		case ldap.LDAPResultConstraintViolation:
+			return trace.BadParameter("object constraint violation: %v", err)
+		case ldap.LDAPResultInsufficientAccessRights:
+			return trace.AccessDenied("insufficient permissions: %v", err)
+		}
+	}
+
+	return err
+}
+
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
 func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
@@ -180,12 +216,12 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	)
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
-	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
-		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q with filter %q: %v", dn, filter, err)
-	} else if err != nil {
-		return nil, trace.Wrap(err, "fetching LDAP object %q with filter %q: %v", dn, filter, err)
+	if err != nil {
+		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
+
 	return res.Entries, nil
 }
 
@@ -220,19 +256,7 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 	defer c.mu.Unlock()
 
 	if err := c.client.Add(req); err != nil {
-		if ldapErr, ok := err.(*ldap.Error); ok {
-			switch ldapErr.ResultCode {
-			case ldap.LDAPResultEntryAlreadyExists:
-				return trace.AlreadyExists("LDAP object %q already exists: %v", dn, err)
-			case ldap.LDAPResultConstraintViolation:
-				return trace.BadParameter("object constraint violation on %q: %v", dn, err)
-			case ldap.LDAPResultInsufficientAccessRights:
-				return trace.AccessDenied("insufficient permissions to create %q: %v", dn, err)
-			case ldap.ErrorNetwork:
-				return trace.ConnectionProblem(err, "network error creating %q", dn)
-			}
-		}
-		return trace.Wrap(err, "error creating LDAP object %q: %v", dn, err)
+		return trace.Wrap(convertLDAPError(err), "error creating LDAP object %q", dn)
 	}
 	return nil
 }
@@ -244,9 +268,8 @@ func (c *LDAPClient) CreateContainer(dn string) error {
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
-	} else if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
-		return trace.ConnectionProblem(err, "creating %v", dn)
 	}
+
 	return trace.Wrap(err)
 }
 
@@ -267,10 +290,8 @@ func (c *LDAPClient) Update(dn string, replaceAttrs map[string][]string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := c.client.Modify(req); ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
-		return trace.ConnectionProblem(err, "updating %q", dn)
-	} else if err != nil {
-		return trace.Wrap(err, "updating %q: %v", dn, err)
+	if err := c.client.Modify(req); err != nil {
+		return trace.Wrap(convertLDAPError(err), "updating %q", dn)
 	}
 	return nil
 }

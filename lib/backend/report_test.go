@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package backend
 
@@ -65,40 +69,114 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 
 func TestBuildKeyLabel(t *testing.T) {
 	sensitivePrefixes := []string{"secret"}
+	singletonPrefixes := []string{"config"}
 	testCases := []struct {
-		input  string
-		masked string
+		input   string
+		output  string
+		isRange bool
 	}{
-		{"/secret/", "/secret/"},
-		{"/secret/a", "/secret/a"},
-		{"/secret/ab", "/secret/*b"},
-		{"/secret/1b4d2844-f0e3-4255-94db-bf0e91883205", "/secret/***************************e91883205"},
-		{"/secret/secret-role", "/secret/********ole"},
-		{"/secret/graviton-leaf", "/secret/*********leaf"},
-		{"/secret/graviton-leaf/sub1/sub2", "/secret/*********leaf"},
-		{"/public/graviton-leaf", "/public/graviton-leaf"},
-		{"/public/graviton-leaf/sub1/sub2", "/public/graviton-leaf"},
-		{".data/secret/graviton-leaf", ".data/secret/graviton-leaf"},
+		{
+			input:   "/secret/",
+			output:  "/secret",
+			isRange: false,
+		},
+		{
+			input:   "/secret/a",
+			output:  "/secret",
+			isRange: false,
+		},
+		{
+			input:   "/secret/a/b",
+			output:  "/secret/a",
+			isRange: false,
+		},
+		{
+			input:   "/secret/ab",
+			output:  "/secret",
+			isRange: false,
+		},
+		{
+			input:   "/secret/ab/ba",
+			output:  "/secret/*b",
+			isRange: false,
+		},
+		{
+			input:   "/secret/1b4d2844-f0e3-4255-94db-bf0e91883205",
+			output:  "/secret",
+			isRange: false,
+		},
+		{
+			input:   "/secret/1b4d2844-f0e3-4255-94db-bf0e91883205/foobar",
+			output:  "/secret/***************************e91883205",
+			isRange: false,
+		},
+		{
+			input:   "/secret/graviton-leaf",
+			output:  "/secret",
+			isRange: false,
+		},
+		{
+			input:   "/secret/graviton-leaf/sub1/sub2",
+			output:  "/secret/*********leaf",
+			isRange: false,
+		},
+		{
+			input:   "/public/graviton-leaf",
+			output:  "/public",
+			isRange: false,
+		},
+		{
+			input:   "/public/graviton-leaf",
+			output:  "/public/graviton-leaf",
+			isRange: true,
+		},
+		{
+			input:   "/public/graviton-leaf/sub1/sub2",
+			output:  "/public/graviton-leaf",
+			isRange: false,
+		},
+		{
+			input:   ".data/secret/graviton-leaf",
+			output:  ".data/secret",
+			isRange: false,
+		},
+		{
+			input:   "/config/example",
+			output:  "/config/example",
+			isRange: false,
+		},
+		{
+			input:   "/config/example/something",
+			output:  "/config/example",
+			isRange: false,
+		},
 	}
 	for _, tc := range testCases {
-		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitivePrefixes))
+		require.Equal(t, tc.output, buildKeyLabel(
+			tc.input,
+			sensitivePrefixes,
+			singletonPrefixes,
+			tc.isRange,
+		), "tc=%+v", tc)
 	}
 }
 
-func TestBuildLabelKey_SensitiveBackendPrefixes(t *testing.T) {
+func TestBuildLabelKey_BackendPrefixes(t *testing.T) {
 	testCases := []struct {
 		input  string
 		masked string
 	}{
-		{"/tokens/1234-5678", "/tokens/******678"},
-		{"/usertoken/1234-5678", "/usertoken/******678"},
-		{"/access_requests/1234-5678", "/access_requests/******678"},
+		{"/tokens/1234-5678/sub", "/tokens/******678"},
+		{"/usertoken/1234-5678/sub", "/usertoken/******678"},
+		{"/access_requests/1234-5678/sub", "/access_requests/******678"},
 
 		{"/webauthn/sessionData/login/1234-5678", "/webauthn/sessionData"},
 		{"/webauthn/sessionData/1234-5678", "/webauthn/sessionData"},
-		{"/sessionData/1234-5678", "/sessionData/******678"},
+		{"/sessionData/1234-5678/sub", "/sessionData/******678"},
+		{"/cluster_configuration/audit", "/cluster_configuration/audit"},
+		{"/cluster_configuration/audit/foo", "/cluster_configuration/audit"},
 	}
 	for _, tc := range testCases {
-		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitiveBackendPrefixes))
+		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitiveBackendPrefixes, singletonBackendPrefixes, false))
 	}
 }

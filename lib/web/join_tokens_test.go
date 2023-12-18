@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -628,8 +631,8 @@ func TestGetAppJoinScript(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = getJoinScript(context.Background(), tc.settings, m)
 			if tc.shouldError {
-				require.NotNil(t, err)
-				require.Equal(t, script, "")
+				require.Error(t, err)
+				require.Empty(t, script)
 			} else {
 				require.NoError(t, err)
 				for _, output := range tc.outputs {
@@ -755,7 +758,6 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				t.Log(script)
 				test.extraAssertions(script)
 			}
 		})
@@ -873,7 +875,10 @@ func TestJoinScript(t *testing.T) {
 		mockGetProxyServers: func() ([]types.Server, error) {
 			return []types.Server{
 				&types.ServerV2{
-					Spec: types.ServerSpecV2{PublicAddrs: []string{"test-host:12345678"}},
+					Spec: types.ServerSpecV2{
+						PublicAddrs: []string{"test-host:12345678"},
+						Version:     teleport.Version,
+					},
 				},
 			}, nil
 		},
@@ -926,62 +931,53 @@ func TestJoinScript(t *testing.T) {
 	})
 
 	t.Run("using repo", func(t *testing.T) {
-		t.Run("installUpdater set to true, list of packages must include updater package", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true}, m)
+		t.Run("installUpdater is true", func(t *testing.T) {
+			currentStableCloudVersion := "v99.1.1"
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersion: currentStableCloudVersion}, m)
 			require.NoError(t, err)
 
+			// list of packages must include the updater
 			require.Contains(t, script, ""+
 				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
-				"    if [[ \"true\" == \"true\" ]]; then\n"+
+				"    if is_using_systemd && [[ \"true\" == \"true\" ]]; then\n"+
+				"        # Teleport Updater requires systemd.\n"+
 				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
+			// Repo channel is stable/cloud
+			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
+			// TELEPORT_VERSION is the one provided by https://updates.releases.teleport.dev/v1/stable/cloud/version
+			require.Contains(t, script, "TELEPORT_VERSION='99.1.1'")
 		})
-		t.Run("installUpdater set to false, list of packages must not include updater package", func(t *testing.T) {
+		t.Run("installUpdater is false", func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: false}, m)
 			require.NoError(t, err)
-
 			require.Contains(t, script, ""+
 				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
-				"    if [[ \"false\" == \"true\" ]]; then\n"+
+				"    if is_using_systemd && [[ \"false\" == \"true\" ]]; then\n"+
+				"        # Teleport Updater requires systemd.\n"+
 				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
-		})
-		t.Run("cloud and automatic upgrades", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
-			require.NoError(t, err)
-			// Uses the stable/cloud channel.
-			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
-		})
-		t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-			// Using the Enterprise Version, the package name must be teleport-ent
-			modules.SetTestModules(t, &modules.TestModules{
-				TestFeatures: modules.Features{
-					Cloud:             true,
-					AutomaticUpgrades: false,
-				},
-			})
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: false}, m)
-			require.NoError(t, err)
-			// Setting an empty string, means it will use `stable/v<majorVersion>` later on.
+			// Default based on current version is used instead
 			require.Contains(t, script, "REPO_CHANNEL=''")
+			// Current version must be used
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", teleport.Version))
 		})
 	})
-
 }
 
 func TestAutomaticUpgrades(t *testing.T) {
-	t.Run("enterprise and automatic upgrades enabled", func(t *testing.T) {
+	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
+				Cloud:             true,
 				AutomaticUpgrades: true,
 			},
 		})
@@ -989,10 +985,10 @@ func TestAutomaticUpgrades(t *testing.T) {
 		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.True(t, got)
 	})
-	t.Run("enterprise but automatic upgrades disabled", func(t *testing.T) {
+	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
+				Cloud:             true,
 				AutomaticUpgrades: false,
 			},
 		})
@@ -1001,12 +997,12 @@ func TestAutomaticUpgrades(t *testing.T) {
 		require.False(t, got)
 	})
 
-	// There's no `teleport-updater` (oss) package yet, so even if automatic upgrades are enabled it must return false.
-	t.Run("automatic upgrades enabled but build is OSS", func(t *testing.T) {
+	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				AutomaticUpgrades: false,
+				Cloud:             false,
+				AutomaticUpgrades: true,
 			},
 		})
 

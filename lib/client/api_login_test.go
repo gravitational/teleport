@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client_test
 
@@ -39,23 +43,24 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
+	t.Parallel()
+
 	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -81,17 +86,11 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	cfg.InsecureSkipVerify = true
 
 	// Reset functions after tests.
-	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
-	oldHasPlatformSupport := *client.HasPlatformSupport
-	*client.HasPlatformSupport = func() bool {
-		return true
-	}
+	oldStdin := prompt.Stdin()
 	oldHasCredentials := *client.HasTouchIDCredentials
 
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
-		*client.PromptWebauthn = oldWebauthn
-		*client.HasPlatformSupport = oldHasPlatformSupport
 		*client.HasTouchIDCredentials = oldHasCredentials
 	})
 
@@ -99,7 +98,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		<-ctx.Done() // wait for timeout
 		return nil, ctx.Err()
 	}
@@ -107,18 +106,18 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	solveOTP := func(ctx context.Context) (string, error) {
 		return totp.GenerateCode(otpKey, clock.Now())
 	}
-	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solveWebauthn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
 		}
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 			},
 		}, nil
 	}
-	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
 		if err == nil {
 			resp.GetWebauthn().Response.UserHandle = webID
@@ -130,7 +129,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	userPINFn := func(ctx context.Context) (string, error) {
 		return pin, nil
 	}
-	solvePIN := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solvePIN := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
 		// but we are faking it here.
 		got, err := prompt.PromptPIN()
@@ -159,7 +158,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		name                    string
 		secondFactor            constants.SecondFactorType
 		inputReader             *prompt.FakeReader
-		solveWebauthn           func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		solveWebauthn           func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 		authConnector           string
 		allowStdinHijack        bool
 		preferOTP               bool
@@ -191,7 +190,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			name:         "OTP preferred",
 			secondFactor: constants.SecondFactorOptional,
 			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 				panic("this should not be called")
 			},
 			preferOTP: true,
@@ -250,7 +249,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 				panic("this should not be called")
 			},
 			preferOTP:             true,
@@ -263,14 +262,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			defer cancel()
 
 			prompt.SetStdin(test.inputReader)
-			*client.PromptWebauthn = func(
-				ctx context.Context,
-				origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
-			) (*proto.MFAAuthenticateResponse, string, error) {
-				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
-				return resp, "", err
-			}
-
 			*client.HasTouchIDCredentials = func(rpid, user string) bool {
 				return test.hasTouchIDCredentials
 			}
@@ -289,113 +280,17 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.PreferOTP = test.preferOTP
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
 
+			tc.WebauthnLogin = func(
+				ctx context.Context,
+				origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
+			) (*proto.MFAAuthenticateResponse, string, error) {
+				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
+				return resp, "", err
+			}
+
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
 			require.NoError(t, err)
-		})
-	}
-}
-
-// TestTeleportClient_PromptMFAChallenge tests logic specific to the
-// TeleportClient's wrapper of PromptMFAChallenge.
-// Actual prompt and login behavior is tested by TestTeleportClient_Login_local.
-func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
-	oldPromptStandalone := client.PromptMFAStandalone
-	t.Cleanup(func() {
-		client.PromptMFAStandalone = oldPromptStandalone
-	})
-
-	const proxy1 = "proxy1.goteleport.com"
-	const proxy2 = "proxy2.goteleport.com"
-
-	defaultClient := &client.TeleportClient{
-		Config: client.Config{
-			WebProxyAddr: proxy1,
-			// MFA opts.
-			AuthenticatorAttachment: wancli.AttachmentAuto,
-			PreferOTP:               false,
-			Tracer:                  tracing.NoopProvider().Tracer("test"),
-		},
-	}
-
-	// client with non-default MFA options.
-	opinionatedClient := &client.TeleportClient{
-		Config: client.Config{
-			WebProxyAddr: proxy1,
-			// MFA opts.
-			AuthenticatorAttachment: wancli.AttachmentCrossPlatform,
-			PreferOTP:               true,
-			Tracer:                  tracing.NoopProvider().Tracer("test"),
-		},
-	}
-
-	// challenge contents not relevant for test
-	challenge := &proto.MFAAuthenticateChallenge{}
-
-	customizedOpts := &client.PromptMFAChallengeOpts{
-		HintBeforePrompt:        "some hint explaining the imminent prompt",
-		PromptDevicePrefix:      "llama",
-		Quiet:                   true,
-		AllowStdinHijack:        true,
-		AuthenticatorAttachment: wancli.AttachmentPlatform,
-		PreferOTP:               true,
-	}
-
-	ctx := context.Background()
-	tests := []struct {
-		name      string
-		tc        *client.TeleportClient
-		proxyAddr string
-		applyOpts func(*client.PromptMFAChallengeOpts)
-		wantProxy string
-		wantOpts  *client.PromptMFAChallengeOpts
-	}{
-		{
-			name:      "default TeleportClient",
-			tc:        defaultClient,
-			wantProxy: defaultClient.WebProxyAddr,
-			wantOpts: &client.PromptMFAChallengeOpts{
-				AuthenticatorAttachment: defaultClient.AuthenticatorAttachment,
-				PreferOTP:               defaultClient.PreferOTP,
-			},
-		},
-		{
-			name:      "opinionated TeleportClient",
-			tc:        opinionatedClient,
-			wantProxy: opinionatedClient.WebProxyAddr,
-			wantOpts: &client.PromptMFAChallengeOpts{
-				AuthenticatorAttachment: opinionatedClient.AuthenticatorAttachment,
-				PreferOTP:               opinionatedClient.PreferOTP,
-			},
-		},
-		{
-			name:      "custom proxyAddr and options",
-			tc:        defaultClient,
-			proxyAddr: proxy2,
-			applyOpts: func(opts *client.PromptMFAChallengeOpts) {
-				*opts = *customizedOpts
-			},
-			wantProxy: proxy2,
-			wantOpts:  customizedOpts,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			promptCalled := false
-			*client.PromptMFAStandalone = func(
-				gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
-				gotOpts *client.PromptMFAChallengeOpts,
-			) (*proto.MFAAuthenticateResponse, error) {
-				promptCalled = true
-				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
-				assert.Equal(t, test.wantProxy, gotProxy, "proxy mismatch")
-				assert.Equal(t, test.wantOpts, gotOpts, "opts mismatch")
-				return &proto.MFAAuthenticateResponse{}, nil
-			}
-
-			_, err := test.tc.PromptMFAChallenge(ctx, test.proxyAddr, challenge, test.applyOpts)
-			require.NoError(t, err, "PromptMFAChallenge errored")
-			require.True(t, promptCalled, "Mocked PromptMFAStandlone not called")
 		})
 	}
 }
@@ -443,9 +338,13 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Login the current user and fetch a valid pair of certificates.
 	key, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
-	require.NoError(t,
-		teleportClient.ActivateKey(ctx, key),
-		"ActivateKey failed")
+
+	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
+	require.NoError(t, err, "Connecting to the root cluster failed")
+	t.Cleanup(func() {
+		require.NoError(t, rootAuthClient.Close())
+		require.NoError(t, proxyClient.Close())
+	})
 
 	// Prepare "device aware" certificates from key.
 	// In a real scenario these would be augmented certs.
@@ -487,16 +386,18 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
 		// Test! Exercise DeviceLogin.
-		got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
-			SshAuthorizedKey: key.Cert,
-		})
+		got, err := teleportClient.DeviceLogin(ctx,
+			rootAuthClient,
+			&devicepb.UserCertificates{
+				SshAuthorizedKey: key.Cert,
+			})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
 
 		// Test! Exercise AttemptDeviceLogin.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key),
+			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.Equal(t, 2, runCeremonyCalls, `AttemptDeviceLogin didn't call dtAuthnRunCeremony()`)
 
@@ -521,7 +422,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test!
 		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key),
+			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.False(t, runCeremonyCalled, "AttemptDeviceLogin called DeviceLogin/dtAuthnRunCeremony, despite the Ping response")
 	})
@@ -550,10 +451,21 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}, nil
 		})
 
+		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		require.NoError(t, err)
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		require.NoError(t, err)
+		defer rootAuthClient.Close()
+
 		// Test!
-		got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
-			SshAuthorizedKey: key.Cert,
-		})
+		got, err := teleportClient.DeviceLogin(
+			ctx,
+			rootAuthClient,
+			&devicepb.UserCertificates{
+				SshAuthorizedKey: key.Cert,
+			})
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
 		assert.Equal(t, 2, runCeremonyCalls, "RunCeremony called an unexpected number of times")
@@ -653,7 +565,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	require.NoError(t, err)
-	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 	webID := cc.Response.User.ID
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
@@ -666,7 +578,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})
@@ -734,4 +646,67 @@ func silenceLogger(t *testing.T) {
 	})
 	log.SetOutput(io.Discard)
 	log.SetLevel(log.PanicLevel)
+}
+
+func TestRetryWithRelogin(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	sa := newStandaloneTeleport(t, clock)
+
+	cfg := client.MakeDefaultConfig()
+	cfg.Username = sa.Username
+	cfg.HostLogin = sa.Username
+	cfg.WebProxyAddr = sa.ProxyWebAddr
+	cfg.KeysDir = t.TempDir()
+	cfg.InsecureSkipVerify = true
+	cfg.AllowStdinHijack = true
+
+	tc, err := client.NewClient(cfg)
+	require.NoError(t, err)
+
+	errorOnTry := func(counter *int, failedTry int) func() error {
+		return func() error {
+			*counter++
+			if *counter == failedTry {
+				return errors.New("ssh: cert has expired")
+			}
+			return nil
+		}
+	}
+
+	t.Run("Does not try login if function succeeds on the first run", func(t *testing.T) {
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, -1))
+
+		require.NoError(t, err)
+		require.Equal(t, 1, calledTimes)
+	})
+	t.Run("Runs 'beforeLoginHook' before login, if it's present", func(t *testing.T) {
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1), client.WithBeforeLoginHook(
+			func() error {
+				return errors.New("hook called")
+			}))
+
+		require.ErrorContains(t, err, "hook called")
+		require.Equal(t, 1, calledTimes)
+	})
+
+	t.Run("Successful retry after login", func(t *testing.T) {
+		solveOTP := func(ctx context.Context) (string, error) {
+			return totp.GenerateCode(sa.OTPKey, clock.Now())
+		}
+		oldStdin := prompt.Stdin()
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+		})
+		prompt.SetStdin(prompt.NewFakeReader().AddString(sa.Password).AddReply(solveOTP))
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1))
+
+		require.NoError(t, err)
+		require.Equal(t, 2, calledTimes)
+	})
 }

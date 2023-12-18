@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -361,6 +363,15 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 		Principals:      []string{},
 	}
 
+	remoteProxyIdentity := tlsca.Identity{
+		Username:        "proxy...",
+		Groups:          []string{string(types.RoleProxy)},
+		TeleportCluster: remoteClusterName,
+		Expires:         now,
+		Usage:           []string{},
+		Principals:      []string{},
+	}
+
 	dbIdentity := tlsca.Identity{
 		Username:        "db...",
 		Groups:          []string{string(types.RoleDatabase)},
@@ -381,11 +392,12 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 		userIPAddr string
 	}
 	tests := []struct {
-		name                         string
-		args                         args
-		want                         want
-		credentialsForwardingDennied bool
-		enableCredentialsForwarding  bool
+		name                                  string
+		args                                  args
+		want                                  want
+		credentialsForwardingDennied          bool
+		enableCredentialsForwarding           bool
+		impersonateLocalUserViaRemoteProxyErr bool
 	}{
 		{
 			name: "local user without impersonation",
@@ -549,6 +561,21 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 			credentialsForwardingDennied: false,
 			enableCredentialsForwarding:  false,
 		},
+		{
+			name: "remote proxy with local user impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, remoteProxyIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
+				}},
+				impersonateIdentity: &localUserIdentity,
+				sourceIPAddr:        "127.0.0.1:6514",
+				impersonatedIPAddr:  "127.0.0.2:6514",
+			},
+			enableCredentialsForwarding:           true,
+			impersonateLocalUserViaRemoteProxyErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -593,6 +620,14 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 					),
 				)
 			}
+			if tt.impersonateLocalUserViaRemoteProxyErr {
+				require.True(t,
+					bytes.Contains(
+						rsp.Body.Bytes(),
+						[]byte("can not impersonate users via a different cluster proxy"),
+					),
+				)
+			}
 		})
 	}
 }
@@ -611,7 +646,7 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, err := authz.UserFromContext(r.Context())
 	require.NoError(h.t, err)
 	require.Equal(h.t, h.expectedUser, user)
-	clientSrcAddr, err := authz.ClientAddrFromContext(r.Context())
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(r.Context())
 	require.NoError(h.t, err)
 	require.Equal(h.t, h.userIP, clientSrcAddr.String())
 	// Ensure that the Teleport-Impersonate-User header is not set on the request

@@ -1,23 +1,26 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import path, { delimiter } from 'path';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import {
   PtyCommand,
@@ -67,13 +70,13 @@ export async function buildPtyOptions(
     });
 }
 
-function getPtyProcessOptions(
+export function getPtyProcessOptions(
   settings: RuntimeSettings,
   cmd: PtyCommand,
   env: typeof process.env
 ): PtyProcessOptions {
   switch (cmd.kind) {
-    case 'pty.shell':
+    case 'pty.shell': {
       // Teleport Connect bundles a tsh binary, but the user might have one already on their system.
       // Since we use our own TELEPORT_HOME which might differ in format with the version that the
       // user has installed, let's prepend our bin directory to PATH.
@@ -91,9 +94,10 @@ function getPtyProcessOptions(
         path: settings.defaultShell,
         args: [],
         cwd: cmd.cwd,
-        env,
-        initCommand: cmd.initCommand,
+        env: { ...env, ...cmd.env },
+        initMessage: cmd.initMessage,
       };
+    }
 
     case 'pty.tsh-kube-login': {
       const isWindows = settings.platform === 'win32';
@@ -107,7 +111,7 @@ function getPtyProcessOptions(
         escapedBinaryPath,
         `--proxy=${cmd.rootClusterId}`,
         `kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`,
-        settings.tshd.insecure && '--insecure',
+        settings.insecure && '--insecure',
       ]
         .filter(Boolean)
         .join(' ');
@@ -120,7 +124,7 @@ function getPtyProcessOptions(
       };
     }
 
-    case 'pty.tsh-login':
+    case 'pty.tsh-login': {
       const loginHost = cmd.login
         ? `${cmd.login}@${cmd.serverId}`
         : cmd.serverId;
@@ -135,8 +139,20 @@ function getPtyProcessOptions(
         ],
         env,
       };
+    }
+
+    case 'pty.gateway-cli-client': {
+      // TODO(ravicious): Set argv0 when node-pty adds support for it.
+      // https://github.com/microsoft/node-pty/issues/472
+      return {
+        path: cmd.path,
+        args: cmd.args,
+        env: { ...env, ...cmd.env },
+      };
+    }
+
     default:
-      throw Error(`Unknown pty command: ${cmd}`);
+      assertUnreachable(cmd);
   }
 }
 

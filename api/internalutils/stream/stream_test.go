@@ -17,15 +17,19 @@ limitations under the License.
 package stream
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 // TestSlice tests the slice stream.
 func TestSlice(t *testing.T) {
+	t.Parallel()
+
 	// normal usage
 	s, err := Collect(Slice([]int{1, 2, 3}))
 	require.NoError(t, err)
@@ -39,11 +43,13 @@ func TestSlice(t *testing.T) {
 	// nil slice
 	s, err = Collect(Slice[int](nil))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 }
 
 // TestFilterMap tests the FilterMap combinator.
 func TestFilterMap(t *testing.T) {
+	t.Parallel()
+
 	// normal usage
 	s, err := Collect(FilterMap(Slice([]int{1, 2, 3, 4}), func(i int) (string, bool) {
 		if i%2 == 0 {
@@ -69,12 +75,12 @@ func TestFilterMap(t *testing.T) {
 		return "", false
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// empty stream
 	s, err = Collect(FilterMap(Empty[int](), func(_ int) (string, bool) { panic("unreachable") }))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// failure
 	err = Drain(FilterMap(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
@@ -83,6 +89,8 @@ func TestFilterMap(t *testing.T) {
 
 // TestMapWhile tests the MapWhile combinator.
 func TestMapWhile(t *testing.T) {
+	t.Parallel()
+
 	// normal usage
 	s, err := Collect(MapWhile(Slice([]int{1, 2, 3, 4}), func(i int) (string, bool) {
 		if i == 3 {
@@ -108,12 +116,12 @@ func TestMapWhile(t *testing.T) {
 		return "", false
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// empty stream
 	s, err = Collect(MapWhile(Empty[int](), func(_ int) (string, bool) { panic("unreachable") }))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// failure
 	err = Drain(MapWhile(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
@@ -122,6 +130,8 @@ func TestMapWhile(t *testing.T) {
 
 // TestFunc tests the Func stream.
 func TestFunc(t *testing.T) {
+	t.Parallel()
+
 	// normal usage
 	var n int
 	s, err := Collect(Func(func() (int, error) {
@@ -151,7 +161,7 @@ func TestFunc(t *testing.T) {
 		return 0, io.EOF
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// immediate error
 	err = Drain(Func(func() (int, error) {
@@ -172,6 +182,8 @@ func TestFunc(t *testing.T) {
 }
 
 func TestPageFunc(t *testing.T) {
+	t.Parallel()
+
 	// basic pages
 	var n int
 	s, err := Collect(PageFunc(func() ([]int, error) {
@@ -217,7 +229,7 @@ func TestPageFunc(t *testing.T) {
 		return nil, io.EOF
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// lots of empty pages
 	n = 0
@@ -250,7 +262,7 @@ func TestPageFunc(t *testing.T) {
 		return nil, nil
 	}))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// eventual failure
 	n = 0
@@ -273,23 +285,27 @@ func TestPageFunc(t *testing.T) {
 
 // TestEmpty tests the Empty/Fail stream.
 func TestEmpty(t *testing.T) {
+	t.Parallel()
+
 	// empty case
 	s, err := Collect(Empty[int]())
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// normal error case
 	s, err = Collect(Fail[int](fmt.Errorf("unexpected error")))
 	require.Error(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 
 	// nil error case
 	s, err = Collect(Fail[int](nil))
 	require.NoError(t, err)
-	require.Len(t, s, 0)
+	require.Empty(t, s)
 }
 
 func TestCollectPages(t *testing.T) {
+	t.Parallel()
+
 	tts := []struct {
 		pages  [][]string
 		expect []string
@@ -341,10 +357,250 @@ func TestCollectPages(t *testing.T) {
 				require.Error(t, err)
 			}
 			if len(tt.expect) == 0 {
-				require.Len(t, collected, 0)
+				require.Empty(t, collected)
 			} else {
 				require.Equal(t, tt.expect, collected)
 			}
 		})
 	}
+}
+
+func TestTake(t *testing.T) {
+	t.Parallel()
+
+	intSlice := func(n int) []int {
+		s := make([]int, 0, n)
+		for i := 0; i < n; i++ {
+			s = append(s, i)
+		}
+		return s
+	}
+
+	tests := []struct {
+		name           string
+		input          []int
+		n              int
+		expectedOutput []int
+		expectMore     bool
+	}{
+		{
+			name:           "empty stream",
+			input:          []int{},
+			n:              10,
+			expectedOutput: []int{},
+			expectMore:     false,
+		},
+		{
+			name:           "full stream",
+			input:          intSlice(20),
+			n:              10,
+			expectedOutput: intSlice(10),
+			expectMore:     true,
+		},
+		{
+			name:           "drain stream of size n",
+			input:          intSlice(10),
+			n:              10,
+			expectedOutput: intSlice(10),
+			expectMore:     true,
+		},
+		{
+			name:           "drain stream of size < n",
+			input:          intSlice(5),
+			n:              10,
+			expectedOutput: intSlice(5),
+			expectMore:     false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := Slice(tc.input)
+			output, more := Take(stream, tc.n)
+			require.Equal(t, tc.expectedOutput, output)
+			require.Equal(t, tc.expectMore, more)
+		})
+	}
+}
+
+// TestRateLimitFailure verifies the expected failure conditions of the RateLimit helper.
+func TestRateLimitFailure(t *testing.T) {
+	t.Parallel()
+
+	var limiterError = errors.New("limiter-error")
+	var streamError = errors.New("stream-error")
+
+	tts := []struct {
+		desc    string
+		items   int
+		stream  error
+		limiter error
+		expect  error
+	}{
+		{
+			desc:    "simultaneous",
+			stream:  streamError,
+			limiter: limiterError,
+			expect:  streamError,
+		},
+		{
+			desc:   "stream-only",
+			stream: streamError,
+			expect: streamError,
+		},
+		{
+			desc:    "limiter-only",
+			limiter: limiterError,
+			expect:  limiterError,
+		},
+		{
+			desc:    "limiter-graceful",
+			limiter: io.EOF,
+			expect:  nil,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			err := Drain(RateLimit(Fail[int](tt.stream), func() error { return tt.limiter }))
+			if tt.expect == nil {
+				require.NoError(t, err)
+				return
+			}
+
+			require.ErrorIs(t, err, tt.expect)
+		})
+	}
+}
+
+// TestRateLimit sets up a concurrent channel-based limiter and verifies its effect on a pool of workers consuming
+// items from streams.
+func TestRateLimit(t *testing.T) {
+	t.Parallel()
+
+	const workers = 16
+	const maxItemsPerWorker = 16
+	const tokens = 100
+	const burst = 10
+
+	lim := make(chan struct{}, burst)
+	done := make(chan struct{})
+
+	results := make(chan error, workers)
+
+	items := make(chan struct{}, tokens+1)
+
+	for i := 0; i < workers; i++ {
+		go func() {
+			stream := RateLimit(repeat("some-item", maxItemsPerWorker), func() error {
+				select {
+				case <-lim:
+					return nil
+				case <-done:
+					// make sure we still consume remaining tokens even if 'done' is closed (simplifies
+					// test logic by letting us close 'done' immediately after sending last token without
+					// worrying about racing).
+					select {
+					case <-lim:
+						return nil
+					default:
+						return io.EOF
+					}
+				}
+			})
+
+			for stream.Next() {
+				items <- struct{}{}
+			}
+
+			results <- stream.Done()
+		}()
+	}
+
+	// yielded tracks total number of tokens yielded on limiter channel
+	var yielded int
+
+	// do an initial fill of limiter channel
+	for i := 0; i < burst; i++ {
+		select {
+		case lim <- struct{}{}:
+			yielded++
+		default:
+			require.FailNow(t, "initial burst should never block")
+		}
+	}
+
+	var consumed int
+
+	// consume item receipt events
+	timeoutC := time.After(time.Second * 30)
+	for i := 0; i < burst; i++ {
+		select {
+		case <-items:
+			consumed++
+		case <-timeoutC:
+			require.FailNow(t, "timeout waiting for item")
+		}
+	}
+
+	// ensure no more items available
+	select {
+	case <-items:
+		require.FailNow(t, "received item without corresponding token yield")
+	default:
+	}
+
+	// yield the rest of the tokens
+	for yielded < tokens {
+		select {
+		case lim <- struct{}{}:
+			yielded++
+		case <-timeoutC:
+			require.FailNow(t, "timeout waiting to yield token")
+		}
+	}
+
+	// signal workers that they should exit once remaining tokens
+	// are consumed.
+	close(done)
+
+	// wait for all workers to finish
+	for i := 0; i < workers; i++ {
+		select {
+		case err := <-results:
+			require.NoError(t, err)
+		case <-timeoutC:
+			require.FailNow(t, "timeout waiting for worker to exit")
+		}
+	}
+
+	// consume the rest of the item events
+ConsumeItems:
+	for {
+		select {
+		case <-items:
+			consumed++
+		default:
+			break ConsumeItems
+		}
+	}
+
+	// note that total number of processed items may actually vary since we are rate-limiting
+	// how frequently a stream is *polled*, not how frequently it yields an item. A stream being
+	// polled may result in us discovering that it is empty, in which case a limiter token is still
+	// consumed, but no item is yielded.
+	require.LessOrEqual(t, consumed, tokens)
+	require.GreaterOrEqual(t, consumed, tokens-workers)
+}
+
+// repeat repeats the same item N times
+func repeat[T any](item T, count int) Stream[T] {
+	var n int
+	return Func(func() (T, error) {
+		n++
+		if n > count {
+			var zero T
+			return zero, io.EOF
+		}
+		return item, nil
+	})
 }

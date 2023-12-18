@@ -1,6 +1,6 @@
 ---
-title: Role-Based Access Control for Desktop Access
-description: Role-based access control (RBAC) for Teleport desktop access
+title: Role-Based Access Control for Desktops
+description: Role-based access control (RBAC) for desktops protected by Teleport.
 ---
 
 Teleport's RBAC allows administrators to set up granular access policies for
@@ -53,6 +53,10 @@ spec:
   Windows logins, and that these Windows users are properly secured.
 </Admonition>
 
+For a full Teleport role reference, including information on how Teleport
+expands the `internal` and `external` traits, see the [Teleport
+Access Controls Reference](../access-controls/reference.mdx).
+
 ## Labeling
 
 Both `allow` and `deny` rules support `windows_desktop_labels` selectors. These
@@ -61,9 +65,9 @@ use wildcards (`"*"`) to match all desktop labels.
 
 Windows desktops acquire labels in two ways:
 
-1. Using the `host_labels` rules defined in the `windows_desktop_service` section
+- Using the `host_labels` rules defined in the `windows_desktop_service` section
    of your Teleport configuration file.
-2. Using LDAP (for desktops discovered via LDAP only)
+- Using LDAP (for desktops discovered via LDAP only)
 
 ### Using `host_labels`
 
@@ -210,7 +214,7 @@ This feature is disabled by default, and can be enabled by setting the
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: allow-user-provisioning
 spec:
@@ -241,7 +245,7 @@ To add the user to additional groups, specify the `desktop_groups` role option:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: allow-user-provisioning
 spec:

@@ -94,3 +94,9 @@ coverage
 # vite
 .swc
 web/certs/
+
+# Vagrant
+.vagrant
+
+# Files produced by tests
+*.avi

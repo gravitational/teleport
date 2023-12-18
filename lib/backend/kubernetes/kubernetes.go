@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package kubernetes
 
@@ -159,7 +161,7 @@ func NewShared() (*Backend, error) {
 	return NewSharedWithClient(restClient)
 }
 
-// NewSharedWithClient returns a new instance of the shared kuberenetes secret store with the provided client (equivalent
+// NewSharedWithClient returns a new instance of the shared kubernetes secret store with the provided client (equivalent
 // to NewWithClient() except that this backend can be written to by any teleport agent within the helm release. used for propagating
 // relevant state to controllers).
 func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
@@ -200,6 +202,10 @@ func NewWithConfig(conf Config) (*Backend, error) {
 	}, nil
 }
 
+func (b *Backend) GetName() string {
+	return "kubernetes"
+}
+
 // Exists checks if the secret already exists in Kubernetes.
 // It's used to determine if the agent never created a secret and might upgrade from
 // local SQLite database. In that case, the agent reads local database and
@@ -236,19 +242,6 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	defer b.mu.Unlock()
 
 	return b.updateSecretContent(ctx, i)
-}
-
-// PutRange receives multiple items and upserts them into the Kubernetes Secret.
-// This function is only used when the Agent's Secret does not exist, but local SQLite database
-// has identity credentials.
-// TODO(tigrato): remove this once the compatibility layer between local storage and
-// Kube secret storage is no longer required!
-func (b *Backend) PutRange(ctx context.Context, items []backend.Item) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	_, err := b.updateSecretContent(ctx, items...)
-	return trace.Wrap(err)
 }
 
 // getSecret reads the secret from K8S API.

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -92,8 +94,12 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	})
 	require.NoError(t, err)
 
-	pool.tracker.TrackExpected([]string{"proxy-1", "proxy-2", "proxy-3"}...)
-	pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, l track.Lease) (Agent, error) {
+	pool.tracker.TrackExpected(
+		track.Proxy{Name: "proxy-1"},
+		track.Proxy{Name: "proxy-2"},
+		track.Proxy{Name: "proxy-3"},
+	)
+	pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, l *track.Lease) (Agent, error) {
 		agent := &mockAgent{}
 		agent.mockStart = func(ctx context.Context) error {
 			return nil
@@ -117,8 +123,6 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 // TestAgentPoolConnectionCount ensures that an agent pool creates the desired
 // number of connections based on the runtime config.
 func TestAgentPoolConnectionCount(t *testing.T) {
-	// TODO: fix flaky test https://github.com/gravitational/teleport/issues/22984
-	t.Skip("flaky test - skip until it's fixed")
 	pool, client := setupTestAgentPool(t)
 	client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 		config := types.DefaultClusterNetworkingConfig()
@@ -130,17 +134,15 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 		return config, nil
 	}
 
-	err := pool.Start()
-	require.NoError(t, err)
+	require.NoError(t, pool.Start())
+	t.Cleanup(pool.Stop)
 
 	require.Eventually(t, func() bool {
 		return pool.active.len() == 1
 	}, time.Second*5, time.Millisecond*10, "wait for agent pool")
 
-	require.False(t, pool.isAgentRequired())
-	require.Equal(t, pool.Count(), 1)
-
-	pool.Stop()
+	require.Nil(t, pool.tracker.TryAcquire())
+	require.Equal(t, 1, pool.Count())
 
 	pool, client = setupTestAgentPool(t)
 	client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
@@ -153,21 +155,13 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 		return config, nil
 	}
 
-	err = pool.Start()
-	require.NoError(t, err)
+	require.NoError(t, pool.Start())
+	t.Cleanup(pool.Stop)
 
 	require.Eventually(t, func() bool {
 		return pool.Count() == 3
 	}, time.Second*5, time.Millisecond*10)
 
-	select {
-	case <-pool.tracker.Acquire():
-		require.FailNow(t, "expected all leases to be acquired")
-	default:
-	}
-
-	require.True(t, pool.isAgentRequired())
-	require.Equal(t, pool.Count(), 3)
-
-	pool.Stop()
+	require.Nil(t, pool.tracker.TryAcquire())
+	require.Equal(t, 3, pool.Count())
 }

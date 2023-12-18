@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package enroll_test
 
@@ -25,10 +29,11 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestAutoEnroll(t *testing.T) {
-	env := testenv.MustNew()
+func TestAutoEnrollCeremony_Run(t *testing.T) {
+	env := testenv.MustNew(
+		testenv.WithAutoCreateDevice(true),
+	)
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -38,7 +43,7 @@ func TestAutoEnroll(t *testing.T) {
 
 	tests := []struct {
 		name string
-		dev  fakeDevice
+		dev  testenv.FakeDevice
 	}{
 		{
 			name: "macOS device",
@@ -47,12 +52,17 @@ func TestAutoEnroll(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetOSType = test.dev.GetOSType
-			*enroll.CollectDeviceData = test.dev.CollectDeviceData
-			*enroll.EnrollInit = test.dev.EnrollDeviceInit
-			*enroll.SignChallenge = test.dev.SignChallenge
+			c := enroll.AutoEnrollCeremony{
+				Ceremony: &enroll.Ceremony{
+					GetDeviceOSType:         test.dev.GetDeviceOSType,
+					EnrollDeviceInit:        test.dev.EnrollDeviceInit,
+					SignChallenge:           test.dev.SignChallenge,
+					SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
+				},
+				CollectDeviceData: test.dev.CollectDeviceData,
+			}
 
-			dev, err := enroll.AutoEnroll(ctx, devices)
+			dev, err := c.Run(ctx, devices)
 			require.NoError(t, err, "AutoEnroll failed")
 			assert.NotNil(t, dev, "AutoEnroll returned nil device")
 		})

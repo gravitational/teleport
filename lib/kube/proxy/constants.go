@@ -75,3 +75,9 @@ const (
 	// PortForwardProtocolV1Name is the subprotocol "portforward.k8s.io" is used for port forwarding
 	PortForwardProtocolV1Name = "portforward.k8s.io"
 )
+
+const (
+	// kubernetesResourcesKey is the key used to store the kubernetes resources
+	// in the role.
+	kubernetesResourcesKey = "kubernetes_resources"
+)

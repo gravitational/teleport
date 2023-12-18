@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthn
 
@@ -20,7 +24,8 @@ import (
 	"errors"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // PasswordlessIdentity represents the subset of Identity methods used by
@@ -29,8 +34,8 @@ type PasswordlessIdentity interface {
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
 	DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error
 	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 }
@@ -44,7 +49,7 @@ type PasswordlessFlow struct {
 // Begin is the first step of the passwordless login flow.
 // It works similarly to LoginFlow.Begin, but it doesn't require a Teleport
 // username nor implies a previous password-validation step.
-func (f *PasswordlessFlow) Begin(ctx context.Context) (*CredentialAssertion, error) {
+func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
@@ -56,7 +61,7 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*CredentialAssertion, err
 // Finish is the last step of the passwordless login flow.
 // It works similarly to LoginFlow.Finish, but the user identity is established
 // via the response UserHandle, instead of an explicit Teleport username.
-func (f *PasswordlessFlow) Finish(ctx context.Context, resp *CredentialAssertionResponse) (*types.MFADevice, string, error) {
+func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
@@ -79,12 +84,12 @@ func (p passwordlessIdentity) GetWebauthnLocalAuth(ctx context.Context, user str
 
 type globalSessionStorage PasswordlessFlow
 
-func (g *globalSessionStorage) Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error {
+func (g *globalSessionStorage) Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error {
 	id := base64.RawURLEncoding.EncodeToString(sd.Challenge)
 	return g.Identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id, sd)
 }
 
-func (g *globalSessionStorage) Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error) {
+func (g *globalSessionStorage) Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error) {
 	return g.Identity.GetGlobalWebauthnSessionData(ctx, scopeLogin, challenge)
 }
 

@@ -1,31 +1,40 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
 import { Text, Box, Flex, Link } from 'design';
 import { Danger } from 'design/Alert';
-import { InfoFilled } from 'design/Icon';
+import { Info } from 'design/Icon';
 import TextEditor from 'shared/components/TextEditor';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
+import Validation from 'shared/components/Validation';
 
 import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Tabs } from 'teleport/components/Tabs';
 
-import { HeaderSubtitle, ActionButtons, Mark, Header } from '../../Shared';
+import {
+  HeaderSubtitle,
+  ActionButtons,
+  Mark,
+  Header,
+  StyledBox,
+} from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
 import { DatabaseEngine } from '../../SelectResource';
 
@@ -69,6 +78,7 @@ export function MutualTlsView({
           <Flex minHeight="195px" mt={3}>
             <TextEditor
               readOnly={true}
+              bg="levels.deep"
               data={[{ content: dbCU, type: 'yaml' }]}
             />
           </Flex>
@@ -87,7 +97,7 @@ export function MutualTlsView({
           </Box>
           <StyledBox mb={6}>
             <Flex mb={2}>
-              <InfoFilled fontSize={18} mr={1} mt="2px" />
+              <Info size="medium" mr={1} />
               <Text bold>After Running the Command</Text>
             </Flex>
             <DbEngineInstructions dbEngine={dbEngine} />
@@ -99,19 +109,21 @@ export function MutualTlsView({
               signed by a third-party CA. Adding a copy allows Teleport to trust
               it.
             </Text>
-            <Box
-              mt={2}
-              height="100px"
-              width="800px"
-              as="textarea"
-              p={2}
-              borderRadius={2}
-              placeholder="Copy and paste your CA certificate"
-              value={caCert}
-              onChange={e => setCaCert(e.target.value)}
-              autoFocus
-              style={{ outline: 'none' }}
-            />
+            <Validation>
+              <FieldTextArea
+                mt={2}
+                placeholder="Copy and paste your CA certificate"
+                value={caCert}
+                onChange={e => setCaCert(e.target.value)}
+                resizable={true}
+                autoFocus
+                textAreaCss={`
+                font-size: 14px;
+                height: 100px;
+                width: 800px;
+                `}
+              />
+            </Validation>
           </Box>
         </>
       )}
@@ -287,10 +299,3 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 }
-
-const StyledBox = styled(Box)`
-  max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;

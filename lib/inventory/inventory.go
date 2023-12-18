@@ -1,23 +1,27 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package inventory
 
 import (
 	"context"
+	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -32,16 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
-)
-
-// we use dedicated global jitters for all the intervals/retires in this
-// package. we do this because our jitter usage in this package can scale by
-// the number of concurrent connections to auth, making dedicated jitters a
-// poor choice (high memory usage for all the rngs).
-var (
-	seventhJitter = retryutils.NewShardedSeventhJitter()
-	halfJitter    = retryutils.NewShardedHalfJitter()
-	fullJitter    = retryutils.NewShardedFullJitter()
 )
 
 // DownstreamCreateFunc is a function that creates a downstream inventory control stream.
@@ -68,6 +62,8 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
+	// GetUpstreamLabels gets the labels received from upstream.
+	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
 
 // DownstreamSender is a send-only reference to the downstream half of an inventory control stream. Components that
@@ -115,12 +111,13 @@ func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.Invent
 }
 
 type downstreamHandle struct {
-	mu           sync.Mutex
-	handlerNonce uint64
-	pingHandlers map[uint64]DownstreamPingHandler
-	senderC      chan DownstreamSender
-	closeContext context.Context
-	cancel       context.CancelFunc
+	mu                sync.Mutex
+	handlerNonce      uint64
+	pingHandlers      map[uint64]DownstreamPingHandler
+	senderC           chan DownstreamSender
+	closeContext      context.Context
+	cancel            context.CancelFunc
+	upstreamSSHLabels map[string]string
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -208,7 +205,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	defer stream.Close()
 	// send upstream hello
 	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
-		if trace.IsEOF(err) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		return trace.Errorf("failed to send upstream hello: %v", err)
@@ -225,7 +222,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			return trace.BadParameter("expected downstream hello, got %T", msg)
 		}
 	case <-stream.Done():
-		if trace.IsEOF(stream.Error()) {
+		if errors.Is(stream.Error(), io.EOF) {
 			return nil
 		}
 		return trace.Wrap(stream.Error())
@@ -245,11 +242,13 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return trace.BadParameter("unexpected downstream hello")
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
+			case proto.DownstreamInventoryUpdateLabels:
+				h.handleUpdateLabels(m)
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}
 		case <-stream.Done():
-			if trace.IsEOF(stream.Error()) {
+			if errors.Is(stream.Error(), io.EOF) {
 				return nil
 			}
 			return trace.Wrap(stream.Error())
@@ -284,6 +283,23 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 	}
 }
 
+func (h *downstreamHandle) handleUpdateLabels(msg proto.DownstreamInventoryUpdateLabels) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if msg.Kind == proto.LabelUpdateKind_SSHServerCloudLabels {
+		h.upstreamSSHLabels = msg.Labels
+	}
+}
+
+func (h *downstreamHandle) GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if kind == proto.LabelUpdateKind_SSHServerCloudLabels {
+		return h.upstreamSSHLabels
+	}
+	return nil
+}
+
 func (h *downstreamHandle) Sender() <-chan DownstreamSender {
 	return h.senderC
 }
@@ -315,6 +331,9 @@ type UpstreamHandle interface {
 	// Hello gets the cached upstream hello that was used to initialize the stream.
 	Hello() proto.UpstreamInventoryHello
 
+	// AgentMetadata is the service's metadata: OS, glibc version, install methods, ...
+	AgentMetadata() proto.UpstreamInventoryAgentMetadata
+
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
@@ -332,6 +351,8 @@ type UpstreamHandle interface {
 	// immediately locking the instanceStateTracker will likely result in observing the
 	// pre-heartbeat state.
 	HeartbeatInstance()
+	// UpdateLabels updates the labels on the instance.
+	UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error
 }
 
 // instanceStateTracker tracks the state of a connected instance from the point of view of
@@ -383,10 +404,6 @@ type instanceStateTracker struct {
 	// will be nil if the instance only recently connected or joined. Operations that expect to be able to
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
-
-	// lastRawHeartbeat is the raw backend value associated with LastHeartbeat. Used to
-	// enabled CompareAndSwap based updates.
-	lastRawHeartbeat []byte
 
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
@@ -455,11 +472,13 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
 func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:  vc.Normalize(hello.Version),
-		Services: hello.Services,
-		Hostname: hello.Hostname,
-		AuthID:   authID,
-		LastSeen: now.UTC(),
+		Version:                 vc.Normalize(hello.Version),
+		Services:                hello.Services,
+		Hostname:                hello.Hostname,
+		AuthID:                  authID,
+		LastSeen:                now.UTC(),
+		ExternalUpgrader:        hello.GetExternalUpgrader(),
+		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -484,6 +503,9 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
 	hello proto.UpstreamInventoryHello
+
+	agentMDLock   sync.RWMutex
+	agentMetadata proto.UpstreamInventoryAgentMetadata
 
 	ticker *interval.MultiInterval[intervalKey]
 
@@ -561,6 +583,20 @@ func (h *upstreamHandle) Hello() proto.UpstreamInventoryHello {
 	return h.hello
 }
 
+// AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
+func (h *upstreamHandle) AgentMetadata() proto.UpstreamInventoryAgentMetadata {
+	h.agentMDLock.RLock()
+	defer h.agentMDLock.RUnlock()
+	return h.agentMetadata
+}
+
+// SetAgentMetadata sets the agent metadata for the current handler.
+func (h *upstreamHandle) SetAgentMetadata(agentMD proto.UpstreamInventoryAgentMetadata) {
+	h.agentMDLock.Lock()
+	defer h.agentMDLock.Unlock()
+	h.agentMetadata = agentMD
+}
+
 func (h *upstreamHandle) HasService(service types.SystemRole) bool {
 	for _, s := range h.hello.Services {
 		if s == service {
@@ -568,4 +604,12 @@ func (h *upstreamHandle) HasService(service types.SystemRole) bool {
 		}
 	}
 	return false
+}
+
+func (h *upstreamHandle) UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error {
+	req := proto.DownstreamInventoryUpdateLabels{
+		Kind:   kind,
+		Labels: labels,
+	}
+	return trace.Wrap(h.Send(ctx, req))
 }

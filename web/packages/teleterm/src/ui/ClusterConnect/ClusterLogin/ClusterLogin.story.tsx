@@ -1,27 +1,31 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { Box } from 'design';
-import { Attempt } from 'shared/hooks/useAsync';
+import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
-
-import { gateway } from 'teleterm/services/tshd/fixtures/mocks';
+import {
+  makeDatabaseGateway,
+  makeKubeGateway,
+} from 'teleterm/services/tshd/testHelpers';
 
 import {
   ClusterLoginPresentation,
@@ -68,12 +72,9 @@ function makeProps(): ClusterLoginPresentationProps {
   };
 }
 
-export const Error = () => {
+export const Err = () => {
   const props = makeProps();
-  props.initAttempt = {
-    status: 'error',
-    statusText: 'some error message',
-  };
+  props.initAttempt = makeErrorAttempt(new Error('some error message'));
 
   return (
     <TestContainer>
@@ -116,14 +117,31 @@ export const LocalOnly = () => {
   );
 };
 
-export const LocalOnlyWithReasonGatewayCertExpiredWithGateway = () => {
+export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
   const props = makeProps();
   props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
-    targetUri: gateway.targetUri,
-    gateway: gateway,
+    targetUri: dbGateway.targetUri,
+    gateway: dbGateway,
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
+  const props = makeProps();
+  props.initAttempt.data.secondFactor = 'off';
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.gateway-cert-expired',
+    targetUri: kubeGateway.targetUri,
+    gateway: kubeGateway,
   };
 
   return (
@@ -139,7 +157,7 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
-    targetUri: gateway.targetUri,
+    targetUri: dbGateway.targetUri,
     gateway: undefined,
   };
 
@@ -309,7 +327,7 @@ export const SsoPrompt = () => {
   );
 };
 
-const TestContainer: React.FC = ({ children }) => (
+const TestContainer: React.FC<PropsWithChildren> = ({ children }) => (
   <>
     <span>Bordered box is not part of the component</span>
     <Box
@@ -323,3 +341,23 @@ const TestContainer: React.FC = ({ children }) => (
     </Box>
   </>
 );
+
+const dbGateway = makeDatabaseGateway({
+  uri: '/gateways/gateway1',
+  targetName: 'postgres',
+  targetUri: '/clusters/teleport-local/dbs/postgres',
+  targetUser: 'alice',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59116',
+  protocol: 'postgres',
+});
+
+const kubeGateway = makeKubeGateway({
+  uri: '/gateways/gateway2',
+  targetName: 'minikube',
+  targetUri: '/clusters/teleport-local/kubes/minikube',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59117',
+});

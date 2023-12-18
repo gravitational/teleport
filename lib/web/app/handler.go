@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package app connections to applications over a reverse tunnel and forwards
 // HTTP requests to them.
@@ -22,12 +24,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 
-	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -38,7 +39,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -52,7 +54,7 @@ type HandlerConfig struct {
 	// AccessPoint is caching client to auth.
 	AccessPoint auth.ProxyAccessPoint
 	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnel.Tunnel
+	ProxyClient reversetunnelclient.Tunnel
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -128,65 +130,16 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleAuth))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
+	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
-	h.router.NotFound = h.withAuth(h.handleForward)
+	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
 }
 
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/x-teleport-auth" {
-		// Allow minimal CORS from only the proxy origin
-		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
-		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
-		// This is for the web UI to post a request to the application to get the proper app session
-		// cookie set on the right application subdomain.
-		w.Header().Set("Access-Control-Allow-Methods", "POST")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
-
-		// Validate that the origin for the request matches any of the public proxy addresses.
-		// This is instead of protecting via CORS headers, as that only supports a single domain.
-		originValue := r.Header.Get("Origin")
-		origin, err := url.Parse(originValue)
-		if err != nil {
-			h.log.Errorf("malformed Origin header: %v", err)
-
-			w.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
-
-		var match bool
-		originPort := origin.Port()
-		if originPort == "" {
-			originPort = "443"
-		}
-
-		for _, addr := range h.c.ProxyPublicAddrs {
-			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
-				match = true
-				break
-			}
-		}
-
-		if !match {
-			w.WriteHeader(http.StatusForbidden)
-
-			return
-		}
-
-		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
-		// We do this dynamically as this header can only contain one value
-		w.Header().Set("Access-Control-Allow-Origin", originValue)
-
-		if r.Method == http.MethodOptions {
-			return
-		}
-	}
-
 	h.router.ServeHTTP(w, r)
 }
 
@@ -281,8 +234,44 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	return nil
 }
 
-// handleForward forwards the request to the application service.
-func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session *session) error {
+// handleHttp forwards the request to the application service or redirects
+// to the application directly.
+func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
+	var redirectURI string
+
+	session.tr.mu.Lock()
+	for _, appServer := range session.tr.c.servers {
+		// If encounter an app server that is to be redirected to, stop iterating.
+		if redirectInsteadOfForward(appServer) {
+			redirectURI = appServer.GetApp().GetURI()
+			break
+		}
+	}
+	session.tr.mu.Unlock()
+
+	if redirectURI != "" {
+		http.Redirect(w, r, redirectURI, http.StatusFound)
+		return nil
+	}
+
+	if r.Body != nil {
+		// We replace the request body with a NopCloser so that the request body can
+		// be closed multiple times. This is needed because Go's HTTP RoundTripper
+		// will close the request body once called, even if the request
+		// fails. This is a problem because fwd can retry the request if no app servers
+		// are available. This retry process happens in `handleForwardError`.
+		// If the request body is closed, the retry will fail.
+		// Because the request body is closed after the first request, we need to
+		// replace the request body with a NopCloser so that the closed body can be
+		// used again and finally closed when the request handling finishes.
+		// Teleport only retries requests if DialContext returns a trace.ConnectionProblem.
+		// Because of this,  we can safely assume that the request body is never read
+		// under those conditions so the retry attempt will start reading from the beginning
+		// of the request body.
+		originalBody := r.Body
+		defer originalBody.Close()
+		r.Body = io.NopCloser(originalBody)
+	}
 	session.fwd.ServeHTTP(w, r)
 	return nil
 }
@@ -295,7 +284,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// if it is not an agent connection problem, return without creating a new
 	// session.
 	if !trace.IsConnectionProblem(err) {
-		oxyutils.DefaultHandler.ServeHTTP(w, req, err)
+		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 		return
 	}
 
@@ -304,7 +293,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// done to have a consistent UX to when launching an application.
 	session, err := h.renewSession(req)
 	if err != nil {
-		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+		if redirectErr := h.redirectToLauncher(w, req); redirectErr == nil {
 			return
 		}
 
@@ -312,7 +301,19 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
-
+	// NOTE: This handler is called by the forwarder when it encounters an error
+	// during the `ServeHTTP` call. This means that the request forwarding was not successful.
+	// Since the request was not forwarded, and above we ignore all errors that are not
+	// connection problems, we can safely assume that the request body was not read.
+	// This happens because the connection problem is returned by the DialContext
+	// function, which is the HTTP transport requires before reading the request body.
+	// Although the request body is not read, the request body is closed by the
+	// HTTP Transport but we replace the request body in (*Handler).handleForward
+	// with a NopCloser so that the request body can be closed multiple times without
+	// impacting the request forwarding.
+	// If in the future we decide to retry requests that fail for other reasons,
+	// we need to support body rewinding with `req.GetBody` together with a
+	// `io.TeeReader` to read the request body and then rewind it.
 	session.fwd.ServeHTTP(w, req)
 }
 
@@ -549,13 +550,9 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	}
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
-	u := url.URL{
-		Scheme:   "https",
-		Host:     proxyPublicAddrs[0].String(),
-		Path:     fmt.Sprintf("/web/launch/%s", raddr.Host()),
-		RawQuery: fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path)),
-	}
-	return u.String(), true
+
+	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host())
+	return urlString, true
 }
 
 const (
@@ -565,3 +562,67 @@ const (
 	// SubjectCookieName is the name of the application session subject cookie.
 	SubjectCookieName = "__Host-grv_app_session_subject"
 )
+
+// makeAppRedirectURL constructs a URL that will redirect the user to the
+// application launcher route in the web UI.
+//
+// Given app URL example: some-domain.com/arbitrary/path?foo=bar&baz=qux
+// The original requested URL will be separated into three parts:
+//   - hostname (or fqdn): some-domain.com
+//   - path (the URL parts after the app's hostname): arbitrary/path
+//   - query: foo=bar&baz=qux
+//
+// which will be constructed into a redirect URL using this form:
+//   - /web/launch/<fqdn>?path=<encoded path>&query=<encoded query>
+//
+// where the final result for the example URL will be:
+//   - /web/launch/some-domain.com?path=%2Farbitrary%2Fpath&query=foo%3Dbar%26baz%3Dqux
+//
+// The URL is formed this way to help isolate the `fqdn` param
+// from the rest of the URL.
+//
+// The original path and query cannot be formed as `web/launch/<original URL>`
+// because `web/launch` route can differ depending on how the user hits the app
+// endpoint:
+//  1. /web/launch/:fqdn/:clusterID/:publicAddr?/:arn?
+//     This route is formed when user clicks on the web UI's app launcher
+//     button from the application listing screen. The app can be directly
+//     resolved since we are able to determine the app's cluster name,
+//     public address, and AWS role name (if defined).
+//  2. /web/launch/<fqdn>?path=<encoded path>&query=<encoded query>
+//     This route is formed when a user hits the app endpoint outside of
+//     the web UI (clicking from a link or copy/pasta link), and the app will
+//     have to be resolved by the fqdn.
+//
+// Isolating the `fqdn` prevents confusing the rest of the param reserved for
+// clusterId, publicAddr, and arn (where the non-query param values are used to
+// create app session). The `web/launcher` will reconstruct the original
+// app URL when ready to redirect the user to the requested endpoint.
+func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string) string {
+	// Note that r.URL.Path field is stored in decoded form where:
+	//  - `/%47%6f%2f` becomes `/Go/`
+	//  - `siema%20elo` becomes `siema elo`
+	// And QueryEscape() will encode spaces as `+`
+	//
+	// QueryEscape is used on the `r.URL.Path` since it is being placed
+	// into the query part of the URL.
+	query := fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path))
+	if len(r.URL.RawQuery) > 0 {
+		query = fmt.Sprintf("%s&query=%s", query, url.QueryEscape(r.URL.RawQuery))
+	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     proxyPublicAddr,
+		Path:     fmt.Sprintf("/web/launch/%s", hostname),
+		RawQuery: query,
+	}
+
+	return u.String()
+}
+
+// redirectInsteadOfForward returns true if an application shouldn't be forwarded, but
+// should be redirected directly to the public address instead.
+func redirectInsteadOfForward(appServer types.AppServer) bool {
+	return appServer.GetApp().Origin() == types.OriginOkta
+}

@@ -1,0 +1,199 @@
+suite: Operator Deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: creates no deployment when operator is not enabled
+    values:
+      - ../.lint/disabled.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates a deployment when operator is enabled
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+          name: RELEASE-NAME-teleport-operator
+
+  - it: shortens fullname if .Release.Name == .Chart.Name
+    release:
+      name: teleport-operator
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+          name: teleport-operator
+
+  - it: respects the nameOverride
+    set:
+      nameOverride: operator
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+          name: RELEASE-NAME-operator
+
+  - it: sets annotations when specified
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      # Pod annotations
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          value: test-annotation
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          value: 4
+      # Deployment annotations
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    values:
+      - ../.lint/existing-tls-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+
+  - it: mounts tokens through projected volumes
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: operator-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: operator-serviceaccount-token
+            readOnly: true
+
+  - it: should set imagePullPolicy when set in values
+    values:
+      - ../.lint/cloud-join.yaml
+    set:
+      imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: should set resources when set in values
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+
+  - it: should set security contexts by default
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            runAsNonRoot: true
+
+  - it: configures a dedicated token when kube JWKS joining
+    values:
+      - ../.lint/cloud-join.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: bot-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    audience: example.teleport.sh
+                    expirationSeconds: 600
+                    path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - fieldRef:
+                          fieldPath: metadata.namespace
+                        path: namespace
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/teleport/serviceaccount
+            name: bot-serviceaccount-token
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/teleport/serviceaccount/token

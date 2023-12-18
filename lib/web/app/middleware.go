@@ -1,25 +1,27 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package app
 
 import (
 	"net/http"
 	"net/url"
-	"path"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -49,7 +51,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
-			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
+			if redirectErr := h.redirectToLauncher(w, r); redirectErr == nil {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -63,7 +65,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
-func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
+func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request) error {
 	// The application launcher can only generate browser sessions (based on
 	// Cookies). Given this, we should only redirect to it when this format is
 	// already in use.
@@ -85,38 +87,56 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.Wrap(err)
 	}
 
-	urlPath := []string{"web", "launch", addr.Host()}
-	if p.clusterName != "" && p.publicAddr != "" {
-		urlPath = append(urlPath, p.clusterName, p.publicAddr)
-	}
-
-	urlQuery := url.Values{}
-	if p.stateToken != "" {
-		urlQuery.Add("state", p.stateToken)
-	}
-	if p.awsRole != "" {
-		urlQuery.Add("awsrole", p.awsRole)
-	}
-	if p.path != "" {
-		urlQuery.Add("path", p.path)
-	}
-
-	u := url.URL{
-		Scheme:   "https",
-		Host:     h.c.WebPublicAddr,
-		Path:     path.Join(urlPath...),
-		RawQuery: urlQuery.Encode(),
-	}
-	http.Redirect(w, r, u.String(), http.StatusFound)
+	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host())
+	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
 }
 
-type launcherURLParams struct {
-	clusterName string
-	publicAddr  string
-	stateToken  string
-	awsRole     string
-	path        string
+func (h *Handler) withCustomCORS(handle routerFunc) routerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+		// Allow minimal CORS from only the proxy origin
+		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
+		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
+		// This is for the web UI to post a request to the application to get the proper app session
+		// cookie set on the right application subdomain.
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
+
+		// Validate that the origin for the request matches any of the public proxy addresses.
+		// This is instead of protecting via CORS headers, as that only supports a single domain.
+		originValue := r.Header.Get("Origin")
+		origin, err := url.Parse(originValue)
+		if err != nil {
+			return trace.BadParameter("malformed Origin header: %v", err)
+		}
+
+		var match bool
+		originPort := origin.Port()
+		if originPort == "" {
+			originPort = "443"
+		}
+
+		for _, addr := range h.c.ProxyPublicAddrs {
+			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
+				match = true
+				break
+			}
+		}
+
+		if !match {
+			return trace.AccessDenied("port or hostname did not match")
+		}
+
+		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
+		// We do this dynamically as this header can only contain one value
+		w.Header().Set("Access-Control-Allow-Origin", originValue)
+		if handle != nil {
+			return handle(w, r, p)
+		}
+
+		return nil
+	}
 }
 
 // makeRouterHandler creates a httprouter.Handle.

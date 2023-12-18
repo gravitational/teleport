@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package athena
 
@@ -21,6 +25,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -33,13 +38,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
-	"github.com/xitongsys/parquet-go-source/local"
-	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -189,9 +192,59 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
 		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
 	})
+	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxUniquePerDayEvents", func(t *testing.T) {
+		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
+		// When maxUniquePerDayEvents is reached.
+		// Then reading chan is closed.
+
+		// Given
+		fclock := clockwork.NewFakeClock()
+		fq := &fakeSQS{
+			clock:       fclock,
+			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
+		}
+		cfg := validCollectCfgForTests(t)
+		cfg.sqsReceiver = fq
+		cfg.batchMaxItems = 1000
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		c := newSqsMessagesCollector(cfg)
+
+		eventsChan := c.getEventsChan()
+
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
+
+		go c.fromSQS(readSQSCtx)
+
+		// receiver is used to read messages from eventsChan.
+		r := &receiver{}
+		go r.Do(eventsChan)
+
+		// When over 100 unique days are sent
+		eventsToSend := make([]apievents.AuditEvent, 0, 101)
+		for i := 0; i < 101; i++ {
+			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
+			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
+		}
+		fq.addEvents(eventsToSend...)
+		fclock.BlockUntil(cfg.noOfWorkers)
+		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
+		require.Eventually(t, func() bool {
+			return len(r.GetMsgs()) == 101
+		}, maxWaitOnResults, 1*time.Millisecond)
+
+		// Then
+		// Make sure that channel is closed.
+		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+	})
 }
 
 func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
 	return sqsCollectConfig{
 		sqsReceiver:       &mockReceiver{},
 		queueURL:          "test-queue",
@@ -206,6 +259,7 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 				t.Fail()
 			}
 		},
+		metrics: metrics,
 	}
 }
 
@@ -336,8 +390,9 @@ func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
 
 	gotNoOfCalls := mockReceiver.getNoOfCalls()
 	// We can't be sure that there will be equaly noOfCalls as expected,
-	// because they are process in async way, that's why margin in EquateApprox is used.
-	require.Empty(t, cmp.Diff(float32(gotNoOfCalls), float32(expectedNoOfCalls), cmpopts.EquateApprox(0, 4)))
+	// because they are process in async way, but anything within range x>= 0 && x< 1.5*expected is valid.
+	require.LessOrEqual(t, float64(gotNoOfCalls), 1.5*float64(expectedNoOfCalls), "receiveMessage got too many calls")
+	require.Greater(t, gotNoOfCalls, 0, "receiveMessage was not called at all")
 }
 
 type mockReceiver struct {
@@ -514,6 +569,17 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
+
+	cfg := &Config{
+		LogEntry: log.WithField(trace.Component, "test"),
+		metrics:  metrics,
+	}
+
 	t.Run("a lot of errors, make sure only up to maxErrorCountForLogsOnSQSReceive are printed and total count", func(t *testing.T) {
 		buf.Reset()
 		noOfErrors := maxErrorCountForLogsOnSQSReceive + 1
@@ -524,7 +590,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			}
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), fmt.Sprintf("Got %d errors from SQS collector, printed only first", noOfErrors))
 	})
@@ -539,7 +605,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			}
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, noOfErrors, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.NotContains(t, buf.String(), "printed only first")
 	})
@@ -550,7 +616,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			// close without any errors sent means receiving loop finished without any err
 			close(errorC)
 		}()
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Empty(t, buf.String())
 	})
 	t.Run("no errors at all - stopped via ctx cancel", func(t *testing.T) {
@@ -561,7 +627,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 		ctx, inCancel := context.WithCancel(ctx)
 		inCancel()
 
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Empty(t, buf.String())
 	})
 
@@ -583,13 +649,13 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 			inCancel()
 		}()
 
-		errHandlingFnFromSQS(log)(ctx, errorC)
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), "printed only first")
 	})
 }
 
-// TestConsumerWriteToS3 is writing parquet files per date works.
+// TestConsumerWriteToS3 checks if writing parquet files per date works.
 // It receives events from different dates and make sure that multiple
 // files are created and compare it against file in testdata.
 // Testdata files should be verified with "parquet tools" cli after changing.
@@ -598,12 +664,12 @@ func TestConsumerWriteToS3(t *testing.T) {
 	defer cancel()
 
 	tmp := t.TempDir()
-	localWriter := func(ctx context.Context, date string) (source.ParquetFile, error) {
+	localWriter := func(ctx context.Context, date string) (io.WriteCloser, error) {
 		err := os.MkdirAll(filepath.Join(tmp, date), 0o777)
 		if err != nil {
 			return nil, err
 		}
-		localW, err := local.NewLocalFileWriter(filepath.Join(tmp, date, "test.parquet"))
+		localW, err := os.Create(filepath.Join(tmp, date, "test.parquet"))
 		return localW, err
 	}
 
@@ -615,11 +681,15 @@ func TestConsumerWriteToS3(t *testing.T) {
 		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
 	}
 
+	eventR1 := makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")
+	eventR2 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")
+	// r3 date is next date, so it should be written as separate file.
+	eventR3 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")
+
 	events := []eventAndAckID{
-		{receiptHandle: "r1", event: makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")},
-		{receiptHandle: "r2", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")},
-		// r3 date is next date, so it should be written as separate file.
-		{receiptHandle: "r3", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")},
+		{receiptHandle: "r1", event: eventR1},
+		{receiptHandle: "r2", event: eventR2},
+		{receiptHandle: "r3", event: eventR3},
 	}
 
 	eventsC := make(chan eventAndAckID, 100)
@@ -630,32 +700,60 @@ func TestConsumerWriteToS3(t *testing.T) {
 		close(eventsC)
 	}()
 
-	c := &consumer{}
+	c := &consumer{
+		collectConfig: validCollectCfgForTests(t),
+	}
 	gotHandlesToDelete, err := c.writeToS3(ctx, eventsC, localWriter)
 	require.NoError(t, err)
 	// Make sure that all events are marked to delete.
 	require.Equal(t, []string{"r1", "r2", "r3"}, gotHandlesToDelete)
 
-	// vefiry that both files for 2023-04-01 and 2023-04-02 were written and
-	// if they are equal to test data.
+	// verify that both files for 2023-04-01 and 2023-04-02 were written and
+	// if they contain audit events.
 	type wantGot struct {
-		wantFilepath string
-		gotFile      string
+		name       string
+		wantEvents []apievents.AuditEvent
+		gotFile    string
 	}
 	toCheck := []wantGot{
-		{wantFilepath: filepath.Join("testdata/events_2023-04-01.parquet"), gotFile: filepath.Join(tmp, "2023-04-01", "test.parquet")},
-		{wantFilepath: filepath.Join("testdata/events_2023-04-02.parquet"), gotFile: filepath.Join(tmp, "2023-04-02", "test.parquet")},
+		{
+			name:       "2023-04-01 should contain 2 events",
+			wantEvents: []apievents.AuditEvent{eventR1, eventR2},
+			gotFile:    filepath.Join(tmp, "2023-04-01", "test.parquet"),
+		},
+		{
+			name:       "2023-04-02 should contain 1 events",
+			wantEvents: []apievents.AuditEvent{eventR3},
+			gotFile:    filepath.Join(tmp, "2023-04-02", "test.parquet"),
+		},
 	}
 
 	for _, v := range toCheck {
-		t.Run("Checking "+filepath.Base(v.wantFilepath), func(t *testing.T) {
-			got, err := os.ReadFile(v.gotFile)
+		t.Run("Checking "+v.name, func(t *testing.T) {
+			rows, err := parquet.ReadFile[eventParquet](v.gotFile)
 			require.NoError(t, err)
-			want, err := os.ReadFile(v.wantFilepath)
+			gotEvents, err := parquetRowsToAuditEvents(rows)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(got, want))
+
+			require.Empty(t, cmp.Diff(gotEvents, v.wantEvents))
 		})
 	}
+}
+
+func parquetRowsToAuditEvents(in []eventParquet) ([]apievents.AuditEvent, error) {
+	out := make([]apievents.AuditEvent, 0, len(in))
+	for _, p := range in {
+		var fields events.EventFields
+		if err := utils.FastUnmarshal([]byte(p.EventData), &fields); err != nil {
+			return nil, trace.Wrap(err, "failed to unmarshal event, %s", p.EventData)
+		}
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, event)
+	}
+	return out, nil
 }
 
 func TestDeleteMessagesFromQueue(t *testing.T) {
@@ -671,6 +769,8 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 	}
 	noOfHandles := 18
 	handles := handlesGen(noOfHandles)
+
+	collectConfig := validCollectCfgForTests(t)
 
 	tests := []struct {
 		name       string
@@ -747,8 +847,9 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 				respFn: tt.mockRespFn,
 			}
 			c := consumer{
-				sqsDeleter: mock,
-				queueURL:   "queue-url",
+				sqsDeleter:    mock,
+				queueURL:      "queue-url",
+				collectConfig: collectConfig,
 			}
 			err := c.deleteMessagesFromQueue(ctx, handles)
 			tt.wantCheck(t, err, mock)
@@ -771,4 +872,145 @@ func (m *mockSQSDeleter) DeleteMessageBatch(ctx context.Context, params *sqs.Del
 	m.calls++
 	m.noOfEntries += len(params.Entries)
 	return m.respFn(ctx, params)
+}
+
+func TestCollectedEventsMetadataMerge(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name     string
+		a        collectedEventsMetadata
+		b        collectedEventsMetadata
+		expected collectedEventsMetadata
+	}{
+		{
+			name: "Merge with empty a",
+			a: collectedEventsMetadata{
+				Size:            0,
+				Count:           0,
+				OldestTimestamp: time.Time{},
+			},
+			b: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+			expected: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+		},
+		{
+			name: "Merge with empty b",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+			b: collectedEventsMetadata{
+				Size:            0,
+				Count:           0,
+				OldestTimestamp: time.Time{},
+			},
+			expected: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+		},
+		{
+			name: "Merge with non-empty metadata",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now.Add(-time.Hour),
+			},
+			b: collectedEventsMetadata{
+				Size:            15,
+				Count:           7,
+				OldestTimestamp: now,
+			},
+			expected: collectedEventsMetadata{
+				Size:            25,
+				Count:           12,
+				OldestTimestamp: now.Add(-time.Hour),
+			},
+		},
+		{
+			name: "Merge with two different days",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now.Add(-36 * time.Hour),
+				UniqueDays:      map[string]struct{}{now.Add(-36 * time.Hour).Format(time.DateOnly): {}},
+			},
+			b: collectedEventsMetadata{
+				Size:            15,
+				Count:           7,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+			expected: collectedEventsMetadata{
+				Size:            25,
+				Count:           12,
+				OldestTimestamp: now.Add(-36 * time.Hour),
+				UniqueDays: map[string]struct{}{
+					now.Add(-36 * time.Hour).Format(time.DateOnly): {},
+					now.Format(time.DateOnly):                      {},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.a.Merge(tt.b)
+			require.Empty(t, cmp.Diff(tt.a, tt.expected))
+		})
+	}
+}
+
+func Test_getMessageSentTimestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		msg     sqsTypes.Message
+		want    time.Time
+		wantErr string
+	}{
+		{
+			name: "valid value sentTimestamp",
+			msg:  sqsTypes.Message{Attributes: map[string]string{"SentTimestamp": "1687183084420"}},
+			want: time.Date(2023, time.June, 19, 13, 58, 4, 420000000, time.UTC),
+		},
+		{
+			name: "empty map",
+			msg:  sqsTypes.Message{},
+			want: time.Time{},
+		},
+		{
+			name: "missing attribute",
+			msg:  sqsTypes.Message{Attributes: map[string]string{"abc": "def"}},
+			want: time.Time{},
+		},
+		{
+			name:    "wrong format of sentTimestamp",
+			msg:     sqsTypes.Message{Attributes: map[string]string{"SentTimestamp": "def"}},
+			wantErr: "invalid syntax",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getMessageSentTimestamp(tt.msg)
+			if tt.wantErr == "" {
+				require.NoError(t, err, "getMessageSentTimestamp return unexpected err")
+				require.Equal(t, tt.want, got)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
 }

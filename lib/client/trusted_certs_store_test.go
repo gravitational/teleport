@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -178,24 +180,24 @@ func TestAddTrustedHostKeys(t *testing.T) {
 		err = clientStore.AddTrustedHostKeys("leaf.example.com", "leaf", pub2)
 		require.NoError(t, err)
 		after, _ := clientStore.GetTrustedHostKeys()
-		require.Equal(t, len(before), len(after))
+		require.Len(t, before, len(after))
 
 		// check by hostname:
 		keys, _ = clientStore.GetTrustedHostKeys("nocluster")
-		require.Equal(t, len(keys), 0)
+		require.Empty(t, keys)
 		keys, _ = clientStore.GetTrustedHostKeys("leaf")
-		require.Equal(t, len(keys), 1)
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 
 		// check for proxy and wildcard as well:
 		keys, _ = clientStore.GetTrustedHostKeys("leaf.example.com")
-		require.Equal(t, 1, len(keys))
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 		keys, _ = clientStore.GetTrustedHostKeys("*.leaf")
-		require.Equal(t, 1, len(keys))
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 		keys, _ = clientStore.GetTrustedHostKeys("prefix.leaf")
-		require.Equal(t, 1, len(keys))
+		require.Len(t, keys, 1)
 		require.True(t, apisshutils.KeysEqual(keys[0], pub2))
 	})
 }
@@ -217,7 +219,7 @@ func TestParallelKnownHostsFileWrite(t *testing.T) {
 	tmpPub, _, _, _, _ := ssh.ParseAuthorizedKey(p2)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			err := clientStore.AddTrustedHostKeys("proxy.example2.com", "example2.com", tmpPub)

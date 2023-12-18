@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,7 +77,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	meta.Labels[types.BotLabel] = botName
 	role.SetMetadata(meta)
 
-	err = s.CreateRole(ctx, role)
+	role, err = s.CreateRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,15 +109,16 @@ func createBotUser(
 	user.SetMetadata(metadata)
 	user.SetTraits(traits)
 
-	if err := s.CreateUser(ctx, user); err != nil {
+	user, err = s.CreateUser(ctx, user)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return user, nil
 }
 
-// createBot creates a new certificate renewal bot from a bot request.
-func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+// CreateBot creates a new certificate renewal bot from a bot request.
+func (a *Server) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -123,14 +128,14 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	// Ensure conflicting resources don't already exist.
 	// We skip the cache here to allow for bot recreation shortly after bot
 	// deletion.
-	_, err := s.Services.GetRole(ctx, resourceName)
+	_, err := a.Services.GetRole(ctx, resourceName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 	if roleExists := (err == nil); roleExists {
 		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
 	}
-	_, err = s.Services.GetUser(resourceName, false)
+	_, err = a.Services.GetUser(ctx, resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -145,23 +150,23 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 
 	// Ensure all requested roles exist.
 	for _, roleName := range req.Roles {
-		_, err := s.GetRole(ctx, roleName)
+		_, err := a.GetRole(ctx, roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	provisionToken, err := s.checkOrCreateBotToken(ctx, req)
+	provisionToken, err := a.checkOrCreateBotToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create the resources.
-	if _, err := createBotRole(ctx, s, req.Name, resourceName, req.Roles); err != nil {
+	if _, err := createBotRole(ctx, a, req.Name, resourceName, req.Roles); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := createBotUser(ctx, s, req.Name, resourceName, req.Traits); err != nil {
+	if _, err := createBotUser(ctx, a, req.Name, resourceName, req.Traits); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -169,6 +174,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	if exp := provisionToken.Expiry(); !exp.IsZero() {
 		tokenTTL = time.Until(exp)
 	}
+
+	// Emit usage analytics event for bot creation.
+	a.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+		UserName:    authz.ClientUsername(ctx),
+		BotUserName: resourceName,
+		RoleName:    resourceName,
+		BotName:     req.Name,
+		RoleCount:   int64(len(req.Roles)),
+		JoinMethod:  string(provisionToken.GetJoinMethod()),
+	})
 
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),
@@ -181,8 +196,8 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 
 // deleteBotUser removes an existing bot user, ensuring that it has bot labels
 // matching the bot before deleting anything.
-func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string) error {
-	user, err := s.GetUser(resourceName, false)
+func (a *Server) deleteBotUser(ctx context.Context, botName, resourceName string) error {
+	user, err := a.GetUser(ctx, resourceName, false)
 	if err != nil {
 		return trace.Wrap(err, "could not fetch expected bot user %s", resourceName)
 	}
@@ -193,7 +208,7 @@ func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string
 	} else if label != botName {
 		err = trace.Errorf("will not delete user %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
 	} else {
-		err = s.DeleteUser(ctx, resourceName)
+		err = a.DeleteUser(ctx, resourceName)
 	}
 
 	return err
@@ -201,8 +216,8 @@ func (s *Server) deleteBotUser(ctx context.Context, botName, resourceName string
 
 // deleteBotRole removes an existing bot role, ensuring that it has bot labels
 // matching the bot before deleting anything.
-func (s *Server) deleteBotRole(ctx context.Context, botName, resourceName string) error {
-	role, err := s.GetRole(ctx, resourceName)
+func (a *Server) deleteBotRole(ctx context.Context, botName, resourceName string) error {
+	role, err := a.GetRole(ctx, resourceName)
 	if err != nil {
 		return trace.Wrap(err, "could not fetch expected bot role %s", resourceName)
 	}
@@ -213,13 +228,13 @@ func (s *Server) deleteBotRole(ctx context.Context, botName, resourceName string
 	} else if label != botName {
 		err = trace.Errorf("will not delete role %s with mismatched label %s = %s", resourceName, types.BotLabel, label)
 	} else {
-		err = s.DeleteRole(ctx, resourceName)
+		err = a.DeleteRole(ctx, resourceName)
 	}
 
 	return err
 }
 
-func (s *Server) deleteBot(ctx context.Context, botName string) error {
+func (a *Server) DeleteBot(ctx context.Context, botName string) error {
 	// Note: this does not remove any locks for the bot's user / role. That
 	// might be convenient in case of accidental bot locking but there doesn't
 	// seem to be any automatic deletion of locks in teleport today (other
@@ -227,17 +242,17 @@ func (s *Server) deleteBot(ctx context.Context, botName string) error {
 	// but we can revisit this if desired.
 	resourceName := BotResourceName(botName)
 
-	userErr := s.deleteBotUser(ctx, botName, resourceName)
-	roleErr := s.deleteBotRole(ctx, botName, resourceName)
+	userErr := a.deleteBotUser(ctx, botName, resourceName)
+	roleErr := a.deleteBotRole(ctx, botName, resourceName)
 	return trace.NewAggregate(userErr, roleErr)
 }
 
 // getBotUsers fetches all Users with the BotLabel field set. Users are fetched
 // without secrets.
-func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
+func (a *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	var botUsers []types.User
 
-	users, err := s.GetUsers(false)
+	users, err := a.GetUsers(ctx, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,15 +266,29 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	return botUsers, nil
 }
 
+// supportedBotJoinMethods should match SupportedJoinMethods declared in
+// lib/tbot/config
+var supportedBotJoinMethods = []types.JoinMethod{
+	types.JoinMethodAzure,
+	types.JoinMethodCircleCI,
+	types.JoinMethodGCP,
+	types.JoinMethodGitHub,
+	types.JoinMethodGitLab,
+	types.JoinMethodIAM,
+	types.JoinMethodKubernetes,
+	types.JoinMethodSpacelift,
+	types.JoinMethodToken,
+}
+
 // checkOrCreateBotToken checks the existing token if given, or creates a new
 // random dynamic provision token which allows bots to join with the given
 // botName. Returns the token and any error.
-func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
+func (a *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBotRequest) (types.ProvisionToken, error) {
 	botName := req.Name
 
 	// if the request includes a TokenID it should already exist
 	if req.TokenID != "" {
-		provisionToken, err := s.GetToken(ctx, req.TokenID)
+		provisionToken, err := a.GetToken(ctx, req.TokenID)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return nil, trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
@@ -275,24 +304,14 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
 				req.TokenID, provisionToken.GetBotName(), botName)
 		}
-		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodToken,
-			types.JoinMethodIAM,
-			types.JoinMethodGitHub,
-			types.JoinMethodGitLab,
-			types.JoinMethodAzure,
-			types.JoinMethodCircleCI:
-		default:
+
+		if !slices.Contains(supportedBotJoinMethods, provisionToken.GetJoinMethod()) {
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
-				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{
-					types.JoinMethodToken,
-					types.JoinMethodIAM,
-					types.JoinMethodGitHub,
-					types.JoinMethodGitLab,
-					types.JoinMethodAzure,
-					types.JoinMethodCircleCI,
-				})
+				req.TokenID,
+				provisionToken.GetJoinMethod(),
+				supportedBotJoinMethods,
+			)
 		}
 		return provisionToken, nil
 	}
@@ -313,12 +332,12 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
 	}
-	token, err := types.NewProvisionTokenFromSpec(tokenName, s.clock.Now().Add(ttl), tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(tokenName, a.clock.Now().Add(ttl), tokenSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.UpsertToken(ctx, token); err != nil {
+	if err := a.UpsertToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -328,17 +347,17 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 }
 
 // validateGenerationLabel validates and updates a generation label.
-func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
+func (a *Server) validateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Services.GetUser(user.GetName(), false)
+	user, err := a.Services.GetUser(ctx, username, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var currentUserGeneration uint64
-	label, labelOk := user.GetMetadata().Labels[types.BotGenerationLabel]
-	if labelOk {
+	label := user.BotGenerationLabel()
+	if label != "" {
 		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
 		if err != nil {
 			return trace.BadParameter("user has invalid value for label %q", types.BotGenerationLabel)
@@ -380,12 +399,13 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		}
 		newUser := apiutils.CloneProtoMsg(userV2)
 		metadata := newUser.GetMetadata()
-		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(certReq.generation)
+		generation := fmt.Sprint(certReq.generation)
+		metadata.Labels[types.BotGenerationLabel] = generation
 		newUser.SetMetadata(metadata)
 
 		// Note: we bypass the RBAC check on purpose as bot users should not
 		// have user update permissions.
-		if err := s.CompareAndSwapUser(ctx, newUser, user); err != nil {
+		if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
 			// If this fails it's likely to be some miscellaneous competing
 			// write. The request should be tried again - if it's malicious,
 			// someone will get a generation mismatch and trigger a lock.
@@ -410,13 +430,13 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := s.UpsertLock(ctx, lock); err != nil {
+		if err := a.UpsertLock(ctx, lock); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Emit an audit event.
 		userMetadata := authz.ClientUserMetadata(ctx)
-		if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
 				Code: events.RenewableCertificateGenerationMismatchCode,
@@ -436,7 +456,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newGeneration := currentIdentityGeneration + 1
 
 	// As above, commit some crimes to clone the User.
-	newUser, err := s.Services.GetUser(user.GetName(), false)
+	newUser, err := a.Services.GetUser(ctx, user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -444,7 +464,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newGeneration)
 	newUser.SetMetadata(metadata)
 
-	if err := s.CompareAndSwapUser(ctx, newUser, user); err != nil {
+	if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
 		// If this fails it's likely to be some miscellaneous competing
 		// write. The request should be tried again - if it's malicious,
 		// someone will get a generation mismatch and trigger a lock.
@@ -464,7 +484,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 // care if the current identity is Nop.  This function does not validate the
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
-func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
+func (a *Server) generateInitialBotCerts(ctx context.Context, username, loginIP string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -473,30 +493,30 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	// This call bypasses RBAC check for users read on purpose.
 	// Users who are allowed to impersonate other users might not have
 	// permissions to read user data.
-	user, err := s.GetUser(username, false)
+	userState, err := a.GetUserOrLoginState(ctx, username)
 	if err != nil {
 		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, trace.AccessDenied("access denied")
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if user.GetUserType() == types.UserTypeSSO {
+	if userState.GetUserType() == types.UserTypeSSO {
 		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
 		return nil, trace.AccessDenied("access denied")
 	}
 
 	// Cap the cert TTL to the MaxRenewableCertTTL.
-	if max := s.GetClock().Now().Add(defaults.MaxRenewableCertTTL); expires.After(max) {
+	if max := a.GetClock().Now().Add(defaults.MaxRenewableCertTTL); expires.After(max) {
 		expires = max
 	}
 
 	// Inherit the user's roles and traits verbatim.
-	accessInfo := services.AccessInfoFromUser(user)
-	clusterName, err := s.GetClusterName()
+	accessInfo := services.AccessInfoFromUserState(userState)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -509,21 +529,22 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 
 	// Generate certificate
 	certReq := certRequest{
-		user:          user,
-		ttl:           expires.Sub(s.GetClock().Now()),
+		user:          userState,
+		ttl:           expires.Sub(a.GetClock().Now()),
 		publicKey:     pubKey,
 		checker:       checker,
 		traits:        accessInfo.Traits,
 		renewable:     renewable,
 		includeHostCA: true,
 		generation:    generation,
+		loginIP:       loginIP,
 	}
 
-	if err := s.validateGenerationLabel(ctx, user, &certReq, 0); err != nil {
+	if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := s.generateUserCert(certReq)
+	certs, err := a.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

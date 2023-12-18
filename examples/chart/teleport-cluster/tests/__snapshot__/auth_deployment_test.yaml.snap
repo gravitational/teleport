@@ -1,29 +1,3 @@
-should add an operator side-car when operator is enabled:
-  1: |
-    image: public.ecr.aws/gravitational/teleport-operator:14.0.0-dev
-    imagePullPolicy: IfNotPresent
-    livenessProbe:
-      httpGet:
-        path: /healthz
-        port: 8081
-      initialDelaySeconds: 15
-      periodSeconds: 20
-    name: operator
-    readinessProbe:
-      httpGet:
-        path: /readyz
-        port: 8081
-      initialDelaySeconds: 5
-      periodSeconds: 10
-    volumeMounts:
-    - mountPath: /etc/teleport
-      name: config
-      readOnly: true
-    - mountPath: /var/lib/teleport
-      name: data
-    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-      name: auth-serviceaccount-token
-      readOnly: true
 ? should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName
   is set and persistence.enabled is false
 : 1: |
@@ -34,7 +8,7 @@ should add an operator side-car when operator is enabled:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -167,7 +141,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -264,7 +238,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -350,7 +324,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:15.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:

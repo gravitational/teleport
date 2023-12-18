@@ -1,41 +1,41 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package helpers
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,24 +49,40 @@ func EnableKube(t *testing.T, config *servicecfg.Config, clusterName string) err
 	if kubeConfigPath == "" {
 		return trace.BadParameter("missing kubeconfig path")
 	}
-	key, err := genUserKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
-		// By default this needs to be an arbitrary address guaranteed not to
-		// be in use, so we're using port 0 for now.
-		ClusterAddr: "https://localhost:0",
 
-		TeleportClusterName: clusterName,
-		Credentials:         key,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	genKubeConfig(t, kubeConfigPath, clusterName)
 	config.Kube.Enabled = true
 	config.Kube.ListenAddr = utils.MustParseAddr(NewListener(t, service.ListenerKube, &config.FileDescriptors))
 	return nil
+}
+
+// genKubeConfig generates a kubeconfig file for a given cluster based on the
+// kubeMock server.
+func genKubeConfig(t *testing.T, kubeconfigPath, clusterName string) {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, kubeMock.Close())
+	})
+	cfg := clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			clusterName: {
+				Server:                kubeMock.URL,
+				InsecureSkipTLSVerify: true,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			clusterName: {},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			clusterName: {
+				Cluster:  clusterName,
+				AuthInfo: clusterName,
+			},
+		},
+	}
+	err = kubeconfig.Save(kubeconfigPath, cfg)
+	require.NoError(t, err)
 }
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
@@ -84,45 +100,4 @@ func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
 		clusters = append(clusters, ks.GetCluster())
 	}
 	return clusters
-}
-
-func genUserKey() (*client.Key, error) {
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName:   "localhost",
-		Organization: []string{"localhost"},
-	}, nil, defaults.CATTL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := tlsca.FromKeys(caCert, caKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keygen := testauthority.New()
-	priv, err := keygen.GeneratePrivateKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clock := clockwork.NewRealClock()
-	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
-		PublicKey: priv.Public(),
-		Subject: pkix.Name{
-			CommonName: "teleport-user",
-		},
-		NotAfter: clock.Now().UTC().Add(time.Minute),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &client.Key{
-		PrivateKey: priv,
-		TLSCert:    tlsCert,
-		TrustedCerts: []auth.TrustedCerts{{
-			ClusterName:     "localhost",
-			TLSCertificates: [][]byte{caCert},
-		}},
-	}, nil
 }

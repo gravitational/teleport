@@ -1,3 +1,35 @@
+{{ attachToRole="TeleportRole" attachToUser="TeleportUser" account="123456789012" output="/etc/teleport.yaml" }}
+
+Teleport can bootstrap IAM permissions for the Database Service based on its
+configuration:
+
+<Tabs>
+
+<TabItem label="Auto-discovery">
+Teleport can bootstrap IAM permissions for the Database Service based on
+Discovery Service's configuration while bootstrapping the Discovery Service
+using the `teleport discovery bootstrap` command. You can use this command in
+automatic or manual mode:
+
+- In automatic mode, Teleport will attempt to create appropriate IAM policies
+  and attach them to the specified IAM role. This requires IAM permissions to
+  create and attach IAM policies.
+- In manual mode, Teleport will print required IAM policies. You can then create
+  and attach them manually using the AWS management console. Add `--manual`
+  flag to the command to enable manual mode.
+
+```code
+$ teleport discovery bootstrap \
+  --attach-to-role arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="discovery-iam-role-name"/> \
+  --policy-name TeleportDatabaseDiscovery \
+  --database-service-role arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="database-iam-role-name"/> \
+  --database-service-policy-name TeleportDatabaseAccess \
+  -c <Var name="path to Discovery's teleport.yaml"/>
+```
+
+</TabItem>
+
+<TabItem label="Static config">
 Teleport can bootstrap IAM permissions for the Database Service based on its
 configuration using the `teleport db configure bootstrap` command. You can use
 this command in automatic or manual mode:
@@ -8,8 +40,6 @@ this command in automatic or manual mode:
 - In manual mode, Teleport will print required IAM policies. You can then create
   and attach them manually using the AWS management console.
 
-Run one of the following commands on your Database Service node:
-
 <Tabs>
   <TabItem label="Automatic / IAM User">
   Use this command to bootstrap the permissions automatically when
@@ -17,7 +47,7 @@ Run one of the following commands on your Database Service node:
   credentials file).
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user TeleportUser
+  $ teleport db configure bootstrap -c {{ output }} --attach-to-user {{ attachToUser }}
   ```
   </TabItem>
 
@@ -27,18 +57,48 @@ Run one of the following commands on your Database Service node:
   instance with an attached IAM role).
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-role TeleportRole
+  $ teleport db configure bootstrap -c {{ output }} --attach-to-role {{ attachToRole }}
   ```
   </TabItem>
 
-  <TabItem label="Manual">
+  <TabItem label="Manual / IAM User">
   Use this command to display required IAM policies which you will then create in your AWS console:
 
   ```code
-  $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
+  $ teleport db configure bootstrap -c {{ output }} --manual --attach-to-user arn:aws:iam::{{ account }}:user/{{ attachToUser }}
+  ```
+  </TabItem>
+
+  <TabItem label="Manual / IAM Role">
+  Use this command to display required IAM policies which you will then create in your AWS console:
+
+  ```code
+  $ teleport db configure bootstrap -c {{ output }} --manual --attach-to-role arn:aws:iam::{{ account }}:role/{{ attachToRole }}
   ```
   </TabItem>
 </Tabs>
 
-See the full `bootstrap` command
-[reference](../../database-access/reference/cli.mdx#teleport-db-configure-bootstrap).
+<Details title="Bootstrapping with assume_role_arn in config">
+When `assume_role_arn` is configured for databases or AWS matchers,
+`teleport db configure bootstrap` will determine permissions required for the
+bootstrap target AWS IAM identity using the following logic:
+- When the target does not match `assume_role_arn` in any database resource or
+  AWS matcher in the configuration file, the target is assumed to be the
+  Teleport Database Service's AWS IAM identity and permissions are bootstrapped
+  for all the configured static databases and AWS matchers.
+- When an `--attach-to-role` target matches an `assume_role_arn` setting for
+  static databases or AWS matchers in the configuration file, permissions will
+  be bootstrapped only for those static databases or AWS matchers.
+
+You will need to run the bootstrap command once with the Teleport Database
+Service's IAM identity as the policy attachment target, and once for each AWS
+IAM role that is used for `assume_role_arn`.
+</Details>
+</TabItem>
+
+</Tabs>
+
+Alternatively, you can create or print the required IAM policies with the
+following commands and manually attach them to the IAM role:
+- `teleport db configure aws create-iam --types {{ type }}`
+- `teleport db configure aws print-iam --types {{ type }}`

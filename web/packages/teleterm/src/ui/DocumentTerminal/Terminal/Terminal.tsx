@@ -1,30 +1,43 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React, { useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import React, { useEffect, useRef, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 import { Box, Flex } from 'design';
 import { debounce } from 'shared/utils/highbar';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeErrorAttemptWithStatusText,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
+
+import { Reconnect } from '../Reconnect';
 
 import XTermCtrl from './ctrl';
 
 type TerminalProps = {
+  docKind: DocumentTerminal['kind'];
   ptyProcess: IPtyProcess;
+  reconnect: () => void;
   visible: boolean;
   /**
    * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
@@ -40,13 +53,29 @@ type TerminalProps = {
 export function Terminal(props: TerminalProps) {
   const refElement = useRef<HTMLElement>();
   const refCtrl = useRef<XTermCtrl>();
+  const [startPtyProcessAttempt, setStartPtyProcessAttempt] = useState<
+    Attempt<void>
+  >(makeEmptyAttempt());
+  const theme = useTheme();
 
   useEffect(() => {
+    const removeOnStartErrorListener = props.ptyProcess.onStartError(
+      message => {
+        setStartPtyProcessAttempt(makeErrorAttemptWithStatusText(message));
+      }
+    );
+
+    const removeOnOpenListener = props.ptyProcess.onOpen(() => {
+      setStartPtyProcessAttempt(makeSuccessAttempt(undefined));
+    });
+
     const ctrl = new XTermCtrl(props.ptyProcess, {
       el: refElement.current,
       fontSize: props.fontSize,
+      theme: theme.colors.terminal,
     });
 
+    // Start the PTY process.
     ctrl.open();
 
     ctrl.term.onKey(event => {
@@ -62,6 +91,8 @@ export function Terminal(props: TerminalProps) {
     }, 100);
 
     return () => {
+      removeOnStartErrorListener();
+      removeOnOpenListener();
       handleEnterPress.cancel();
       ctrl.destroy();
     };
@@ -76,6 +107,12 @@ export function Terminal(props: TerminalProps) {
     refCtrl.current.requestResize();
   }, [props.visible]);
 
+  useEffect(() => {
+    if (refCtrl.current) {
+      refCtrl.current.term.options.theme = theme.colors.terminal;
+    }
+  }, [theme]);
+
   return (
     <Flex
       flexDirection="column"
@@ -83,9 +120,20 @@ export function Terminal(props: TerminalProps) {
       width="100%"
       style={{ overflow: 'hidden' }}
     >
+      {startPtyProcessAttempt.status === 'error' && (
+        <Reconnect
+          docKind={props.docKind}
+          attempt={startPtyProcessAttempt}
+          reconnect={props.reconnect}
+        />
+      )}
       <StyledXterm
         ref={refElement}
-        style={{ fontFamily: props.unsanitizedFontFamily }}
+        style={{
+          fontFamily: props.unsanitizedFontFamily,
+          // Always render the Xterm element so that refElement is not undefined on startError.
+          display: startPtyProcessAttempt.status === 'error' ? 'none' : 'block',
+        }}
       />
     </Flex>
   );

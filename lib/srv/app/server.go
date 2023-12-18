@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package app runs the application proxy process. It keeps dynamic labels
 // updated, heart beats its presence, checks access controls, and forwards
@@ -61,10 +63,10 @@ const (
 	connContextKey appServerContextKey = "teleport-connContextKey"
 )
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // Config is the configuration for an application server.
@@ -269,7 +271,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Clock: c.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -473,7 +477,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := s.appWithUpdatedLabels(app)
+	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
@@ -700,15 +704,26 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	// Proxy sends a X.509 client certificate to pass identity information,
-	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
+	ctx, cancel := context.WithCancelCause(s.closeContext)
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.c.Clock,
+		Context: ctx,
+		Cancel:  cancel,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx := authz.ContextWithUser(s.closeContext, user)
-	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
+	// Proxy sends a X.509 client certificate to pass identity information,
+	// extract it and run authorization checks on it.
+	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx = authz.ContextWithUser(s.closeContext, user)
+	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
@@ -725,7 +740,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 		}
 	} else {
 		// Monitor the connection an update the context.
-		ctx, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
+		ctx, _, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -782,13 +797,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = s.serveHTTP(w, r)
 	}
 	if err != nil {
-		s.log.Warnf("Failed to serve request: %v.", err)
+		s.log.WithError(err).Warnf("Failed to serve request")
 
 		// Covert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+
+		var text string
+		if errors.Is(err, services.ErrTrustedDeviceRequired) {
+			// Return a nicer error message for device trust errors.
+			text = `Access to this app requires a trusted device.
+
+See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting for help.
+`
+		} else {
+			text = http.StatusText(code)
+		}
+
 		w.Header().Set("Connection", "close")
-		http.Error(w, http.StatusText(code), code)
+		http.Error(w, text, code)
 	}
 }
 
@@ -953,11 +980,15 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 	}
 
 	state := authContext.GetAccessState(authPref)
-	err = authContext.Checker.CheckAccess(
+	switch err := authContext.Checker.CheckAccess(
 		app,
 		state,
-		matchers...)
-	if err != nil {
+		matchers...); {
+	case errors.Is(err, services.ErrTrustedDeviceRequired):
+		// Let the trusted device error through for clarity.
+		return nil, nil, trace.Wrap(services.ErrTrustedDeviceRequired)
+	case err != nil:
+		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
@@ -993,18 +1024,19 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app t
 func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	for _, a := range s.getApps() {
+	// don't call s.getApps() as this will call RLock and potentially deadlock.
+	for _, a := range s.apps {
 		if publicAddr == a.GetPublicAddr() {
-			return s.appWithUpdatedLabels(a), nil
+			return s.appWithUpdatedLabelsLocked(a), nil
 		}
 	}
 	return nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
-// appWithUpdatedLabels will inject updated dynamic and cloud labels into an application
-// object. The caller must invoke an RLock on `s.mu` before calling this function.
-func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
+// appWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// an application object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 {
 	// Create a copy of the application to modify
 	copy := app.Copy()
 
@@ -1036,8 +1068,10 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
+		// Note: read/write timeouts *should not* be set here because it will
+		// break application access.
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
@@ -1048,14 +1082,24 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 // newTCPServer creates a server that proxies TCP applications.
 func (s *Server) newTCPServer() (*tcpServer, error) {
-	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter: s.c.Emitter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return &tcpServer{
-		audit:  audit,
+		newAudit: func(sessionID string) (common.Audit, error) {
+			// Audit stream is using server context, not session context,
+			// to make sure that session is uploaded even after it is closed.
+			rec, err := s.newSessionRecorder(s.closeContext, sessionID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			audit, err := common.NewAudit(common.AuditConfig{
+				Emitter:  s.c.Emitter,
+				Recorder: rec,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return audit, nil
+		},
 		hostID: s.c.HostID,
 		log:    s.log,
 	}, nil

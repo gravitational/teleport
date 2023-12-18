@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -23,47 +25,58 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/authentication/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
 )
 
-type mockKubernetesTokenValidator struct {
-	tokens map[string]v1.UserInfo
+type mockK8STokenReviewValidator struct {
+	tokens map[string]*kubernetestoken.ValidationResult
 }
 
-func (m *mockKubernetesTokenValidator) Validate(_ context.Context, token string) (*v1.UserInfo, error) {
-	userInfo, ok := m.tokens[token]
+func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token string) (*kubernetestoken.ValidationResult, error) {
+	result, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken
 	}
 
-	return &userInfo, nil
+	return result, nil
 }
 
 func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	// Test setup
 
 	// Creating an auth server with mock Kubernetes token validator
-	tokens := map[string]v1.UserInfo{
-		"matching-first-rule-token1":  {Username: "system:serviceaccount:namespace1:service-account1"},
-		"matching-second-rule-token2": {Username: "system:serviceaccount:namespace2:service-account2"},
-		"user-token":                  {Username: "namespace1:service-account1"},
+	tokenReviewTokens := map[string]*kubernetestoken.ValidationResult{
+		"matching-implicit-in-cluster": {Username: "system:serviceaccount:namespace1:service-account1"},
+		// "matching-explicit-in-cluster" intentionally matches the second allow
+		// rule of explicitInCluster to ensure all rules are processed.
+		"matching-explicit-in-cluster": {Username: "system:serviceaccount:namespace2:service-account2"},
+		"user-token":                   {Username: "namespace1:service-account1"},
 	}
-
-	var withTokenValidator ServerOption = func(server *Server) error {
-		server.kubernetesTokenValidator = &mockKubernetesTokenValidator{tokens: tokens}
-		return nil
+	jwksTokens := map[string]*kubernetestoken.ValidationResult{
+		"jwks-matching-service-account":   {Username: "system:serviceaccount:static-jwks:matching"},
+		"jwks-mismatched-service-account": {Username: "system:serviceaccount:static-jwks:mismatched"},
 	}
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+	p, err := newTestPack(ctx, t.TempDir(), func(server *Server) error {
+		server.k8sTokenReviewValidator = &mockK8STokenReviewValidator{tokens: tokenReviewTokens}
+		server.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubernetestoken.ValidationResult, error) {
+			result, ok := jwksTokens[token]
+			if !ok {
+				return nil, errMockInvalidToken
+			}
+			return result, nil
+		}
+		return nil
+	})
 	require.NoError(t, err)
 	auth := p.a
 
-	// Creating and loading our two Kubernetes Provision tokens
-	pt1, err := types.NewProvisionTokenFromSpec("my-token-1", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+	// Creating and loading our two Kubernetes ProvisionTokens
+	implicitInClusterPT, err := types.NewProvisionTokenFromSpec("implicit-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
 		JoinMethod: types.JoinMethodKubernetes,
 		Roles:      []types.SystemRole{types.RoleNode},
 		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
@@ -74,10 +87,11 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	pt2, err := types.NewProvisionTokenFromSpec("my-token-2", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+	explicitInClusterPT, err := types.NewProvisionTokenFromSpec("explicit-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
 		JoinMethod: types.JoinMethodKubernetes,
 		Roles:      []types.SystemRole{types.RoleNode},
 		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeInCluster,
 			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
 				{ServiceAccount: "namespace2:service-account1"},
 				{ServiceAccount: "namespace2:service-account2"},
@@ -85,8 +99,23 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, auth.CreateToken(ctx, pt1))
-	require.NoError(t, auth.CreateToken(ctx, pt2))
+	staticJWKSPT, err := types.NewProvisionTokenFromSpec("static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeStaticJWKS,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: "static-jwks:matching"},
+			},
+			StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+				JWKS: "fake-jwks",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, auth.CreateToken(ctx, implicitInClusterPT))
+	require.NoError(t, auth.CreateToken(ctx, explicitInClusterPT))
+	require.NoError(t, auth.CreateToken(ctx, staticJWKSPT))
 
 	// Building a joinRequest builder
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -112,34 +141,52 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 		expectedErr    error
 	}{
 		{
-			"successful token join (first rule)",
-			"matching-first-rule-token1",
-			pt1,
+			"in_cluster (implicit): success",
+			"matching-implicit-in-cluster",
+			implicitInClusterPT,
 			nil,
 		},
 		{
-			"successful token join (second rule)",
-			"matching-second-rule-token2",
-			pt2,
+			"in_cluster (explicit): success",
+			"matching-explicit-in-cluster",
+			explicitInClusterPT,
 			nil,
 		},
 		{
-			"failed token join (wrong provisionToken)",
-			"matching-second-rule-token2",
-			pt1,
-			trace.AccessDenied("kubernetes token user info did not match any allow rules"),
+			"in_cluster: service account rule mismatch",
+			"matching-explicit-in-cluster",
+			implicitInClusterPT,
+			trace.AccessDenied("kubernetes token did not match any allow rules"),
 		},
 		{
-			"failed token join (unknown kubeToken)",
+			"in_cluster: failed token join (unknown kubeToken)",
 			"unknown",
-			pt1,
+			implicitInClusterPT,
 			errMockInvalidToken,
 		},
 		{
-			"failed token join (user token)",
+			"in_cluster: failed token join (user token)",
 			"user-token",
-			pt1,
-			trace.AccessDenied("kubernetes token user info did not match any allow rules"),
+			implicitInClusterPT,
+			trace.AccessDenied("kubernetes token did not match any allow rules"),
+		},
+		{
+			"static_jwks: success",
+			"jwks-matching-service-account",
+			staticJWKSPT,
+			nil,
+		},
+		{
+			"static_jwks: service account rule mismatch",
+			"jwks-mismatched-service-account",
+			staticJWKSPT,
+			trace.AccessDenied("kubernetes token did not match any allow rules"),
+		},
+		{
+			"static_jwks: validation fails",
+			"unknown",
+			staticJWKSPT,
+			errMockInvalidToken,
 		},
 	}
 

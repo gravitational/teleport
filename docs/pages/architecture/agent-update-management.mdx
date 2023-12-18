@@ -1,5 +1,5 @@
 ---
-title: Agent Update Management (Preview)
+title: Agent Update Management 
 description: This chapter explains how Teleport agent automatic update is working.
 ---
 
@@ -56,14 +56,14 @@ The agent version is subject to the following constraints:
 
 The best practice is to always align the agent version with the Proxy and Auth
 ones. To upgrade Auth and Proxy, follow [the Teleport Cluster upgrade guide
-](../management/operations/upgrading.mdx).
+](../upgrading.mdx).
 
 For this reason, all updaters must subscribe to a release channel targeting
 versions that are compatible with their Teleport cluster. Teleport Cloud users
 must use the Teleport Cloud version server with the `stable/cloud` release
 channel. Self-hosted Teleport users must host their own version server and
-updater their release channel each time they update their Auth and Proxy
-instances.
+either update their release channel each time they update their Auth and Proxy
+instances, or use the `stable/rolling` channel.
 
 ### Teleport Cloud
 
@@ -87,9 +87,8 @@ ensure every agent is healthy and running the correct version.
 
 ## Next steps
 
-Self-hosted users must first [set up self-hosted automatic agent update
-](../management/operations/self-hosted-automatic-agent-updates.mdx).
+Self-hosted users must first [set up self-hosted automatic agent upgrades
+](../upgrading/self-hosted-automatic-agent-updates.mdx).
 
-If you're a Teleport Cloud user or self-hosting with automatic update
-configured, you can [enroll your agents into automatic updates
-](../management/operations/enroll-agent-into-automatic-updates.mdx).
+After that, you can set enroll agents in automatic upgrades as part of the
+[upgrading procedure](../upgrading.mdx).

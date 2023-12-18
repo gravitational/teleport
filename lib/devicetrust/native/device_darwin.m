@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "device_darwin.h"
 
@@ -237,9 +241,33 @@ end:
   return res;
 }
 
+// Duplicate a CFString or CFData `ref` as a C string.
+const char *refToCString(CFTypeRef ref) {
+  NSData *data = NULL;  // managed by ARC.
+  NSString *str = NULL; // managed by ARC.
+  CFTypeID id;
+
+  if (!ref) {
+    return NULL;
+  }
+
+  id = CFGetTypeID(ref);
+  if (id == CFStringGetTypeID()) {
+    str = (__bridge NSString *)ref;
+  } else if (id == CFDataGetTypeID()) {
+    data = (__bridge NSData *)ref;
+    str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+  } else {
+    return NULL;
+  }
+
+  return strdup([str UTF8String]);
+}
+
 int32_t DeviceCollectData(DeviceData *out) {
-  CFStringRef cfSerialNumber = NULL; // managed via bridge
-  NSString *serialNumber = NULL;     // managed by ARC
+  CFMutableDictionaryRef cfIODict = NULL; // manually released
+  NSProcessInfo *info = NULL;             // managed by ARC
+  NSOperatingSystemVersion osVersion;
   int32_t res = 0;
 
   io_service_t platformExpert = IOServiceGetMatchingService(
@@ -249,17 +277,32 @@ int32_t DeviceCollectData(DeviceData *out) {
     goto end;
   }
 
-  cfSerialNumber = IORegistryEntryCreateCFProperty(
-      platformExpert, CFSTR(kIOPlatformSerialNumberKey), kCFAllocatorDefault,
-      0 /* options */);
-  if (!cfSerialNumber) {
+  // For a quick reference, see `ioreg -c IOPlatformExpertDevice -d 2`.
+  IORegistryEntryCreateCFProperties(platformExpert, &cfIODict,
+                                    kCFAllocatorDefault, 0 /* options */);
+  if (!cfIODict) {
     res = kErrIORegistryEntryFailed;
     goto end;
   }
-  serialNumber = (__bridge_transfer NSString *)cfSerialNumber;
-  out->serial_number = strdup([serialNumber UTF8String]);
+
+  // Serial number and model from IORegistry.
+  out->serial_number = refToCString(
+      CFDictionaryGetValue(cfIODict, CFSTR(kIOPlatformSerialNumberKey)));
+  out->model = refToCString(CFDictionaryGetValue(cfIODict, CFSTR("model")));
+
+  // OS version numbers.
+  info = [NSProcessInfo processInfo];
+  osVersion = [info operatingSystemVersion];
+  out->os_version_string =
+      strdup([[info operatingSystemVersionString] UTF8String]);
+  out->os_major = osVersion.majorVersion;
+  out->os_minor = osVersion.minorVersion;
+  out->os_patch = osVersion.patchVersion;
 
 end:
+  if (cfIODict) {
+    CFRelease(cfIODict);
+  }
   if (platformExpert) {
     IOObjectRelease(platformExpert);
   }

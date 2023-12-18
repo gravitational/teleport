@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -35,8 +37,8 @@ const (
 
 // WatcherConfig is the common discovery watcher configuration.
 type WatcherConfig struct {
-	// Fetchers holds fetchers used for this watcher.
-	Fetchers []Fetcher
+	// FetchersFn is a function that returns the fetchers used for this watcher.
+	FetchersFn func() []Fetcher
 	// Interval is the interval between fetches.
 	Interval time.Duration
 	// Log is the watcher logger.
@@ -51,6 +53,8 @@ type WatcherConfig struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string
+	// Origin is used to specify what type of origin watcher's resources are
+	Origin string
 }
 
 // CheckAndSetDefaults validates the config.
@@ -64,8 +68,11 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if len(c.Fetchers) == 0 {
+	if c.FetchersFn == nil {
 		return trace.NotFound("missing fetchers")
+	}
+	if c.Origin == "" {
+		return trace.BadParameter("origin is not set")
 	}
 	return nil
 }
@@ -117,7 +124,7 @@ func (w *Watcher) fetchAndSend() {
 		group, groupCtx     = errgroup.WithContext(w.ctx)
 	)
 	group.SetLimit(concurrencyLimit)
-	for _, fetcher := range w.cfg.Fetchers {
+	for _, fetcher := range w.cfg.FetchersFn() {
 		lFetcher := fetcher
 
 		group.Go(func() error {
@@ -146,8 +153,11 @@ func (w *Watcher) fetchAndSend() {
 					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
 				}
 
-				// Set the origin to Cloud indicating that the resource was imported from a cloud provider.
-				staticLabels[types.OriginLabel] = types.OriginCloud
+				// Set the origin label to provide information where resource comes from
+				staticLabels[types.OriginLabel] = w.cfg.Origin
+				if c := lFetcher.Cloud(); c != "" {
+					staticLabels[types.CloudLabel] = c
+				}
 
 				r.SetStaticLabels(staticLabels)
 			}
@@ -170,4 +180,12 @@ func (w *Watcher) fetchAndSend() {
 // Resources returns a channel that receives fetched cloud resources.
 func (w *Watcher) ResourcesC() <-chan types.ResourcesWithLabels {
 	return w.resourcesC
+}
+
+// StaticFetchers converts a list of Fetchers into a function that returns them.
+// Used to convert a static set of Fetchers into a FetchersFn generator.
+func StaticFetchers(fs []Fetcher) func() []Fetcher {
+	return func() []Fetcher {
+		return fs
+	}
 }

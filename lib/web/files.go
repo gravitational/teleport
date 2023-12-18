@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -29,11 +31,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 )
 
@@ -60,7 +63,7 @@ type fileTransferRequest struct {
 	moderatedSessionID string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:               site.GetName(),
@@ -204,24 +207,30 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	return tc, nil
 }
 
-type mfaRequest struct {
+type mfaResponse struct {
 	// WebauthnResponse is the response from authenticators.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // issueSingleUseCert will take an assertion response sent from a solved challenge in the web UI
 // and use that to generate a cert. This cert is added to the Teleport Client as an authmethod that
 // can be used to connect to a node.
 func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request, tc *client.TeleportClient) error {
-	var mfaReq mfaRequest
-	err := json.Unmarshal([]byte(webauthn), &mfaReq)
+	var mfaResp mfaResponse
+	err := json.Unmarshal([]byte(webauthn), &mfaResp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key, err := client.GenerateRSAKey()
+	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       f.sctx.cfg.Session.GetPub(),
+		TLSCert:    f.sctx.cfg.Session.GetTLSCert(),
 	}
 
 	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
@@ -231,7 +240,7 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		Expires:   time.Now().Add(time.Minute).UTC(),
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaResp.WebauthnAssertionResponse),
 			},
 		},
 	})
@@ -240,13 +249,11 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 	}
 
 	key.Cert = cert.SSH
-
 	am, err := key.AsAuthMethod()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	tc.AuthMethods = []ssh.AuthMethod{am}
-
 	return nil
 }

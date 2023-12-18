@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -22,7 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"time"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -30,13 +32,12 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-const mfaChallengeInterval = time.Second * 30
 
 // KubeSession a joined kubernetes session from the client side.
 type KubeSession struct {
@@ -45,6 +46,7 @@ type KubeSession struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	meta   types.SessionTracker
+	wg     sync.WaitGroup
 }
 
 // NewKubeSession joins a live kubernetes session.
@@ -63,7 +65,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
-	ws, resp, err := dialer.Dial(joinEndpoint, nil)
+	ws, resp, err := dialer.DialContext(ctx, joinEndpoint, nil)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
@@ -111,7 +113,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	go handleOutgoingResizeEvents(ctx, stream, term)
 	go handleIncomingResizeEvents(stream, term)
 
-	s := &KubeSession{stream, term, ctx, cancel, meta}
+	s := &KubeSession{stream, term, ctx, cancel, meta, sync.WaitGroup{}}
 	err = s.handleMFA(ctx, tc, mode, stdout)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,7 +197,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 			return trace.Wrap(err)
 		}
 
-		go runPresenceTask(ctx, stdout, auth, tc, s.meta.GetSessionID())
+		go RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
 	}
 
 	return nil
@@ -203,7 +205,10 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 
 // pipeInOut starts background tasks that copy input to and from the terminal.
 func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mode types.SessionParticipantMode) {
+	// wait for the session to copy everything
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		defer s.cancel()
 		_, err := io.Copy(stdout, s.stream)
 		if err != nil {
@@ -231,7 +236,8 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 
 // Wait waits for the session to finish.
 func (s *KubeSession) Wait() {
-	<-s.ctx.Done()
+	// Wait for the session to copy everything into stdout
+	s.wg.Wait()
 }
 
 // Close sends a close request to the other end and waits it to gracefully terminate the connection.
@@ -240,7 +246,7 @@ func (s *KubeSession) Close() error {
 		return trace.Wrap(err)
 	}
 
-	<-s.ctx.Done()
+	s.wg.Wait()
 	return trace.Wrap(s.Detach())
 }
 

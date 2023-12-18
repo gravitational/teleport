@@ -31,13 +31,25 @@ var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/telet
 goog.object.extend(proto, teleport_lib_teleterm_v1_server_pb);
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_usage_events_pb);
+var teleport_userpreferences_v1_cluster_preferences_pb = require('../../../../teleport/userpreferences/v1/cluster_preferences_pb.js');
+goog.object.extend(proto, teleport_userpreferences_v1_cluster_preferences_pb);
+var teleport_userpreferences_v1_unified_resource_preferences_pb = require('../../../../teleport/userpreferences/v1/unified_resource_preferences_pb.js');
+goog.object.extend(proto, teleport_userpreferences_v1_unified_resource_preferences_pb);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.AddClusterRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.AssumeRoleRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateGatewayRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.CredentialInfo', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.EmptyResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.FileTransferDirection', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.FileTransferProgress', null, global);
@@ -48,6 +60,8 @@ goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest', nul
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetClusterRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetDatabasesRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetDatabasesResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetKubesRequest', null, global);
@@ -56,6 +70,9 @@ goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest', n
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetServersRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetServersResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.HeadlessAuthenticationState', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListClustersRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListClustersResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest', null, global);
@@ -63,6 +80,8 @@ goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse', nu
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListGatewaysRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListGatewaysResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListLeafClustersRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse', null, global);
@@ -74,6 +93,8 @@ goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams', nul
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest.ParamsCase', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.LogoutRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.PaginatedResource', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.PaginatedResource.ResourceCase', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.PasswordlessPrompt', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.RemoveClusterRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.RemoveGatewayRequest', null, global);
@@ -81,8 +102,16 @@ goog.exportSymbol('proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest', n
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.SortBy', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest', null, global);
 goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UserPreferences', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse', null, global);
 /**
  * Generated by JsPbCodeGenerator.
  * @param {Array=} opt_data Optional initial data array, typically from a
@@ -1090,6 +1119,489 @@ if (goog.DEBUG && !COMPILED) {
    * @override
    */
   proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.displayName = 'proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.displayName = 'proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.displayName = 'proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.displayName = 'proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.displayName = 'proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.displayName = 'proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.displayName = 'proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.displayName = 'proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.displayName = 'proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.displayName = 'proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.displayName = 'proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.displayName = 'proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.displayName = 'proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.repeatedFields_, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.displayName = 'proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.SortBy = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.SortBy, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.SortBy.displayName = 'proto.teleport.lib.teleterm.v1.SortBy';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.repeatedFields_, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.displayName = 'proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.PaginatedResource, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.PaginatedResource.displayName = 'proto.teleport.lib.teleterm.v1.PaginatedResource';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.displayName = 'proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.displayName = 'proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.teleport.lib.teleterm.v1.UserPreferences, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.teleport.lib.teleterm.v1.UserPreferences.displayName = 'proto.teleport.lib.teleterm.v1.UserPreferences';
 }
 
 
@@ -9536,6 +10048,3712 @@ proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.serializeBi
 };
 
 
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    headlessAuthenticationId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    state: jspb.Message.getFieldWithDefault(msg, 3, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest;
+  return proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setHeadlessAuthenticationId(value);
+      break;
+    case 3:
+      var value = /** @type {!proto.teleport.lib.teleterm.v1.HeadlessAuthenticationState} */ (reader.readEnum());
+      msg.setState(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getHeadlessAuthenticationId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string headless_authentication_id = 2;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.getHeadlessAuthenticationId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.setHeadlessAuthenticationId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional HeadlessAuthenticationState state = 3;
+ * @return {!proto.teleport.lib.teleterm.v1.HeadlessAuthenticationState}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.getState = function() {
+  return /** @type {!proto.teleport.lib.teleterm.v1.HeadlessAuthenticationState} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.teleport.lib.teleterm.v1.HeadlessAuthenticationState} value
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.prototype.setState = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse;
+  return proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest;
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    certsReloaded: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse;
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setCertsReloaded(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getCertsReloaded();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool certs_reloaded = 1;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.prototype.getCertsReloaded = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse.prototype.setCertsReloaded = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest;
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    token: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse;
+  return proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setToken(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getToken();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string token = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.getToken = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse.prototype.setToken = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    token: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest;
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setToken(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getToken();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string token = 2;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.prototype.getToken = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest.prototype.setToken = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse;
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest;
+  return proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    server: (f = msg.getServer()) && teleport_lib_teleterm_v1_server_pb.Server.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse;
+  return proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new teleport_lib_teleterm_v1_server_pb.Server;
+      reader.readMessage(value,teleport_lib_teleterm_v1_server_pb.Server.deserializeBinaryFromReader);
+      msg.setServer(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getServer();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      teleport_lib_teleterm_v1_server_pb.Server.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Server server = 1;
+ * @return {?proto.teleport.lib.teleterm.v1.Server}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.prototype.getServer = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.Server} */ (
+    jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_server_pb.Server, 1));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.Server|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse} returns this
+*/
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.prototype.setServer = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.prototype.clearServer = function() {
+  return this.setServer(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.prototype.hasServer = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest;
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse;
+  return proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest;
+  return proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRootClusterUri(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getRootClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string root_cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.prototype.getRootClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest.prototype.setRootClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    name: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse;
+  return proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setName(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string name = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.prototype.getName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse.prototype.setName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.repeatedFields_ = [2];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    kindsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
+    limit: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    startKey: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    query: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    search: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    sortBy: (f = msg.getSortBy()) && proto.teleport.lib.teleterm.v1.SortBy.toObject(includeInstance, f),
+    searchAsRoles: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
+    pinnedOnly: jspb.Message.getBooleanFieldWithDefault(msg, 9, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest;
+  return proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setClusterUri(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addKinds(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setLimit(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setStartKey(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setQuery(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSearch(value);
+      break;
+    case 7:
+      var value = new proto.teleport.lib.teleterm.v1.SortBy;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.SortBy.deserializeBinaryFromReader);
+      msg.setSortBy(value);
+      break;
+    case 8:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSearchAsRoles(value);
+      break;
+    case 9:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setPinnedOnly(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getKindsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      2,
+      f
+    );
+  }
+  f = message.getLimit();
+  if (f !== 0) {
+    writer.writeInt32(
+      3,
+      f
+    );
+  }
+  f = message.getStartKey();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getQuery();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getSearch();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getSortBy();
+  if (f != null) {
+    writer.writeMessage(
+      7,
+      f,
+      proto.teleport.lib.teleterm.v1.SortBy.serializeBinaryToWriter
+    );
+  }
+  f = message.getSearchAsRoles();
+  if (f) {
+    writer.writeBool(
+      8,
+      f
+    );
+  }
+  f = message.getPinnedOnly();
+  if (f) {
+    writer.writeBool(
+      9,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * repeated string kinds = 2;
+ * @return {!Array<string>}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getKindsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setKindsList = function(value) {
+  return jspb.Message.setField(this, 2, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.addKinds = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.clearKindsList = function() {
+  return this.setKindsList([]);
+};
+
+
+/**
+ * optional int32 limit = 3;
+ * @return {number}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getLimit = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setLimit = function(value) {
+  return jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+/**
+ * optional string start_key = 4;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getStartKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setStartKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string query = 5;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getQuery = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setQuery = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string search = 6;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getSearch = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setSearch = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional SortBy sort_by = 7;
+ * @return {?proto.teleport.lib.teleterm.v1.SortBy}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getSortBy = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.SortBy} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.SortBy, 7));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.SortBy|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+*/
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setSortBy = function(value) {
+  return jspb.Message.setWrapperField(this, 7, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.clearSortBy = function() {
+  return this.setSortBy(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.hasSortBy = function() {
+  return jspb.Message.getField(this, 7) != null;
+};
+
+
+/**
+ * optional bool search_as_roles = 8;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getSearchAsRoles = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 8, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setSearchAsRoles = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 8, value);
+};
+
+
+/**
+ * optional bool pinned_only = 9;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.getPinnedOnly = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 9, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.prototype.setPinnedOnly = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 9, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.SortBy.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.SortBy.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.SortBy} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.SortBy.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    isDesc: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+    field: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.SortBy}
+ */
+proto.teleport.lib.teleterm.v1.SortBy.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.SortBy;
+  return proto.teleport.lib.teleterm.v1.SortBy.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.SortBy} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.SortBy}
+ */
+proto.teleport.lib.teleterm.v1.SortBy.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsDesc(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setField(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.SortBy.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.SortBy.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.SortBy} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.SortBy.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getIsDesc();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+  f = message.getField();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool is_desc = 1;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.SortBy.prototype.getIsDesc = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.SortBy} returns this
+ */
+proto.teleport.lib.teleterm.v1.SortBy.prototype.setIsDesc = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional string field = 2;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.SortBy.prototype.getField = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.SortBy} returns this
+ */
+proto.teleport.lib.teleterm.v1.SortBy.prototype.setField = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    resourcesList: jspb.Message.toObjectList(msg.getResourcesList(),
+    proto.teleport.lib.teleterm.v1.PaginatedResource.toObject, includeInstance),
+    nextKey: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse;
+  return proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.teleport.lib.teleterm.v1.PaginatedResource;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.PaginatedResource.deserializeBinaryFromReader);
+      msg.addResources(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setNextKey(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getResourcesList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.teleport.lib.teleterm.v1.PaginatedResource.serializeBinaryToWriter
+    );
+  }
+  f = message.getNextKey();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * repeated PaginatedResource resources = 1;
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.PaginatedResource>}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.getResourcesList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.PaginatedResource>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.teleport.lib.teleterm.v1.PaginatedResource, 1));
+};
+
+
+/**
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.PaginatedResource>} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse} returns this
+*/
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.setResourcesList = function(value) {
+  return jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.teleport.lib.teleterm.v1.PaginatedResource=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.addResources = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.PaginatedResource, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.clearResourcesList = function() {
+  return this.setResourcesList([]);
+};
+
+
+/**
+ * optional string next_key = 2;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.getNextKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.setNextKey = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Oneof group definitions for this message. Each group defines the field
+ * numbers belonging to that group. When of these fields' value is set, all
+ * other fields in the group are cleared. During deserialization, if multiple
+ * fields are encountered for a group, only the last value seen will be kept.
+ * @private {!Array<!Array<number>>}
+ * @const
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_ = [[1,2,3]];
+
+/**
+ * @enum {number}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.ResourceCase = {
+  RESOURCE_NOT_SET: 0,
+  DATABASE: 1,
+  SERVER: 2,
+  KUBE: 3
+};
+
+/**
+ * @return {proto.teleport.lib.teleterm.v1.PaginatedResource.ResourceCase}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.getResourceCase = function() {
+  return /** @type {proto.teleport.lib.teleterm.v1.PaginatedResource.ResourceCase} */(jspb.Message.computeOneofCase(this, proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_[0]));
+};
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.PaginatedResource.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.PaginatedResource} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    database: (f = msg.getDatabase()) && teleport_lib_teleterm_v1_database_pb.Database.toObject(includeInstance, f),
+    server: (f = msg.getServer()) && teleport_lib_teleterm_v1_server_pb.Server.toObject(includeInstance, f),
+    kube: (f = msg.getKube()) && teleport_lib_teleterm_v1_kube_pb.Kube.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.PaginatedResource;
+  return proto.teleport.lib.teleterm.v1.PaginatedResource.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.PaginatedResource} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new teleport_lib_teleterm_v1_database_pb.Database;
+      reader.readMessage(value,teleport_lib_teleterm_v1_database_pb.Database.deserializeBinaryFromReader);
+      msg.setDatabase(value);
+      break;
+    case 2:
+      var value = new teleport_lib_teleterm_v1_server_pb.Server;
+      reader.readMessage(value,teleport_lib_teleterm_v1_server_pb.Server.deserializeBinaryFromReader);
+      msg.setServer(value);
+      break;
+    case 3:
+      var value = new teleport_lib_teleterm_v1_kube_pb.Kube;
+      reader.readMessage(value,teleport_lib_teleterm_v1_kube_pb.Kube.deserializeBinaryFromReader);
+      msg.setKube(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.PaginatedResource.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.PaginatedResource} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getDatabase();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      teleport_lib_teleterm_v1_database_pb.Database.serializeBinaryToWriter
+    );
+  }
+  f = message.getServer();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      teleport_lib_teleterm_v1_server_pb.Server.serializeBinaryToWriter
+    );
+  }
+  f = message.getKube();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      teleport_lib_teleterm_v1_kube_pb.Kube.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Database database = 1;
+ * @return {?proto.teleport.lib.teleterm.v1.Database}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.getDatabase = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.Database} */ (
+    jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_database_pb.Database, 1));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.Database|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+*/
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.setDatabase = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 1, proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.clearDatabase = function() {
+  return this.setDatabase(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.hasDatabase = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional Server server = 2;
+ * @return {?proto.teleport.lib.teleterm.v1.Server}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.getServer = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.Server} */ (
+    jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_server_pb.Server, 2));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.Server|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+*/
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.setServer = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 2, proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.clearServer = function() {
+  return this.setServer(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.hasServer = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional Kube kube = 3;
+ * @return {?proto.teleport.lib.teleterm.v1.Kube}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.getKube = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.Kube} */ (
+    jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_kube_pb.Kube, 3));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.Kube|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+*/
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.setKube = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 3, proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.clearKube = function() {
+  return this.setKube(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.hasKube = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest;
+  return proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setClusterUri(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.prototype.getClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesRequest.prototype.setClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userPreferences: (f = msg.getUserPreferences()) && proto.teleport.lib.teleterm.v1.UserPreferences.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse;
+  return proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.teleport.lib.teleterm.v1.UserPreferences;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.UserPreferences.deserializeBinaryFromReader);
+      msg.setUserPreferences(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserPreferences();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.teleport.lib.teleterm.v1.UserPreferences.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional UserPreferences user_preferences = 1;
+ * @return {?proto.teleport.lib.teleterm.v1.UserPreferences}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.prototype.getUserPreferences = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.UserPreferences} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.UserPreferences, 1));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.UserPreferences|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse} returns this
+*/
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.prototype.setUserPreferences = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.prototype.clearUserPreferences = function() {
+  return this.setUserPreferences(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.GetUserPreferencesResponse.prototype.hasUserPreferences = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    userPreferences: (f = msg.getUserPreferences()) && proto.teleport.lib.teleterm.v1.UserPreferences.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest;
+  return proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setClusterUri(value);
+      break;
+    case 2:
+      var value = new proto.teleport.lib.teleterm.v1.UserPreferences;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.UserPreferences.deserializeBinaryFromReader);
+      msg.setUserPreferences(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getClusterUri();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getUserPreferences();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      proto.teleport.lib.teleterm.v1.UserPreferences.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional string cluster_uri = 1;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.getClusterUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.setClusterUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional UserPreferences user_preferences = 2;
+ * @return {?proto.teleport.lib.teleterm.v1.UserPreferences}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.getUserPreferences = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.UserPreferences} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.UserPreferences, 2));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.UserPreferences|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest} returns this
+*/
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.setUserPreferences = function(value) {
+  return jspb.Message.setWrapperField(this, 2, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.clearUserPreferences = function() {
+  return this.setUserPreferences(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.prototype.hasUserPreferences = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userPreferences: (f = msg.getUserPreferences()) && proto.teleport.lib.teleterm.v1.UserPreferences.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse;
+  return proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.teleport.lib.teleterm.v1.UserPreferences;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.UserPreferences.deserializeBinaryFromReader);
+      msg.setUserPreferences(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserPreferences();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.teleport.lib.teleterm.v1.UserPreferences.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional UserPreferences user_preferences = 1;
+ * @return {?proto.teleport.lib.teleterm.v1.UserPreferences}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.prototype.getUserPreferences = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.UserPreferences} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.UserPreferences, 1));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.UserPreferences|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse} returns this
+*/
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.prototype.setUserPreferences = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse} returns this
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.prototype.clearUserPreferences = function() {
+  return this.setUserPreferences(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.prototype.hasUserPreferences = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UserPreferences.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.teleport.lib.teleterm.v1.UserPreferences} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    clusterPreferences: (f = msg.getClusterPreferences()) && teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences.toObject(includeInstance, f),
+    unifiedResourcePreferences: (f = msg.getUnifiedResourcePreferences()) && teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.teleport.lib.teleterm.v1.UserPreferences}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.teleport.lib.teleterm.v1.UserPreferences;
+  return proto.teleport.lib.teleterm.v1.UserPreferences.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.teleport.lib.teleterm.v1.UserPreferences} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.teleport.lib.teleterm.v1.UserPreferences}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences;
+      reader.readMessage(value,teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences.deserializeBinaryFromReader);
+      msg.setClusterPreferences(value);
+      break;
+    case 2:
+      var value = new teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences;
+      reader.readMessage(value,teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences.deserializeBinaryFromReader);
+      msg.setUnifiedResourcePreferences(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.teleport.lib.teleterm.v1.UserPreferences.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.teleport.lib.teleterm.v1.UserPreferences} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getClusterPreferences();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences.serializeBinaryToWriter
+    );
+  }
+  f = message.getUnifiedResourcePreferences();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
+ * @return {?proto.teleport.userpreferences.v1.ClusterUserPreferences}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.getClusterPreferences = function() {
+  return /** @type{?proto.teleport.userpreferences.v1.ClusterUserPreferences} */ (
+    jspb.Message.getWrapperField(this, teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences, 1));
+};
+
+
+/**
+ * @param {?proto.teleport.userpreferences.v1.ClusterUserPreferences|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.UserPreferences} returns this
+*/
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.setClusterPreferences = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.UserPreferences} returns this
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.clearClusterPreferences = function() {
+  return this.setClusterPreferences(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.hasClusterPreferences = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
+ * @return {?proto.teleport.userpreferences.v1.UnifiedResourcePreferences}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.getUnifiedResourcePreferences = function() {
+  return /** @type{?proto.teleport.userpreferences.v1.UnifiedResourcePreferences} */ (
+    jspb.Message.getWrapperField(this, teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences, 2));
+};
+
+
+/**
+ * @param {?proto.teleport.userpreferences.v1.UnifiedResourcePreferences|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.UserPreferences} returns this
+*/
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.setUnifiedResourcePreferences = function(value) {
+  return jspb.Message.setWrapperField(this, 2, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.UserPreferences} returns this
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.clearUnifiedResourcePreferences = function() {
+  return this.setUnifiedResourcePreferences(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.UserPreferences.prototype.hasUnifiedResourcePreferences = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
 /**
  * @enum {number}
  */
@@ -9553,6 +13771,16 @@ proto.teleport.lib.teleterm.v1.FileTransferDirection = {
   FILE_TRANSFER_DIRECTION_UNSPECIFIED: 0,
   FILE_TRANSFER_DIRECTION_DOWNLOAD: 1,
   FILE_TRANSFER_DIRECTION_UPLOAD: 2
+};
+
+/**
+ * @enum {number}
+ */
+proto.teleport.lib.teleterm.v1.HeadlessAuthenticationState = {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED: 0,
+  HEADLESS_AUTHENTICATION_STATE_PENDING: 1,
+  HEADLESS_AUTHENTICATION_STATE_DENIED: 2,
+  HEADLESS_AUTHENTICATION_STATE_APPROVED: 3
 };
 
 goog.object.extend(exports, proto.teleport.lib.teleterm.v1);

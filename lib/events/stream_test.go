@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events_test
 
@@ -43,7 +47,7 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 	stream, err := streamer.CreateAuditStream(ctx, sid)
@@ -73,11 +77,11 @@ func TestNewSliceErrors(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("test upload error")
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: &mockUploader{reserveUploadPartError: expectedErr},
+		Uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
 	})
 	require.NoError(t, err)
 
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 	_, err = streamer.CreateAuditStream(ctx, sid)
@@ -95,16 +99,16 @@ func TestNewStreamErrors(t *testing.T) {
 	t.Run("CreateAuditStream", func(t *testing.T) {
 		for _, tt := range []struct {
 			desc        string
-			uploader    *mockUploader
+			uploader    *eventstest.MockUploader
 			expectedErr error
 		}{
 			{
 				desc:     "CreateUploadError",
-				uploader: &mockUploader{createUploadError: expectedErr},
+				uploader: &eventstest.MockUploader{CreateUploadError: expectedErr},
 			},
 			{
 				desc:     "ReserveUploadPartError",
-				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+				uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
 			},
 		} {
 			t.Run(tt.desc, func(t *testing.T) {
@@ -113,7 +117,7 @@ func TestNewStreamErrors(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+				evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 				sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 				_, err = streamer.CreateAuditStream(ctx, sid)
@@ -126,16 +130,16 @@ func TestNewStreamErrors(t *testing.T) {
 	t.Run("ResumeAuditStream", func(t *testing.T) {
 		for _, tt := range []struct {
 			desc        string
-			uploader    *mockUploader
+			uploader    *eventstest.MockUploader
 			expectedErr error
 		}{
 			{
 				desc:     "ListPartsError",
-				uploader: &mockUploader{listPartsError: expectedErr},
+				uploader: &eventstest.MockUploader{ListPartsError: expectedErr},
 			},
 			{
 				desc:     "ReserveUploadPartError",
-				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+				uploader: &eventstest.MockUploader{ReserveUploadPartError: expectedErr},
 			},
 		} {
 			t.Run(tt.desc, func(t *testing.T) {
@@ -144,7 +148,7 @@ func TestNewStreamErrors(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+				evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 				sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 				_, err = streamer.ResumeAuditStream(ctx, sid, uuid.New().String())
@@ -188,40 +192,10 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.errAssertion(t, stream.EmitAuditEvent(ctx, test.event))
+			test.errAssertion(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(test.event)))
 		})
 	}
 	require.NoError(t, stream.Complete(ctx))
-}
-
-type mockUploader struct {
-	events.MultipartUploader
-	createUploadError      error
-	reserveUploadPartError error
-	listPartsError         error
-}
-
-func (m *mockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
-	if m.createUploadError != nil {
-		return nil, m.createUploadError
-	}
-
-	return &events.StreamUpload{
-		ID:        uuid.New().String(),
-		SessionID: sessionID,
-	}, nil
-}
-
-func (m *mockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUpload, _ int64) error {
-	return m.reserveUploadPartError
-}
-
-func (m *mockUploader) ListParts(_ context.Context, _ events.StreamUpload) ([]events.StreamPart, error) {
-	if m.listPartsError != nil {
-		return nil, m.listPartsError
-	}
-
-	return []events.StreamPart{}, nil
 }
 
 func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
@@ -233,6 +207,7 @@ func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
 		DatabaseQuery: query,
 	}
 }
+
 func makeAccessRequestEvent(id string, in string) *apievents.AccessRequestDelete {
 	return &apievents.AccessRequestDelete{
 		Metadata: apievents.Metadata{

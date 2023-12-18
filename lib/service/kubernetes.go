@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package service
 
@@ -27,10 +29,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -117,7 +120,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
 		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
-		shtl := reversetunnel.NewServerHandlerToListener(reversetunnel.LocalKubernetes)
+		shtl := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalKubernetes)
 		listener = shtl
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
@@ -197,18 +200,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner:       conn.Client,
-		Clock:       process.Clock,
-		ClusterName: teleportClusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	streamEmitter := &events.StreamerAndEmitter{
-		Emitter:  asyncEmitter,
-		Streamer: streamer,
-	}
 
 	var publicAddr string
 	if len(cfg.Kube.PublicAddrs) > 0 {
@@ -222,7 +213,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			ClusterName:       teleportClusterName,
 			Authz:             authorizer,
 			AuthClient:        conn.Client,
-			StreamEmitter:     streamEmitter,
+			Emitter:           asyncEmitter,
 			DataDir:           cfg.DataDir,
 			CachingAuthClient: accessPoint,
 			HostID:            cfg.HostUUID,
@@ -248,6 +239,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
 		Log:                  log,
+		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 	})
 	if err != nil {
 		return trace.Wrap(err)

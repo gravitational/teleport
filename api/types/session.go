@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // WebSessionsGetter provides access to web sessions
@@ -167,6 +168,16 @@ func (ws *WebSessionV2) GetResourceID() int64 {
 // SetResourceID sets ResourceID
 func (ws *WebSessionV2) SetResourceID(id int64) {
 	ws.Metadata.SetID(id)
+}
+
+// GetRevision returns the revision
+func (ws *WebSessionV2) GetRevision() string {
+	return ws.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (ws *WebSessionV2) SetRevision(rev string) {
+	ws.Metadata.SetRevision(rev)
 }
 
 // GetIdleTimeout returns the max idle timeout duration.
@@ -527,6 +538,16 @@ func (r *WebTokenV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
+// GetRevision returns the revision
+func (r *WebTokenV3) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *WebTokenV3) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 // GetToken returns the token value
 func (r *WebTokenV3) GetToken() string {
 	return r.Spec.Token
@@ -625,6 +646,14 @@ type NewWebSessionRequest struct {
 	AccessRequests []string
 	// RequestedResourceIDs optionally lists requested resources
 	RequestedResourceIDs []ResourceID
+	// AttestWebSession optionally attests the web session to meet private key policy requirements.
+	// This should only be set to true for web sessions that are purely in the purview of the Proxy
+	// and Auth services. Users should never have direct access to attested web sessions.
+	AttestWebSession bool
+	// PrivateKey is a specific private key to use when generating the web sessions' certificates.
+	// This should be provided when extending an attested web session in order to maintain the
+	// session attested status.
+	PrivateKey *keys.PrivateKey
 }
 
 // Check validates the request.

@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -23,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -32,9 +34,12 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
@@ -71,7 +76,7 @@ func main() {
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used when running the kube-agent-updater outside of Kubernetes.")
-	flag.StringVar(&versionServer, "version-server", "https://update.gravitational.io/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
+	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "cloud/stable", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
 
@@ -94,23 +99,21 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
-		Namespace:              agentNamespace,
-		SyncPeriod:             &syncPeriod,
-		NewCache: cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&appsv1.Deployment{}: {
-					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
-				},
-				&appsv1.StatefulSet{}: {
-					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
-				},
+		Cache: cache.Options{
+			// Create a cache scoped to the agentNamespace
+			DefaultNamespaces: map[string]cache.Config{
+				agentNamespace: {},
 			},
-		}),
+			SyncPeriod: &syncPeriod,
+			ByObject: map[kclient.Object]cache.ByObject{
+				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
+				&appsv1.StatefulSet{}: {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
+			},
+		},
 	})
 	if err != nil {
 		ctrl.Log.Error(err, "failed to create new manager, exiting")
@@ -181,6 +184,8 @@ func main() {
 		ctrl.Log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+
+	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version, "url", versionServerURL.String())
 
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")

@@ -1,20 +1,23 @@
-/*
-Copyright 2019-2022 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 import 'xterm/css/xterm.css';
-import { Terminal } from 'xterm';
+import { ITheme, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce, isInteger } from 'shared/utils/highbar';
 import { WebLinksAddon } from 'xterm-addon-web-links';
@@ -46,7 +49,7 @@ export default class TtyTerminal {
   _fitAddon = new FitAddon();
   _webLinksAddon = new WebLinksAddon();
 
-  constructor(tty: Tty, options: Options) {
+  constructor(tty: Tty, private options: Options) {
     const { el, scrollBack, fontFamily, fontSize } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
@@ -69,7 +72,8 @@ export default class TtyTerminal {
       fontSize: this._fontSize,
       scrollback: this._scrollBack,
       cursorBlink: false,
-      allowTransparency: true,
+      minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      theme: this.options.theme,
     });
 
     this.term.loadAddon(this._fitAddon);
@@ -96,6 +100,10 @@ export default class TtyTerminal {
 
   connect() {
     this.tty.connect(this.term.cols, this.term.rows);
+  }
+
+  updateTheme(theme: ITheme): void {
+    this.term.options.theme = theme;
   }
 
   destroy() {
@@ -173,6 +181,7 @@ export default class TtyTerminal {
 
 type Options = {
   el: HTMLElement;
+  theme: ITheme;
   scrollBack?: number;
   fontFamily?: string;
   fontSize?: number;

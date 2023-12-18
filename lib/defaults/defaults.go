@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package defaults contains default constants set in various parts of
 // teleport codebase
@@ -100,6 +102,10 @@ const (
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
 
+	// GRPCMaxConcurrentStreams is the max GRPC streams that can be active at a time.  Once the limit is reached new
+	// RPC calls will queue until capacity is available.
+	GRPCMaxConcurrentStreams = 1000
+
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
 
@@ -135,7 +141,7 @@ const (
 
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
-	ReadHeadersTimeout = time.Second
+	ReadHeadersTimeout = 10 * time.Second
 
 	// DatabaseConnectTimeout is a timeout for connecting to a database via
 	// database access.
@@ -143,7 +149,7 @@ const (
 
 	// HandshakeReadDeadline is the default time to wait for the client during
 	// the TLS handshake.
-	HandshakeReadDeadline = 5 * time.Second
+	HandshakeReadDeadline = 15 * time.Second
 
 	// SignupTokenTTL is a default TTL for a web signup one time token
 	SignupTokenTTL = time.Hour
@@ -257,9 +263,12 @@ const (
 	// refer to all addresses on the machine.
 	AnyAddress = "0.0.0.0"
 
-	// CallbackTimeout is how long to wait for a response from SSO provider
+	// SSOCallbackTimeout is how long to wait for a response from SSO provider
 	// before timeout.
-	CallbackTimeout = 180 * time.Second
+	SSOCallbackTimeout = 180 * time.Second
+
+	// HeadlessLoginTimeout is how long to wait for user to approve/reject headless login request.
+	HeadlessLoginTimeout = SSOCallbackTimeout
 
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
@@ -320,6 +329,9 @@ const (
 
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
+
+	// UnifiedResourcesQueueSize is the unified resource watcher queue size
+	UnifiedResourcesQueueSize = 8192
 
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
@@ -452,6 +464,11 @@ const (
 	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
+	// ProtocolClickHouse is the ClickHouse database native write protocol.
+	// (https://clickhouse.com/docs/en/interfaces/tcp)
+	ProtocolClickHouse = "clickhouse"
+	// ProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
+	ProtocolClickHouseHTTP = "clickhouse-http"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -468,9 +485,11 @@ var DatabaseProtocols = []string{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
+	ProtocolClickHouse,
+	ProtocolClickHouseHTTP,
 }
 
-// ReadableDatabaseProtocol returns a more human readable string of the
+// ReadableDatabaseProtocol returns a more human-readable string of the
 // provided database protocol.
 func ReadableDatabaseProtocol(p string) string {
 	switch p {
@@ -498,6 +517,10 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Cassandra"
 	case ProtocolDynamoDB:
 		return "DynamoDB"
+	case ProtocolClickHouse:
+		return "Clickhouse"
+	case ProtocolClickHouseHTTP:
+		return "Clickhouse (HTTP)"
 	default:
 		// Unknown protocol. Return original string.
 		return p
@@ -686,6 +709,9 @@ const (
 
 	// WebsocketError is sending an error message.
 	WebsocketError = "e"
+
+	// WebsocketLatency provides latency information for a session.
+	WebsocketLatency = "l"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -876,26 +902,10 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince s
 }
 
 const (
-	// AWSInstallerDocument is the name of the default AWS document
-	// that will be called when executing the SSM command.
-	AWSInstallerDocument = "TeleportDiscoveryInstaller"
-
-	// AWSAgentlessInstallerDocument is the name of the default AWS document
-	// that will be called when executing the SSM command .
-	AWSAgentlessInstallerDocument = "TeleportAgentlessDiscoveryInstaller"
-
-	// IAMInviteTokenName is the name of the default Teleport IAM
-	// token to use when templating the script to be executed.
-	IAMInviteTokenName = "aws-discovery-iam-token"
-
-	// SSHDConfigPath is the path to the sshd config file to modify
-	// when using the agentless installer
-	SSHDConfigPath = "/etc/ssh/sshd_config"
+	// HostnameLabel is the name of the label added to the sample SSH config generated by the teleport
+	// node configure command.
+	HostnameLabel = "hostname"
 )
-
-// AzureInviteTokenName is the name of the default token to use
-// when templating the script to be executed.
-const AzureInviteTokenName = "azure-discovery-token"
 
 const (
 	// FilePermissions are safe default permissions to use when

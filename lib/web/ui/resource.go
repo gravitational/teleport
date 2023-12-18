@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package ui
 
@@ -35,6 +37,8 @@ type ResourceItem struct {
 	Kind string `json:"kind"`
 	// Name is a resource name.
 	Name string `json:"name"`
+	// Description is an optional resource description.
+	Description string `json:"description,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
 }
@@ -48,12 +52,14 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 
 	kind := resource.GetKind()
 	name := resource.GetName()
+	description := resource.GetMetadata().Description
 
 	return &ResourceItem{
-		ID:      fmt.Sprintf("%v:%v", kind, name),
-		Kind:    kind,
-		Name:    name,
-		Content: string(data[:]),
+		ID:          fmt.Sprintf("%v:%v", kind, name),
+		Kind:        kind,
+		Name:        name,
+		Description: description,
+		Content:     string(data[:]),
 	}, nil
 
 }
@@ -62,6 +68,11 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 func NewRoles(roles []types.Role) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(roles))
 	for _, role := range roles {
+		// filter out system roles from web UI
+		if types.IsSystemResource(role) {
+			continue
+		}
+
 		item, err := NewResourceItem(role)
 		if err != nil {
 			return nil, trace.Wrap(err)

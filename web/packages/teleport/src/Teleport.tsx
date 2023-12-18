@@ -1,27 +1,33 @@
-/*
-Copyright 2019-2021 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React, { Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
-import { Router, Route, Switch } from 'teleport/components/Router';
+import { Route, Router, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 
 import { getOSSFeatures } from 'teleport/features';
+
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { UserContextProvider } from 'teleport/User';
+import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -29,9 +35,7 @@ import cfg from './config';
 
 import type { History } from 'history';
 
-const AppLauncher = React.lazy(
-  () => import(/* webpackChunkName: "app-launcher" */ './AppLauncher')
-);
+const AppLauncher = lazy(() => import('./AppLauncher'));
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
@@ -41,59 +45,47 @@ const Teleport: React.FC<Props> = props => {
   return (
     <CatchError>
       <ThemeProvider>
-        <Router history={history}>
-          <Suspense fallback={null}>
-            <Switch>
-              {createPublicRoutes()}
-              <Route path={cfg.routes.root}>
-                <Authenticated>
-                  <TeleportContextProvider ctx={ctx}>
-                    <Switch>
-                      <Route
-                        path={cfg.routes.appLauncher}
-                        component={AppLauncher}
-                      />
-                      <Route>{createPrivateRoutes()}</Route>
-                    </Switch>
-                  </TeleportContextProvider>
-                </Authenticated>
-              </Route>
-            </Switch>
-          </Suspense>
-        </Router>
+        <LayoutContextProvider>
+          <Router history={history}>
+            <Suspense fallback={null}>
+              <Switch>
+                {createPublicRoutes()}
+                <Route path={cfg.routes.root}>
+                  <Authenticated>
+                    <UserContextProvider>
+                      <TeleportContextProvider ctx={ctx}>
+                        <Switch>
+                          <Route
+                            path={cfg.routes.appLauncher}
+                            component={AppLauncher}
+                          />
+                          <Route>{createPrivateRoutes()}</Route>
+                        </Switch>
+                      </TeleportContextProvider>
+                    </UserContextProvider>
+                  </Authenticated>
+                </Route>
+              </Switch>
+            </Suspense>
+          </Router>
+        </LayoutContextProvider>
       </ThemeProvider>
     </CatchError>
   );
 };
 
-const LoginFailed = React.lazy(
-  () => import(/* webpackChunkName: "login-failed" */ './Login/LoginFailed')
-);
-const LoginSuccess = React.lazy(
-  () => import(/* webpackChunkName: "login-success" */ './Login/LoginSuccess')
-);
-const Login = React.lazy(
-  () => import(/* webpackChunkName: "login" */ './Login')
-);
-const Welcome = React.lazy(
-  () => import(/* webpackChunkName: "welcome" */ './Welcome')
-);
+const LoginFailed = lazy(() => import('./Login/LoginFailed'));
+const LoginSuccess = lazy(() => import('./Login/LoginSuccess'));
+const Login = lazy(() => import('./Login'));
+const Welcome = lazy(() => import('./Welcome'));
 
-const Console = React.lazy(
-  () => import(/* webpackChunkName: "console" */ './Console')
-);
-const Player = React.lazy(
-  () => import(/* webpackChunkName: "player" */ './Player')
-);
-const DesktopSession = React.lazy(
-  () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
-);
+const Console = lazy(() => import('./Console'));
+const Player = lazy(() => import('./Player'));
+const DesktopSession = lazy(() => import('./DesktopSession'));
 
-const HeadlessRequest = React.lazy(
-  () => import(/* webpackChunkName: "headless-request" */ './HeadlessRequest')
-);
+const HeadlessRequest = lazy(() => import('./HeadlessRequest'));
 
-const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
+const Main = lazy(() => import('./Main'));
 
 function publicOSSRoutes() {
   return [
@@ -131,13 +123,13 @@ export function getSharedPublicRoutes() {
       key="invite"
       title="Invite"
       path={cfg.routes.userInvite}
-      component={Welcome}
+      render={() => <Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="password-reset"
       title="Password Reset"
       path={cfg.routes.userReset}
-      component={Welcome}
+      render={() => <Welcome NewCredentials={NewCredentials} />}
     />,
   ];
 }

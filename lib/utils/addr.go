@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package utils
 
@@ -22,6 +24,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -354,4 +357,39 @@ func ReplaceUnspecifiedHost(addr *NetAddr, defaultPort int) string {
 	}
 	port := addr.Port(defaultPort)
 	return net.JoinHostPort("localhost", strconv.Itoa(port))
+}
+
+// ToLowerCaseASCII returns a lower-case version of in. See RFC 6125 6.4.1. We use
+// an explicitly ASCII function to avoid any sharp corners resulting from
+// performing Unicode operations on DNS labels.
+//
+// NOTE: copied verbatim from crypto/x509 source, including the above comments. Teleport
+// uses this function to approximate a form of opt-in case-insensitivity for ssh hostnames
+func ToLowerCaseASCII(in string) string {
+	// If the string is already lower-case then there's nothing to do.
+	isAlreadyLowerCase := true
+	for _, c := range in {
+		if c == utf8.RuneError {
+			// If we get a UTF-8 error then there might be
+			// upper-case ASCII bytes in the invalid sequence.
+			isAlreadyLowerCase = false
+			break
+		}
+		if 'A' <= c && c <= 'Z' {
+			isAlreadyLowerCase = false
+			break
+		}
+	}
+
+	if isAlreadyLowerCase {
+		return in
+	}
+
+	out := []byte(in)
+	for i, c := range out {
+		if 'A' <= c && c <= 'Z' {
+			out[i] += 'a' - 'A'
+		}
+	}
+	return string(out)
 }

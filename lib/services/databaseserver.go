@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -25,10 +27,6 @@ import (
 
 // MarshalDatabaseServer marshals the DatabaseServer resource to JSON.
 func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalOption) ([]byte, error) {
-	if err := databaseServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -36,14 +34,11 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 
 	switch databaseServer := databaseServer.(type) {
 	case *types.DatabaseServerV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *databaseServer
-			copy.SetResourceID(0)
-			databaseServer = &copy
+		if err := databaseServer.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(databaseServer)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, databaseServer))
 	default:
 		return nil, trace.BadParameter("unrecognized database server version %T", databaseServer)
 	}
@@ -73,6 +68,9 @@ func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.Database
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)

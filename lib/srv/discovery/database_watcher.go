@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package discovery
 
@@ -22,13 +24,16 @@ import (
 
 	"github.com/gravitational/trace"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
+const databaseEventPrefix = "db/"
+
 func (s *Server) startDatabaseWatchers() error {
-	if len(s.databaseFetchers) == 0 {
+	if len(s.databaseFetchers) == 0 && s.dynamicMatcherWatcher == nil {
 		return nil
 	}
 
@@ -57,9 +62,12 @@ func (s *Server) startDatabaseWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		Fetchers:       s.databaseFetchers,
+		FetchersFn:     s.getAllDatabaseFetchers,
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
+		Interval:       s.PollInterval,
+		Origin:         types.OriginCloud,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -88,6 +96,22 @@ func (s *Server) startDatabaseWatchers() error {
 	return nil
 }
 
+func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
+	allFetchers := make([]common.Fetcher, 0, len(s.databaseFetchers))
+
+	s.muDynamicDatabaseFetchers.RLock()
+	for _, fetcherSet := range s.dynamicDatabaseFetchers {
+		allFetchers = append(allFetchers, fetcherSet...)
+	}
+	s.muDynamicDatabaseFetchers.RUnlock()
+
+	allFetchers = append(allFetchers, s.databaseFetchers...)
+
+	s.submitFetchersEvent(allFetchers)
+
+	return allFetchers
+}
+
 func (s *Server) getCurrentDatabases() types.ResourcesWithLabelsMap {
 	databases, err := s.AccessPoint.GetDatabases(s.ctx)
 	if err != nil {
@@ -111,11 +135,28 @@ func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWi
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	// TODO(tigrato): DELETE on 14.0.0
+	// TODO(tigrato): DELETE on 15.0.0
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onDatabaseUpdate(ctx, resource))
 	}
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		databaseEventPrefix + database.GetName(): {
+			ResourceType:   types.DiscoveredResourceDatabase,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  database.GetCloud(),
+			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
+				DbType:     database.GetType(),
+				DbProtocol: database.GetProtocol(),
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
@@ -139,7 +180,7 @@ func (s *Server) onDatabaseDelete(ctx context.Context, resource types.ResourceWi
 func filterResources[T types.ResourceWithLabels, S ~[]T](all S, wantOrigin, wantResourceGroup string) (filtered S) {
 	for _, resource := range all {
 		resourceDiscoveryGroup, _ := resource.GetLabel(types.TeleportInternalDiscoveryGroupName)
-		if resource.Origin() != wantOrigin || resourceDiscoveryGroup != wantResourceGroup {
+		if (wantOrigin != "" && resource.Origin() != wantOrigin) || resourceDiscoveryGroup != wantResourceGroup {
 			continue
 		}
 		filtered = append(filtered, resource)

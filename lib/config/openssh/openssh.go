@@ -1,20 +1,20 @@
 /*
-
- Copyright 2022 Gravitational, Inc.
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package openssh
 
@@ -31,6 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -44,15 +45,21 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
     IdentityFile "{{ $dot.IdentityFilePath }}"
     CertificateFile "{{ $dot.CertificateFilePath }}"
     HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
+    {{- if ne $dot.Username "" }}
+    User "{{ $dot.Username }}"
+{{- end }}
 
 # Flags for all {{ $clusterName }} hosts except the proxy
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
-    Port 3022
+    Port {{ $dot.Port }}
     {{- if eq $dot.AppName "tsh" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }} %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
 {{- end }}{{- if eq $dot.AppName "tbot" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
+{{- end }}
+    {{- if ne $dot.Username "" }}
+    User "{{ $dot.Username }}"
 {{- end }}
 
 # End generated Teleport configuration
@@ -66,8 +73,12 @@ type SSHConfigParameters struct {
 	IdentityFilePath    string
 	CertificateFilePath string
 	ProxyHost           string
+	ProxyPort           string
 	ExecutablePath      string
+	Username            string
 	DestinationDir      string
+	// Port is the node port to use, defaulting to 3022, if not specified by flag
+	Port int
 }
 
 type sshTmplParams struct {
@@ -204,6 +215,9 @@ func (c *SSHConfig) GetSSHConfig(sb *strings.Builder, config *SSHConfigParameter
 	} else {
 		c.log.Debugf("Found OpenSSH version %s", version)
 		sshOptions = getSSHConfigOptions(version)
+	}
+	if config.Port == 0 {
+		config.Port = defaults.SSHServerListenPort
 	}
 
 	c.log.Debugf("Using SSH options: %s", sshOptions)

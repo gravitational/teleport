@@ -1,18 +1,20 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -20,19 +22,20 @@ import { Link } from 'react-router-dom';
 import { Text, Box, Flex, ButtonPrimary, ButtonBorder } from 'design';
 import Image from 'design/Image';
 
-import cfg from 'teleport/config';
+import application from 'design/assets/resources/appplication.png';
+import database from 'design/assets/resources/database.png';
+import desktop from 'design/assets/resources/desktop.png';
+import stack from 'design/assets/resources/stack.png';
 
-import application from './assets/appplication.png';
-import database from './assets/database.png';
-import desktop from './assets/desktop.png';
-import stack from './assets/stack.png';
+import cfg from 'teleport/config';
 
 type ResourceType =
   | 'application'
   | 'database'
   | 'desktop'
   | 'kubernetes'
-  | 'server';
+  | 'server'
+  | 'unified_resource';
 
 function getAccentImage(resourceType: ResourceType): string {
   const accentImages = {
@@ -41,6 +44,8 @@ function getAccentImage(resourceType: ResourceType): string {
     desktop: desktop,
     kubernetes: stack,
     server: stack,
+    // TODO (avatus) update once we have a dedicated image for unified resources
+    unified_resource: stack,
   };
   return accentImages[resourceType];
 }
@@ -105,23 +110,30 @@ export default function Empty(props: Props) {
           <Link
             to={{
               pathname: `${cfg.routes.root}/discover`,
-              state: { entity: resourceType },
+              state: {
+                entity: resourceType,
+              },
             }}
             style={{ textDecoration: 'none' }}
           >
-            <ButtonPrimary width="224px">Add {resourceType}</ButtonPrimary>
+            <ButtonPrimary width="224px" textTransform="none">
+              Add Resource
+            </ButtonPrimary>
           </Link>
-          <ButtonBorder
-            size="medium"
-            as="a"
-            href={docsURL}
-            target="_blank"
-            width="224px"
-            ml={4}
-            rel="noreferrer"
-          >
-            View Documentation
-          </ButtonBorder>
+          {docsURL && (
+            <ButtonBorder
+              textTransform="none"
+              size="medium"
+              as="a"
+              href={docsURL}
+              target="_blank"
+              width="224px"
+              ml={4}
+              rel="noreferrer"
+            >
+              View Documentation
+            </ButtonBorder>
+          )}
         </Box>
       </Box>
     </Box>
@@ -130,8 +142,8 @@ export default function Empty(props: Props) {
 
 export type EmptyStateInfo = {
   byline: string;
-  docsURL: string;
-  resourceType: ResourceType;
+  docsURL?: string;
+  resourceType?: ResourceType;
   readOnly: {
     title: string;
     resource: string;

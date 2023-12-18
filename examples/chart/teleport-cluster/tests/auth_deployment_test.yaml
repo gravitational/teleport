@@ -1,4 +1,4 @@
-suite: Auth StatefulSet
+suite: Auth Deployment
 templates:
   - auth/deployment.yaml
   - auth/config.yaml
@@ -304,6 +304,7 @@ tests:
             name: my-mount
             secret:
               secretName: mySecret
+
   - it: should set imagePullPolicy when set in values
     template: auth/deployment.yaml
     set:
@@ -313,6 +314,36 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
+
+  - it: should have only one container when no `extraContainers` is set in values
+    template: auth/deployment.yaml
+    set:
+      extraContainers: []
+      clusterName: helm-lint.example.com
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
 
   - it: should set environment when extraEnv set in values
     template: auth/deployment.yaml
@@ -504,17 +535,6 @@ tests:
             name: data
             persistentVolumeClaim:
               claimName: RELEASE-NAME
-
-  - it: should add an operator side-car when operator is enabled
-    template: auth/deployment.yaml
-    values:
-      - ../.lint/operator.yaml
-    asserts:
-      - equal:
-          path: spec.template.spec.containers[1].name
-          value: operator
-      - matchSnapshot:
-          path: spec.template.spec.containers[1]
 
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     template: auth/deployment.yaml
@@ -731,8 +751,6 @@ tests:
     template: auth/deployment.yaml
     set:
       clusterName: helm-lint
-      operator:
-        enabled: true
     capabilities:
       majorVersion: 1
       minorVersion: 18
@@ -764,19 +782,11 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: auth-serviceaccount-token
             readOnly: true
-      - notContains:
-          path: spec.template.spec.containers[1].volumeMounts
-          content:
-            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-            name: auth-serviceaccount-token
-            readOnly: true
 
   - it: mounts tokens through projected volumes on newer Kubernetes versions
     template: auth/deployment.yaml
     set:
       clusterName: helm-lint
-      operator:
-        enabled: true
     capabilities:
       majorVersion: 1
       minorVersion: 21
@@ -808,9 +818,13 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: auth-serviceaccount-token
             readOnly: true
-      - contains:
-          path: spec.template.spec.containers[1].volumeMounts
-          content:
-            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-            name: auth-serviceaccount-token
-            readOnly: true
+
+  - it: should add the azure workload identity label to auth pods in azure mode
+    template: auth/deployment.yaml
+    set:
+      chartMode: azure
+      clusterName: teleport.example.com
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.azure\.workload\.identity/use
+          value: "true"

@@ -1,0 +1,37 @@
+{"Time":"2023-05-24T17:29:16.929248048+10:00","Action":"start","Package":"example.com/package"}
+{"Time":"2023-05-24T17:29:16.929248048+10:00","Action":"start","Package":"example.com/package2"}
+{"Time":"2023-05-24T17:29:16.934340321+10:00","Action":"run","Package":"example.com/package","Test":"TestParseHostPort"}
+{"Time":"2023-05-24T17:29:16.934457584+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"=== RUN   TestParseHostPort\n"}
+{"Time":"2023-05-24T17:29:16.934493832+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"=== PAUSE TestParseHostPort\n"}
+{"Time":"2023-05-24T17:29:16.934500118+10:00","Action":"pause","Package":"example.com/package","Test":"TestParseHostPort"}
+{"Time":"2023-05-24T17:29:16.934502037+10:00","Action":"start","Package":"example.com/package2"}
+{"Time":"2023-05-24T17:29:16.934506823+10:00","Action":"run","Package":"example.com/package2","Test":"TestEmpty"}
+{"Time":"2023-05-24T17:29:16.934511572+10:00","Action":"output","Package":"example.com/package2","Test":"TestEmpty","Output":"=== RUN   TestEmpty\n"}
+{"Time":"2023-05-24T17:29:16.934518556+10:00","Action":"output","Package":"example.com/package2","Test":"TestEmpty","Output":"=== PAUSE TestEmpty\n"}
+{"Time":"2023-05-24T17:29:16.934523794+10:00","Action":"pause","Package":"example.com/package","Test":"TestEmpty"}
+{"Time":"2023-05-24T17:29:16.934528962+10:00","Action":"run","Package":"example.com/package","Test":"TestParse"}
+{"Time":"2023-05-24T17:29:16.934533781+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"=== RUN   TestParse\n"}
+{"Time":"2023-05-24T17:29:16.934539508+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"=== PAUSE TestParse\n"}
+{"Time":"2023-05-24T17:29:16.934544188+10:00","Action":"pause","Package":"example.com/package","Test":"TestParse"}
+{"Time":"2023-05-24T17:29:16.934549286+10:00","Action":"cont","Package":"example.com/package","Test":"TestParseHostPort"}
+{"Time":"2023-05-24T17:29:16.934555921+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"=== CONT  TestParseHostPort\n"}
+{"Time":"2023-05-24T17:29:16.93456067+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"    addr_test.go:32: \n"}
+{"Time":"2023-05-24T17:29:16.934565978+10:00","Action":"cont","Package":"example.com/package","Test":"TestParse"}
+{"Time":"2023-05-24T17:29:16.934570797+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"=== CONT  TestParse\n"}
+{"Time":"2023-05-24T17:29:16.934579877+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"--- PASS: TestParseHostPort (0.00s)\n"}
+{"Time":"2023-05-24T17:29:16.934586442+10:00","Action":"skip","Package":"example.com/package","Test":"TestParseHostPort","Elapsed":0}
+{"Time":"2023-05-24T17:29:16.934592169+10:00","Action":"cont","Package":"example.com/package2","Test":"TestEmpty"}
+{"Time":"2023-05-24T17:29:16.934596988+10:00","Action":"output","Package":"example.com/package2","Test":"TestEmpty","Output":"=== CONT  TestEmpty\n"}
+{"Time":"2023-05-24T17:29:16.934602785+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"    addr_test.go:71: failed\n"}
+{"Time":"2023-05-24T17:29:16.934608442+10:00","Action":"output","Package":"example.com/package2","Test":"TestEmpty","Output":"--- PASS: TestEmpty (0.00s)\n"}
+{"Time":"2023-05-24T17:29:16.93461368+10:00","Action":"pass","Package":"example.com/package2","Test":"TestEmpty","Elapsed":0}
+{"Time":"2023-05-24T17:29:16.934618429+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"--- FAIL: TestParse (0.00s)\n"}
+{"Time":"2023-05-24T17:29:16.934629464+10:00","Action":"fail","Package":"example.com/package","Test":"TestParse","Elapsed":0}
+{"Time":"2023-05-24T17:29:16.934634283+10:00","Action":"output","Package":"example.com/package","Output":"FAIL\n"}
+{"Time":"2023-05-24T17:29:16.935972653+10:00","Action":"output","Package":"example.com/package","Output":"\texample.com/package\tcoverage: 2.4% of statements\n"}
+{"Time":"2023-05-24T17:29:16.936504774+10:00","Action":"output","Package":"example.com/package","Output":"FAIL\texample.com/package\t0.007s\n"}
+{"Time":"2023-05-24T17:29:16.936553034+10:00","Action":"fail","Package":"example.com/package","Elapsed":0.007}
+{"Time":"2023-05-24T17:58:42.948894851+10:00","Action":"output","Package":"example.com/package2","Output":"PASS\n"}
+{"Time":"2023-05-24T17:58:42.948904+10:00","Action":"output","Package":"example.com/package2","Output":"\texample.com/package\tcoverage: 3.3% of statements\n"}
+{"Time":"2023-05-24T17:58:42.948909797+10:00","Action":"output","Package":"example.com/package2","Output":"ok  \texample.com/package\t\tcoverage: 3.3% of statements\n"}
+{"Time":"2023-05-24T17:29:16.936583274+10:00","Action":"pass","Package":"example.com/package2","Elapsed":0.007}

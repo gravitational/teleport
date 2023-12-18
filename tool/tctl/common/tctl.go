@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -21,10 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -32,13 +36,16 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -105,7 +112,7 @@ func Run(commands []CLICommand) {
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
 func TryRun(commands []CLICommand, args []string) error {
-	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
+	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
 	// app is the command line parser
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -156,7 +163,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print the version of your tctl binary")
+	ver := app.Command("version", "Print the version of your tctl binary.")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -176,7 +183,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		return nil
 	}
 
@@ -192,16 +199,28 @@ func TryRun(commands []CLICommand, args []string) error {
 	}
 
 	ctx := context.Background()
-
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		log.Errorf("Cannot connect to the auth server. Is the auth server running on %q? %v",
-			cfg.AuthServerAddresses()[0].Addr, err)
+		fmt.Fprintf(os.Stderr,
+			"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
+			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
+
+	// Get the proxy address and set the MFA prompt constructor.
+	resp, err := client.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyAddr := resp.ProxyPublicAddr
+	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
+		promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
+		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+	})
 
 	// execute whatever is selected:
 	var match bool
@@ -218,7 +237,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	ctx, cancel := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
 	defer cancel()
 	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -234,7 +253,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
-		utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 		log.Debugf("Debug logging has been enabled.")
 	}
 	cfg.Log = log.StandardLogger()
@@ -288,6 +307,12 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		} else if runtime.GOOS == constants.WindowsOS {
+			// On macOS/Linux, a not found error here is okay, as we can attempt
+			// to use the local auth identity. The auth server itself doesn't run
+			// on Windows though, so exit early with a clear error.
+			return nil, trace.BadParameter("tctl requires a tsh profile on Windows. " +
+				"Try logging in with tsh first.")
 		}
 	}
 
@@ -334,6 +359,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+	authConfig.Insecure = ccf.Insecure
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
@@ -392,6 +418,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
+	authConfig.Insecure = ccf.Insecure
 	authConfig.SSH, err = key.ProxyClientSSHConfig(rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1,19 +1,23 @@
 //go:build libfido2
 // +build libfido2
 
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthncli
 
@@ -37,7 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // User-friendly device filter errors.
@@ -47,7 +51,7 @@ var (
 	errNoPlatform              = errors.New("device cannot fulfill platform attachment requirement")
 	errNoRK                    = errors.New("device lacks resident key capabilities")
 	errNoRegisteredCredentials = errors.New("device lacks registered credentials")
-	errNoUV                    = errors.New("device lacks PIN or user verification capabilities")
+	errNoUV                    = errors.New("device lacks PIN or user verification capabilities necessary to support passwordless")
 	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
 )
 
@@ -95,7 +99,7 @@ func isLibfido2Enabled() bool {
 // fido2Login implements FIDO2Login.
 func fido2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
@@ -131,7 +135,7 @@ func fido2Login(
 
 	rpID := assertion.Response.RelyingPartyID
 	var appID string
-	if val, ok := assertion.Response.Extensions[wanlib.AppIDExtension]; ok {
+	if val, ok := assertion.Response.Extensions[wantypes.AppIDExtension]; ok {
 		appID = fmt.Sprint(val)
 	}
 
@@ -330,7 +334,7 @@ func pickAssertion(
 // fido2Register implements FIDO2Register.
 func fido2Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
+	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
 	switch {
 	case origin == "":
@@ -380,7 +384,6 @@ func fido2Register(
 		ID:          cc.Response.User.ID,
 		Name:        cc.Response.User.Name,
 		DisplayName: cc.Response.User.DisplayName,
-		Icon:        cc.Response.User.Icon,
 	}
 	plat := cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.Platform
 	uv := cc.Response.AuthenticatorSelection.UserVerification == protocol.VerificationRequired

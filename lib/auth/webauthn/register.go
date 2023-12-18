@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthn
 
@@ -18,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -29,7 +34,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by
@@ -41,8 +47,8 @@ type RegistrationIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -51,7 +57,7 @@ type RegistrationIdentity interface {
 func WithInMemorySessionData(identity RegistrationIdentity) RegistrationIdentity {
 	return &inMemoryIdentity{
 		RegistrationIdentity: identity,
-		sessionData:          make(map[string]*wantypes.SessionData),
+		sessionData:          make(map[string]*wanpb.SessionData),
 	}
 }
 
@@ -62,17 +68,17 @@ type inMemoryIdentity struct {
 	// We don't foresee concurrent use for inMemoryIdentity, but it's easy enough
 	// to play it safe.
 	mu          sync.RWMutex
-	sessionData map[string]*wantypes.SessionData
+	sessionData map[string]*wanpb.SessionData
 }
 
-func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	identity.mu.Lock()
 	defer identity.mu.Unlock()
 	identity.sessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	identity.mu.RLock()
 	defer identity.mu.RUnlock()
 	sd, ok := identity.sessionData[sessionDataKey(user, sessionID)]
@@ -125,7 +131,7 @@ type RegistrationFlow struct {
 // resident key.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*CredentialCreation, error) {
+func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialCreation, error) {
 	if user == "" {
 		return nil, trace.BadParameter("user required")
 	}
@@ -191,7 +197,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialCreation)(cc), nil
+	return wantypes.CredentialCreationFromProtocol(cc), nil
 }
 
 func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {
@@ -232,7 +238,7 @@ type RegisterResponse struct {
 	// DeviceName is the name for the new device.
 	DeviceName string
 	// CreationResponse is the response from the new device.
-	CreationResponse *CredentialCreationResponse
+	CreationResponse *wantypes.CredentialCreationResponse
 	// Passwordless is true if this is expected to be a passwordless registration.
 	// Callers may make certain concessions when processing passwordless
 	// registration (such as skipping password validation), this flag reflects that.
@@ -299,6 +305,16 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	}
 	credential, err := web.CreateCredential(u, *sessionData, parsedResp)
 	if err != nil {
+		// Use a more friendly message for certain verification errors.
+		protocolErr := &protocol.Error{}
+		if errors.As(err, &protocolErr) &&
+			protocolErr.Type == protocol.ErrVerification.Type &&
+			passwordless &&
+			!parsedResp.Response.AttestationObject.AuthData.Flags.UserVerified() {
+			log.WithError(err).Debug("WebAuthn: Replacing verification error with PIN message")
+			return nil, trace.BadParameter("authenticator doesn't support passwordless, setting up a PIN may fix this")
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -338,7 +354,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	return newDevice, nil
 }
 
-func parseCredentialCreationResponse(resp *CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {
+func parseCredentialCreationResponse(resp *wantypes.CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {
 	// Remove extensions before marshaling, duo-labs/webauthn isn't expecting it.
 	exts := resp.Extensions
 	resp.Extensions = nil

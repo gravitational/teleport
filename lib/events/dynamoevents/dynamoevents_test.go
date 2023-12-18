@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package dynamoevents
 
@@ -28,11 +30,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -134,20 +136,19 @@ func TestSizeBreak(t *testing.T) {
 	}
 
 	var checkpoint string
-	events := make([]apievents.AuditEvent, 0)
-
+	gotEvents := make([]apievents.AuditEvent, 0)
+	ctx := context.Background()
 	for {
-		fetched, lCheckpoint, err := tt.log.SearchEvents(
-			tt.suite.Clock.Now().UTC().Add(-time.Hour),
-			tt.suite.Clock.Now().UTC().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			eventCount,
-			types.EventOrderDescending,
-			checkpoint)
+		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:     tt.suite.Clock.Now().UTC().Add(-time.Hour),
+			To:       tt.suite.Clock.Now().UTC().Add(time.Hour),
+			Limit:    eventCount,
+			Order:    types.EventOrderDescending,
+			StartKey: checkpoint,
+		})
 		require.NoError(t, err)
 		checkpoint = lCheckpoint
-		events = append(events, fetched...)
+		gotEvents = append(gotEvents, fetched...)
 
 		if checkpoint == "" {
 			break
@@ -156,7 +157,7 @@ func TestSizeBreak(t *testing.T) {
 
 	lastTime := tt.suite.Clock.Now().UTC().Add(time.Hour)
 
-	for _, event := range events {
+	for _, event := range gotEvents {
 		require.True(t, event.GetTime().Before(lastTime))
 		lastTime = event.GetTime()
 	}
@@ -211,17 +212,15 @@ func TestLargeTableRetrieve(t *testing.T) {
 		history []apievents.AuditEvent
 		err     error
 	)
+	ctx := context.Background()
 	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(tt.suite.QueryDelay)
 
-		history, _, err = tt.suite.Log.SearchEvents(
-			tt.suite.Clock.Now().Add(-1*time.Hour),
-			tt.suite.Clock.Now().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			0,
-			types.EventOrderAscending,
-			"")
+		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:  tt.suite.Clock.Now().Add(-1 * time.Hour),
+			To:    tt.suite.Clock.Now().Add(time.Hour),
+			Order: types.EventOrderAscending,
+		})
 		require.NoError(t, err)
 
 		if len(history) == eventCount {
@@ -273,14 +272,12 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	err := tt.suite.Log.EmitAuditEvent(ctx, dbQueryEvent)
 	require.NoError(t, err)
 
-	result, _, err := tt.suite.Log.SearchEvents(
-		now.Add(-1*time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		[]string{events.DatabaseSessionQueryEvent},
-		0, types.EventOrderAscending,
-		"",
-	)
+	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       now.Add(-1 * time.Hour),
+		To:         now.Add(time.Hour),
+		EventTypes: []string{events.DatabaseSessionQueryEvent},
+		Order:      types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 
@@ -352,6 +349,87 @@ func TestConfig_SetFromURL(t *testing.T) {
 			require.NoError(t, tt.cfg.SetFromURL(uri))
 
 			tt.cfgAssertion(t, tt.cfg)
+		})
+	}
+}
+
+func TestConfig_CheckAndSetDefaults(t *testing.T) {
+	zero := types.NewDuration(0)
+	hour := types.NewDuration(time.Hour)
+
+	tests := []struct {
+		name        string
+		config      *Config
+		assertionFn func(t *testing.T, cfg *Config, err error)
+	}{
+		{
+			name:   "table name required",
+			config: &Config{},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %T", err)
+			},
+		},
+		{
+			name: "nil retention period uses default",
+			config: &Config{
+				Tablename:       "test",
+				RetentionPeriod: nil,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, DefaultRetentionPeriod.Duration(), cfg.RetentionPeriod.Duration())
+			},
+		},
+		{
+			name: "zero retention period uses default",
+			config: &Config{
+				Tablename:       "test",
+				RetentionPeriod: &zero,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, DefaultRetentionPeriod.Duration(), cfg.RetentionPeriod.Duration())
+			},
+		},
+		{
+			name: "supplied retention period is used",
+			config: &Config{
+				Tablename:       "test",
+				RetentionPeriod: &hour,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, hour.Duration(), cfg.RetentionPeriod.Duration())
+			},
+		},
+		{
+			name:   "zero capacity uses defaults",
+			config: &Config{Tablename: "test"},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, int64(DefaultReadCapacityUnits), cfg.ReadCapacityUnits)
+				require.Equal(t, int64(DefaultWriteCapacityUnits), cfg.WriteCapacityUnits)
+			},
+		},
+		{
+			name: "supplied capacity is used",
+			config: &Config{
+				Tablename:          "test",
+				ReadCapacityUnits:  1,
+				WriteCapacityUnits: 7,
+			},
+			assertionFn: func(t *testing.T, cfg *Config, err error) {
+				require.NoError(t, err)
+				require.Equal(t, int64(1), cfg.ReadCapacityUnits)
+				require.Equal(t, int64(7), cfg.WriteCapacityUnits)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.config.CheckAndSetDefaults()
+			test.assertionFn(t, test.config, err)
 		})
 	}
 }

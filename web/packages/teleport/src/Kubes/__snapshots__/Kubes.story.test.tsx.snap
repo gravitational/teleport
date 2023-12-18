@@ -1,7 +1,18 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`empty state 1`] = `
-.c4 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
   box-sizing: border-box;
   margin-left: auto;
   margin-right: auto;
@@ -10,23 +21,23 @@ exports[`empty state 1`] = `
   width: 100%;
 }
 
-.c5 {
+.c10 {
   box-sizing: border-box;
   max-width: 600px;
 }
 
-.c6 {
+.c11 {
   box-sizing: border-box;
   margin-bottom: 24px;
   text-align: center;
 }
 
-.c10 {
+.c15 {
   box-sizing: border-box;
   text-align: center;
 }
 
-.c11 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -51,24 +62,25 @@ exports[`empty state 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
+  text-transform: none;
 }
 
-.c11:hover,
-.c11:focus {
+.c16:hover,
+.c16:focus {
   background: #B29DFF;
 }
 
-.c11:active {
+.c16:active {
   background: #C5B6FF;
 }
 
-.c11:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c12 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -95,24 +107,34 @@ exports[`empty state 1`] = `
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
+  text-transform: none;
 }
 
-.c12:hover,
-.c12:focus {
+.c17:hover,
+.c17:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c12:active {
+.c17:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c12:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c8 {
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -124,7 +146,7 @@ exports[`empty state 1`] = `
   font-weight: 700;
 }
 
-.c9 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 14px;
@@ -132,7 +154,7 @@ exports[`empty state 1`] = `
   font-weight: 400;
 }
 
-.c7 {
+.c12 {
   display: block;
   outline: none;
   margin-bottom: 24px;
@@ -141,24 +163,23 @@ exports[`empty state 1`] = `
   height: 160px;
 }
 
-.c3 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 56px;
-  padding-top: 32px;
-  width: 100%;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c9 {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -168,68 +189,58 @@ exports[`empty state 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1 c2"
   >
     <div
-      class="c1"
+      class="c3 c4 c5"
     >
       <div
-        class="c2"
+        class="c6 c7"
       >
         Kubernetes
       </div>
     </div>
     <div
-      class="c3 sc-AxirZ c4"
+      class="c8 c9 sc-gEvEer c8"
       width="100%"
     >
       <div
-        class="c5"
+        class="c10"
       >
         <div
-          class="c6"
+          class="c11"
         >
           <img
-            class="c7"
+            class="c12"
             height="160px"
             src="file_stub"
           />
           <div
-            class="c8"
+            class="c13"
             font-size="24"
             font-weight="700"
           >
             Add your first Kubernetes cluster to Teleport
           </div>
           <div
-            class="c9"
+            class="c14"
             font-size="14"
             font-weight="400"
             style="opacity: 0.6;"
@@ -238,23 +249,22 @@ exports[`empty state 1`] = `
           </div>
         </div>
         <div
-          class="c10"
+          class="c15"
         >
           <a
             href="/web/discover"
             style="text-decoration: none;"
           >
             <button
-              class="c11"
+              class="c16"
               kind="primary"
               width="224px"
             >
-              Add 
-              kubernetes
+              Add Resource
             </button>
           </a>
           <a
-            class="c12"
+            class="c17"
             href="https://goteleport.com/docs/kubernetes-access/guides"
             kind="border"
             rel="noreferrer"
@@ -271,7 +281,7 @@ exports[`empty state 1`] = `
 `;
 
 exports[`failed 1`] = `
-.c3 {
+.c8 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,17 +298,43 @@ exports[`failed 1`] = `
   color: #000000;
 }
 
-.c3 a {
+.c8 a {
   color: #FFFFFF;
 }
 
-.c8 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c14 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
 }
 
-.c27 {
+.c20 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.c35 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -325,35 +361,22 @@ exports[`failed 1`] = `
   padding: 0px 16px;
 }
 
-.c27:hover,
-.c27:focus {
+.c35:hover,
+.c35:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c27:active {
+.c35:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c27:disabled {
+.c35:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c21 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c32 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 16px;
-}
-
-.c30 {
+.c38 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -375,29 +398,25 @@ exports[`failed 1`] = `
   margin-right: 0px;
 }
 
-.c30 .c20 {
-  color: inherit;
-}
-
-.c30:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c30:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c30:hover:enabled,
-.c30:focus:enabled {
+.c38:hover:enabled,
+.c38:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c30:active:enabled {
+.c38:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c33 {
+.c40 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -418,38 +437,43 @@ exports[`failed 1`] = `
   margin-left: 0px;
 }
 
-.c33 .c20 {
-  color: inherit;
-}
-
-.c33:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c33:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c33:hover:enabled,
-.c33:focus:enabled {
+.c40:hover:enabled,
+.c40:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c33:active:enabled {
+.c40:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c19 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
+  font-size: 22px;
+  line-height: 32px;
   margin: 0px;
 }
 
-.c23 {
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c30 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -460,39 +484,112 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c33 {
   box-sizing: border-box;
-  width: 100%;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c4 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c7 {
-  box-sizing: border-box;
+.c13 {
   display: flex;
   align-items: center;
 }
 
-.c22 {
-  box-sizing: border-box;
+.c21 {
   display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.c25 {
-  box-sizing: border-box;
+.c32 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c29 {
-  box-sizing: border-box;
-  width: 100%;
+.c37 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c24 {
+.c22 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c22[disabled] {
+  cursor: default;
+}
+
+.c25 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #222C59;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c25:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #9F85FF;
+}
+
+.c23 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c23:checked + .c24 {
+  background: rgba(255,255,255,0.13);
+}
+
+.c23:checked + .c24:before {
+  transform: translate(16px,-50%);
+}
+
+.c23:disabled + .c24 {
+  background: #222C59;
+}
+
+.c23:disabled + .c24:before {
+  background: #455a64;
+}
+
+.c31 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -501,39 +598,39 @@ exports[`failed 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c31 > thead > tr > th,
+.c31 > tbody > tr > th,
+.c31 > tfoot > tr > th,
+.c31 > thead > tr > td,
+.c31 > tbody > tr > td,
+.c31 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c31 > thead > tr > th:first-child,
+.c31 > tbody > tr > th:first-child,
+.c31 > tfoot > tr > th:first-child,
+.c31 > thead > tr > td:first-child,
+.c31 > tbody > tr > td:first-child,
+.c31 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c31 > thead > tr > th:last-child,
+.c31 > tbody > tr > th:last-child,
+.c31 > tfoot > tr > th:last-child,
+.c31 > thead > tr > td:last-child,
+.c31 > tbody > tr > td:last-child,
+.c31 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c31 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c31 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -547,26 +644,24 @@ exports[`failed 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th .c20 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c31 > thead > tr > th svg {
+  height: 12px;
 }
 
-.c24 > tbody > tr > td {
+.c31 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c24 tbody tr {
+.c31 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c24 tbody tr:hover {
+.c31 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
+.c10 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -578,7 +673,7 @@ exports[`failed 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c28 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -589,41 +684,29 @@ exports[`failed 1`] = `
   border-top: 1px solid rgba(255,255,255,0.07);
 }
 
-.c4 {
+.c9 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c26 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c34 {
   cursor: pointer;
 }
 
-.c26:hover {
+.c34:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c31 .c20 {
+.c39 svg {
   font-size: 20px;
 }
 
-.c31 .c20:before {
+.c39 svg:before {
   padding-left: 1px;
 }
 
-.c13 {
+.c19 {
   position: relative;
   height: 100%;
   right: 0;
@@ -634,7 +717,7 @@ exports[`failed 1`] = `
   border-radius: 200px;
 }
 
-.c12 {
+.c18 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -645,7 +728,7 @@ exports[`failed 1`] = `
   border-radius: 200px;
 }
 
-.c10 {
+.c16 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -655,14 +738,14 @@ exports[`failed 1`] = `
   background: transparent;
 }
 
-.c9 {
+.c15 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c11 {
+.c17 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -677,86 +760,35 @@ exports[`failed 1`] = `
   padding-right: 184px;
 }
 
-.c11:hover,
-.c11:focus,
-.c11:active {
+.c17:hover,
+.c17:focus,
+.c17:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c11::placeholder {
+.c17::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c15 {
-  position: relative;
-  display: flex;
-  align-items: center;
+.c29 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c27 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c27:hover {
   cursor: pointer;
 }
 
-.c15[disabled] {
-  cursor: default;
-}
-
-.c18 {
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
-  cursor: inherit;
-  flex-shrink: 0;
-}
-
-.c18:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
-}
-
-.c16 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-}
-
-.c16:checked + .c17 {
-  background: rgba(255,255,255,0.13);
-}
-
-.c16:checked + .c17:before {
-  transform: translate(16px,-50%);
-}
-
-.c16:disabled + .c17 {
-  background: #222C59;
-}
-
-.c16:disabled + .c17:before {
-  background: #455a64;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -766,45 +798,35 @@ exports[`failed 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Kubernetes
     </div>
   </div>
   <div
-    class="c3"
+    class="c8"
     kind="danger"
   >
     <div>
@@ -812,79 +834,98 @@ exports[`failed 1`] = `
     </div>
   </div>
   <div
-    class="c4"
+    class="c9"
   >
     <form
-      class="c5"
+      class="c10"
     >
       <div
-        class="c6"
+        class="c11 c4"
         width="100%"
       >
         <div
-          class="c7"
+          class="c12 c13"
           style="width: 70%;"
         >
           <div
-            class="c8"
+            class="c14"
             width="100%"
           >
             <div
-              class="c9"
+              class="c15"
             >
               <div
-                class="c10"
+                class="c16"
               >
                 <input
-                  class="c11"
+                  class="c17"
                   placeholder="SEARCH..."
                   value=""
                 />
                 <div
-                  class="c12"
+                  class="c18"
                 >
                   <div
-                    class="c13"
+                    class="c19"
                   >
                     <div
-                      class="c14"
+                      class="c20 c21"
                     >
                       <label
-                        class="c15"
+                        class="c22"
                       >
                         <input
-                          class="c16"
+                          class="c23"
                           type="checkbox"
                         />
                         <div
-                          class="c17 c18"
+                          class="c24 c25"
                         />
                       </label>
                       <div
-                        class="c19"
+                        class="c26"
                       >
                         Advanced
                       </div>
+                      <span
+                        class="c27"
+                        role="icon"
+                      >
+                        <span
+                          class="c28 c29"
+                        >
+                          <svg
+                            fill="currentColor"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            width="20"
+                          >
+                            <path
+                              d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                            />
+                            <path
+                              d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                            />
+                            <path
+                              clip-rule="evenodd"
+                              d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                              fill-rule="evenodd"
+                            />
+                          </svg>
+                        </span>
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div
-            style="line-height: 0px;"
-          >
-            <span
-              class="c20 c21 icon icon-info_outline "
-              style="cursor: pointer; font-size: 20px;"
-            />
-          </div>
         </div>
         <div
-          class="c22"
+          class="c12 c1"
         >
           <div
-            class="c23"
+            class="c30"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -906,17 +947,32 @@ exports[`failed 1`] = `
       </div>
     </form>
     <table
-      class="c24"
+      class="c31"
     >
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c20 c21 icon icon-chevron-up "
+                class="c28 icon icon-chevronup"
                 title="sort items asc"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M11.4697 6.96967C11.7626 6.67678 12.2374 6.67678 12.5303 6.96967L20.0303 14.4697C20.3232 14.7626 20.3232 15.2374 20.0303 15.5303C19.7374 15.8232 19.2626 15.8232 18.9697 15.5303L12 8.56066L5.03033 15.5303C4.73744 15.8232 4.26256 15.8232 3.96967 15.5303C3.67678 15.2374 3.67678 14.7626 3.96967 14.4697L11.4697 6.96967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -936,16 +992,16 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c12 c32"
             >
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
               </div>
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 env: prod
@@ -956,7 +1012,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c35"
               kind="border"
             >
               Connect
@@ -969,10 +1025,10 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c12 c32"
             >
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 env: staging
@@ -983,7 +1039,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c35"
               kind="border"
             >
               Connect
@@ -996,16 +1052,16 @@ exports[`failed 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c12 c32"
             >
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 cluster-name: some-cluster-name
               </div>
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 env: idk
@@ -1016,7 +1072,7 @@ exports[`failed 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c35"
               kind="border"
             >
               Connect
@@ -1026,49 +1082,101 @@ exports[`failed 1`] = `
       </tbody>
     </table>
     <nav
-      class="c28"
+      class="c36"
     >
       <div
-        class="c29"
+        class="c11 c37"
         width="100%"
       >
         <div
-          class="c22"
+          class="c12 c1"
         >
           <button
-            class="c30 c31"
+            class="c38 c39"
             title="Previous page"
           >
             <span
-              class="c20 c32 icon icon-arrow-left-circle "
-              font-size="3"
-            />
+              class="c28 icon icon-circlearrowleft"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+                />
+                <path
+                  clip-rule="evenodd"
+                  d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
           </button>
           <button
-            class="c33 c31"
+            class="c40 c39"
             title="Next page"
           >
             <span
-              class="c20 c32 icon icon-arrow-right-circle "
-              font-size="3"
-            />
+              class="c28 icon icon-circlearrowright"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
   </div>
-  
 </div>
 `;
 
 exports[`loaded 1`] = `
-.c8 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c14 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
 }
 
-.c3 {
+.c20 {
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1093,24 +1201,25 @@ exports[`loaded 1`] = `
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
+  text-transform: none;
 }
 
-.c3:hover,
-.c3:focus {
+.c8:hover,
+.c8:focus {
   background: #B29DFF;
 }
 
-.c3:active {
+.c8:active {
   background: #C5B6FF;
 }
 
-.c3:disabled {
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c27 {
+.c35 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1137,35 +1246,22 @@ exports[`loaded 1`] = `
   padding: 0px 16px;
 }
 
-.c27:hover,
-.c27:focus {
+.c35:hover,
+.c35:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c27:active {
+.c35:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c27:disabled {
+.c35:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c21 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c32 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 16px;
-}
-
-.c30 {
+.c38 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1187,29 +1283,25 @@ exports[`loaded 1`] = `
   margin-right: 0px;
 }
 
-.c30 .c20 {
-  color: inherit;
-}
-
-.c30:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c30:disabled {
+.c38:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c30:hover:enabled,
-.c30:focus:enabled {
+.c38:hover:enabled,
+.c38:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c30:active:enabled {
+.c38:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c33 {
+.c40 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1230,38 +1322,43 @@ exports[`loaded 1`] = `
   margin-left: 0px;
 }
 
-.c33 .c20 {
-  color: inherit;
-}
-
-.c33:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c33:disabled {
+.c40:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c33:hover:enabled,
-.c33:focus:enabled {
+.c40:hover:enabled,
+.c40:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c33:active:enabled {
+.c40:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c19 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
-  font-size: 12px;
-  line-height: 24px;
+  font-size: 22px;
+  line-height: 32px;
   margin: 0px;
 }
 
-.c23 {
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c30 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1272,39 +1369,112 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c28 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c33 {
   box-sizing: border-box;
-  width: 100%;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.c1 {
+  display: flex;
+}
+
+.c4 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c7 {
-  box-sizing: border-box;
+.c13 {
   display: flex;
   align-items: center;
 }
 
-.c22 {
-  box-sizing: border-box;
+.c21 {
   display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.c25 {
-  box-sizing: border-box;
+.c32 {
   display: flex;
   flex-wrap: wrap;
 }
 
-.c29 {
-  box-sizing: border-box;
-  width: 100%;
+.c37 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c24 {
+.c22 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c22[disabled] {
+  cursor: default;
+}
+
+.c25 {
+  width: 32px;
+  height: 12px;
+  border-radius: 12px;
+  background: #222C59;
+  cursor: inherit;
+  flex-shrink: 0;
+}
+
+.c25:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translate(0,-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: #9F85FF;
+}
+
+.c23 {
+  opacity: 0;
+  position: absolute;
+  cursor: inherit;
+}
+
+.c23:checked + .c24 {
+  background: rgba(255,255,255,0.13);
+}
+
+.c23:checked + .c24:before {
+  transform: translate(16px,-50%);
+}
+
+.c23:disabled + .c24 {
+  background: #222C59;
+}
+
+.c23:disabled + .c24:before {
+  background: #455a64;
+}
+
+.c31 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1313,39 +1483,39 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c31 > thead > tr > th,
+.c31 > tbody > tr > th,
+.c31 > tfoot > tr > th,
+.c31 > thead > tr > td,
+.c31 > tbody > tr > td,
+.c31 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c31 > thead > tr > th:first-child,
+.c31 > tbody > tr > th:first-child,
+.c31 > tfoot > tr > th:first-child,
+.c31 > thead > tr > td:first-child,
+.c31 > tbody > tr > td:first-child,
+.c31 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c31 > thead > tr > th:last-child,
+.c31 > tbody > tr > th:last-child,
+.c31 > tfoot > tr > th:last-child,
+.c31 > thead > tr > td:last-child,
+.c31 > tbody > tr > td:last-child,
+.c31 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c31 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
+.c31 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -1359,26 +1529,24 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th .c20 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c31 > thead > tr > th svg {
+  height: 12px;
 }
 
-.c24 > tbody > tr > td {
+.c31 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c24 tbody tr {
+.c31 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c24 tbody tr:hover {
+.c31 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c5 {
+.c10 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1390,7 +1558,7 @@ exports[`loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c28 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1401,41 +1569,29 @@ exports[`loaded 1`] = `
   border-top: 1px solid rgba(255,255,255,0.07);
 }
 
-.c4 {
+.c9 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c26 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: rgba(255,255,255,0.07);
-  color: #FFFFFF;
-  font-weight: 400;
-  margin-right: 4px;
+.c34 {
   cursor: pointer;
 }
 
-.c26:hover {
+.c34:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c31 .c20 {
+.c39 svg {
   font-size: 20px;
 }
 
-.c31 .c20:before {
+.c39 svg:before {
   padding-left: 1px;
 }
 
-.c13 {
+.c19 {
   position: relative;
   height: 100%;
   right: 0;
@@ -1446,7 +1602,7 @@ exports[`loaded 1`] = `
   border-radius: 200px;
 }
 
-.c12 {
+.c18 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -1457,7 +1613,7 @@ exports[`loaded 1`] = `
   border-radius: 200px;
 }
 
-.c10 {
+.c16 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -1467,14 +1623,14 @@ exports[`loaded 1`] = `
   background: transparent;
 }
 
-.c9 {
+.c15 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c11 {
+.c17 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1489,86 +1645,35 @@ exports[`loaded 1`] = `
   padding-right: 184px;
 }
 
-.c11:hover,
-.c11:focus,
-.c11:active {
+.c17:hover,
+.c17:focus,
+.c17:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c11::placeholder {
+.c17::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c15 {
-  position: relative;
-  display: flex;
-  align-items: center;
+.c29 {
+  height: 18px;
+  width: 18px;
+  color: inherit;
+}
+
+.c27 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c27:hover {
   cursor: pointer;
 }
 
-.c15[disabled] {
-  cursor: default;
-}
-
-.c18 {
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
-  cursor: inherit;
-  flex-shrink: 0;
-}
-
-.c18:before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
-}
-
-.c16 {
-  opacity: 0;
-  position: absolute;
-  cursor: inherit;
-}
-
-.c16:checked + .c17 {
-  background: rgba(255,255,255,0.13);
-}
-
-.c16:checked + .c17:before {
-  transform: translate(16px,-50%);
-}
-
-.c16:disabled + .c17 {
-  background: #222C59;
-}
-
-.c16:disabled + .c17:before {
-  background: #455a64;
-}
-
-.c14 {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
-  width: 120px;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -1578,39 +1683,29 @@ exports[`loaded 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Kubernetes
     </div>
@@ -1619,90 +1714,108 @@ exports[`loaded 1`] = `
       style="text-decoration: none;"
     >
       <button
-        class="c3"
+        class="c8"
         kind="primary"
         title=""
         width="240px"
       >
-        Add 
-        kubernetes
+        Add kubernetes
       </button>
     </a>
   </div>
   <div
-    class="c4"
+    class="c9"
   >
     <form
-      class="c5"
+      class="c10"
     >
       <div
-        class="c6"
+        class="c11 c4"
         width="100%"
       >
         <div
-          class="c7"
+          class="c12 c13"
           style="width: 70%;"
         >
           <div
-            class="c8"
+            class="c14"
             width="100%"
           >
             <div
-              class="c9"
+              class="c15"
             >
               <div
-                class="c10"
+                class="c16"
               >
                 <input
-                  class="c11"
+                  class="c17"
                   placeholder="SEARCH..."
                   value=""
                 />
                 <div
-                  class="c12"
+                  class="c18"
                 >
                   <div
-                    class="c13"
+                    class="c19"
                   >
                     <div
-                      class="c14"
+                      class="c20 c21"
                     >
                       <label
-                        class="c15"
+                        class="c22"
                       >
                         <input
-                          class="c16"
+                          class="c23"
                           type="checkbox"
                         />
                         <div
-                          class="c17 c18"
+                          class="c24 c25"
                         />
                       </label>
                       <div
-                        class="c19"
+                        class="c26"
                       >
                         Advanced
                       </div>
+                      <span
+                        class="c27"
+                        role="icon"
+                      >
+                        <span
+                          class="c28 c29"
+                        >
+                          <svg
+                            fill="currentColor"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            width="20"
+                          >
+                            <path
+                              d="M11.625 8.8125C12.1428 8.8125 12.5625 8.39277 12.5625 7.875C12.5625 7.35723 12.1428 6.9375 11.625 6.9375C11.1072 6.9375 10.6875 7.35723 10.6875 7.875C10.6875 8.39277 11.1072 8.8125 11.625 8.8125Z"
+                            />
+                            <path
+                              d="M10.5 11.25C10.5 10.8358 10.8358 10.5 11.25 10.5C11.6478 10.5 12.0294 10.658 12.3107 10.9393C12.592 11.2206 12.75 11.6022 12.75 12V15.75C13.1642 15.75 13.5 16.0858 13.5 16.5C13.5 16.9142 13.1642 17.25 12.75 17.25C12.3522 17.25 11.9706 17.092 11.6893 16.8107C11.408 16.5294 11.25 16.1478 11.25 15.75V12C10.8358 12 10.5 11.6642 10.5 11.25Z"
+                            />
+                            <path
+                              clip-rule="evenodd"
+                              d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
+                              fill-rule="evenodd"
+                            />
+                          </svg>
+                        </span>
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <div
-            style="line-height: 0px;"
-          >
-            <span
-              class="c20 c21 icon icon-info_outline "
-              style="cursor: pointer; font-size: 20px;"
-            />
-          </div>
         </div>
         <div
-          class="c22"
+          class="c12 c1"
         >
           <div
-            class="c23"
+            class="c30"
             color="text.main"
             style="text-transform: uppercase;"
           >
@@ -1724,17 +1837,32 @@ exports[`loaded 1`] = `
       </div>
     </form>
     <table
-      class="c24"
+      class="c31"
     >
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c20 c21 icon icon-chevron-up "
+                class="c28 icon icon-chevronup"
                 title="sort items asc"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M11.4697 6.96967C11.7626 6.67678 12.2374 6.67678 12.5303 6.96967L20.0303 14.4697C20.3232 14.7626 20.3232 15.2374 20.0303 15.5303C19.7374 15.8232 19.2626 15.8232 18.9697 15.5303L12 8.56066L5.03033 15.5303C4.73744 15.8232 4.26256 15.8232 3.96967 15.5303C3.67678 15.2374 3.67678 14.7626 3.96967 14.4697L11.4697 6.96967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -1754,16 +1882,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c12 c32"
             >
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 kernel: 4.15.0-51-generic
               </div>
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 env: prod
@@ -1774,7 +1902,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c35"
               kind="border"
             >
               Connect
@@ -1787,10 +1915,10 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c12 c32"
             >
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 env: staging
@@ -1801,7 +1929,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c35"
               kind="border"
             >
               Connect
@@ -1814,16 +1942,16 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <div
-              class="c25"
+              class="c12 c32"
             >
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 cluster-name: some-cluster-name
               </div>
               <div
-                class="c26"
+                class="c33 c34"
                 kind="secondary"
               >
                 env: idk
@@ -1834,7 +1962,7 @@ exports[`loaded 1`] = `
             align="right"
           >
             <button
-              class="c27"
+              class="c35"
               kind="border"
             >
               Connect
@@ -1844,43 +1972,80 @@ exports[`loaded 1`] = `
       </tbody>
     </table>
     <nav
-      class="c28"
+      class="c36"
     >
       <div
-        class="c29"
+        class="c11 c37"
         width="100%"
       >
         <div
-          class="c22"
+          class="c12 c1"
         >
           <button
-            class="c30 c31"
+            class="c38 c39"
             title="Previous page"
           >
             <span
-              class="c20 c32 icon icon-arrow-left-circle "
-              font-size="3"
-            />
+              class="c28 icon icon-circlearrowleft"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  d="M10.0607 11.25L11.7803 9.53033C12.0732 9.23744 12.0732 8.76256 11.7803 8.46967C11.4874 8.17678 11.0126 8.17678 10.7197 8.46967L7.71967 11.4697C7.64776 11.5416 7.59351 11.6245 7.55691 11.7129C7.52024 11.8013 7.5 11.8983 7.5 12C7.5 12.1017 7.52024 12.1987 7.55691 12.2871C7.59351 12.3755 7.64776 12.4584 7.71967 12.5303L10.7197 15.5303C11.0126 15.8232 11.4874 15.8232 11.7803 15.5303C12.0732 15.2374 12.0732 14.7626 11.7803 14.4697L10.0607 12.75H15.75C16.1642 12.75 16.5 12.4142 16.5 12C16.5 11.5858 16.1642 11.25 15.75 11.25H10.0607Z"
+                />
+                <path
+                  clip-rule="evenodd"
+                  d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
           </button>
           <button
-            class="c33 c31"
+            class="c40 c39"
             title="Next page"
           >
             <span
-              class="c20 c32 icon icon-arrow-right-circle "
-              font-size="3"
-            />
+              class="c28 icon icon-circlearrowright"
+            >
+              <svg
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              >
+                <path
+                  clip-rule="evenodd"
+                  d="M12 3.75C7.44365 3.75 3.75 7.44365 3.75 12C3.75 16.5563 7.44365 20.25 12 20.25C16.5563 20.25 20.25 16.5563 20.25 12C20.25 7.44365 16.5563 3.75 12 3.75ZM2.25 12C2.25 6.61522 6.61522 2.25 12 2.25C17.3848 2.25 21.75 6.61522 21.75 12C21.75 17.3848 17.3848 21.75 12 21.75C6.61522 21.75 2.25 17.3848 2.25 12ZM7.5 12C7.5 11.5858 7.83579 11.25 8.25 11.25H13.9393L12.2197 9.53033C11.9268 9.23744 11.9268 8.76256 12.2197 8.46967C12.5126 8.17678 12.9874 8.17678 13.2803 8.46967L16.2803 11.4697C16.3522 11.5416 16.4065 11.6245 16.4431 11.7129C16.4798 11.8013 16.5 11.8983 16.5 12C16.5 12.1017 16.4798 12.1987 16.4431 12.2871C16.4065 12.3755 16.3522 12.4584 16.2803 12.5303L13.2803 15.5303C12.9874 15.8232 12.5126 15.8232 12.2197 15.5303C11.9268 15.2374 11.9268 14.7626 12.2197 14.4697L13.9393 12.75H8.25C7.83579 12.75 7.5 12.4142 7.5 12Z"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </span>
           </button>
         </div>
       </div>
     </nav>
   </div>
-  
 </div>
 `;
 
 exports[`readonly empty state 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
 .c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c8 {
   box-sizing: border-box;
   max-width: 664px;
   margin-left: auto;
@@ -1891,7 +2056,16 @@ exports[`readonly empty state 1`] = `
   border-radius: 12px;
 }
 
-.c4 {
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1901,13 +2075,13 @@ exports[`readonly empty state 1`] = `
   margin-bottom: 16px;
 }
 
-.c5 {
+.c10 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c6 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -1915,11 +2089,16 @@ exports[`readonly empty state 1`] = `
 }
 
 .c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
+  display: flex;
+}
+
+.c4 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -1929,61 +2108,51 @@ exports[`readonly empty state 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1 c2"
   >
     <div
-      class="c1"
+      class="c3 c4 c5"
     >
       <div
-        class="c2"
+        class="c6 c7"
       >
         Kubernetes
       </div>
     </div>
     <div
-      class="c3"
+      class="c8"
       color="text.main"
     >
       <div
-        class="c4"
+        class="c9"
       >
         No Kubernetes Clusters Found
       </div>
       <div
-        class="c5"
+        class="c10"
       >
         Either there are no 
         kubernetes clusters
          in the "
         <span
-          class="c6"
+          class="c11"
         >
           im-a-cluster
         </span>

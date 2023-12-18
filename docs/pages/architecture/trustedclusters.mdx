@@ -1,7 +1,6 @@
 ---
-title: Teleport Trusted Clusters Architecture
+title: Trusted Clusters Architecture
 description: Deep dive into design of Teleport Trusted Clusters.
-h1: Trusted Clusters Architecture
 ---
 
 ## Overview
@@ -23,7 +22,7 @@ Uses for Trusted Clusters include:
 
 <Notice type="tip">
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
-You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
+You don't need to set up a trusted cluster just to connect a couple of servers, Kubernetes clusters or
 databases behind a firewall.
 </Notice>
 
@@ -46,14 +45,24 @@ We call this process role mapping. Take a look at the flow below to understand h
 
 ![Role mapping](../../img/architecture/tc-role-mapping.svg)
 
-<Notice type="tip">
-If this all sounds complicated, but don't worry, you do not need to use trusted clusters unless you have
-large, distributed infrastructure or your organization works with external agencies or contractors who
-need separate access.
+### Role mapping and cluster-level labels
 
-In many cases, a single cluster is enough. A single teleport cluster can scale to hundreds of thousands
-of connected resources!
-</Notice>
+You should note that you can use a certificate issued for a root cluster to connect directly 
+to a leaf cluster because the leaf cluster inherently trusts the root cluster. In most cases, 
+the trust relationship between the root and leaf clusters provides the desired behavior. 
+
+However, this trust relationship can also be exploited if you use cluster labels to enforce authorization 
+restrictions. Because the leaf cluster trusts the certificate authority of the root cluster, that certificate 
+can be used to bypass any leaf-specific `cluster_labels` settings that might be intended to restrict access to 
+the leaf cluster. For example, assume you assign the leaf cluster a label using the following command:
+
+```text
+tctl update rc/leaf --set-labels=env=prod
+```
+
+This label can't prevent direct access to the leaf cluster if a user has a certificate signed by the root cluster.
+You should use role mapping as the primary way to restrict access to leaf clusters and use `cluster_labels` for 
+filtering and limiting the visibility of leaf cluster resources.
 
 ## Next steps
 

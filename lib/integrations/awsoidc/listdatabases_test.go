@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package awsoidc
 
@@ -22,9 +24,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/google/uuid"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -99,13 +102,13 @@ func TestListDatabases(t *testing.T) {
 		for i := 0; i < totalDBs; i++ {
 			allInstances = append(allInstances, rdsTypes.DBInstance{
 				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer(uuid.NewString()),
+				DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i)),
 				DbiResourceId:        stringPointer("db-123"),
 				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 				Engine:               stringPointer("postgres"),
 				Endpoint: &rdsTypes.Endpoint{
 					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    5432,
+					Port:    aws.Int32(5432),
 				},
 			})
 		}
@@ -175,7 +178,7 @@ func TestListDatabases(t *testing.T) {
 				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 				Endpoint: &rdsTypes.Endpoint{
 					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    5432,
+					Port:    aws.Int32(5432),
 				},
 			},
 			},
@@ -188,12 +191,13 @@ func TestListDatabases(t *testing.T) {
 						Name:        "my-db",
 						Description: "RDS instance in ",
 						Labels: map[string]string{
-							"account-id":     "123456789012",
-							"endpoint-type":  "instance",
-							"engine":         "postgres",
-							"engine-version": "",
-							"region":         "",
-							"status":         "available",
+							"account-id":         "123456789012",
+							"endpoint-type":      "instance",
+							"engine":             "postgres",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
 						},
 					},
 					types.DatabaseSpecV3{
@@ -209,7 +213,7 @@ func TestListDatabases(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				require.Equal(t, expectedDB, ldr.Databases[0])
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
 		},
@@ -230,7 +234,7 @@ func TestListDatabases(t *testing.T) {
 					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 					Endpoint: &rdsTypes.Endpoint{
 						Address: stringPointer("endpoint.amazonaws.com"),
-						Port:    5432,
+						Port:    aws.Int32(5432),
 					},
 				},
 				{
@@ -251,12 +255,13 @@ func TestListDatabases(t *testing.T) {
 						Name:        "my-db",
 						Description: "RDS instance in ",
 						Labels: map[string]string{
-							"account-id":     "123456789012",
-							"endpoint-type":  "instance",
-							"engine":         "postgres",
-							"engine-version": "",
-							"region":         "",
-							"status":         "available",
+							"account-id":         "123456789012",
+							"endpoint-type":      "instance",
+							"engine":             "postgres",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
 						},
 					},
 					types.DatabaseSpecV3{
@@ -272,7 +277,7 @@ func TestListDatabases(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				require.Equal(t, expectedDB, ldr.Databases[0])
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
 		},
@@ -293,6 +298,12 @@ func TestListDatabases(t *testing.T) {
 				Port:                &clusterPort,
 				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 			}},
+			mockInstances: []rdsTypes.DBInstance{{
+				DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+					Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-999")}},
+					VpcId:   aws.String("vpc-999"),
+				},
+			}},
 			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
 				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
@@ -301,12 +312,13 @@ func TestListDatabases(t *testing.T) {
 						Name:        "my-dbc",
 						Description: "Aurora cluster in ",
 						Labels: map[string]string{
-							"account-id":     "123456789012",
-							"endpoint-type":  "primary",
-							"engine":         "aurora-postgresql",
-							"engine-version": "",
-							"region":         "",
-							"status":         "available",
+							"account-id":         "123456789012",
+							"endpoint-type":      "primary",
+							"engine":             "aurora-postgresql",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
 						},
 					},
 					types.DatabaseSpecV3{
@@ -318,14 +330,36 @@ func TestListDatabases(t *testing.T) {
 								ClusterID:  "my-dbc",
 								InstanceID: "aurora-instance-1",
 								ResourceID: "db-123",
+								Subnets:    []string{"subnet-999"},
+								VPCID:      "vpc-999",
 							},
 						},
 					},
 				)
 				require.NoError(t, err)
-				require.Equal(t, expectedDB, ldr.Databases[0])
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
 			},
 			errCheck: noErrorFunc,
+		},
+
+		{
+			name: "cluster exists but no instance exists, returns an error",
+			req: ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "cluster",
+				Engines:   []string{"postgres"},
+				NextToken: "",
+			},
+			mockClusters: []rdsTypes.DBCluster{{
+				Status:              stringPointer("available"),
+				DBClusterIdentifier: stringPointer("my-dbc"),
+				DbClusterResourceId: stringPointer("db-123"),
+				Engine:              stringPointer("aurora-postgresql"),
+				Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+				Port:                &clusterPort,
+				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			}},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "no region",
@@ -335,9 +369,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "invalid rds type",
@@ -347,9 +379,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "empty engines list",
@@ -359,9 +389,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
@@ -25,7 +27,6 @@ import AjaxPoller from 'teleport/components/AjaxPoller';
 
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
 import * as stores from './stores/types';
-import { colors } from './colors';
 import Tabs from './Tabs';
 import ActionBar from './ActionBar';
 import DocumentSsh from './DocumentSsh';
@@ -35,8 +36,6 @@ import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 import useKeyboardNav from './useKeyboardNav';
-
-import { ConsoleThemeProvider } from './ThemeProvider';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 
@@ -87,39 +86,47 @@ export default function Console() {
   ));
 
   return (
-    <ConsoleThemeProvider>
-      <StyledConsole>
-        {attempt.status === 'failed' && (
-          <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
-        )}
-        {attempt.status === 'processing' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {attempt.status === 'success' && (
-          <>
-            <Flex bg={colors.terminalDark} height="32px">
-              <Tabs
-                flex="1"
-                items={documents}
-                onClose={onTabClose}
-                onSelect={onTabClick}
-                activeTab={activeDocId}
-                clusterId={clusterId}
-                disableNew={disableNewTab}
-                onNew={onTabNew}
-              />
-              <ActionBar onLogout={onLogout} />
-            </Flex>
-            {$docs}
-            {hasSshSessions && (
-              <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
-            )}
-          </>
-        )}
-      </StyledConsole>
-    </ConsoleThemeProvider>
+    <StyledConsole>
+      {attempt.status === 'failed' && (
+        <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
+      )}
+      {attempt.status === 'processing' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {attempt.status === 'success' && (
+        <>
+          <Flex bg="levels.surface" height="32px">
+            <Tabs
+              flex="1"
+              items={documents}
+              onClose={onTabClose}
+              onSelect={onTabClick}
+              activeTab={activeDocId}
+              clusterId={clusterId}
+              disableNew={disableNewTab}
+              onNew={onTabNew}
+            />
+            <ActionBar
+              onLogout={onLogout}
+              latencyIndicator={
+                activeDoc?.kind === 'terminal'
+                  ? {
+                      isVisible: true,
+                      latency: activeDoc.latency,
+                    }
+                  : { isVisible: false }
+              }
+            />
+          </Flex>
+          {$docs}
+          {hasSshSessions && (
+            <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
+          )}
+        </>
+      )}
+    </StyledConsole>
   );
 }
 
@@ -141,7 +148,7 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
 }
 
 const StyledConsole = styled.div`
-  background-color: ${colors.bgTerminal};
+  background-color: ${props => props.theme.colors.levels.sunken};
   bottom: 0;
   left: 0;
   position: absolute;

@@ -118,22 +118,25 @@ $ tctl users add alice  --roles=impersonator,access
 
 Alice can log in using `tsh` and issue a cert for `jenkins`:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=proxy.example.com --user=alice --auth=local
 $ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice --auth=local
 $ tctl auth sign --user=jenkins --format=openssh --out=jenkins --ttl=240h
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Here is an example of how Alice can use the keys:
 
@@ -310,7 +313,8 @@ scanner.
 
 Alice will need to log in again to receive the newly updated traits:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Once Alice logs in again, she will receive a new certificate with updated roles.
@@ -319,8 +323,8 @@ $ tsh login --proxy=teleport.example.com --user=alice --auth=local
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Once Alice logs in again, she will receive a new certificate with updated roles.
@@ -329,7 +333,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice --auth=local
 $ tctl auth sign --user=security-scanner --format=openssh --out=security-scanner --ttl=10h
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Filter fields
 
@@ -343,3 +349,4 @@ Here is an explanation of the fields used in the `where` conditions within this 
 
 Check out our [predicate language](../../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources) 
 guide for a more in depth explanation of the language.
+

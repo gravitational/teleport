@@ -1,36 +1,29 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { matchPath, generatePath } from 'react-router';
 
 import type { RouteProps } from 'react-router';
 
-export const paths = {
-  rootCluster: '/clusters/:rootClusterId',
-  leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
-  server:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
-  serverLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
-  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
-  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
-  gateway: '/gateways/:gatewayId',
-  docHome: '/docs/home',
-  doc: '/docs/:docId',
-};
+/*
+ * Resource URIs
+ * These are for identifying a specific resource within a root cluster.
+ */
 
 type RootClusterId = string;
 type LeafClusterId = string;
@@ -68,11 +61,38 @@ export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 
+/*
+ * Document URIs
+ * These are for documents (tabs) within the app.
+ */
+
 type DocumentId = string;
 export type DocumentUri = `/docs/${DocumentId}`;
 
+/*
+ * Gateway URIs
+ * These are for gateways (proxies) managed by the tsh daemon.
+ */
+
 type GatewayId = string;
 export type GatewayUri = `/gateways/${GatewayId}`;
+
+export const paths = {
+  // Resources.
+  rootCluster: '/clusters/:rootClusterId',
+  leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
+  server:
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
+  serverLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
+  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
+  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  // Documents.
+  docHome: '/docs/home',
+  doc: '/docs/:docId',
+  // Gateways.
+  gateway: '/gateways/:gatewayId',
+};
 
 export const routing = {
   parseClusterUri(uri: string) {
@@ -181,12 +201,16 @@ export const routing = {
     return match && Boolean(match.params.leafClusterId);
   },
 
+  isRootCluster(clusterUri: ClusterUri) {
+    return !routing.isLeafCluster(clusterUri);
+  },
+
   belongsToProfile(
     clusterUri: ClusterOrResourceUri,
     resourceUri: ClusterOrResourceUri
   ) {
-    const rootClusterUri = this.ensureRootClusterUri(clusterUri);
-    const resourceRootClusterUri = this.ensureRootClusterUri(resourceUri);
+    const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+    const resourceRootClusterUri = routing.ensureRootClusterUri(resourceUri);
 
     return resourceRootClusterUri === rootClusterUri;
   },

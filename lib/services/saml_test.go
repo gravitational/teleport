@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -21,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -43,31 +44,36 @@ func TestParseFromMetadata(t *testing.T) {
 
 	oc, err := UnmarshalSAMLConnector(raw.Raw)
 	require.NoError(t, err)
-	require.Equal(t, oc.GetIssuer(), "http://www.okta.com/exkafftca6RqPVgyZ0h7")
-	require.Equal(t, oc.GetSSO(), "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
-	require.Equal(t, oc.GetAssertionConsumerService(), "https://localhost:3080/v1/webapi/saml/acs")
-	require.Equal(t, oc.GetAudience(), "https://localhost:3080/v1/webapi/saml/acs")
+	require.Equal(t, "http://www.okta.com/exkafftca6RqPVgyZ0h7", oc.GetIssuer())
+	require.Equal(t, "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml", oc.GetSSO())
+	require.Equal(t, "https://localhost:3080/v1/webapi/saml/acs", oc.GetAssertionConsumerService())
+	require.Equal(t, "https://localhost:3080/v1/webapi/saml/acs", oc.GetAudience())
 	require.NotNil(t, oc.GetSigningKeyPair())
-	require.Empty(t, cmp.Diff(oc.GetAttributes(), []string{"groups"}))
+	require.Equal(t, []string{"groups"}, oc.GetAttributes())
 }
 
 func TestCheckSAMLEntityDescriptor(t *testing.T) {
 	t.Parallel()
 
-	input := fixtures.SAMLOktaConnectorV2
+	for name, input := range map[string]string{
+		"without certificate padding": fixtures.SAMLOktaConnectorV2,
+		"with certificate padding":    fixtures.SAMLOktaConnectorV2WithPadding,
+	} {
+		t.Run(name, func(t *testing.T) {
+			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			var raw UnknownResource
+			err := decoder.Decode(&raw)
+			require.NoError(t, err)
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
-	var raw UnknownResource
-	err := decoder.Decode(&raw)
-	require.NoError(t, err)
+			oc, err := UnmarshalSAMLConnector(raw.Raw)
+			require.NoError(t, err)
 
-	oc, err := UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
-
-	ed := oc.GetEntityDescriptor()
-	certs, err := CheckSAMLEntityDescriptor(ed)
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
+			ed := oc.GetEntityDescriptor()
+			certs, err := CheckSAMLEntityDescriptor(ed)
+			require.NoError(t, err)
+			require.Len(t, certs, 1)
+		})
+	}
 }
 
 func TestValidateRoles(t *testing.T) {

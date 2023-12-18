@@ -1,0 +1,7 @@
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name
+podMonitor:
+  enabled: true
+  additionalLabels:
+    prometheus: default
+  interval: 30s

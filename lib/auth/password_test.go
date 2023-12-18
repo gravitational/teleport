@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -33,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -48,7 +50,7 @@ import (
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	mockEmitter *eventstest.MockRecorderEmitter
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
@@ -95,7 +97,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	err = s.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	s.mockEmitter = &eventstest.MockEmitter{}
+	s.mockEmitter = &eventstest.MockRecorderEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
 }
@@ -250,27 +252,29 @@ func TestServer_ChangePassword(t *testing.T) {
 func TestChangeUserAuthentication(t *testing.T) {
 	t.Parallel()
 
-	srv := newTestTLSServer(t)
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
 	ctx := context.Background()
 
 	tests := []struct {
 		name              string
-		setAuthPreference func()
-		getReq            func(string) *proto.ChangeUserAuthenticationRequest
-		getInvalidReq     func(string) *proto.ChangeUserAuthenticationRequest
+		setAuthPreference func(t *testing.T)
+		getReq            func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest
+		getInvalidReq     func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest
 	}{
 		{
 			name: "with second factor off and password only",
-			setAuthPreference: func() {
+			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOff,
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				err = authServer.SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
 					NewPassword: []byte("password1"),
@@ -279,47 +283,47 @@ func TestChangeUserAuthentication(t *testing.T) {
 		},
 		{
 			name: "with second factor otp",
-			setAuthPreference: func() {
+			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOTP,
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				err = authServer.SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 					TokenID:    resetTokenID,
 					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 				})
-				require.NoError(t, err)
+				require.NoError(t, err, "CreateRegisterChallenge")
 
-				otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), srv.Clock().Now())
-				require.NoError(t, err)
+				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithTestDeviceClock(clock))
+				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:     resetTokenID,
-					NewPassword: []byte("password2"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-						TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
-					}},
+					TokenID:                resetTokenID,
+					NewPassword:            []byte("password2"),
+					NewMFARegisterResponse: registerSolved,
 				}
 			},
 			// Invalid MFA fields when auth settings set to only otp.
-			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+			getInvalidReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
 					NewPassword: []byte("password2"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-						Webauthn: &wantypes.CredentialCreationResponse{},
-					}},
+					NewMFARegisterResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: &wanpb.CredentialCreationResponse{},
+						},
+					},
 				}
 			},
 		},
 		{
 			name: "with second factor webauthn",
-			setAuthPreference: func() {
+			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
@@ -328,31 +332,40 @@ func TestChangeUserAuthentication(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				err = authServer.SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:     resetTokenID,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+				})
+				require.NoError(t, err, "CreateRegisterChallenge")
+
+				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
 					NewPassword:            []byte("password3"),
-					NewMFARegisterResponse: webauthnRegRes,
+					NewMFARegisterResponse: registerSolved,
 				}
 			},
 			// Invalid totp fields when auth settings set to only webauthn.
-			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+			getInvalidReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"),
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
+					TokenID:     resetTokenID,
+					NewPassword: []byte("password3"),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_TOTP{},
+					},
 				}
 			},
 		},
 		{
 			name: "with passwordless",
-			setAuthPreference: func() {
+			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorWebauthn,
@@ -361,29 +374,38 @@ func TestChangeUserAuthentication(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				err = authServer.SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS)
-				require.NoError(t, err)
+			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:     resetTokenID,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+				})
+				require.NoError(t, err, "CreateRegisterChallenge")
+
+				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
+				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
-					NewMFARegisterResponse: webauthnRes,
+					NewMFARegisterResponse: registerSolved,
 				}
 			},
 			// Missing webauthn for passwordless.
-			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+			getInvalidReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:                resetTokenID,
-					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
+					TokenID: resetTokenID,
+					NewMFARegisterResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_TOTP{},
+					},
 				}
 			},
 		},
 		{
 			name: "with second factor on",
-			setAuthPreference: func() {
+			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOn,
@@ -392,22 +414,29 @@ func TestChangeUserAuthentication(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				err = authServer.SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+				registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:     resetTokenID,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+				})
+				require.NoError(t, err, "CreateRegisterChallenge")
+
+				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
 					NewPassword:            []byte("password4"),
-					NewMFARegisterResponse: mfaResp,
+					NewMFARegisterResponse: registerSolved,
 					NewDeviceName:          "new-device",
 				}
 			},
 			// Empty register response, when auth settings requires second factors.
-			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+			getInvalidReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
 					NewPassword: []byte("password4"),
@@ -416,7 +445,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 		},
 		{
 			name: "with second factor optional and no second factor",
-			setAuthPreference: func() {
+			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
@@ -425,10 +454,10 @@ func TestChangeUserAuthentication(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
+				err = authServer.SetAuthPreference(ctx, authPreference)
 				require.NoError(t, err)
 			},
-			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
+			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:     resetTokenID,
 					NewPassword: []byte("password5"),
@@ -436,39 +465,39 @@ func TestChangeUserAuthentication(t *testing.T) {
 			},
 		},
 	}
-
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+			_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
 			require.NoError(t, err)
 
-			c.setAuthPreference()
+			c.setAuthPreference(t)
 
-			token, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
+			token := resetToken.GetName()
 
 			if c.getInvalidReq != nil {
-				invalidReq := c.getInvalidReq(token.GetName())
-				_, err := srv.Auth().changeUserAuthentication(ctx, invalidReq)
+				invalidReq := c.getInvalidReq(t, token)
+				_, err := authServer.changeUserAuthentication(ctx, invalidReq)
 				require.True(t, trace.IsBadParameter(err))
 			}
 
-			validReq := c.getReq(token.GetName())
-			_, err = srv.Auth().changeUserAuthentication(ctx, validReq)
+			validReq := c.getReq(t, token)
+			_, err = authServer.changeUserAuthentication(ctx, validReq)
 			require.NoError(t, err)
 
 			// Test password is updated.
 			if len(validReq.NewPassword) != 0 {
-				err := srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
+				err := authServer.checkPasswordWOToken(username, validReq.NewPassword)
 				require.NoError(t, err)
 			}
 
 			// Test device was registered.
 			if validReq.NewMFARegisterResponse != nil {
-				devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false /* without secrets*/)
+				devs, err := authServer.Services.GetMFADevices(ctx, username, false /* without secrets*/)
 				require.NoError(t, err)
 				require.Len(t, devs, 1)
 

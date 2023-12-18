@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -21,15 +23,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -49,50 +52,44 @@ const (
 	mockRemoteClusterName = "tele.aperture.labs"
 )
 
-// mockAuth is a minimal fake auth client, used in tests
-type mockAuth struct {
-	auth.ClientI
+// fakeGetExecutablePath can be injected into outputs to ensure they output the
+// same path in tests across multiple systems.
+func fakeGetExecutablePath() (string, error) {
+	return "/path/to/tbot", nil
+}
 
-	clusterName       string
-	remoteClusterName string
+// mockProvider is a minimal Bot impl that can be used in tests
+type mockProvider struct {
+	cfg               *BotConfig
 	proxyAddr         string
-	t                 *testing.T
+	remoteClusterName string
+	clusterName       string
 }
 
-func (m *mockAuth) GetDomainName(ctx context.Context) (string, error) {
-	return m.clusterName, nil
+func newMockProvider(cfg *BotConfig) *mockProvider {
+	return &mockProvider{
+		cfg:               cfg,
+		proxyAddr:         mockProxyAddr,
+		clusterName:       mockClusterName,
+		remoteClusterName: mockRemoteClusterName,
+	}
 }
 
-func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterName: m.clusterName,
-		ClusterID:   "aa-bb-cc",
-	})
-	require.NoError(m.t, err)
-	return cn, nil
-}
-
-func (m *mockAuth) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	rc, err := types.NewRemoteCluster(m.remoteClusterName)
-	require.NoError(m.t, err)
+func (p *mockProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	rc, err := types.NewRemoteCluster(p.remoteClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return []types.RemoteCluster{rc}, nil
 }
 
-func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
-	require.NotNil(m.t, ctx)
-	return proto.PingResponse{
-		ProxyPublicAddr: m.proxyAddr,
-	}, nil
-}
-
-func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	require.NotNil(m.t, ctx)
-	require.Contains(
-		m.t,
-		[]string{m.clusterName, m.remoteClusterName},
-		id.DomainName,
-	)
-	require.False(m.t, loadKeys)
+func (p *mockProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	if !slices.Contains([]string{p.clusterName, p.remoteClusterName}, id.DomainName) {
+		return nil, trace.NotFound("specified id %q not found", id)
+	}
+	if loadKeys {
+		return nil, trace.BadParameter("unexpected loading of key")
+	}
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		// Pretend to be the correct type.
@@ -118,74 +115,59 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 			},
 		},
 	})
-	require.NoError(m.t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return ca, nil
 }
 
-func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
-	require.NotNil(m.t, ctx)
-	require.False(m.t, loadKeys)
-
+func (p *mockProvider) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
 	// We'll just wrap GetCertAuthority()'s dummy CA.
-	ca, err := m.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := p.GetCertAuthority(ctx, types.CertAuthID{
 		// Just pretend to be whichever type of CA was requested.
 		Type:       caType,
-		DomainName: m.clusterName,
-	}, loadKeys)
-	require.NoError(m.t, err)
+		DomainName: p.clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return []types.CertAuthority{ca}, nil
 }
 
-func newMockAuth(t *testing.T) *mockAuth {
-	return &mockAuth{
-		t:                 t,
-		clusterName:       mockClusterName,
-		proxyAddr:         mockProxyAddr,
-		remoteClusterName: mockRemoteClusterName,
-	}
+func (p *mockProvider) AuthPing(_ context.Context) (*proto.PingResponse, error) {
+	return &proto.PingResponse{
+		ProxyPublicAddr: p.proxyAddr,
+		ClusterName:     p.clusterName,
+	}, nil
 }
 
-func (m *mockAuth) Close() error {
-	return nil
+func (p *mockProvider) GenerateHostCert(
+	ctx context.Context,
+	key []byte, hostID, nodeName string, principals []string,
+	clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
+	// We could generate a cert easily enough here, but the template generates a
+	// random key each run so the resulting cert will change too.
+	// The CA fixture isn't even a cert but we never examine it, so it'll do the
+	// job.
+	return []byte(fixtures.SSHCAPublicKey), nil
 }
 
-// mockBot is a minimal Bot impl that can be used in tests
-type mockBot struct {
-	cfg  *BotConfig
-	auth auth.ClientI
+func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	return &webclient.PingResponse{
+		ClusterName: p.clusterName,
+		Proxy: webclient.ProxySettings{
+			TLSRoutingEnabled: true,
+			SSH: webclient.SSHProxySettings{
+				PublicAddr: p.proxyAddr,
+			},
+		},
+	}, nil
 }
 
-func (b *mockBot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	ping, err := b.auth.Ping(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ping, err
-}
-
-func (b *mockBot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	return &webclient.PingResponse{}, nil
-}
-
-func (b *mockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
-	return b.auth.GetCertAuthorities(ctx, caType, false)
-}
-
-func (b *mockBot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
-	return b.auth, nil
-}
-
-func (b *mockBot) Config() *BotConfig {
-	return b.cfg
-}
-
-func newMockBot(cfg *BotConfig, auth auth.ClientI) *mockBot {
-	return &mockBot{
-		cfg:  cfg,
-		auth: auth,
-	}
+func (p *mockProvider) Config() *BotConfig {
+	return p.cfg
 }
 
 // identRequest is a function used to add additional requests to an identity in
@@ -265,7 +247,7 @@ func getTestIdent(t *testing.T, username string, reqs ...identRequest) *identity
 	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKey,
 		PublicKeyBytes:  tlsPublicKeyPEM,
-	}, certs, identity.DestinationKinds()...)
+	}, certs)
 	require.NoError(t, err)
 
 	return ident

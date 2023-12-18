@@ -1,27 +1,23 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { NavLink } from 'react-router-dom';
-
-import { Box, ButtonPrimary } from 'design';
-import { ButtonSecondary } from 'design/Button';
-
-import cfg from 'teleport/config';
+import React, { PropsWithChildren } from 'react';
+import { Box, ButtonPrimary, ButtonSecondary, ButtonText } from 'design';
 
 export const ActionButtons = ({
   onProceed = null,
@@ -29,7 +25,7 @@ export const ActionButtons = ({
   proceedHref = '',
   disableProceed = false,
   lastStep = false,
-  hideExit = false,
+  onPrev = null,
 }: {
   onProceed?(): void;
   onSkip?(): void;
@@ -37,7 +33,7 @@ export const ActionButtons = ({
   disableProceed?: boolean;
   lastStep?: boolean;
   allowSkip?: boolean;
-  hideExit?: boolean;
+  onPrev?(): void;
 }) => {
   const allowSkip = !!onSkip;
 
@@ -71,11 +67,35 @@ export const ActionButtons = ({
           Skip
         </ButtonSecondary>
       )}
-      {!hideExit && (
-        <ButtonSecondary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
-          Exit
+      {onPrev && (
+        <ButtonSecondary onClick={onPrev} mt={3} width="165px">
+          Back
         </ButtonSecondary>
       )}
     </Box>
+  );
+};
+
+export const AlternateInstructionButton: React.FC<
+  PropsWithChildren<{
+    onClick(): void;
+    disabled?: boolean;
+  }>
+> = ({ onClick, children, disabled = false }) => {
+  return (
+    <ButtonText
+      disabled={disabled}
+      onClick={onClick}
+      css={`
+        padding-left: 1px;
+        padding-right: 1px;
+        color: ${p => p.theme.colors.buttons.link.default};
+        text-decoration: underline;
+        font-weight: normal;
+        font-size: inherit;
+      `}
+    >
+      {children || 'Use these instructions instead.'}
+    </ButtonText>
   );
 };

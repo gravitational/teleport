@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 
@@ -35,7 +34,7 @@ func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.Au
 	stream, err := c.grpc.CreateAuditStream(closeCtx, grpc.UseCompressor(ggzip.Name))
 	if err != nil {
 		cancel()
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	s := &auditStreamer{
 		stream:   stream,
@@ -46,7 +45,7 @@ func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.Au
 	go s.recv()
 	err = s.stream.Send(&request)
 	if err != nil {
-		return nil, trace.NewAggregate(s.Close(ctx), trail.FromGRPC(err))
+		return nil, trace.NewAggregate(s.Close(ctx), trace.Wrap(err))
 	}
 	return s, nil
 }
@@ -58,7 +57,8 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sessionID, uploadID stri
 			ResumeStream: &proto.ResumeStream{
 				SessionID: sessionID,
 				UploadID:  uploadID,
-			}},
+			},
+		},
 	})
 }
 
@@ -66,7 +66,8 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sessionID, uploadID stri
 func (c *Client) CreateAuditStream(ctx context.Context, sessionID string) (events.Stream, error) {
 	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_CreateStream{
-			CreateStream: &proto.CreateStream{SessionID: sessionID}},
+			CreateStream: &proto.CreateStream{SessionID: sessionID},
+		},
 	})
 }
 
@@ -83,7 +84,7 @@ type auditStreamer struct {
 // the stream completed and closes the stream instance.
 func (s *auditStreamer) Close(ctx context.Context) error {
 	defer s.closeWithError(nil)
-	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+	return trace.Wrap(s.stream.Send(&proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_FlushAndCloseStream{
 			FlushAndCloseStream: &proto.FlushAndCloseStream{},
 		},
@@ -92,7 +93,7 @@ func (s *auditStreamer) Close(ctx context.Context) error {
 
 // Complete completes stream.
 func (s *auditStreamer) Complete(ctx context.Context) error {
-	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+	return trace.Wrap(s.stream.Send(&proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_CompleteStream{
 			CompleteStream: &proto.CompleteStream{},
 		},
@@ -105,13 +106,13 @@ func (s *auditStreamer) Status() <-chan events.StreamStatus {
 	return s.statusCh
 }
 
-// EmitAuditEvent emits audit event.
-func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	oneof, err := events.ToOneOf(event)
+// RecordEvent records adds an event to a session recording.
+func (s *auditStreamer) RecordEvent(ctx context.Context, event events.PreparedSessionEvent) error {
+	oneof, err := events.ToOneOf(event.GetAuditEvent())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+	err = trace.Wrap(s.stream.Send(&proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_Event{Event: oneof},
 	}))
 	if err != nil {
@@ -139,7 +140,7 @@ func (s *auditStreamer) recv() {
 	for {
 		status, err := s.stream.Recv()
 		if err != nil {
-			s.closeWithError(trail.FromGRPC(err))
+			s.closeWithError(trace.Wrap(err))
 			return
 		}
 		select {

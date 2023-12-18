@@ -1,5 +1,5 @@
 ---
-title: Teleport EKS Auto-Discovery (Preview)
+title: Teleport EKS Auto-Discovery
 description: How to configure auto-discovery of AWS EKS clusters in Teleport.
 ---
 
@@ -238,7 +238,7 @@ and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster p
 Teleport EKS Auto-Discovery requires a valid Teleport auth token for the Discovery and
 Kubernetes services to join the cluster. Generate one by running the following
 command against your Teleport Auth Service and save it in `/tmp/token` on the
-machine that will run Kubernetes Auto-Discovery:
+machine that will run Kubernetes Discovery:
 
 ```code
 $ tctl tokens add --type=discovery,kube
@@ -256,13 +256,12 @@ the Kubernetes Service listen to the dynamic resources created by the Discovery
 Service.
 
 ```yaml
-version: v2
+version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  auth_servers:
-  - "teleport.example.com:3080"
+  proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
   enabled: off
 proxy_service:

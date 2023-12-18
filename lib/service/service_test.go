@@ -1,18 +1,21 @@
 /*
-Copyright 2015 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package service
 
 import (
@@ -54,11 +57,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -170,6 +175,72 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 			require.Equal(t, test.expectedRoles, process.instanceRoles)
 		})
 	}
+}
+
+// TestDynamicClientReuse verifies that the instance client is shared between statically
+// defined services, but that additional services are granted unique clients.
+func TestDynamicClientReuse(t *testing.T) {
+	t.Parallel()
+	fakeClock := clockwork.NewFakeClock()
+
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.Clock = fakeClock
+	var err error
+	cfg.DataDir = t.TempDir()
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
+	// wait for instance connector
+	iconn, err := process.WaitForConnector(InstanceIdentityEvent, process.log)
+	require.NoError(t, err)
+	require.NotNil(t, iconn)
+
+	// wait for proxy connector
+	pconn, err := process.WaitForConnector(ProxyIdentityEvent, process.log)
+	require.NoError(t, err)
+	require.NotNil(t, pconn)
+
+	// proxy connector should reuse instance client since the proxy was part of the initial
+	// set of services.
+	require.Same(t, iconn.Client, pconn.Client)
+
+	// trigger a new registration flow for a system role that wasn't part of the statically
+	// configued set.
+	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
+
+	nconn, err := process.WaitForConnector(SSHIdentityEvent, process.log)
+	require.NoError(t, err)
+	require.NotNil(t, nconn)
+
+	// node connector should contain a unique client since RoleNode was not part of the
+	// initial static set of system roles that got applied to the instance cert.
+	require.NotSame(t, iconn.Client, nconn.Client)
+
+	nconn.Close()
+
+	// node connector closure should not affect proxy client
+	_, err = pconn.Client.Ping(context.Background())
+	require.NoError(t, err)
+
+	pconn.Close()
+
+	// proxy connector closure should not affect instance client
+	_, err = iconn.Client.Ping(context.Background())
+	require.NoError(t, err)
 }
 
 func TestMonitor(t *testing.T) {
@@ -365,6 +436,12 @@ func TestServiceInitExternalLog(t *testing.T) {
 	for _, tt := range tts {
 		backend, err := memory.New(memory.Config{})
 		require.NoError(t, err)
+		process := &TeleportProcess{
+			Supervisor: &LocalSupervisor{
+				exitContext: context.Background(),
+			},
+			backend: backend,
+		}
 
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
@@ -376,7 +453,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := process.initAuthExternalAuditLog(auditConfig, nil /* externalAuditStorage */)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -393,42 +470,114 @@ func TestServiceInitExternalLog(t *testing.T) {
 }
 
 func TestAthenaAuditLogSetup(t *testing.T) {
-	sampleValidConfig := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	ctx := context.Background()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
+
+	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	sampleFileURI := "file:///tmp/teleport-test/events"
+
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	process := &TeleportProcess{
+		Supervisor: &LocalSupervisor{
+			exitContext: context.Background(),
+		},
+		backend: backend,
+		log:     utils.NewLoggerForTests(),
+	}
+
+	integrationSvc, err := local.NewIntegrationsService(backend)
+	require.NoError(t, err)
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "aws-integration-1"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "role1",
+		},
+	)
+	require.NoError(t, err)
+	_, err = integrationSvc.CreateIntegration(ctx, oidcIntegration)
+	require.NoError(t, err)
+
+	ecaSvc := local.NewExternalAuditStorageService(backend)
+	_, err = ecaSvc.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
+	require.NoError(t, err)
+
+	statusService := local.NewStatusService(process.backend)
+
+	externalAuditStorageDisabled, err := externalauditstorage.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
+	require.NoError(t, err)
+	err = ecaSvc.PromoteToClusterExternalAuditStorage(ctx)
+	require.NoError(t, err)
+	externalAuditStorageEnabled, err := externalauditstorage.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
+	require.NoError(t, err)
+
 	tests := []struct {
-		name   string
-		uri    string
-		wantFn func(*testing.T, events.AuditLogger, error)
+		name          string
+		uris          []string
+		externalAudit *externalauditstorage.Configurator
+		expectErr     error
+		wantFn        func(*testing.T, events.AuditLogger)
 	}{
 		{
-			name: "valid athena config",
-			uri:  sampleValidConfig,
-			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
-				require.NoError(t, err)
+			name:          "valid athena config",
+			uris:          []string{sampleAthenaURI},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
 				require.True(t, ok, "invalid logger type, got %T", v)
 			},
 		},
 		{
-			name: "config with rate limit - should use events.SearchEventsLimiter",
-			uri:  sampleValidConfig + "&limiterRefillAmount=3&limiterBurst=2",
-			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
-				require.NoError(t, err)
+			name:          "config with rate limit - should use events.SearchEventsLimiter",
+			uris:          []string{sampleAthenaURI + "&limiterRefillAmount=3&limiterBurst=2"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				_, ok := alog.(*events.SearchEventsLimiter)
 				require.True(t, ok, "invalid logger type, got %T", alog)
 			},
 		},
+		{
+			name:          "multilog",
+			uris:          []string{sampleAthenaURI, sampleFileURI},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				_, ok := alog.(*events.MultiLog)
+				require.True(t, ok, "invalid logger type, got %T", alog)
+			},
+		},
+		{
+			name:          "external audit storage without athena uri",
+			uris:          []string{sampleFileURI},
+			externalAudit: externalAuditStorageEnabled,
+			expectErr:     externalAuditMissingAthenaError,
+		},
+		{
+			name:          "external audit storage with multiple uris",
+			uris:          []string{sampleAthenaURI, sampleFileURI},
+			externalAudit: externalAuditStorageEnabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				_, ok := alog.(*externalauditstorage.ErrorCountingLogger)
+				require.True(t, ok, "invalid logger type, got %T", alog)
+			},
+		},
 	}
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-				AuditEventsURI:   []string{tt.uri},
+				AuditEventsURI:   tt.uris,
 				AuditSessionsURI: "s3://testbucket/sessions-rec",
 			})
 			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
-			tt.wantFn(t, log, err)
+			log, err := process.initAuthExternalAuditLog(auditConfig, tt.externalAudit)
+			require.ErrorIs(t, err, tt.expectErr)
+			if tt.expectErr != nil {
+				return
+			}
+			tt.wantFn(t, log)
 		})
 	}
 }
@@ -477,7 +626,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnel.LocalKubernetes,
+				reversetunnelclient.LocalKubernetes,
 				"proxy-ssh-public-1",
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
@@ -540,7 +689,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnel.LocalKubernetes,
+				reversetunnelclient.LocalKubernetes,
 				"kube-public-1",
 				"kube-public-2",
 			},
@@ -616,7 +765,7 @@ type mockAccessPoint struct {
 }
 
 type mockReverseTunnelServer struct {
-	reversetunnel.Server
+	reversetunnelclient.Server
 }
 
 func TestSetupProxyTLSConfig(t *testing.T) {
@@ -645,6 +794,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
+				"teleport-clickhouse-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -663,6 +813,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
+				"teleport-clickhouse",
 			},
 		},
 		{
@@ -681,6 +832,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
+				"teleport-clickhouse-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -702,6 +854,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
+				"teleport-clickhouse",
 			},
 		},
 	}
@@ -751,8 +904,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = 5 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.ConnectFailureC = make(chan time.Duration, 5)
-	cfg.ClientTimeout = time.Millisecond
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
+	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
@@ -772,7 +925,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
-		case duration := <-process.Config.ConnectFailureC:
+		case duration := <-process.Config.Testing.ConnectFailureC:
 			stepMin := step * time.Duration(i) / 2
 			stepMax := step * time.Duration(i+1)
 
@@ -795,26 +948,8 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	authAddr, err := getFreePort()
-	require.NoError(t, err)
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	token := "join-token"
-
-	// Create Node process.
-	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(listenAddr)
-	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	// Set the Node's major version to be greater than the Auth Service's,
-	// which should make the version check fail.
-	currentVersion, err := semver.NewVersion(teleport.Version)
-	require.NoError(t, err)
-	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
 
 	// Create Auth Service process.
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -849,6 +984,23 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 		authProc.Close()
 	})
 
+	// Create Node process, pointing at the auth server's local port
+	authListenAddr := authProc.Config.AuthServerAddresses()[0]
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SetAuthServerAddress(authListenAddr)
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.SetToken(token)
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+
+	// Set the Node's major version to be greater than the Auth Service's,
+	// which should make the version check fail.
+	currentVersion, err := semver.NewVersion(teleport.Version)
+	require.NoError(t, err)
+	currentVersion.Major++
+	nodeCfg.Testing.TeleportVersion = currentVersion.String()
+
 	t.Run("with version check", func(t *testing.T) {
 		testVersionCheck(t, nodeCfg, false)
 	})
@@ -864,7 +1016,7 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	nodeProc, err := NewTeleport(nodeCfg)
 	require.NoError(t, err)
 
-	c, err := nodeProc.reconnectToAuthService(types.RoleNode)
+	c, err := nodeProc.reconnectToAuthService(types.RoleInstance)
 	if skipVersionCheck {
 		require.NoError(t, err)
 		require.NotNil(t, c)
@@ -876,20 +1028,6 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
 	require.True(t, ok)
 	supervisor.signalExit()
-}
-
-func getFreePort() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-
-	return l.Addr().(*net.TCPAddr).String(), nil
 }
 
 func Test_readOrGenerateHostID(t *testing.T) {
@@ -1143,8 +1281,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGPRC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
-	t.Cleanup(insecureGPRC.GracefulStop)
+	insecureGRPC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	t.Cleanup(insecureGRPC.GracefulStop)
 
 	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1170,7 +1308,7 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Start the gRPC servers.
 	go func() {
-		errC <- trace.Wrap(insecureGPRC.Serve(insecureListener))
+		errC <- trace.Wrap(insecureGRPC.Serve(insecureListener))
 	}()
 	go func() {
 		errC <- secureGRPC.Serve(secureListener)
@@ -1272,8 +1410,22 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name:       "jamf enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Jamf: servicecfg.JamfConfig{
+					Spec: &types.JamfSpecV1{
+						Enabled:     true,
+						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
+					},
+				},
+			},
+			expected: true,
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildType := modules.BuildOSS
@@ -1405,8 +1557,8 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, mode, test.mode)
-			require.Equal(t, addr.FullAddress(), test.wantAddr)
+			require.Equal(t, test.mode, mode)
+			require.Equal(t, test.wantAddr, addr.FullAddress())
 		})
 	}
 }

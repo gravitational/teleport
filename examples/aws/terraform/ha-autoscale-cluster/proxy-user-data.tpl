@@ -13,4 +13,5 @@ TELEPORT_ENABLE_MONGODB=${enable_mongodb_listener}
 TELEPORT_ENABLE_MYSQL=${enable_mysql_listener}
 TELEPORT_ENABLE_POSTGRES=${enable_postgres_listener}
 USE_ACM=${use_acm}
+USE_TLS_ROUTING=${use_tls_routing}
 EOF

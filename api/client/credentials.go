@@ -17,18 +17,23 @@ limitations under the License.
 package client
 
 import (
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"os"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // Credentials are used to authenticate the API auth client. Some Credentials
@@ -37,13 +42,22 @@ import (
 //
 // See the examples below for an example of each loader.
 type Credentials interface {
-	// Dialer is used to create a dialer used to connect to the Auth server.
-	Dialer(cfg Config) (ContextDialer, error)
 	// TLSConfig returns TLS configuration used to authenticate the client.
 	TLSConfig() (*tls.Config, error)
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+}
+
+// CredentialsWithDefaultAddrs additionally provides default addresses sourced
+// from the credential which are used when the client has not been explicitly
+// configured with an address.
+type CredentialsWithDefaultAddrs interface {
+	Credentials
+	// DefaultAddrs is called by the API client when it has not been
+	// explicitly configured with an address to connect to. It may return a
+	// slice of addresses to be tried.
+	DefaultAddrs() ([]string, error)
 }
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
@@ -58,11 +72,6 @@ func LoadTLS(tlsConfig *tls.Config) Credentials {
 // tlsConfigCreds use a defined *tls.Config to provide client credentials.
 type tlsConfigCreds struct {
 	tlsConfig *tls.Config
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *tlsConfigCreds) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -102,11 +111,6 @@ type keypairCreds struct {
 	certFile string
 	keyFile  string
 	caFile   string
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *keypairCreds) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -160,11 +164,6 @@ func LoadIdentityFile(path string) Credentials {
 type identityCredsFile struct {
 	identityFile *identityfile.IdentityFile
 	path         string
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *identityCredsFile) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -231,11 +230,6 @@ func LoadIdentityFileFromString(content string) Credentials {
 type identityCredsString struct {
 	identityFile *identityfile.IdentityFile
 	content      string
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *identityCredsString) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -307,28 +301,6 @@ type profileCreds struct {
 	profile *profile.Profile
 }
 
-// Dialer is used to dial a connection to an Auth server.
-func (c *profileCreds) Dialer(cfg Config) (ContextDialer, error) {
-	sshConfig, err := c.SSHClientConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := c.profile.TLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewProxyDialer(
-		*sshConfig,
-		cfg.KeepAlivePeriod,
-		cfg.DialTimeout,
-		c.profile.WebProxyAddr,
-		cfg.InsecureAddressDiscovery,
-		WithTLSConfig(tlsConfig),
-	), nil
-}
-
 // TLSConfig returns TLS configuration.
 func (c *profileCreds) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
@@ -355,6 +327,15 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// DefaultAddrs implements CredentialsWithDefaultAddrs by providing the
+// WebProxyAddr from the credential
+func (c *profileCreds) DefaultAddrs() ([]string, error) {
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []string{c.profile.WebProxyAddr}, nil
 }
 
 // load is used to lazy load the profile from persistent storage.
@@ -393,4 +374,184 @@ func configureTLS(c *tls.Config) *tls.Config {
 	}
 
 	return tlsConfig
+}
+
+// DynamicIdentityFileCreds allows a changing identity file to be used as the
+// source of authentication for Client. It does not automatically watch the
+// identity file or reload on an interval, this is left as an exercise for the
+// consumer.
+type DynamicIdentityFileCreds struct {
+	// mu protects the fields that may change if the underlying identity file
+	// is reloaded.
+	mu            sync.RWMutex
+	tlsCert       *tls.Certificate
+	tlsRootCAs    *x509.CertPool
+	sshCert       *ssh.Certificate
+	sshKey        crypto.Signer
+	sshKnownHosts []ssh.PublicKey
+
+	// Path is the path to the identity file to load and reload.
+	Path string
+}
+
+// NewDynamicIdentityFileCreds returns a DynamicIdentityFileCreds which has
+// been initially loaded and is ready for use.
+func NewDynamicIdentityFileCreds(path string) (*DynamicIdentityFileCreds, error) {
+	d := &DynamicIdentityFileCreds{
+		Path: path,
+	}
+	if err := d.Reload(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return d, nil
+}
+
+// Reload causes the identity file to be re-read from the disk. It will return
+// an error if loading the credentials fails.
+func (d *DynamicIdentityFileCreds) Reload() error {
+	id, err := identityfile.ReadFile(d.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// This section is essentially id.TLSConfig()
+	cert, err := keys.X509KeyPair(id.Certs.TLS, id.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pool := x509.NewCertPool()
+	for _, caCerts := range id.CACerts.TLS {
+		if !pool.AppendCertsFromPEM(caCerts) {
+			return trace.BadParameter("invalid CA cert PEM")
+		}
+	}
+
+	// This sections is essentially id.SSHClientConfig()
+	sshCert, err := sshutils.ParseCertificate(id.Certs.SSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sshPrivateKey, err := keys.ParsePrivateKey(id.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	knownHosts, err := sshutils.ParseKnownHosts(id.CACerts.SSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.tlsRootCAs = pool
+	d.tlsCert = &cert
+	d.sshCert = sshCert
+	d.sshKey = sshPrivateKey
+	d.sshKnownHosts = knownHosts
+	return nil
+}
+
+// TLSConfig returns TLS configuration. Implementing the Credentials interface.
+func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
+	// Build a "dynamic" tls.Config which can support a changing cert and root
+	// CA pool.
+	cfg := &tls.Config{
+		// Set the default NextProto of "h2". Based on the value in
+		// configureTLS()
+		NextProtos: []string{http2.NextProtoTLS},
+
+		// GetClientCertificate is used instead of the static Certificates
+		// field.
+		Certificates: nil,
+		GetClientCertificate: func(
+			_ *tls.CertificateRequestInfo,
+		) (*tls.Certificate, error) {
+			// GetClientCertificate callback is used to allow us to dynamically
+			// change the certificate when reloaded.
+			d.mu.RLock()
+			defer d.mu.RUnlock()
+			return d.tlsCert, nil
+		},
+
+		// VerifyConnection is used instead of the static RootCAs field.
+		RootCAs: nil,
+		// InsecureSkipVerify is forced true to ensure that only our
+		// VerifyConnection callback is used to verify the server's presented
+		// certificate.
+		InsecureSkipVerify: true,
+		VerifyConnection: func(state tls.ConnectionState) error {
+			// This VerifyConnection callback is based on the standard library
+			// implementation of verifyServerCertificate in the `tls` package.
+			// We provide our own implementation so we can dynamically handle
+			// a changing CA Roots pool.
+			d.mu.RLock()
+			defer d.mu.RUnlock()
+			opts := x509.VerifyOptions{
+				DNSName:       state.ServerName,
+				Intermediates: x509.NewCertPool(),
+				Roots:         d.tlsRootCAs,
+			}
+			for _, cert := range state.PeerCertificates[1:] {
+				// Whilst we don't currently use intermediate certs at
+				// Teleport, including this here means that we are
+				// future-proofed in case we do.
+				opts.Intermediates.AddCert(cert)
+			}
+			_, err := state.PeerCertificates[0].Verify(opts)
+			return err
+		},
+		// Set ServerName for SNI & Certificate Validation to the sentinel
+		// teleport.cluster.local which is included on all Teleport Auth Server
+		// certificates. Based on the value in configureTLS()
+		ServerName: constants.APIDomain,
+	}
+
+	return cfg, nil
+}
+
+// SSHClientConfig returns SSH configuration, implementing the Credentials
+// interface.
+func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
+		GetHostCheckers: func() ([]ssh.PublicKey, error) {
+			d.mu.RLock()
+			defer d.mu.RUnlock()
+			return d.sshKnownHosts, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Build a "dynamic" ssh config. Based roughly on
+	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
+	// dynamically changing credentials and CAs.
+	cfg := &ssh.ClientConfig{
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
+				d.mu.RLock()
+				defer d.mu.RUnlock()
+				sshSigner, err := sshutils.SSHSigner(d.sshCert, d.sshKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return []ssh.Signer{sshSigner}, nil
+			}),
+		},
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         defaults.DefaultIOTimeout,
+		// We use this because we can't always guarantee that a user will have
+		// a principal other than this (they may not have access to SSH nodes)
+		// and the actual user here doesn't matter for auth server API
+		// authentication. All that matters is that the principal specified here
+		// is stable across all certificates issued to the user, since this
+		// value cannot be changed in a following rotation -
+		// SSHSessionJoinPrincipal is included on all user ssh certs.
+		//
+		// This is a bit of a hack - the ideal solution is a refactor of the
+		// API client in order to support the SSH config being generated at
+		// time of use, rather than a single SSH config being made dynamic.
+		// ~ noah
+		User: "-teleport-internal-join",
+	}
+	return cfg, nil
 }

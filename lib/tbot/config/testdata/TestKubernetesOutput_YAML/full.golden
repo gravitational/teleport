@@ -1,0 +1,6 @@
+type: kubernetes
+destination:
+  type: memory
+roles:
+  - access
+kubernetes_cluster: k8s.example.com

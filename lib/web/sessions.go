@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -37,7 +39,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -47,11 +48,11 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -108,7 +109,7 @@ type SessionContextConfig struct {
 	Session types.WebSession
 
 	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake sites
-	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnel.RemoteSite) (auth.ClientI, error)
+	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error)
 }
 
 func (c *SessionContextConfig) CheckAndSetDefaults() error {
@@ -162,11 +163,10 @@ func NewSessionContext(cfg SessionContextConfig) (*SessionContext, error) {
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer=%v,bearer_expires=%v)",
+	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer_expires=%v)",
 		c.cfg.User,
-		c.cfg.Session.GetName(),
+		c.cfg.Session.GetShortName(),
 		c.cfg.Session.GetExpiryTime(),
-		c.cfg.Session.GetBearerToken(),
 		c.cfg.Session.GetBearerTokenExpiryTime(),
 	)
 }
@@ -219,7 +219,7 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 // the requested site. If the site is local a client with the users local role
 // is returned. If the site is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
 	// if we're trying to access the local cluster, pass back the local client.
 	if c.cfg.RootClusterName == site.GetName() {
 		return c.cfg.RootClient, nil
@@ -238,7 +238,7 @@ func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnel.R
 //
 // A [singleflight.Group] is leveraged to prevent duplicate requests for remote
 // clients at the same time to race.
-func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
 	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (interface{}, error) {
 		// check if we already have a connection to this cluster
 		if clt, ok := c.remoteClientCache.getRemoteClient(site); ok {
@@ -274,7 +274,7 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnel.Re
 }
 
 // newRemoteClient returns a client to a remote cluster with the role of current user.
-func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnel.RemoteSite) (auth.ClientI, error) {
+func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite) (auth.ClientI, error) {
 	clt, err := sctx.newRemoteTLSClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -291,14 +291,14 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnel.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
+func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		dialParams := reversetunnel.DialParams{
+		dialParams := reversetunnelclient.DialParams{
 			From:                  src,
 			OriginalClientDstAddr: dst,
 		}
 
-		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(in)
 		if dialParams.From == nil && clientSrcAddr != nil {
 			dialParams.From = clientSrcAddr
 		}
@@ -330,10 +330,14 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithChainUnaryInterceptor(
+			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
+			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
@@ -386,13 +390,13 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	return tlsConfig, nil
 }
 
-func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnel.RemoteSite) (auth.ClientI, error) {
+func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.RemoteSite) (auth.ClientI, error) {
 	tlsConfig, err := c.ClientTLSConfig(ctx, cluster.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
 	return auth.NewClient(apiclient.Config{
 		Context: ctx,
@@ -668,7 +672,7 @@ type sessionCache struct {
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
 	// This is the client-facing session handle
 	sessions map[string]*SessionContext
@@ -695,9 +699,8 @@ func (s *sessionCache) Close() error {
 }
 
 func (s *sessionCache) ActiveSessions() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return len(s.sessions)
 }
 
@@ -866,8 +869,8 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 }
 
 func (s *sessionCache) getContext(key string) (*SessionContext, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	ctx, ok := s.sessions[key]
 	return ctx, ok
 }
@@ -1093,48 +1096,6 @@ func sessionKey(user, sessionID string) string {
 	return user + sessionID
 }
 
-// waitForWebSession will block until the requested web session shows up in the
-// cache or a timeout occurs.
-func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSessionRequest) error {
-	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
-	if err == nil {
-		return nil
-	}
-	logger := h.log.WithField("req", req)
-	if !trace.IsNotFound(err) {
-		logger.WithError(err).Debug("Failed to query web session.")
-	}
-	// Establish a watch.
-	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
-		Name: teleport.ComponentWebProxy,
-		Kinds: []types.WatchKind{
-			{
-				Kind:    types.KindWebSession,
-				SubKind: types.KindWebSession,
-			},
-		},
-		MetricComponent: teleport.ComponentWebProxy,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
-	matchEvent := func(event types.Event) (types.Resource, error) {
-		if event.Type == types.OpPut &&
-			event.Resource.GetKind() == types.KindWebSession &&
-			event.Resource.GetSubKind() == types.KindWebSession &&
-			event.Resource.GetName() == req.SessionID {
-			return event.Resource, nil
-		}
-		return nil, trace.CompareFailed("no match")
-	}
-	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
-	if err != nil {
-		logger.WithError(err).Warn("Failed to wait for web session.")
-	}
-	return trace.Wrap(err)
-}
-
 // remoteClientCache stores remote clients keyed by site name while also keeping
 // track of the actual remote site associated with the client (in case the
 // remote site has changed). Safe for concurrent access. Closes all clients and
@@ -1143,17 +1104,17 @@ type remoteClientCache struct {
 	sync.Mutex
 	clients map[string]struct {
 		auth.ClientI
-		reversetunnel.RemoteSite
+		reversetunnelclient.RemoteSite
 	}
 }
 
-func (c *remoteClientCache) addRemoteClient(site reversetunnel.RemoteSite, remoteClient auth.ClientI) error {
+func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite, remoteClient auth.ClientI) error {
 	c.Lock()
 	defer c.Unlock()
 	if c.clients == nil {
 		c.clients = make(map[string]struct {
 			auth.ClientI
-			reversetunnel.RemoteSite
+			reversetunnelclient.RemoteSite
 		})
 	}
 	var err error
@@ -1162,12 +1123,12 @@ func (c *remoteClientCache) addRemoteClient(site reversetunnel.RemoteSite, remot
 	}
 	c.clients[site.GetName()] = struct {
 		auth.ClientI
-		reversetunnel.RemoteSite
+		reversetunnelclient.RemoteSite
 	}{remoteClient, site}
 	return err
 }
 
-func (c *remoteClientCache) getRemoteClient(site reversetunnel.RemoteSite) (auth.ClientI, bool) {
+func (c *remoteClientCache) getRemoteClient(site reversetunnelclient.RemoteSite) (auth.ClientI, bool) {
 	c.Lock()
 	defer c.Unlock()
 	remoteClt, ok := c.clients[site.GetName()]

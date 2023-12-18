@@ -16,7 +16,7 @@ limitations under the License.
 package keys
 
 import (
-	"crypto"
+	"context"
 	"errors"
 
 	"github.com/gravitational/trace"
@@ -24,10 +24,14 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func getOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
+func getOrGenerateYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (crypto.Signer, error) {
+func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
+}
+
+func (s PIVSlot) validate() error {
+	return trace.Wrap(errPIVUnavailable)
 }

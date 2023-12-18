@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -59,7 +61,7 @@ func TestAppsCRUD(t *testing.T) {
 	// Initially we expect no apps.
 	out, err := service.GetApps(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both apps.
 	err = service.CreateApp(ctx, app1)
@@ -71,14 +73,14 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific application.
 	app, err := service.GetApp(ctx, app2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(app2, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch an application that doesn't exist.
@@ -96,7 +98,7 @@ func TestAppsCRUD(t *testing.T) {
 	app, err = service.GetApp(ctx, app1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(app1, app,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Delete an application.
@@ -105,7 +107,7 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete an application that doesn't exist.
@@ -117,5 +119,5 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }

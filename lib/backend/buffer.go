@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package backend
 
@@ -205,7 +207,8 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	}
 }
 
-func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+// RemoveRedundantPrefixes will remove redundant prefixes from the given prefix list.
+func RemoveRedundantPrefixes(prefixes [][]byte) [][]byte {
 	if len(prefixes) == 0 {
 		return prefixes
 	}
@@ -247,7 +250,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	} else {
 		// if watcher's prefixes are redundant, keep only shorter prefixes
 		// to avoid double fan out
-		watch.Prefixes = removeRedundantPrefixes(watch.Prefixes)
+		watch.Prefixes = RemoveRedundantPrefixes(watch.Prefixes)
 	}
 
 	closeCtx, cancel := context.WithCancel(ctx)
@@ -277,10 +280,10 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
 		return
 	}
-	c.Debugf("Removing watcher %p via external close.", watcher)
+	c.Debugf("Removing watcher %v (%p) via external close.", watcher.Name, watcher)
 	found := c.watchers.rm(watcher)
 	if !found {
-		c.Debugf("Could not find watcher %v.", watcher)
+		c.Debugf("Could not find watcher %v.", watcher.Name)
 	}
 }
 

@@ -19,6 +19,8 @@ limitations under the License.
 package sshutils
 
 import (
+	"bytes"
+	"context"
 	"crypto"
 	"crypto/subtle"
 	"errors"
@@ -250,4 +252,69 @@ var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh\.
 // e.g. ssh-rsa-cert-v01@openssh.com.
 func IsSSHCertType(val string) bool {
 	return sshCertTypeRegex.MatchString(val)
+}
+
+type contextDialer func(ctx context.Context, network, addr string) (net.Conn, error)
+
+type runSSHOpts struct {
+	dialContext contextDialer
+}
+
+// RunSSHOption allows setting options as functional arguments to RunSSH.
+type RunSSHOption func(*runSSHOpts)
+
+// WithDialer connects to an SSH server with a custom dialer.
+func WithDialer(dialer contextDialer) RunSSHOption {
+	return func(opts *runSSHOpts) {
+		opts.dialContext = dialer
+	}
+}
+
+// RunSSH runs a command on an SSH server and returns the output.
+func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, opts ...RunSSHOption) ([]byte, []byte, error) {
+	var options runSSHOpts
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	conn, err := options.dialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, cfg)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
+	defer sshClient.Close()
+	session, err := sshClient.NewSession()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer session.Close()
+
+	// Execute the command.
+	var stdout bytes.Buffer
+	session.Stdout = &stdout
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
+	err = session.Run(command)
+	return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err)
+}
+
+// ChannelReadWriter represents the data streams of an ssh.Channel-like object.
+type ChannelReadWriter interface {
+	io.ReadWriter
+	Stderr() io.ReadWriter
+}
+
+// DiscardChannelData discards all data received from an ssh channel in the
+// background.
+func DiscardChannelData(ch ChannelReadWriter) {
+	if ch == nil {
+		return
+	}
+	go io.Copy(io.Discard, ch)
+	go io.Copy(io.Discard, ch.Stderr())
 }

@@ -19,6 +19,7 @@ package client_test
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -75,7 +76,7 @@ func ExampleClient_roleCRUD() {
 
 	// Upsert overwrites the resource if it exists. Use this to create/update resources.
 	// Equivalent to `tctl create -f role1.yaml`.
-	err = clt.UpsertRole(ctx, role)
+	role, err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		log.Fatalf("failed to create role: %v", err)
 	}
@@ -196,4 +197,15 @@ func ExampleLoadKeyPair() {
 		"path/to/certs.key",
 		"path/to/certs.cas",
 	)
+}
+
+// Perform ALPN handshake test to see if ALPN connection upgrade is required.
+//
+//	$ TELEPORT_ALPN_TEST_ADDR=proxy.example.com:443 go test -run=ExampleIsALPNConnUpgradeRequired -v
+//
+// Note that "Output" is set to "false" to mark this as a testable example.
+func ExampleIsALPNConnUpgradeRequired() {
+	addr := os.Getenv("TELEPORT_ALPN_TEST_ADDR")
+	fmt.Println(client.IsALPNConnUpgradeRequired(context.Background(), addr, false))
+	// Output: false
 }

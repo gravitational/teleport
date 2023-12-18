@@ -2,29 +2,36 @@
 // +build !linux
 
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package botfs
 
 import (
 	"io"
 	"os/user"
+	"sync"
 
 	"github.com/gravitational/trace"
 )
+
+// unsupportedPlatformWarning is used to reduce log spam when on an unsupported
+// platform.
+var unsupportedPlatformWarning sync.Once
 
 // Create attempts to create the given file or directory without
 // evaluating symlinks. This is only supported on recent Linux kernel versions
@@ -44,7 +51,9 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 	case SymlinksSecure:
 		return nil, trace.BadParameter("cannot read with `symlinks: secure` on unsupported platform")
 	case SymlinksTrySecure:
-		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		unsupportedPlatformWarning.Do(func() {
+			log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		})
 	}
 
 	file, err := openStandard(path, ReadMode)
@@ -68,7 +77,9 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	case SymlinksSecure:
 		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
 	case SymlinksTrySecure:
-		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		unsupportedPlatformWarning.Do(func() {
+			log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		})
 	}
 
 	file, err := openStandard(path, WriteMode)
@@ -103,13 +114,13 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 
 // HasACLSupport determines if this binary / system supports ACLs. This
 // catch-all implementation just returns false.
-func HasACLSupport() (bool, error) {
-	return false, nil
+func HasACLSupport() bool {
+	return false
 }
 
 // HasSecureWriteSupport determines if `CreateSecure()` should be supported
 // on this OS / kernel version. This is only supported on Linux, so this
 // catch-all implementation just returns false.
-func HasSecureWriteSupport() (bool, error) {
-	return false, nil
+func HasSecureWriteSupport() bool {
+	return false
 }

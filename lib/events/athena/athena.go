@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package athena
 
@@ -27,12 +31,18 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -81,6 +91,9 @@ type Config struct {
 	// GetQueryResultsInterval is used to define how long query will wait before
 	// checking again for results status if previous status was not ready (optional).
 	GetQueryResultsInterval time.Duration
+	// DisableSearchCostOptimization is used to opt-out from search cost optimization
+	// used for paginated queries (optional). Default is enabled.
+	DisableSearchCostOptimization bool
 
 	// LimiterRefillTime determines the duration of time between the addition of tokens to the bucket (optional).
 	LimiterRefillTime time.Duration
@@ -108,11 +121,34 @@ type Config struct {
 	UIDGenerator utils.UID
 	// LogEntry is a log entry.
 	LogEntry *log.Entry
-	// AWSConfig is AWS config which can be used to construct varius AWS Clients
-	// using aws-sdk-go-v2.
-	AWSConfig *aws.Config
+
+	// PublisherConsumerAWSConfig is an AWS config which can be used to
+	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
+	// consumer components which publish/consume events from SQS (and S3 for
+	// large events). These are always hosted on Teleport cloud infra even when
+	// External Audit Storage is enabled, any events written here are only held
+	// temporarily while they are queued to write to s3 parquet files in
+	// batches.
+	PublisherConsumerAWSConfig *aws.Config
+
+	// StorerQuerierAWSConfig is an AWS config which can be used to construct AWS Clients
+	// using aws-sdk-go-v2, used by the consumer (store phase) and the querier.
+	// Often it is the same as PublisherConsumerAWSConfig unless External Audit
+	// Storage is enabled, then this will authenticate and connect to
+	// external/customer AWS account.
+	StorerQuerierAWSConfig *aws.Config
 
 	Backend backend.Backend
+
+	// Tracer is used to create spans
+	Tracer oteltrace.Tracer
+
+	// ObserveWriteEventsError will be called with every error encountered
+	// writing events to S3.
+	ObserveWriteEventsError func(error)
+
+	externalAuditStorage bool
+	metrics              *athenaMetrics
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
@@ -235,7 +271,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		})
 	}
 
-	if cfg.AWSConfig == nil {
+	if cfg.PublisherConsumerAWSConfig == nil {
 		awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -245,11 +281,34 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
-		cfg.AWSConfig = &awsCfg
+		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
+		cfg.PublisherConsumerAWSConfig = &awsCfg
+	}
+
+	if cfg.StorerQuerierAWSConfig == nil {
+		cfg.StorerQuerierAWSConfig = cfg.PublisherConsumerAWSConfig
 	}
 
 	if cfg.Backend == nil {
 		return trace.BadParameter("Backend cannot be nil")
+	}
+
+	if cfg.Tracer == nil {
+		cfg.Tracer = tracing.NoopTracer(teleport.ComponentAthena)
+	}
+
+	if cfg.ObserveWriteEventsError == nil {
+		cfg.ObserveWriteEventsError = func(error) {}
+	}
+
+	if cfg.metrics == nil {
+		cfg.metrics, err = newAthenaMetrics(athenaMetricsConfig{
+			batchInterval:        cfg.BatchMaxInterval,
+			externalAuditStorage: cfg.externalAuditStorage,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -263,6 +322,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	cfg.Database, cfg.TableName = splitted[0], splitted[1]
 
+	if region := url.Query().Get("region"); region != "" {
+		cfg.Region = region
+	}
 	topicARN := url.Query().Get("topicArn")
 	if topicARN != "" {
 		cfg.TopicARN = topicARN
@@ -291,6 +353,13 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 			return trace.BadParameter("invalid getQueryResultsInterval value: %v", err)
 		}
 		cfg.GetQueryResultsInterval = dur
+	}
+	if val := url.Query().Get("disableSearchCostOptimization"); val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("invalid disableSearchCostOptimization value: %v", err)
+		}
+		cfg.DisableSearchCostOptimization = boolVal
 	}
 	refillAmountInString := url.Query().Get("limiterRefillAmount")
 	if refillAmountInString != "" {
@@ -341,6 +410,31 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
+func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAuditStorage *externalauditstorage.Configurator) error {
+	cfg.externalAuditStorage = true
+
+	spec := externalAuditStorage.GetSpec()
+	cfg.LocationS3 = spec.AuditEventsLongTermURI
+	cfg.Workgroup = spec.AthenaWorkgroup
+	cfg.QueryResultsS3 = spec.AthenaResultsURI
+	cfg.Database = spec.GlueDatabase
+	cfg.TableName = spec.GlueTable
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
+	cfg.StorerQuerierAWSConfig = &awsCfg
+
+	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
+
+	return nil
+}
+
 // Log is an events storage backend.
 //
 // It's using SNS for emitting events.
@@ -362,14 +456,16 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	querier, err := newQuerier(querierConfig{
-		tablename:               cfg.TableName,
-		database:                cfg.Database,
-		workgroup:               cfg.Workgroup,
-		queryResultsS3:          cfg.QueryResultsS3,
-		getQueryResultsInterval: cfg.GetQueryResultsInterval,
-		awsCfg:                  cfg.AWSConfig,
-		logger:                  cfg.LogEntry,
-		clock:                   cfg.Clock,
+		tablename:                    cfg.TableName,
+		database:                     cfg.Database,
+		workgroup:                    cfg.Workgroup,
+		queryResultsS3:               cfg.QueryResultsS3,
+		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
+		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
+		awsCfg:                       cfg.StorerQuerierAWSConfig,
+		logger:                       cfg.LogEntry,
+		clock:                        cfg.Clock,
+		tracer:                       cfg.Tracer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -383,7 +479,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	l := &Log{
-		publisher:      newPublisher(cfg),
+		publisher:      newPublisherFromAthenaConfig(cfg),
 		querier:        querier,
 		consumerCloser: consumer,
 	}
@@ -394,15 +490,16 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchEvents(ctx, req)
 }
 
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {
@@ -424,4 +521,121 @@ func isValidUrlWithScheme(s string) (string, bool) {
 		return "", false
 	}
 	return u.Scheme, true
+}
+
+type athenaMetricsConfig struct {
+	batchInterval        time.Duration
+	externalAuditStorage bool
+}
+
+type athenaMetrics struct {
+	consumerBatchProcessingDuration      prometheus.Histogram
+	consumerS3parquetFlushDuration       prometheus.Histogram
+	consumerDeleteMessageDuration        prometheus.Histogram
+	consumerBatchSize                    prometheus.Histogram
+	consumerBatchCount                   prometheus.Counter
+	consumerLastProcessedTimestamp       prometheus.Gauge
+	consumerAgeOfOldestProcessedMessage  prometheus.Gauge
+	consumerNumberOfErrorsFromSQSCollect prometheus.Counter
+}
+
+func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
+	constLabels := prometheus.Labels{
+		"external": strconv.FormatBool(cfg.externalAuditStorage),
+	}
+	batchSeconds := cfg.batchInterval.Seconds()
+
+	m := &athenaMetrics{
+		consumerBatchProcessingDuration: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Namespace: teleport.MetricNamespace,
+				Name:      teleport.MetricParquetlogConsumerBatchPorcessingDuration,
+				Help:      "Duration of processing single batch of events in parquetlog",
+				// For 60s batch interval it will look like:
+				// 6.00, 12.00, 30.00, 45.00, 54.00, 59.01, 64.48, 70.47, 77.01, 84.15, 91.96, 100.49, 109.81, 120.00
+				// We want some visibility if batch takes very small amount of time, but we are mostly interested
+				// in range from 0.9*batch to 2*batch.
+				Buckets:     append([]float64{0.1 * batchSeconds, 0.2 * batchSeconds, 0.5 * batchSeconds, 0.75 * batchSeconds}, prometheus.ExponentialBucketsRange(0.9*batchSeconds, 2*batchSeconds, 10)...),
+				ConstLabels: constLabels,
+			},
+		),
+		consumerS3parquetFlushDuration: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Namespace: teleport.MetricNamespace,
+				Name:      teleport.MetricParquetlogConsumerS3FlushDuration,
+				Help:      "Duration of flush and close of s3 parquet files in parquetlog",
+				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),
+				ConstLabels: constLabels,
+			},
+		),
+		consumerDeleteMessageDuration: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Namespace: teleport.MetricNamespace,
+				Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
+				Help:      "Duration of delation of events on SQS in parquetlog",
+				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),
+				ConstLabels: constLabels,
+			},
+		),
+		consumerBatchSize: prometheus.NewHistogram(
+			prometheus.HistogramOpts{
+				Namespace:   teleport.MetricNamespace,
+				Name:        teleport.MetricParquetlogConsumerBatchSize,
+				Help:        "Size of single batch of events in parquetlog",
+				Buckets:     prometheus.ExponentialBucketsRange(200, 100*1024*1024 /* 100 MB*/, 10),
+				ConstLabels: constLabels,
+			},
+		),
+		consumerBatchCount: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Namespace:   teleport.MetricNamespace,
+				Name:        teleport.MetricParquetlogConsumerBatchCount,
+				Help:        "Number of events in single batch in parquetlog",
+				ConstLabels: constLabels,
+			},
+		),
+		consumerLastProcessedTimestamp: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace:   teleport.MetricNamespace,
+				Name:        teleport.MetricParquetlogConsumerLastProcessedTimestamp,
+				Help:        "Timestamp of last finished consumer execution",
+				ConstLabels: constLabels,
+			},
+		),
+		consumerAgeOfOldestProcessedMessage: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace:   teleport.MetricNamespace,
+				Name:        teleport.MetricParquetlogConsumerOldestProcessedMessage,
+				Help:        "Age of oldest processed message in seconds",
+				ConstLabels: constLabels,
+			},
+		),
+		consumerNumberOfErrorsFromSQSCollect: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Namespace:   teleport.MetricNamespace,
+				Name:        teleport.MetricParquetlogConsumerCollectFailed,
+				Help:        "Number of errors received from sqs collect",
+				ConstLabels: constLabels,
+			},
+		),
+	}
+
+	return m, trace.Wrap(metrics.RegisterPrometheusCollectors(
+		m.consumerBatchProcessingDuration,
+		m.consumerS3parquetFlushDuration,
+		m.consumerDeleteMessageDuration,
+		m.consumerBatchSize,
+		m.consumerBatchCount,
+		m.consumerLastProcessedTimestamp,
+		m.consumerAgeOfOldestProcessedMessage,
+		m.consumerNumberOfErrorsFromSQSCollect,
+	))
+}
+
+type trimmableEvent interface {
+	TrimToMaxSize(int) apievents.AuditEvent
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -31,9 +33,10 @@ import (
 
 // ValidateUser validates the User and sets default values
 func ValidateUser(u types.User) error {
-	if err := u.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(u); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if localAuth := u.GetLocalAuth(); localAuth != nil {
 		if err := ValidateLocalAuthSecrets(localAuth); err != nil {
 			return trace.Wrap(err)
@@ -56,7 +59,7 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
 			return a.Metadata.Name < b.Metadata.Name
 		}),
@@ -105,6 +108,9 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (types.User, error) {
 		if cfg.ID != 0 {
 			u.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			u.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			u.SetExpiry(cfg.Expires)
 		}
@@ -127,14 +133,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 
 	switch user := user.(type) {
 	case *types.UserV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *user
-			copy.SetResourceID(0)
-			user = &copy
-		}
-		return utils.FastMarshal(user)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, user))
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}

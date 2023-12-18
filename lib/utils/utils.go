@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package utils
 
@@ -33,6 +35,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -42,7 +45,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 // WriteContextCloser provides close method with context
@@ -323,6 +325,31 @@ func IsValidHostname(hostname string) bool {
 	return true
 }
 
+// IsValidUnixUser checks if a string represents a valid
+// UNIX username.
+func IsValidUnixUser(u string) bool {
+	// See http://www.unix.com/man-page/linux/8/useradd:
+	//
+	// On Debian, the only constraints are that usernames must neither start with a dash ('-')
+	// nor contain a colon (':') or a whitespace (space: ' ', end of line: '\n', tabulation:
+	// '\t', etc.). Note that using a slash ('/') may break the default algorithm for the
+	// definition of the user's home directory.
+
+	const maxUsernameLen = 32
+	if len(u) > maxUsernameLen || len(u) == 0 || u[0] == '-' {
+		return false
+	}
+	if strings.ContainsAny(u, ":/") {
+		return false
+	}
+	for _, r := range u {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
+
 // ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
@@ -442,6 +469,11 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
+// GetHostUUIDPath returns the path to the host UUID file given the data directory.
+func GetHostUUIDPath(dataDir string) string {
+	return filepath.Join(dataDir, HostUUIDFile)
+}
+
 // HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
 func HostUUIDExistsLocally(dataDir string) bool {
 	_, err := ReadHostUUID(dataDir)
@@ -450,7 +482,7 @@ func HostUUIDExistsLocally(dataDir string) bool {
 
 // ReadHostUUID reads host UUID from the file in the data dir
 func ReadHostUUID(dataDir string) (string, error) {
-	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
+	out, err := ReadPath(GetHostUUIDPath(dataDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -467,7 +499,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
-	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
+	err := os.WriteFile(GetHostUUIDPath(dataDir), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -504,11 +536,6 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return id, nil
-}
-
-// PrintVersion prints human readable version
-func PrintVersion() {
-	modules.GetModules().PrintVersion()
 }
 
 // StringSliceSubset returns true if b is a subset of a.

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -67,7 +70,7 @@ type remoteSite struct {
 	certificateCache *certificateCache
 
 	// localClient provides access to the Auth Server API of the cluster
-	// within which reversetunnel.Server is running.
+	// within which reversetunnelclient.Server is running.
 	localClient auth.ClientI
 	// remoteClient provides access to the Auth Server API of the remote cluster that
 	// this site belongs to.
@@ -136,7 +139,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 }
 
 func (s *remoteSite) authServerContextDialer(ctx context.Context, network, address string) (net.Conn, error) {
-	conn, err := s.DialAuthServer(DialParams{})
+	conn, err := s.DialAuthServer(reversetunnelclient.DialParams{})
 	return conn, err
 }
 
@@ -382,6 +385,15 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 		"addr":     conn.conn.RemoteAddr().String(),
 	})
 
+	sshutils.DiscardChannelData(ch)
+	if ch != nil {
+		defer func() {
+			if err := ch.Close(); err != nil {
+				logger.Warnf("Failed to close heartbeat channel: %v", err)
+			}
+		}()
+	}
+
 	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
@@ -403,9 +415,8 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			logger.Infof("closing")
 			return
 		case <-proxyResyncTicker.Chan():
-			req := discoveryRequest{
-				Proxies: s.srv.proxyWatcher.GetCurrent(),
-			}
+			var req discoveryRequest
+			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
 
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -413,9 +424,9 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				return
 			}
 		case proxies := <-conn.newProxiesC:
-			req := discoveryRequest{
-				Proxies: proxies,
-			}
+			var req discoveryRequest
+			req.SetProxies(proxies)
+
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
 				conn.markInvalid(err)
@@ -742,7 +753,7 @@ func (s *remoteSite) watchLocks() error {
 	}
 }
 
-func (s *remoteSite) DialAuthServer(params DialParams) (net.Conn, error) {
+func (s *remoteSite) DialAuthServer(params reversetunnelclient.DialParams) (net.Conn, error) {
 	conn, err := s.connThroughTunnel(&sshutils.DialReq{
 		Address:       constants.RemoteAuthServer,
 		ClientSrcAddr: stringOrEmpty(params.From),
@@ -754,24 +765,35 @@ func (s *remoteSite) DialAuthServer(params DialParams) (net.Conn, error) {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
-	recConfig, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
+func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	localRecCfg, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// If the proxy is in recording mode and a SSH connection is being
-	// requested or the target server is a registered OpenSSH node, build
-	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig) {
+	if shouldDialAndForward(params, localRecCfg) {
 		return s.dialAndForward(params)
+	}
+
+	if params.ConnType == types.NodeTunnel {
+		// If the remote cluster is recording at the proxy we need to respect
+		// that and forward and record the session. We will be connecting
+		// to the node without connecting through the remote proxy, so the
+		// session won't have a chance to get recorded at the remote proxy.
+		remoteRecCfg, err := s.remoteAccessPoint.GetSessionRecordingConfig(s.ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if services.IsRecordAtProxy(remoteRecCfg.GetMode()) {
+			return s.dialAndForward(params)
+		}
 	}
 
 	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
 }
 
-func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
+func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
 	s.logger.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&sshutils.DialReq{
@@ -780,7 +802,7 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -789,9 +811,9 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -822,7 +844,7 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -831,33 +853,32 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 	// Create a forwarding server that serves a single SSH connection on it. This
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
-	//
-	// Note: A localClient is passed to the forwarding server to make sure the
-	// session gets recorded in the local cluster instead of the remote cluster.
 	serverConfig := forward.ServerConfig{
-		AuthClient:      s.localClient,
-		UserAgent:       userAgent,
-		AgentlessSigner: params.AgentlessSigner,
-		TargetConn:      targetConn,
-		SrcAddr:         params.From,
-		DstAddr:         params.To,
-		HostCertificate: hostCertificate,
-		Ciphers:         s.srv.Config.Ciphers,
-		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
-		MACAlgorithms:   s.srv.Config.MACAlgorithms,
-		DataDir:         s.srv.Config.DataDir,
-		Address:         params.Address,
-		UseTunnel:       UseTunnel(s.logger, targetConn),
-		FIPS:            s.srv.FIPS,
-		HostUUID:        s.srv.ID,
-		Emitter:         s.srv.Config.Emitter,
-		ParentContext:   s.srv.Context,
-		LockWatcher:     s.srv.LockWatcher,
-		TargetID:        params.ServerID,
-		TargetAddr:      params.To.String(),
-		TargetHostname:  params.Address,
-		TargetServer:    params.TargetServer,
-		Clock:           s.clock,
+		LocalAuthClient:          s.localClient,
+		TargetClusterAccessPoint: s.remoteAccessPoint,
+		UserAgent:                userAgent,
+		IsAgentlessNode:          params.IsAgentlessNode,
+		AgentlessSigner:          params.AgentlessSigner,
+		TargetConn:               targetConn,
+		SrcAddr:                  params.From,
+		DstAddr:                  params.To,
+		HostCertificate:          hostCertificate,
+		Ciphers:                  s.srv.Config.Ciphers,
+		KEXAlgorithms:            s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:            s.srv.Config.MACAlgorithms,
+		DataDir:                  s.srv.Config.DataDir,
+		Address:                  params.Address,
+		UseTunnel:                UseTunnel(s.logger, targetConn),
+		FIPS:                     s.srv.FIPS,
+		HostUUID:                 s.srv.ID,
+		Emitter:                  s.srv.Config.Emitter,
+		ParentContext:            s.srv.Context,
+		LockWatcher:              s.srv.LockWatcher,
+		TargetID:                 params.ServerID,
+		TargetAddr:               params.To.String(),
+		TargetHostname:           params.Address,
+		TargetServer:             params.TargetServer,
+		Clock:                    s.clock,
 	}
 	// Ensure the hostname is set correctly if we have details of the target
 	if params.TargetServer != nil {

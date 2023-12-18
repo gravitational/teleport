@@ -1,25 +1,33 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,21 +57,17 @@ type Apps interface {
 
 // MarshalApp marshals Application resource to JSON.
 func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
-	if err := app.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch app := app.(type) {
 	case *types.AppV3:
-		if !cfg.PreserveResourceID {
-			copy := *app
-			copy.SetResourceID(0)
-			app = &copy
+		if err := app.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(app)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, app))
 	default:
 		return nil, trace.BadParameter("unsupported app resource %T", app)
 	}
@@ -94,6 +98,9 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 		if cfg.ID != 0 {
 			app.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			app.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			app.SetExpiry(cfg.Expires)
 		}
@@ -104,10 +111,6 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 
 // MarshalAppServer marshals the AppServer resource to JSON.
 func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte, error) {
-	if err := appServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,12 +118,11 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 
 	switch appServer := appServer.(type) {
 	case *types.AppServerV3:
-		if !cfg.PreserveResourceID {
-			copy := *appServer
-			copy.SetResourceID(0)
-			appServer = &copy
+		if err := appServer.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(appServer)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, appServer))
 	default:
 		return nil, trace.BadParameter("unsupported app server resource %T", appServer)
 	}
@@ -151,10 +153,121 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported app server resource version %q", h.Version)
+}
+
+// NewApplicationFromKubeService creates application resources from kubernetes service.
+// It transforms service fields and annotations into appropriate Teleport app fields.
+// Service labels are copied to app labels.
+func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
+	appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
+
+	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get app rewrite config for the service")
+	}
+
+	appNameAnnotation := service.GetAnnotations()[types.DiscoveryAppNameLabel]
+	appName, err := getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name, appNameAnnotation)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create app name for the service")
+	}
+
+	labels, err := getAppLabels(service.GetLabels(), clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get labels for the service")
+	}
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        appName,
+		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		Labels:      labels,
+	}, types.AppSpecV3{
+		URI:     appURI,
+		Rewrite: rewriteConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
+	}
+
+	return app, nil
+}
+
+func getServiceFQDN(s corev1.Service) string {
+	// If service type is ExternalName it points to external DNS name, to keep correct
+	// HOST for HTTP requests we return already final external DNS name.
+	// https://kubernetes.io/docs/concepts/services-networking/service/#externalname
+	if s.Spec.Type == corev1.ServiceTypeExternalName {
+		return s.Spec.ExternalName
+	}
+	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
+}
+
+func buildAppURI(protocol, serviceFQDN string, port int32) string {
+	return (&url.URL{
+		Scheme: protocol,
+		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+	}).String()
+}
+
+func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) {
+	rewritePayload := annotations[types.DiscoveryAppRewriteLabel]
+	if rewritePayload == "" {
+		return nil, nil
+	}
+
+	rw := types.Rewrite{}
+	reader := strings.NewReader(rewritePayload)
+	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	err := decoder.Decode(&rw)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed decoding rewrite config")
+	}
+
+	return &rw, nil
+}
+
+func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {
+	if nameAnnotation != "" {
+		name := nameAnnotation
+		if portName != "" {
+			name = fmt.Sprintf("%s-%s", name, portName)
+		}
+
+		if len(validation.IsDNS1035Label(name)) > 0 {
+			return "", trace.BadParameter(
+				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+		}
+
+		return name, nil
+	}
+
+	clusterName = strings.ReplaceAll(clusterName, ".", "-")
+	if portName != "" {
+		return fmt.Sprintf("%s-%s-%s-%s", serviceName, portName, namespace, clusterName), nil
+	}
+	return fmt.Sprintf("%s-%s-%s", serviceName, namespace, clusterName), nil
+}
+
+func getAppLabels(serviceLabels map[string]string, clusterName string) (map[string]string, error) {
+	result := make(map[string]string, len(serviceLabels)+1)
+
+	for k, v := range serviceLabels {
+		if !types.IsValidLabelKey(k) {
+			return nil, trace.BadParameter("invalid label key: %q", k)
+		}
+
+		result[k] = v
+	}
+	result[types.KubernetesClusterLabel] = clusterName
+
+	return result, nil
 }

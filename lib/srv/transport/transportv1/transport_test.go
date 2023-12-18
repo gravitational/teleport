@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package transportv1
 
@@ -40,6 +44,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
@@ -110,14 +115,14 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
-		return nil, "", trace.NotFound(key)
+		return nil, trace.NotFound(key)
 	}
 
-	return conn, "", nil
+	return conn, nil
 }
 
 // testPack used to test a [Service].
@@ -172,8 +177,8 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	})
 
 	s := grpc.NewServer(
-		grpc.StreamInterceptor(utils.GRPCServerStreamErrorInterceptor),
-		grpc.UnaryInterceptor(utils.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
 	t.Cleanup(func() {
 		s.GracefulStop()
@@ -205,8 +210,8 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 			}, err
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -227,8 +232,8 @@ func fakeSigner(authzCtx *authz.Context, clusterName string) agentless.SignerCre
 
 type fakeMonitor struct{}
 
-func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error) {
-	return ctx, nil
+func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	return ctx, conn, nil
 }
 
 // TestService_GetClusterDetails validates that a [Service] returns
@@ -777,31 +782,31 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	conn, err := s.dial()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if agentGetter == nil {
-		return conn, "", nil
+		return conn, nil
 	}
 
 	agnt, err := agentGetter()
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	rw, ok := agnt.(testAgent)
 	if !ok {
-		return conn, "", nil
+		return conn, nil
 	}
 
 	go func() {
 		agent.ServeAgent(s.keyring, rw)
 	}()
 
-	return conn, "", nil
+	return conn, nil
 }
 
 func (s *sshServer) Run() {

@@ -1,26 +1,30 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
@@ -64,6 +68,8 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				AWSRDS: &awsRDS{
 					ResourceID: "resource-id",
 					AccountID:  "account-id",
+					Subnets:    []string{"subnet-123", "subnet-321"},
+					VPCID:      "vpc-123",
 				},
 			},
 			errAssert: require.NoError,
@@ -112,6 +118,8 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				URI:      "uri",
 				AWSRDS: &awsRDS{
 					ResourceID: "resource-id",
+					Subnets:    []string{"subnet-123", "subnet-321"},
+					VPCID:      "vpc-123",
 				},
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
@@ -127,6 +135,42 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				URI:      "uri",
 				AWSRDS: &awsRDS{
 					AccountID: "account-id",
+					Subnets:   []string{"subnet-123", "subnet-321"},
+					VPCID:     "vpc-123",
+				},
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
+			},
+		},
+		{
+			desc: "invalid missing aws rds subnets",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					ResourceID: "resource-id",
+					AccountID:  "account-id",
+					VPCID:      "vpc-123",
+				},
+			},
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
+			},
+		},
+		{
+			desc: "invalid missing aws rds vpcid",
+			req: createDatabaseRequest{
+				Name:     "",
+				Protocol: "protocol",
+				URI:      "uri",
+				AWSRDS: &awsRDS{
+					ResourceID: "resource-id",
+					AccountID:  "account-id",
+					Subnets:    []string{"subnet-123", "subnet-321"},
 				},
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
@@ -220,6 +264,20 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	elasticache, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: "some-group",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	selfHosted, err := types.NewDatabaseV3(types.Metadata{
 		Name: "self-hosted",
 	}, types.DatabaseSpecV3{
@@ -229,7 +287,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add database servers for above databases.
-	for _, db := range []*types.DatabaseV3{redshift, selfHosted} {
+	for _, db := range []*types.DatabaseV3{redshift, elasticache, selfHosted} {
 		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
@@ -244,6 +302,14 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.Code())
 				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), redshift)
+			},
+		},
+		{
+			inputDatabaseName: "aws-elasticache",
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), elasticache)
 			},
 		},
 		{
@@ -352,7 +418,7 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 	}{
 		{
 			desc: "valid token and uri",
-			uri:  "instance.example.teleport.dev",
+			uri:  "instance.example.teleport.dev:1433",
 			tokenFunc: func(t *testing.T) string {
 				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
 				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
@@ -361,7 +427,7 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc: "valid token and invalid uri",
+			desc: "valid token and empty uri",
 			uri:  "",
 			tokenFunc: func(t *testing.T) string {
 				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
@@ -371,8 +437,48 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 			assertError: require.Error,
 		},
 		{
+			desc: "valid token and invalid uri",
+			uri:  "hello#hello",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
+			desc: "invalid line break character token and invalid uri",
+			uri:  "computer.domain\n.com:1433",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
+			desc: "invalid character ` token and invalid uri",
+			uri:  "computer.domain`.com:1433",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
+			desc: "invalid character | token and invalid uri",
+			uri:  "computer.domain|.com:1433",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
 			desc:        "invalid token",
-			uri:         "instance.example.teleport.dev",
+			uri:         "instance.example.teleport.dev:1433",
 			tokenFunc:   func(_ *testing.T) string { return "random-token" },
 			assertError: require.Error,
 		},
@@ -384,6 +490,36 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 				url.Values{"uri": []string{tc.uri}},
 			)
 			tc.assertError(t, err)
+		})
+	}
+
+}
+
+// TestHandleSQLServerConfigureScriptDatabaseURIEscaped given a SQL Server
+// database URI, ensures that special characters are escaped when placed on the
+// PowerShell script.
+func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+	pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+	require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+	re := regexp.MustCompile(`\$DB_ADDRESS\s*=\s*'([^']+)'`)
+
+	for _, c := range []string{";", "\"", "'", "&", "$", "(", ")"} {
+		t.Run(c, func(t *testing.T) {
+			uri := fmt.Sprintf("database.ad%s.com:1433", c)
+			resp, err := pack.clt.Get(
+				ctx,
+				pack.clt.Endpoint("webapi/scripts/databases/configure/sqlserver", token, "configure-ad.ps1"),
+				url.Values{"uri": []string{uri}},
+			)
+			require.NoError(t, err)
+			escapedURIResult := re.FindStringSubmatch(string(resp.Bytes()))
+			require.Len(t, escapedURIResult, 2)
+			require.NotEqual(t, uri, escapedURIResult[1])
+			require.Contains(t, escapedURIResult[1], url.QueryEscape(c))
 		})
 	}
 }

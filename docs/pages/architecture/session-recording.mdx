@@ -10,18 +10,41 @@ configuration options that apply to session recordings.
 
 The content that is captured depends on the type of the session.
 
-- SSH sessions: Teleport captures the entire pseudo-terminal (PTY) output
-  of the session.
-- Kubernetes sessions: Teleport captures the entire PTY output for
-  `kubectl exec` invocations.
-- Desktop sessions: Teleport captures the contents of the desktop screen
-  and any mouse input. Teleport does not capture keystrokes in the remote
-  desktop.
-- App sessions: Teleport captures a stream of `app.session.request`
-  audit events related to application access. The audit events are
-  bucketed into 5-minute time intervals informally referred to as "chunks."
-- Database sessions: Teleport captures a stream of audit events
-  related to the database being accessed.
+### SSH sessions
+
+Teleport captures the entire pseudo-terminal (PTY) output of the session. The
+intention is for session recording to document what a user saw when they ran a
+session.
+
+Note that the design of session recording carries some security risks. Namely,
+users can conceal terminal commands by encoding them (e.g., using `base64`),
+running scripts from disk or the internet, or changing the terminal settings. If
+this presents an issue for your environment, consider using the BPF-based
+[Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx)
+instead.
+
+### Kubernetes sessions
+
+Teleport captures the entire PTY output for `kubectl exec` invocations.
+
+Kubernetes session recording carries the same security risks as SSH session
+recording.
+
+### Desktop sessions
+
+Teleport captures the contents of the desktop screen and any mouse input.
+Teleport does not capture keystrokes in the remote desktop.
+
+### App sessions
+
+Teleport captures a stream of `app.session.request` audit events related to
+application access. The audit events are bucketed into 5-minute time intervals
+informally referred to as "chunks."
+
+### Database sessions
+
+Teleport captures a stream of audit events related to the database being
+accessed.
 
 ## Session recording configurations
 
@@ -38,10 +61,10 @@ This results in 4 possible session recording configurations:
 
 This is a cluster-wide configuration option and applies to the entire
 Teleport cluster. It can be configured by setting `session_recording`
-in the `auth_service` section of your `teleport.yaml`, or dynamically via
-the the `session_recording_config` resource. If you need to apply different
-recording configuration to different sets of resources, we recommend setting up
-[Trusted Clusters](/docs/management/admin/trustedclusters/) with their own
+in the `auth_service` section of your `teleport.yaml`, or dynamically using
+the `session_recording_config` resource. If you need to apply different
+recording configurations to different sets of resources, you can set up
+[trusted clusters](../management/admin/trustedclusters.mdx) with their own
 recording configurations.
 
 <Admonition type="note">
@@ -148,7 +171,7 @@ should be noted that they are not TAR archives and cannot be read using the `tar
 ## Playback
 
 SSH and Kubernetes sessions can be played in Teleport's Web UI or by using
-the [`tsh play`](../reference/cli.mdx#tsh-play) command. Desktop session
+the [`tsh play`](../reference/cli/tsh.mdx#tsh-play) command. Desktop session
 recordings can only be played back in the Web UI.
 
 In the Web UI, the session recordings page is populated by querying Teleport's

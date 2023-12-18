@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package alpnproxy
 
@@ -123,7 +125,7 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
-			var versionEnd = 255
+			versionEnd := 255
 			if len(alpn) < versionEnd {
 				versionEnd = len(alpn)
 			}
@@ -152,7 +154,7 @@ func (r *Router) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
+// AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube-teleport-proxy-alpn." SNI prefix).
 func (r *Router) AddKubeHandler(handler HandlerFunc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -313,7 +315,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) || ctx.Err() != nil {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -378,7 +380,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
-	ctx = utils.ClientAddrContext(ctx, clientConn.RemoteAddr(), clientConn.LocalAddr())
+	ctx = authz.ContextWithClientAddrs(ctx, clientConn.RemoteAddr(), clientConn.LocalAddr())
 
 	if handlerDesc.ForwardTLS {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
@@ -398,7 +400,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
 	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
 	// IP pinning but cert isn't pinned.
-	if err := checkCertIPPinning(tlsConn); err != nil {
+	if err := p.checkCertIPPinning(tlsConn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -418,7 +420,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
-func checkCertIPPinning(tlsConn *tls.Conn) error {
+func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
 	state := tlsConn.ConnectionState()
 
 	if len(state.PeerCertificates) == 0 {
@@ -430,12 +432,18 @@ func checkCertIPPinning(tlsConn *tls.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	clientIP, err := utils.ClientIPFromConn(tlsConn)
+	clientIP, port, err := net.SplitHostPort(tlsConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if identity.PinnedIP != "" && clientIP != identity.PinnedIP {
+	if identity.PinnedIP != "" && (clientIP != identity.PinnedIP || port == "0") {
+		if port == "0" {
+			p.log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug(authz.ErrIPPinningMismatch.Error())
+		}
 		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}
 
@@ -596,11 +604,6 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	// DELETE IN 14.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
-	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
-		return true
-	}
-
 	return strings.HasPrefix(sni, constants.KubeTeleportProxyALPNPrefix)
 }
 

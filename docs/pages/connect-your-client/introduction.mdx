@@ -18,7 +18,10 @@ Teleport, and includes links to more detailed documentation at the end.
 your Teleport cluster:
 
 <Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
+<Tabs>
 <TabItem label="Local user">
+
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
 Enter password for Teleport user alice:
@@ -34,10 +37,10 @@ Tap any security key
 ```
 
 </TabItem>
-<TabItem label="SAML / OIDC / GitHub user">
+<TabItem label="GitHub user">
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
+$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=github
 If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:49927/1d80e257-ec61-4ed2-9403-784f8d35b2fe
 > Profile URL:        https://teleport.example.com:443
@@ -56,6 +59,51 @@ required for your particular use case.
 
 </TabItem>
 </Tabs>
+</TabItem>
+
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+<Tabs>
+<TabItem label="Local user">
+```code
+$ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
+Enter password for Teleport user alice:
+Tap any security key
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       alice
+  Cluster:            example.com
+  Roles:              access, requester
+  Logins:             ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</TabItem>
+<TabItem label="SAML / OIDC / GitHub user">
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:49927/1d80e257-ec61-4ed2-9403-784f8d35b2fe
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       user@example.com
+  Cluster:            example.com
+  Roles:              access, requester
+  Logins:             ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+Depending on how Teleport was configured for your network, you may not need
+the additional flags `--auth`. Your administrator should provide the details
+required for your particular use case.
+
+</TabItem>
+</Tabs>
+</TabItem>
+
+</Tabs>
 
 ### Teleport Connect
 
@@ -68,29 +116,29 @@ server and database access within a single window.
 
    ![A new instance of Teleport Connect](../../img/teleport-connect-init.png)
 
-2. Provide the address of your Teleport Cluster (e.g.
-<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
-) and click **NEXT**.
+1. Provide the address of your Teleport Cluster (e.g.
+   `https://example.teleport.sh`) and click **NEXT**.
 
-3. Teleport Connect will ask you for your username, password, and MFA. If
-Teleport is integrated with an external Identity Provider (**IdP**), it may
-instead prompt you to authenticate in a browser window with that service.
+1. Teleport Connect will ask you for your username, password, and MFA. 
+   
+   If Teleport is integrated with an external Identity Provider (**IdP**), you might be
+   prompted to authenticate with that service in a browser window.
 
-4. Once authenticated, you can browse and connect to all the resources your
-user is permitted to access:
+1. Browse and connect to all the resources your user is permitted to access:
 
-   ![An example of Teleport Connect, populated with instances](../../img/use-teleport/connect-ui-overview.png)
+   ![An example of Teleport Connect, populated with instances](../../img/use-teleport/connect-ui-overview@2x.png)
 
 ### Web UI
 
-Teleport provides a web interface for users to interact with Teleport, e.g., by accessing resources or creating Access Requests. This is usually
-found at the same URL used to connect to Teleport with (e.g.
-<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>`https://mytenant.teleport.sh`</ScopedBlock>),
-but you should confirm the Web UI URL with the team that manages your Teleport deployment. The Web UI provides similar
-access to resources as Teleport Connect, and additional access to to Request and
-Activity logs for users with the right permissions.
+Teleport provides a web interface for users to interact with Teleport, e.g., by
+accessing resources or creating Access Requests. This is usually found at the
+same URL used to connect to Teleport with (e.g.  `https://example.teleport.sh`),
+but you should confirm the Web UI URL with the team that manages your Teleport
+deployment. 
+
+The Web UI provides similar access to resources as Teleport Connect, and
+additional access to to Request and Activity logs for users with the right
+permissions.
 
 ## Protocols
 
@@ -284,18 +332,16 @@ list those that are accessible to your user under <Icon name="database" size="sm
 </TabItem>
 </Tabs>
 
-### Desktop Access
+### Desktop access
 
-Desktop access is available through the Teleport Web UI. In your browser,
-navigate to your Teleport cluster (e.g. 
-<ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
-).
+Desktop access is available through the Teleport Web UI. 
 
+1. In your browser, navigate to your Teleport cluster (for example, 
+`https://example.teleport.sh`).
 1. From the menu on the right, select <Icon name="desktop" inline size="sm"/> **Desktops**.
-2. Next to the desktop you want to access, click **CONNECT**. Select
+1. Next to the desktop you want to access, click **CONNECT**. Select
 or type in a username available to your Teleport user.
-3. Teleport will open a new browser tab or window and begin the RDP session.
+1. Teleport will open a new browser tab or window and begin the RDP session.
 Note that you may need to wait a moment for Teleport to log you in as the specified user.
 
 ## Next steps
@@ -316,3 +362,4 @@ either directly or through proxy tunnels.
 {/*lint ignore messaging for page title*/}
 - [Database Access GUI Clients](./gui-clients.mdx) details
 how to connect many popular database GUI clients through Teleport.
+

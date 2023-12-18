@@ -24,8 +24,15 @@ In *direct* mode, Windows Desktop Services registers directly with the Teleport
 Auth Server, and listens for desktop connections from the Teleport Proxy. To
 enable direct mode, set `windows_desktop_service.listen_addr` in
 `teleport.yaml`, and ensure that `teleport.auth_server` points directly at the
-Auth Server. Direct mode requires network connectivity from the Teleport Proxy
-to Windows Desktop Service, and from Windows Desktop Service to the Auth Server.
+Auth Server.
+
+Direct mode requires network connectivity both:
+
+- from the Teleport Proxy to the Windows Desktop Service.
+- from the Windows Desktop Service to the Auth Service.
+
+For these reasons direct mode is not available in Teleport cloud, only
+self-hosted Teleport clusters.
 
 ### IoT mode (reverse tunnel)
 

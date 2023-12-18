@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -46,12 +48,14 @@ type IntegrationsGetter interface {
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 }
 
+// IntegrationsTokenGenerator defines methods to generate tokens for Integrations.
+type IntegrationsTokenGenerator interface {
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+}
+
 // MarshalIntegration marshals the Integration resource to JSON.
 func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, error) {
-	if err := ig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -59,12 +63,11 @@ func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, er
 
 	switch g := ig.(type) {
 	case *types.IntegrationV1:
-		if !cfg.PreserveResourceID {
-			copy := *g
-			copy.SetResourceID(0)
-			g = &copy
+		if err := g.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(g)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, g))
 	default:
 		return nil, trace.BadParameter("unsupported integration resource %T", g)
 	}
@@ -90,6 +93,9 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 
 	if cfg.ID != 0 {
 		ig.SetResourceID(cfg.ID)
+	}
+	if cfg.Revision != "" {
+		ig.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
 		ig.SetExpiry(cfg.Expires)

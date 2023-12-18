@@ -1,38 +1,24 @@
 ---
-title: Database Access with SQL Server on Azure (Preview)
+title: Database Access with SQL Server on Azure
 description: How to configure Teleport database access with Azure SQL Server using Azure Active Directory authentication.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="11.0"
->
-  Database access for Azure SQL Server with Azure Active Directory authentication
-  is available starting from Teleport `11.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure SQL Server" dbConfigure="Azure SQL Server using Azure Active Directory authentication" dbName="Azure SQL Server" !)
 
-<Admonition type="warning" title="Preview">
-  Database access for Azure SQL Server with Azure Active Directory authentication is
-  currently in Preview mode.
-</Admonition>
-
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up access to Azure SQL Server using Azure Active Directory authentication.
-- Connect to Azure SQL Server through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../img/database-access/guides/sqlserver/sql-aad.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Azure SQL Server Azure Active Directory Cloud](../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
+
+Database access for Azure SQL Server with Azure Active Directory authentication
+is available starting from Teleport `11.0`.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -189,28 +175,17 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
+Set the `--proxy` command-line option to the address for your Teleport cluster
+and the `--azure-sqlserver-discovery` to the appropriate region:
 
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com \
+   --proxy=<Var name="teleport.example.com" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=mytenant.teleport.sh:443 \
-   --azure-sqlserver-discovery=eastus
-```
-</ScopedBlock>
 
 The command will generate a Database Service configuration with Azure SQL
 Server auto-discovery enabled in the `eastus` region and place it at the
@@ -234,30 +209,14 @@ Server auto-discovery enabled in the `eastus` region and place it at the
 Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
 $ tsh db ls
 Name                Description                       Allowed Users Labels Connect
 ------------------ ---------------------------------- ------------- ------ -------
 sqlserver          Azure SQL Server in westeurope     [*]           ...
 sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-$ tsh db ls
-Name                Description                       Allowed Users Labels Connect
------------------- ---------------------------------- ------------- ------ -------
-sqlserver          Azure SQL Server in westeurope     [*]           ...
-sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
-```
-
-</ScopedBlock>
 
 To retrieve credentials for a database and connect to it:
 
@@ -267,10 +226,7 @@ $ tsh db connect --db-user=sqlserver-identity --db-name=master sqlserver
 
 Where `--db-user` is the managed identity name.
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 ## Troubleshooting
 
@@ -316,3 +272,4 @@ To check if the VM has access, you can do the following on the VM:
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

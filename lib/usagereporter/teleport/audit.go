@@ -1,24 +1,27 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package usagereporter
 
 import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -57,9 +60,10 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		// SSO) if desired, but we currently only care about connector type /
 		// method
 		return &UserLoginEvent{
-			UserName:      e.User,
-			ConnectorType: e.Method,
-			DeviceId:      deviceID,
+			UserName:                 e.User,
+			ConnectorType:            e.Method,
+			DeviceId:                 deviceID,
+			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
 		}
 
 	case *apievents.SessionStart:
@@ -86,6 +90,11 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.DatabaseSessionKind),
+			Database: &prehogv1a.SessionStartDatabaseMetadata{
+				DbType:     e.DatabaseType,
+				DbProtocol: e.DatabaseProtocol,
+				DbOrigin:   e.DatabaseOrigin,
+			},
 		}
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
@@ -97,9 +106,19 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			SessionType: sessionType,
 		}
 	case *apievents.WindowsDesktopSessionStart:
+		desktopType := "ad"
+		if e.DesktopLabels[types.ADLabel] == "false" {
+			desktopType = "non-ad"
+		}
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.WindowsDesktopSessionKind),
+			Desktop: &prehogv1a.SessionStartDesktopMetadata{
+				DesktopType:       desktopType,
+				Origin:            e.DesktopLabels[types.OriginLabel],
+				WindowsDomain:     e.Domain,
+				AllowUserCreation: e.AllowUserCreation,
+			},
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -130,6 +149,67 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
+		}
+
+	case *apievents.BotJoin:
+		// Only count successful joins.
+		if !e.Success {
+			return nil
+		}
+		return &BotJoinEvent{
+			BotName:       e.BotName,
+			JoinMethod:    e.Method,
+			JoinTokenName: e.TokenName,
+		}
+
+	case *apievents.DeviceEvent2:
+		// Only count successful events.
+		if !e.Success {
+			return nil
+		}
+
+		switch e.Metadata.GetType() {
+		case events.DeviceAuthenticateEvent:
+			return &DeviceAuthenticateEvent{
+				DeviceId:     e.Device.DeviceId,
+				UserName:     e.User,
+				DeviceOsType: e.Device.OsType.String(),
+			}
+		case events.DeviceEnrollEvent:
+			return &DeviceEnrollEvent{
+				DeviceId:     e.Device.DeviceId,
+				UserName:     e.User,
+				DeviceOsType: e.Device.OsType.String(),
+				DeviceOrigin: e.Device.DeviceOrigin.String(),
+			}
+		}
+
+	case *apievents.DesktopClipboardReceive:
+		return &DesktopClipboardEvent{
+			Desktop:  e.DesktopAddr,
+			UserName: e.User,
+		}
+	case *apievents.DesktopClipboardSend:
+		return &DesktopClipboardEvent{
+			Desktop:  e.DesktopAddr,
+			UserName: e.User,
+		}
+	case *apievents.DesktopSharedDirectoryStart:
+		// only count successful share attempts
+		if e.Code != events.DesktopSharedDirectoryStartCode {
+			return nil
+		}
+
+		return &DesktopDirectoryShareEvent{
+			Desktop:       e.DesktopAddr,
+			UserName:      e.User,
+			DirectoryName: e.DirectoryName,
+		}
+	case *apievents.AuditQueryRun:
+		return &AuditQueryRunEvent{
+			UserName:  e.User,
+			Days:      e.Days,
+			IsSuccess: e.Status.Success,
 		}
 	}
 

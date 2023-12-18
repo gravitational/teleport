@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthn_test
 
@@ -19,6 +23,7 @@ import (
 	"context"
 	"encoding/pem"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -29,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestRegistrationFlow_BeginFinish(t *testing.T) {
@@ -197,9 +203,9 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 				return bytes.Compare(got[i].CredentialID, got[j].CredentialID) == -1
 			})
 
-			want := make([]protocol.CredentialDescriptor, len(test.wantExcludeList))
+			want := make([]wantypes.CredentialDescriptor, len(test.wantExcludeList))
 			for i, id := range test.wantExcludeList {
-				want[i] = protocol.CredentialDescriptor{
+				want[i] = wantypes.CredentialDescriptor{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: id,
 				}
@@ -306,7 +312,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 	tests := []struct {
 		name             string
 		user, deviceName string
-		createResp       func() *wanlib.CredentialCreationResponse
+		createResp       func() *wantypes.CredentialCreationResponse
 		wantErr          string
 		passwordless     bool
 	}{
@@ -314,28 +320,28 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			name:       "NOK user empty",
 			user:       "",
 			deviceName: "webauthn2",
-			createResp: func() *wanlib.CredentialCreationResponse { return okCCR },
+			createResp: func() *wantypes.CredentialCreationResponse { return okCCR },
 			wantErr:    "user required",
 		},
 		{
 			name:       "NOK device name empty",
 			user:       user,
 			deviceName: "",
-			createResp: func() *wanlib.CredentialCreationResponse { return okCCR },
+			createResp: func() *wantypes.CredentialCreationResponse { return okCCR },
 			wantErr:    "device name required",
 		},
 		{
 			name:       "NOK credential response nil",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *wanlib.CredentialCreationResponse { return nil },
+			createResp: func() *wantypes.CredentialCreationResponse { return nil },
 			wantErr:    "response required",
 		},
 		{
 			name:       "NOK credential with bad origin",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *wanlib.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				resp, err := key.SignCredentialCreation("https://alpacasarerad.com" /* origin */, cc)
 				require.NoError(t, err)
 				return resp
@@ -346,7 +352,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			name:       "NOK credential with bad RPID",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *wanlib.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				cc.Response.RelyingParty.ID = "badrpid.com"
@@ -361,7 +367,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			name:       "NOK credential with invalid signature",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *wanlib.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
@@ -379,7 +385,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			user:         user,
 			deviceName:   "webauthn2",
 			passwordless: true,
-			createResp: func() *wanlib.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				resp, err := key.SignCredentialCreation(webOrigin, cc)
@@ -387,6 +393,28 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 				return resp
 			},
 			wantErr: "passwordless registration failed",
+		},
+		{
+			name:         "NOK passwordless using key without PIN",
+			user:         user,
+			deviceName:   "webauthn2",
+			passwordless: true,
+			createResp: func() *wantypes.CredentialCreationResponse {
+				cc, err := webRegistration.Begin(ctx, user, true /* passwordless */)
+				require.NoError(t, err)
+
+				// "Trick" the authenticator into signing, regardless of resident key or
+				// verification requirements.
+				// Verified on Safari 16.5 (and likely other versions too).
+				cc.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementDiscouraged
+				cc.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyNotRequired()
+				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationDiscouraged
+
+				resp, err := key.SignCredentialCreation(webOrigin, cc)
+				require.NoError(t, err)
+				return resp
+			},
+			wantErr: "doesn't support passwordless",
 		},
 	}
 	for _, test := range tests {
@@ -491,6 +519,20 @@ func TestRegistrationFlow_Finish_attestation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIssue31187_errorParsingAttestationResponse reproduces the root cause of
+// https://github.com/gravitational/teleport/issues/31187 by attempting to parse
+// a current CCR created using a Chrome/Yubikey pair.
+//
+// The test exposes a poor interaction between go-webauthn/webauthn v0.8.6 and
+// fxamacker/cbor/v2 v2.5.0.
+func TestIssue31187_errorParsingAttestationResponse(t *testing.T) {
+	// Captured from an actual Yubikey 5Ci registration request.
+	const body = `{"id":"ibfM_71b4q2_xWPZDyvhZmJ_KU8f-mOCCLXHp-fTVoHZpDelym5lvBJDPr1EtD_l","type":"public-key","rawId":"ibfM_71b4q2_xWPZDyvhZmJ_KU8f-mOCCLXHp-fTVoHZpDelym5lvBJDPr1EtD_l","response":{"clientDataJSON":"eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoidEdiVFhEbzBGMXRNUVlmamRSLWNETlV1TUNvVURTX0w0OElSWmY4MUVuWSIsIm9yaWdpbiI6Imh0dHBzOi8vemFycXVvbi5kZXY6MzA4MCIsImNyb3NzT3JpZ2luIjpmYWxzZSwib3RoZXJfa2V5c19jYW5fYmVfYWRkZWRfaGVyZSI6ImRvIG5vdCBjb21wYXJlIGNsaWVudERhdGFKU09OIGFnYWluc3QgYSB0ZW1wbGF0ZS4gU2VlIGh0dHBzOi8vZ29vLmdsL3lhYlBleCJ9","attestationObject":"o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVjCnNjmsqMh0nu-_tuMkxVZkZShAhdoz0tK9evxg8ys9CLFAAAAAQAAAAAAAAAAAAAAAAAAAAAAMIm3zP-9W-Ktv8Vj2Q8r4WZifylPH_pjggi1x6fn01aB2aQ3pcpuZbwSQz69RLQ_5aUBAgMmIAEhWCCJt8z_vVvirb_FY9kPpoIwbfhER3VHTmOV0Y6xs7uHySJYIMFARJxlUoR4DbDzlKYnfJKitWgR3GHK9_Lz211z-128oWtjcmVkUHJvdGVjdAI"}}`
+
+	_, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(body))
+	require.NoError(t, err, "ParseCredentialCreationResponseBody failed")
 }
 
 func derToPEMs(certs [][]byte) []string {

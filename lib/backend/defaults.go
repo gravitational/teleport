@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package backend
 
@@ -22,10 +26,12 @@ const (
 	// DefaultBufferCapacity is a default circular buffer size
 	// used by backends to fan out events
 	DefaultBufferCapacity = 1024
-	// DefaultBacklogGracePeriod is the default amount of time
-	// that the circular buffer will tolerate an event backlog
-	// in one of its watchers.
-	DefaultBacklogGracePeriod = time.Second * 30
+	// DefaultBacklogGracePeriod is the default amount of time that the circular buffer
+	// will tolerate an event backlog in one of its watchers. Value was selected to be
+	// just under 1m since 1m is typically the highest rate that high volume events
+	// (e.g. heartbeats) are be created. If a watcher can't catch up in under a minute,
+	// it probably won't catch up.
+	DefaultBacklogGracePeriod = time.Second * 59
 	// DefaultPollStreamPeriod is a default event poll stream period
 	DefaultPollStreamPeriod = time.Second
 	// DefaultEventsTTL is a default events TTL period

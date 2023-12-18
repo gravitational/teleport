@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -281,7 +284,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
-func NewServer(cfg Config) (Server, error) {
+func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -637,10 +640,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
-	// Apply read/write timeouts to the server connection.
-	conn := utils.ObeyIdleTimeout(ccx.NetConn,
-		s.offlineThreshold,
-		"reverse tunnel server")
+	conn := ccx.NetConn
 	sconn := ccx.ServerConn
 
 	channelType := nch.ChannelType()
@@ -965,10 +965,10 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	return site, remoteConn, nil
 }
 
-func (s *server) GetSites() ([]RemoteSite, error) {
+func (s *server) GetSites() ([]reversetunnelclient.RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
+	out := make([]reversetunnelclient.RemoteSite, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
 	out = append(out, s.localSite)
 
 	haveLocalConnection := make(map[string]bool)
@@ -1002,7 +1002,7 @@ func (s *server) getRemoteClusters() []*remoteSite {
 // with a cluster peer your best bet is to wait until the agent has discovered
 // all proxies behind a load balancer. Note, the cluster peer is a
 // services.TunnelConnection that was created by another proxy.
-func (s *server) GetSite(name string) (RemoteSite, error) {
+func (s *server) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.localSite.GetName() == name {
@@ -1029,7 +1029,7 @@ func (s *server) GetProxyPeerClient() *peer.Client {
 // alwaysClose forces onSiteTunnelClose to remove and close
 // the site by always returning false from HasValidConnections.
 type alwaysClose struct {
-	RemoteSite
+	reversetunnelclient.RemoteSite
 }
 
 func (a *alwaysClose) HasValidConnections() bool {
@@ -1083,6 +1083,13 @@ func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, ms
 	}
 }
 
+// TrackUserConnection tracks a user connection that should prevent
+// the server from being terminated if active. The returned function
+// should be called when the connection is terminated.
+func (s *server) TrackUserConnection() (release func()) {
+	return s.srv.TrackUserConnection()
+}
+
 // newRemoteSite helper creates and initializes 'remoteSite' instance
 func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
 	connInfo, err := types.NewTunnelConnection(
@@ -1122,7 +1129,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for
-	// the local cluster within which reversetunnel.Server is running.
+	// the local cluster within which reversetunnelclient.Server is running.
 	remoteSite.localClient = srv.localAuthClient
 	remoteSite.localAccessPoint = srv.localAccessPoint
 
@@ -1159,7 +1166,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

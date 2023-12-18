@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package app
 
@@ -24,7 +26,6 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -77,8 +78,6 @@ type transport struct {
 	tr http.RoundTripper
 
 	uri *url.URL
-
-	ws *websocketTransport
 }
 
 // newTransport creates a new transport.
@@ -108,7 +107,6 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		transportConfig: c,
 		uri:             uri,
 		tr:              tr,
-		ws:              newWebsocketTransport(uri, tr.TLSClientConfig.Clone(), c),
 	}, nil
 }
 
@@ -181,7 +179,6 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 func rewriteHeaders(r *http.Request, c *transportConfig) {
 	// Add in JWT headers.
 	r.Header.Set(teleport.AppJWTHeader, c.jwt)
-	r.Header.Set(teleport.AppCFHeader, c.jwt)
 
 	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
 		return
@@ -292,44 +289,4 @@ func host(addr string) string {
 		return addr
 	}
 	return host
-}
-
-// websocketTransport combines parameters for websockets transport.
-//
-// Implements forward.ReqRewriter.
-type websocketTransport struct {
-	uri    *url.URL
-	dialer forward.Dialer
-	c      *transportConfig
-}
-
-// newWebsocketTransport returns transport that knows how to rewrite and
-// dial websocket requests.
-func newWebsocketTransport(uri *url.URL, tlsConfig *tls.Config, c *transportConfig) *websocketTransport {
-	return &websocketTransport{
-		uri: uri,
-		dialer: func(network, address string) (net.Conn, error) {
-			// Request is going to "wss://".
-			if uri.Scheme == "https" {
-				return tls.Dial(network, address, tlsConfig)
-			}
-			// Request is going to "ws://".
-			return net.Dial(network, address)
-		},
-		c: c,
-	}
-}
-
-// Rewrite rewrites the websocket request.
-func (r *websocketTransport) Rewrite(req *http.Request) {
-	// Update scheme and host to those of the target app's to make sure
-	// it's forwarded correctly.
-	req.URL.Scheme = "ws"
-	if r.uri.Scheme == "https" {
-		req.URL.Scheme = "wss"
-	}
-	req.URL.Host = r.uri.Host
-	req.Host = r.uri.Host
-
-	rewriteHeaders(req, r.c)
 }

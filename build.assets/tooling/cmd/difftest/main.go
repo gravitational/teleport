@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -25,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 )
@@ -36,6 +38,7 @@ var (
 	exclude  = kingpin.Flag("exclude", "Comma-separated list of exclude paths").Short('e').Strings()
 	include  = kingpin.Flag("include", "Comma-separated list of include paths").Short('i').Strings()
 	relative = kingpin.Flag("relative", "Returns paths relative to specified folder").String()
+	skip     = kingpin.Flag("skip", "A space-delimited list of test names to skip").String()
 
 	_ = kingpin.Command("diff", "Print diff in human-readable format")
 
@@ -58,12 +61,28 @@ var (
 
 		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
 		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
-		"TestProxySSH", "TestList",
+		"TestProxySSH", "TestSSHLoadAllCAs", "TestList", "TestForwardingTraces", "TestExportingTraces",
+
+		// TestDiagnoseSSHConnection takes around 15s to run.
+		// When running 100x it exceeds the 600s defined to run the tests.
+		"TestDiagnoseSSHConnection",
+
+		// TestServer_Authenticate_headless takes about 4-5 seconds to run, so if other tests are changed
+		// in the same PR that take >1 second total, it may cause the flaky test detector to time out.
+		"TestServer_Authenticate_headless",
+
+		// TestWithRsync takes ~10 seconds to run
+		"TestWithRsync",
 	}
 )
 
 func main() {
 	command := kingpin.Parse()
+
+	if *skip != "" {
+		extraSkip := strings.Fields(*skip)
+		testsToSkip = append(testsToSkip, extraSkip...)
+	}
 
 	// Set default git directory to cwd
 	if repoPath == nil {
@@ -144,7 +163,7 @@ func diff(repoPath string, ref string, changedFiles []string, elapsed time.Durat
 
 // test builds and prints go test flags
 func test(repoPath string, ref string, changedFiles []string) {
-	var dirs = make(StringSet)
+	dirs := make(StringSet)
 	methods := make([]string, 0)
 
 	dollarSign := "$"
@@ -163,6 +182,10 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.New {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
+				continue
+			}
 			methods = append(methods, "^"+n.RefName+dollarSign)
 			dirs[dir] = struct{}{}
 		}
@@ -172,7 +195,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -20,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -33,6 +36,22 @@ type ProxyGetter interface {
 type NodesGetter interface {
 	// GetNodes returns a list of registered servers.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+}
+
+// DatabaseServersGetter is a service that gets database servers.
+type DatabaseServersGetter interface {
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+}
+
+// AppServersGetter is a service that gets application servers.
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
+// NodesStreamGetter is a service that gets nodes.
+type NodesStreamGetter interface {
+	// GetNodeStream returns a list of registered servers.
+	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
 }
 
 // Presence records and reports the presence of all components
@@ -66,7 +85,7 @@ type Presence interface {
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(server types.Server) error
+	UpsertAuthServer(ctx context.Context, server types.Server) error
 
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
@@ -76,13 +95,13 @@ type Presence interface {
 
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(server types.Server) error
+	UpsertProxy(ctx context.Context, server types.Server) error
 
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
 	// DeleteProxy deletes proxy by name
-	DeleteProxy(name string) error
+	DeleteProxy(ctx context.Context, name string) error
 
 	// DeleteAllProxies deletes all proxies
 	DeleteAllProxies() error
@@ -116,6 +135,21 @@ type Presence interface {
 
 	// DeleteNamespace deletes namespace by name
 	DeleteNamespace(name string) error
+
+	// GetServerInfos returns a stream of ServerInfos.
+	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
+
+	// GetServerInfo returns a ServerInfo by name.
+	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
+
+	// UpsertServerInfo upserts a ServerInfo.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// DeleteServerInfo deletes a ServerInfo by name.
+	DeleteServerInfo(ctx context.Context, name string) error
+
+	// DeleteAllServerInfos deletes all ServerInfos.
+	DeleteAllServerInfos(ctx context.Context) error
 
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 	UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)

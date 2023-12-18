@@ -5,8 +5,19 @@ ARG RUST_VERSION
 # git2 packages are not available on ARM64, so we need to build it from source.
 FROM centos:7 AS git2
 
+ARG BUILDARCH
+ARG TARGETARCH
 ARG DEVTOOLSET
 
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
+
+# Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
     ca-certificates  \
@@ -20,22 +31,26 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    centos-release-scl \
-    ${DEVTOOLSET}-gcc* \
-    ${DEVTOOLSET}-make && \
+    centos-release-scl && \
     yum clean all
 
-RUN wget https://github.com/git/git/archive/refs/tags/v2.39.1.tar.gz && \
-    tar xf v2.39.1.tar.gz && \
-    cd git-2.39.1/ && \
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-make && \
+    yum clean all
+
+RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
+    cd git && \
+    [ "$(git rev-parse HEAD)" = '43c8a30d150ecede9709c1f2527c8fba92c65f40' ] && \
     scl enable ${DEVTOOLSET} "make configure && \
     ./configure --prefix=/usr/local && \
-    make -j6 all && \
+    make -j"$(nproc)" all && \
     DESTDIR=/opt/git make install"
 
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport15-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 ## LIBFIDO2 ###################################################################
 
@@ -43,6 +58,15 @@ FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDAR
 FROM centos:7 AS libfido2
 
 ARG DEVTOOLSET
+ARG TARGETARCH
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
@@ -50,18 +74,22 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum install -y \
         cmake3 \
-        ${DEVTOOLSET}-gcc* \
         git \
         libudev-devel \
         perl-IPC-Cmd \
         zlib-devel && \
     yum clean all
 
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc && \
+    yum clean all
+
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev.
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
+    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
     make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Install libcbor.
@@ -77,11 +105,11 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
-    ./config --release --libdir=/usr/local/lib64 && \
-    make && \
+    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
+    ./config --release -fPIC --libdir=/usr/local/lib64 && \
+    make -j"$(nproc)" && \
     make install_sw
 # Necessary for libfido2 to find the correct libcrypto.
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
@@ -97,6 +125,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
           -DBUILD_EXAMPLES=OFF \
           -DBUILD_MANPAGES=OFF \
           -DBUILD_TOOLS=OFF \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
           -DCMAKE_BUILD_TYPE=Release . && \
       grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
       make" && \
@@ -108,6 +137,15 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 FROM centos:7 AS libbpf
 
 ARG DEVTOOLSET
+ARG TARGETARCH
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -116,25 +154,45 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
         centos-release-scl \
-        ${DEVTOOLSET}-gcc* \
-        ${DEVTOOLSET}-make \
-        elfutils-libelf-devel-static \
         scl-utils && \
     yum clean all
 
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-make && \
+    yum clean all
+
+# Install custom package with -fPIC.
+COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
+RUN rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static.*.rpm && \
+    rm -rf /opt/custom-packages
+
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
+# BUILD_STATIC_ONLY - builds only static libraries without shared ones
+# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
+# DESTDIR - where to install the library
+# V=1 - verbose build
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable ${DEVTOOLSET} "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
+    scl enable ${DEVTOOLSET} "BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers"
 
 ## LIBPCSCLITE #####################################################################
 
 FROM centos:7 AS libpcsclite
 
 ARG DEVTOOLSET
+ARG TARGETARCH
+
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
@@ -144,8 +202,13 @@ RUN yum groupinstall -y 'Development Tools' && \
         autoconf-archive \
         libudev-devel \
         scl-utils \
-        centos-release-scl \
-        ${DEVTOOLSET}-gcc* && \
+        centos-release-scl && \
+    yum clean all
+
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ && \
     yum clean all
 
 # Install libpcsclite - compile with a newer GCC. The one installed by default is not able to compile it.
@@ -169,23 +232,28 @@ ENV LANGUAGE=en_US.UTF-8 \
 ARG GOLANG_VERSION
 ARG RUST_VERSION
 ARG DEVTOOLSET
+ARG TARGETARCH
 
 ARG UID
 ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
+# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
+# published to the official CentOS SCL repos.
+ENV DEVTOOLSET=${DEVTOOLSET} \
+    TARGETARCH=${TARGETARCH}
+
+RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
+    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
+
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    #required by libbpf
+    # required by libbpf
     centos-release-scl \
-    # required by libbpf
-    ${DEVTOOLSET}-* \
-    # required by libbpf
-    elfutils-libelf-devel-static \
     net-tools \
     # required by Teleport PAM support
     pam-devel \
@@ -193,21 +261,27 @@ RUN yum groupinstall -y 'Development Tools' && \
     tree \
     # used by our Makefile
     which \
-    zip \
-    # required by libbpf
-    zlib-static && \
+    zip && \
     yum clean all && \
     localedef -c -i en_US -f UTF-8 en_US.UTF-8
 
-# Override the old git installed by yum. We need git 2+ on GitHub Actions.
-COPY --from=git2 /opt/git /usr/local
+# As mentioned above, these packages are unsigned.
+RUN yum install --nogpgcheck -y \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ \
+        ${DEVTOOLSET}-make && \
+    yum clean all
+
+# Install custom packages with -fPIC.
+COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
+RUN rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static.*.rpm \
+        /opt/custom-packages/zlib-static.*.rpm && \
+    rm -rf /opt/custom-packages
+
+# Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
+COPY --from=git2 /opt/git /
 
 ARG BUILDARCH
-
-# Install etcd.
-RUN (curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
 
 # Install Go.
 RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
@@ -218,20 +292,6 @@ RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
-
-# Install node.
-RUN yum install -y python3
-ARG NODE_VERSION
-ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
-ENV NODE_PATH="/usr/local/lib/nodejs-linux"
-ENV PATH="$PATH:${NODE_PATH}/bin"
-RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
-     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
-     mkdir -p ${NODE_PATH} && \
-     curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
-     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
-RUN node --version
-RUN corepack enable yarn
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
@@ -253,6 +313,10 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup --version && \
     cargo --version && \
     rustc --version
+
+ARG WASM_PACK_VERSION
+# Install wasm-pack for targeting WebAssembly from Rust.
+RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.

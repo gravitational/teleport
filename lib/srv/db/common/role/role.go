@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package role
 
@@ -22,16 +24,35 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// DatabaseRoleMatchers returns role matchers based on the database.
-func DatabaseRoleMatchers(db types.Database, user, database string) services.RoleMatchers {
-	roleMatchers := services.RoleMatchers{
-		services.NewDatabaseUserMatcher(db, user),
+// RoleMatchersConfig contains parameters for database role matchers.
+type RoleMatchersConfig struct {
+	// Database is the database that's being connected to.
+	Database types.Database
+	// DatabaseUser is the database username.
+	DatabaseUser string
+	// DatabaseName is the database name.
+	DatabaseName string
+	// AutoCreateUser is whether database user will be auto-created.
+	AutoCreateUser bool
+	// DisableDatabaseNameMatcher skips DatabaseNameMatcher even if the protocol requires it.
+	DisableDatabaseNameMatcher bool
+}
+
+// GetDatabaseRoleMatchers returns database role matchers for the provided config.
+func GetDatabaseRoleMatchers(conf RoleMatchersConfig) (matchers services.RoleMatchers) {
+	// For automatic user provisioning, don't check against database users as
+	// users will be connecting as their own Teleport username.
+	disableDatabaseUserMatcher := conf.Database.SupportsAutoUsers() && conf.AutoCreateUser
+	if !disableDatabaseUserMatcher {
+		matchers = append(matchers, services.NewDatabaseUserMatcher(conf.Database, conf.DatabaseUser))
 	}
 
-	if matcher := databaseNameMatcher(db.GetProtocol(), database); matcher != nil {
-		roleMatchers = append(roleMatchers, matcher)
+	if !conf.DisableDatabaseNameMatcher {
+		if matcher := databaseNameMatcher(conf.Database.GetProtocol(), conf.DatabaseName); matcher != nil {
+			matchers = append(matchers, matcher)
+		}
 	}
-	return roleMatchers
+	return
 }
 
 // RequireDatabaseUserMatcher returns true if databases with provided protocol
@@ -73,7 +94,14 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		// OpenSearch integration doesn't support schema access control.
 		defaults.ProtocolOpenSearch,
 		// DynamoDB integration doesn't support schema access control.
-		defaults.ProtocolDynamoDB:
+		defaults.ProtocolDynamoDB,
+		// Snowflake integration doesn't support schema access control.
+		defaults.ProtocolSnowflake,
+		// Oracle integration doesn't support schema access control.
+		defaults.ProtocolOracle,
+		// Clickhouse Database Access doesn't support schema access control
+		defaults.ProtocolClickHouse,
+		defaults.ProtocolClickHouseHTTP:
 		return nil
 	default:
 		return &services.DatabaseNameMatcher{Name: database}

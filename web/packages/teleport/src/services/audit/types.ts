@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
@@ -120,6 +122,7 @@ export const eventCodes = {
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
+  GITHUB_CONNECTOR_UPDATED: 'T8002I',
   KUBE_REQUEST: 'T3009I',
   KUBE_CREATED: 'T3010I',
   KUBE_UPDATED: 'T3011I',
@@ -130,6 +133,7 @@ export const eventCodes = {
   MFA_DEVICE_DELETE: 'T1007I',
   OIDC_CONNECTOR_CREATED: 'T8100I',
   OIDC_CONNECTOR_DELETED: 'T8101I',
+  OIDC_CONNECTOR_UPDATED: 'T8102I',
   PORTFORWARD_FAILURE: 'T3003E',
   PORTFORWARD: 'T3003I',
   RECOVERY_TOKEN_CREATED: 'T6001I',
@@ -140,8 +144,10 @@ export const eventCodes = {
   RESET_PASSWORD_TOKEN_CREATED: 'T6000I',
   ROLE_CREATED: 'T9000I',
   ROLE_DELETED: 'T9001I',
+  ROLE_UPDATED: 'T9002I',
   SAML_CONNECTOR_CREATED: 'T8200I',
   SAML_CONNECTOR_DELETED: 'T8201I',
+  SAML_CONNECTOR_UPDATED: 'T8202I',
   SCP_DOWNLOAD_FAILURE: 'T3004E',
   SCP_DOWNLOAD: 'T3004I',
   SCP_UPLOAD_FAILURE: 'T3005E',
@@ -203,6 +209,7 @@ export const eventCodes = {
   TRUSTED_CLUSTER_CREATED: 'T7000I',
   TRUSTED_CLUSTER_DELETED: 'T7001I',
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
+  PROVISION_TOKEN_CREATED: 'TJT00I',
   UNKNOWN: 'TCC00E',
   USER_CREATED: 'T1002I',
   USER_DELETED: 'T1004I',
@@ -213,6 +220,10 @@ export const eventCodes = {
   USER_SSO_LOGINFAILURE: 'T1001W',
   USER_SSO_TEST_FLOW_LOGIN: 'T1010I',
   USER_SSO_TEST_FLOW_LOGINFAILURE: 'T1011W',
+  USER_HEADLESS_LOGIN_REQUESTED: 'T1012I',
+  USER_HEADLESS_LOGIN_APPROVED: 'T1013I',
+  USER_HEADLESS_LOGIN_APPROVEDFAILURE: 'T1013W',
+  USER_HEADLESS_LOGIN_REJECTED: 'T1014W',
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
@@ -238,6 +249,26 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
   OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
+  ACCESS_LIST_CREATE: 'TAL001I',
+  ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
+  ACCESS_LIST_UPDATE: 'TAL002I',
+  ACCESS_LIST_UPDATE_FAILURE: 'TAL002E',
+  ACCESS_LIST_DELETE: 'TAL003I',
+  ACCESS_LIST_DELETE_FAILURE: 'TAL003E',
+  ACCESS_LIST_REVIEW: 'TAL004I',
+  ACCESS_LIST_REVIEW_FAILURE: 'TAL004E',
+  ACCESS_LIST_MEMBER_CREATE: 'TAL005I',
+  ACCESS_LIST_MEMBER_CREATE_FAILURE: 'TAL005E',
+  ACCESS_LIST_MEMBER_UPDATE: 'TAL006I',
+  ACCESS_LIST_MEMBER_UPDATE_FAILURE: 'TAL006E',
+  ACCESS_LIST_MEMBER_DELETE: 'TAL007I',
+  ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
+  ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
+  SECURITY_REPORT_AUDIT_QUERY_RUN: 'SRE001I',
+  SECURITY_REPORT_RUN: 'SRE002I',
+  EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
+  EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
 } as const;
 
 /**
@@ -314,11 +345,17 @@ export type RawEvents = {
   [eventCodes.GITHUB_CONNECTOR_DELETED]: RawEventConnector<
     typeof eventCodes.GITHUB_CONNECTOR_DELETED
   >;
+  [eventCodes.GITHUB_CONNECTOR_UPDATED]: RawEventConnector<
+    typeof eventCodes.GITHUB_CONNECTOR_UPDATED
+  >;
   [eventCodes.OIDC_CONNECTOR_CREATED]: RawEventConnector<
     typeof eventCodes.OIDC_CONNECTOR_CREATED
   >;
   [eventCodes.OIDC_CONNECTOR_DELETED]: RawEventConnector<
     typeof eventCodes.OIDC_CONNECTOR_DELETED
+  >;
+  [eventCodes.OIDC_CONNECTOR_UPDATED]: RawEventConnector<
+    typeof eventCodes.OIDC_CONNECTOR_UPDATED
   >;
   [eventCodes.PORTFORWARD]: RawEvent<typeof eventCodes.PORTFORWARD>;
   [eventCodes.PORTFORWARD_FAILURE]: RawEvent<
@@ -332,6 +369,9 @@ export type RawEvents = {
   >;
   [eventCodes.SAML_CONNECTOR_DELETED]: RawEventConnector<
     typeof eventCodes.SAML_CONNECTOR_DELETED
+  >;
+  [eventCodes.SAML_CONNECTOR_UPDATED]: RawEventConnector<
+    typeof eventCodes.SAML_CONNECTOR_UPDATED
   >;
   [eventCodes.SCP_DOWNLOAD]: RawEvent<
     typeof eventCodes.SCP_DOWNLOAD,
@@ -577,8 +617,24 @@ export type RawEvents = {
       error: string;
     }
   >;
+  [eventCodes.USER_HEADLESS_LOGIN_REQUESTED]: RawEvent<
+    typeof eventCodes.USER_HEADLESS_LOGIN_REQUESTED
+  >;
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVED]: RawEvent<
+    typeof eventCodes.USER_HEADLESS_LOGIN_APPROVED
+  >;
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: RawEvent<
+    typeof eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE,
+    {
+      error: string;
+    }
+  >;
+  [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: RawEvent<
+    typeof eventCodes.USER_HEADLESS_LOGIN_REJECTED
+  >;
   [eventCodes.ROLE_CREATED]: RawEvent<typeof eventCodes.ROLE_CREATED, HasName>;
   [eventCodes.ROLE_DELETED]: RawEvent<typeof eventCodes.ROLE_DELETED, HasName>;
+  [eventCodes.ROLE_UPDATED]: RawEvent<typeof eventCodes.ROLE_UPDATED, HasName>;
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: RawEvent<
     typeof eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED
   >;
@@ -592,6 +648,13 @@ export type RawEvents = {
     typeof eventCodes.TRUSTED_CLUSTER_DELETED,
     {
       name: string;
+    }
+  >;
+  [eventCodes.PROVISION_TOKEN_CREATED]: RawEvent<
+    typeof eventCodes.PROVISION_TOKEN_CREATED,
+    {
+      roles: string[];
+      join_method: string;
     }
   >;
   [eventCodes.KUBE_REQUEST]: RawEvent<
@@ -628,6 +691,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: RawEvent<
@@ -637,6 +701,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_ENDED]: RawEvent<
@@ -994,6 +1059,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_STARTED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1002,6 +1068,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_STARTED_FAILED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1010,6 +1077,7 @@ export type RawEvents = {
     typeof eventCodes.DESKTOP_SESSION_ENDED,
     {
       desktop_addr: string;
+      desktop_name: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1295,6 +1363,122 @@ export type RawEvents = {
       source: string;
     }
   >;
+  [eventCodes.ACCESS_LIST_CREATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_CREATE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_UPDATE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_DELETE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_DELETE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_REVIEW]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_REVIEW,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: RawEventAccessList<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
+    {
+      access_list_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: RawEvent<
+    typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
+    {
+      access_list_name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: RawEvent<
+    typeof eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN,
+    {
+      query: string;
+      total_execution_time_in_millis: string;
+      total_data_scanned_in_bytes: string;
+    }
+  >;
+  [eventCodes.SECURITY_REPORT_RUN]: RawEvent<
+    typeof eventCodes.SECURITY_REPORT_RUN,
+    {
+      name: string;
+      total_execution_time_in_millis: string;
+      total_data_scanned_in_bytes: string;
+    }
+  >;
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: RawEvent<
+    typeof eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE,
+    {
+      updated_by: string;
+    }
+  >;
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: RawEvent<
+    typeof eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE,
+    {
+      updated_by: string;
+    }
+  >;
 };
 
 /**
@@ -1428,6 +1612,15 @@ type RawEventUserToken<T extends EventCode> = RawEvent<
   {
     name: string;
     ttl: string;
+  }
+>;
+
+type RawEventAccessList<T extends EventCode> = RawEvent<
+  T,
+  {
+    access_list_name: string;
+    members: { member_name: string }[];
+    updated_by: string;
   }
 >;
 

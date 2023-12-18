@@ -17,6 +17,9 @@ limitations under the License.
 package stream
 
 import (
+	"errors"
+	"io"
+
 	"github.com/gravitational/trace"
 )
 
@@ -71,7 +74,7 @@ func (stream *streamFunc[T]) Done() error {
 	for _, fn := range stream.doneFuncs {
 		fn()
 	}
-	if trace.IsEOF(stream.err) {
+	if errors.Is(stream.err, io.EOF) {
 		return nil
 	}
 	return stream.err
@@ -310,5 +313,62 @@ func PageFunc[T any](fn func() ([]T, error), doneFuncs ...func()) Stream[T] {
 			fn:        fn,
 			doneFuncs: doneFuncs,
 		},
+	}
+}
+
+// Take takes the next n items from a stream. It returns a slice of the items
+// and the result of the last call to stream.Next().
+func Take[T any](stream Stream[T], n int) ([]T, bool) {
+	items := make([]T, 0, n)
+	for i := 0; i < n; i++ {
+		if !stream.Next() {
+			return items, false
+		}
+		items = append(items, stream.Item())
+	}
+	return items, true
+}
+
+type rateLimit[T any] struct {
+	inner   Stream[T]
+	wait    func() error
+	waitErr error
+}
+
+func (stream *rateLimit[T]) Next() bool {
+	stream.waitErr = stream.wait()
+	if stream.waitErr != nil {
+		return false
+	}
+
+	return stream.inner.Next()
+}
+
+func (stream *rateLimit[T]) Item() T {
+	return stream.inner.Item()
+}
+
+func (stream *rateLimit[T]) Done() error {
+	if err := stream.inner.Done(); err != nil {
+		return err
+	}
+
+	if errors.Is(stream.waitErr, io.EOF) {
+		return nil
+	}
+
+	return stream.waitErr
+}
+
+// RateLimit applies a rate-limiting function to a stream s.t. calls to Next() block on
+// the supplied function before calling the inner stream. If the function returns an
+// error, the inner stream is not polled and Next() returns false. The wait function may
+// return io.EOF to indicate a graceful/expected halting condition. Any other error value
+// is treated as unexpected and will be bubbled up via Done() unless an error from the
+// inner stream takes precedence.
+func RateLimit[T any](stream Stream[T], wait func() error) Stream[T] {
+	return &rateLimit[T]{
+		inner: stream,
+		wait:  wait,
 	}
 }

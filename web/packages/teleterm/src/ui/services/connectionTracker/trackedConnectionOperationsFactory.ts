@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -25,6 +27,7 @@ import {
   getGatewayDocumentByConnection,
   getKubeDocumentByConnection,
   getServerDocumentByConnection,
+  getGatewayKubeDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,
@@ -46,7 +49,7 @@ export class TrackedConnectionOperationsFactory {
       case 'connection.gateway':
         return this.getConnectionGatewayOperations(connection);
       case 'connection.kube':
-        return this.getConnectionKubeOperations(connection);
+        return this.getConnectionGatewayKubeOperations(connection);
     }
   }
 
@@ -135,7 +138,7 @@ export class TrackedConnectionOperationsFactory {
         }
         documentsService.open(gwDoc.uri);
       },
-      disconnect: () => {
+      disconnect: async () => {
         return this._clustersService
           .removeGateway(connection.gatewayUri)
           .then(() => {
@@ -151,7 +154,7 @@ export class TrackedConnectionOperationsFactory {
     };
   }
 
-  private getConnectionKubeOperations(
+  private getConnectionGatewayKubeOperations(
     connection: TrackedKubeConnection
   ): TrackedConnectionOperations {
     const { rootClusterId, leafClusterId } = routing.parseKubeUri(
@@ -169,34 +172,41 @@ export class TrackedConnectionOperationsFactory {
       rootClusterUri,
       leafClusterUri,
       activate: params => {
-        let kubeConn = documentsService
+        let gwDoc = documentsService
           .getDocuments()
-          .find(getKubeDocumentByConnection(connection));
+          .find(getGatewayKubeDocumentByConnection(connection));
 
-        if (!kubeConn) {
-          kubeConn = documentsService.createTshKubeDocument({
-            kubeUri: connection.kubeUri,
-            kubeConfigRelativePath: connection.kubeConfigRelativePath,
+        if (!gwDoc) {
+          gwDoc = documentsService.createGatewayKubeDocument({
+            targetUri: connection.kubeUri,
             origin: params.origin,
           });
-
-          documentsService.add(kubeConn);
+          documentsService.add(gwDoc);
         }
-        documentsService.open(kubeConn.uri);
+        documentsService.open(gwDoc.uri);
       },
       disconnect: async () => {
-        documentsService
-          .getDocuments()
-          .filter(getKubeDocumentByConnection(connection))
-          .forEach(document => {
-            documentsService.close(document.uri);
+        return this._clustersService
+          .removeKubeGateway(connection.kubeUri)
+          .then(() => {
+            documentsService
+              .getDocuments()
+              .filter(getGatewayKubeDocumentByConnection(connection))
+              .forEach(document => {
+                documentsService.close(document.uri);
+              });
+
+            // Remove deprecated doc.terminal_tsh_kube documents.
+            // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+            documentsService
+              .getDocuments()
+              .filter(getKubeDocumentByConnection(connection))
+              .forEach(document => {
+                documentsService.close(document.uri);
+              });
           });
       },
-      remove: () => {
-        return this._clustersService.removeKubeConfig(
-          connection.kubeConfigRelativePath
-        );
-      },
+      remove: async () => {},
     };
   }
 

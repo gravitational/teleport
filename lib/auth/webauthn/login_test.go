@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthn_test
 
@@ -31,9 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestLoginFlow_BeginFinish(t *testing.T) {
@@ -127,7 +130,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			// Did we record the SessionData in storage?
 			require.Len(t, identity.SessionData, 1)
 			// Did we record the web ID in the SessionData?
-			var sd *wantypes.SessionData
+			var sd *wanpb.SessionData
 			for _, v := range identity.SessionData {
 				sd = v // Retrieve without guessing the key
 				break
@@ -265,27 +268,27 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	tests := []struct {
 		name       string
 		user       string
-		createResp func() *wanlib.CredentialAssertionResponse
+		createResp func() *wantypes.CredentialAssertionResponse
 	}{
 		{
 			name:       "NOK empty user",
 			user:       "",
-			createResp: func() *wanlib.CredentialAssertionResponse { return okResp },
+			createResp: func() *wantypes.CredentialAssertionResponse { return okResp },
 		},
 		{
 			name:       "NOK nil resp",
 			user:       user,
-			createResp: func() *wanlib.CredentialAssertionResponse { return nil },
+			createResp: func() *wantypes.CredentialAssertionResponse { return nil },
 		},
 		{
 			name:       "NOK empty resp",
 			user:       user,
-			createResp: func() *wanlib.CredentialAssertionResponse { return &wanlib.CredentialAssertionResponse{} },
+			createResp: func() *wantypes.CredentialAssertionResponse { return &wantypes.CredentialAssertionResponse{} },
 		},
 		{
 			name: "NOK assertion with bad origin",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 				resp, err := key.SignAssertion("https://badorigin.com", assertion)
@@ -296,7 +299,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		{
 			name: "NOK assertion with bad RPID",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = "badrpid.com"
@@ -309,7 +312,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		{
 			name: "NOK assertion signed by unknown device",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 
@@ -326,7 +329,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		{
 			name: "NOK assertion with invalid signature",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
@@ -409,12 +412,12 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 
 			// Verify that we recorded user verification requirements in storage.
 			require.Len(t, identity.SessionData, 1)
-			var sd *wantypes.SessionData
+			var sd *wanpb.SessionData
 			for _, v := range identity.SessionData {
 				sd = v // Get SessionData without guessing the key.
 				break
 			}
-			wantSD := &wantypes.SessionData{
+			wantSD := &wanpb.SessionData{
 				Challenge:        sd.Challenge,
 				UserId:           nil,   // aka unset
 				AllowCredentials: nil,   // aka unset
@@ -471,13 +474,13 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		createResp    func() *wanlib.CredentialAssertionResponse
+		createResp    func() *wantypes.CredentialAssertionResponse
 		assertErrType func(error) bool
 		wantErrMsg    string
 	}{
 		{
 			name: "NOK response without UserID",
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *wantypes.CredentialAssertionResponse {
 				// UserHandle is already nil on assertionResp
 				return assertionResp
 			},
@@ -486,7 +489,7 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 		},
 		{
 			name: "NOK unknown user handle",
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *wantypes.CredentialAssertionResponse {
 				unknownHandle := make([]byte, 10 /* arbitrary */)
 				cp := *assertionResp
 				cp.AssertionResponse.UserHandle = unknownHandle
@@ -627,7 +630,7 @@ type fakeIdentity struct {
 	// It's automatically assigned when UpsertWebauthnLocalAuth is called.
 	MappedUser     string
 	UpdatedDevices []*types.MFADevice
-	SessionData    map[string]*wantypes.SessionData
+	SessionData    map[string]*wanpb.SessionData
 }
 
 func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
@@ -642,7 +645,7 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 				},
 			},
 		},
-		SessionData: make(map[string]*wantypes.SessionData),
+		SessionData: make(map[string]*wanpb.SessionData),
 	}
 }
 
@@ -687,12 +690,12 @@ func (f *fakeIdentity) GetTeleportUserByWebauthnID(ctx context.Context, webID []
 	return f.MappedUser, nil
 }
 
-func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	f.SessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	sd, ok := f.SessionData[sessionDataKey(user, sessionID)]
 	if !ok {
 		return nil, trace.NotFound("not found")
@@ -709,12 +712,12 @@ func sessionDataKey(user string, sessionID string) string {
 	return fmt.Sprintf("user/%v/%v", user, sessionID)
 }
 
-func (f *fakeIdentity) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
+func (f *fakeIdentity) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error {
 	f.SessionData[globalSessionDataKey(scope, id)] = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
+func (f *fakeIdentity) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error) {
 	sd, ok := f.SessionData[globalSessionDataKey(scope, id)]
 	if !ok {
 		return nil, trace.NotFound("not found")

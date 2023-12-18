@@ -1,52 +1,37 @@
-/*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
-import { useLocalStorage } from 'shared/hooks/useLocalStorage';
-import { OpenAIIcon } from 'design/SVGIcon/OpenAI';
-
-import { useHistory, useLocation } from 'react-router';
-
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
-import { useTeleport } from 'teleport';
-
-import { KeysEnum } from 'teleport/services/localStorage';
-
-import cfg from 'teleport/config';
-
-import {
-  TeleportIcon,
-  Tooltip,
-  TooltipButton,
-  TooltipFooter,
-  TooltipLogos,
-  TooltipLogosSpacer,
-  TooltipTitle,
-  TooltipTitleBackground,
-} from './AssistTooltip';
+type NavigationItems = {
+  category: NavigationCategory;
+  requiresAttention?: boolean;
+};
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
   value: NavigationCategory;
-  items: NavigationCategory[];
+  items: NavigationItems[];
 }
 
 interface OpenProps {
@@ -61,6 +46,8 @@ const Container = styled.div`
   position: relative;
   align-self: center;
   user-select: none;
+  margin-bottom: 25px;
+  margin-top: 26px;
 `;
 
 const ActiveValue = styled.div<OpenProps>`
@@ -130,39 +117,17 @@ const Arrow = styled.div<OpenProps>`
   }
 `;
 
-const Background = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 98;
-  background: rgba(0, 0, 0, 0.6);
-`;
-
 export function NavigationSwitcher(props: NavigationSwitcherProps) {
-  const ctx = useTeleport();
-  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
-
-  const location = useLocation();
-  const isAssistRoute = location.pathname.startsWith(cfg.routes.assistBase);
-
-  const [showAssist, setShowAssist] = useLocalStorage(
-    KeysEnum.SHOW_ASSIST_POPUP,
-    assistEnabled && !isAssistRoute
-  );
-
-  const theme = useTheme();
-
-  const [open, setOpen] = useState(showAssist);
-
-  const history = useHistory();
+  const [open, setOpen] = useState(false);
 
   const ref = useRef<HTMLDivElement>();
   const activeValueRef = useRef<HTMLDivElement>();
   const firstValueRef = useRef<HTMLDivElement>();
 
-  const activeItem = props.items.find(item => item === props.value);
+  const activeItem = props.items.find(item => item.category === props.value);
+  const requiresAttentionButNotActive = props.items.some(
+    item => item.requiresAttention && item.category !== activeItem.category
+  );
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
@@ -249,14 +214,8 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleChange = useCallback(
     (value: NavigationCategory) => {
-      setShowAssist(false);
-
       if (props.value !== value) {
         props.onChange(value);
-      }
-
-      if (value === NavigationCategory.Assist) {
-        history.push(cfg.routes.assistBase);
       }
 
       setOpen(false);
@@ -267,59 +226,38 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const items = [];
 
   for (const [index, item] of props.items.entries()) {
-    if (item === NavigationCategory.Assist && !assistEnabled) {
-      continue;
-    }
-
     items.push(
       <DropdownItem
         ref={index === 0 ? firstValueRef : null}
-        onKeyDown={event => handleKeyDownLink(event, item)}
+        onKeyDown={event => handleKeyDownLink(event, item.category)}
         tabIndex={open ? 0 : -1}
-        onClick={() => handleChange(item)}
+        onClick={() => handleChange(item.category)}
         key={index}
         open={open}
-        active={item === props.value}
+        active={item.category === props.value}
       >
-        {item}
+        {item.category}
+        {item.requiresAttention && item.category !== activeItem.category && (
+          <DropDownItemAttentionDot data-testid="dd-item-attention-dot" />
+        )}
       </DropdownItem>
     );
   }
 
   return (
     <Container ref={ref}>
-      {showAssist && (
-        <>
-          <Background />
-          <Tooltip>
-            <TooltipTitle>
-              <TooltipTitleBackground>New!</TooltipTitleBackground>
-            </TooltipTitle>{' '}
-            Try out Teleport Assist, a GPT-4-powered AI assistant that leverages
-            your infrastructure
-            <TooltipFooter>
-              <TooltipLogos>
-                <OpenAIIcon size={30} />
-                <TooltipLogosSpacer>+</TooltipLogosSpacer>
-                <TeleportIcon light={theme.name === 'light'} />
-              </TooltipLogos>
-
-              <TooltipButton onClick={() => setShowAssist(false)}>
-                Close
-              </TooltipButton>
-            </TooltipFooter>
-          </Tooltip>
-        </>
+      {requiresAttentionButNotActive && (
+        <NavSwitcherAttentionDot data-testid="nav-switch-attention-dot" />
       )}
-
       <ActiveValue
         ref={activeValueRef}
         onClick={() => setOpen(!open)}
         open={open}
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        data-testid="nav-switch-button"
       >
-        {activeItem}
+        {activeItem.category}
 
         <Arrow open={open}>
           <ChevronDownIcon />
@@ -330,3 +268,24 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     </Container>
   );
 }
+
+const NavSwitcherAttentionDot = styled.div`
+  position: absolute;
+  background-color: ${props => props.theme.colors.error.main};
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  right: -3px;
+  top: -4px;
+  z-index: 100;
+`;
+
+const DropDownItemAttentionDot = styled.div`
+  display: inline-block;
+  margin-left: 10px;
+  margin-top: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: ${props => props.theme.colors.error.main};
+`;

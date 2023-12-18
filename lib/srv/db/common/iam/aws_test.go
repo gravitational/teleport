@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package iam
 
@@ -67,6 +69,28 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: "redis",
 		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: "some-group",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	memorydb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-memorydb",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			MemoryDB: types.MemoryDB{
+				ClusterName:  "my-memorydb",
+				TLSEnabled:   true,
+				EndpointType: "cluster",
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -122,7 +146,35 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 		},
 		{
 			inputDatabase: elasticache,
-			expectError:   true,
+			expectPolicyDocument: `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "elasticache:Connect",
+            "Resource": [
+                "arn:aws:elasticache:ca-central-1:123456789012:replicationgroup:some-group",
+                "arn:aws:elasticache:ca-central-1:123456789012:user:*"
+            ]
+        }
+    ]
+}`,
+		},
+		{
+			inputDatabase: memorydb,
+			expectPolicyDocument: `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "memorydb:Connect",
+            "Resource": [
+                "arn:aws:memorydb:us-east-1:123456789012:cluster/my-memorydb",
+                "arn:aws:memorydb:us-east-1:123456789012:user/*"
+            ]
+        }
+    ]
+}`,
 		},
 	}
 
@@ -147,6 +199,77 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, policyDoc, readablePolicyDocParsed)
 			}
+		})
+	}
+}
+
+func TestGetAWSPolicyDocumentForAssumedRole(t *testing.T) {
+	redshift, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-redshift",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5438",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	redshiftServerless, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-redshift-serverless",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "my-workgroup.123456789012.us-east-1.redshift-serverless.amazonaws.com:5439",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		inputDatabase        types.Database
+		expectPolicyDocument string
+		expectPlaceholders   Placeholders
+	}{
+		{
+			inputDatabase: redshift,
+			expectPolicyDocument: `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "redshift:GetClusterCredentialsWithIAM",
+            "Resource": "arn:aws:redshift:us-east-1:123456789012:dbname:redshift-cluster-1/*"
+        }
+    ]
+}`,
+		},
+		{
+			inputDatabase: redshiftServerless,
+			expectPolicyDocument: `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "redshift-serverless:GetCredentials",
+            "Resource": "arn:aws:redshift-serverless:us-east-1:123456789012:workgroup/{workgroup_id}"
+        }
+    ]
+}`,
+			expectPlaceholders: Placeholders{"{workgroup_id}"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.inputDatabase.GetName(), func(t *testing.T) {
+			policyDoc, placeholders, err := GetAWSPolicyDocumentForAssumedRole(test.inputDatabase)
+			require.NoError(t, err)
+			require.Equal(t, test.expectPlaceholders, placeholders)
+
+			readablePolicyDoc, err := GetReadableAWSPolicyDocumentForAssumedRole(test.inputDatabase)
+			require.NoError(t, err)
+			require.Equal(t, test.expectPolicyDocument, readablePolicyDoc)
+
+			readablePolicyDocParsed, err := awslib.ParsePolicyDocument(readablePolicyDoc)
+			require.NoError(t, err)
+			require.Equal(t, policyDoc, readablePolicyDocParsed)
 		})
 	}
 }

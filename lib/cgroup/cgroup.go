@@ -2,20 +2,22 @@
 // +build linux
 
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package cgroup
 
@@ -41,6 +43,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -92,11 +95,17 @@ func New(config *Config) (*Service, error) {
 	return s, nil
 }
 
-// Close will unmount the cgroup filesystem.
-func (s *Service) Close() error {
+// Close will clean up the session cgroups and unmount the cgroup2 filesystem,
+// unless otherwise requested.
+func (s *Service) Close(skipUnmount bool) error {
 	err := s.cleanupHierarchy()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if skipUnmount {
+		log.Debugf("Cleaned up Teleport session hierarchy at: %v.", s.teleportRoot)
+		return nil
 	}
 
 	err = s.unmount()
@@ -165,7 +174,7 @@ func (s *Service) Place(sessionID string, pid int) error {
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
 // within a cgroup.
 func readPids(path string) ([]string, error) {
-	f, err := os.Open(path)
+	f, err := utils.OpenFileNoUnsafeLinks(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

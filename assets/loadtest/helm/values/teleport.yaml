@@ -1,0 +1,36 @@
+chartMode: aws
+clusterName: <yourname>-lt.teleportdemo.net
+aws:
+  region: us-east-1
+  backendTable: <yourname>-teleport-helm-backend
+  auditLogTable: <yourname>-teleport-helm-events
+  auditLogMirrorOnStdout: false
+  sessionRecordingBucket: <yourname>-teleport-helm-sessions
+  backups: false
+  dynamoAutoScaling: false
+
+highAvailability:
+  replicaCount: 2
+  certManager:
+    enabled: true
+    issuerName: letsencrypt-production
+
+resources:
+  limits:
+    memory: 8Gi
+  requests:
+    cpu: 4
+    memory: 8Gi
+
+podMonitor:
+  enabled: true
+  interval: ""
+
+teleportVersionOverride: 13.0.0-alpha.1
+
+auth:
+  teleportConfig:
+    auth_service:
+      routing_strategy: 'most_recent'
+      # tokens:
+      #   - "node:qwertyuiop"

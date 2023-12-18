@@ -1,36 +1,19 @@
 ---
-title: Database Access with Microsoft SQL Server with Active Directory authentication (Preview)
+title: Database Access with Microsoft SQL Server with Active Directory authentication
 description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="9.0"
->
-  Database access for Microsoft SQL Server with Active Directory authentication
-  is available starting from Teleport `9.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Microsoft SQL Server" dbConfigure="Microsoft SQL Server database with Active Directory authentication" dbName="Microsoft SQL Server" !)
 
-<Admonition type="warning" title="Preview">
-  Database access for Microsoft SQL Server is currently in Preview mode.
-</Admonition>
-
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up access to SQL Server using Active Directory authentication.
-- Connect to SQL Server through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
-</ScopedBlock>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-1.png)
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-2.png)
+</TabItem>
+</Tabs>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
 Directory authentication.
@@ -224,7 +207,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
   Active Directory domain as the SQL Server.
 </Admonition>
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Proxy Service address and `--uri` to the SQL Server
@@ -244,8 +228,8 @@ endpoint.
     --labels=env=dev
   ```
   
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Configure the Teleport Database Service. Make sure to update `--proxy` to
 point to your Teleport Cloud tenant address and `--uri` to the SQL Server
@@ -265,7 +249,9 @@ endpoint.
     --labels=env=dev
   ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Provide Active Directory parameters:
 
@@ -328,7 +314,8 @@ master> CREATE LOGIN [EXAMPLE\alice] FROM WINDOWS WITH DEFAULT_DATABASE = [maste
 Log in to your Teleport cluster. Your SQL Server database should appear in the
 list of available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
@@ -338,8 +325,8 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
@@ -349,7 +336,9 @@ $ tsh db ls
 # sqlserver                     env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
@@ -357,13 +346,7 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=teleport sqlserver
 ```
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.  
-  
-  `mssql-cli` is not required for SQL Server connections.  Use `tsh proxy db --db-user=teleport --tunnel sqlserver`
-   to connect from other DB Clients such as Microsoft SQL Server Management Studio.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 To log out of the database and remove credentials:
 
@@ -415,3 +398,4 @@ skipping TLS verification in production environments.
 
 - [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
 - [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
+

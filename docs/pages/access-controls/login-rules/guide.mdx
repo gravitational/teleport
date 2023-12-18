@@ -1,11 +1,7 @@
 ---
-title: Set Up Login Rules (Preview)
+title: Set Up Login Rules 
 description: Set up Login Rules to transform user traits
 ---
-
-<Admonition type="warning" title="Preview">
-  Login Rules are currently in Preview mode.
-</Admonition>
 
 This guide will walk you through the process of writing, testing, and adding the
 first Login Rule to your Teleport cluster.
@@ -39,13 +35,13 @@ spec:
     rules:
       - resources: [login_rule]
         verbs: [list, create, read, update, delete]
-version: v6
+version: v7
 ```
 
 Create the role with `tctl`:
 
 ```code
-$ tctl create loginrule-manager.yaml 
+$ tctl create loginrule-manager.yaml
 role 'loginrule-manager' has been created
 ```
 
@@ -159,7 +155,7 @@ $ tctl get --format json users/<Var name="username"/> | jq '{traits: first.spec.
 
 ## Troubleshooting
 
-The [`tctl sso test`](../../reference/cli.mdx#tctl-sso-test) command can be used to
+The [`tctl sso test`](../../reference/cli/tctl.mdx#tctl-sso-test) command can be used to
 debug SSO logins and see exactly which traits are being sent by your SSO
 provider and how they are being mapped by your Login Rules.
 
@@ -177,7 +173,7 @@ To learn more about the Login Rule expression syntax, check out the
 [Login Rule Reference](./reference.mdx) page.
 
 Learn about the `tctl login_rule test` command by running the help command or
-checking the [reference page](../../reference/cli.mdx#tctl-login_rule-test).
+checking the [reference page](../../reference/cli/tctl.mdx#tctl-login_rule-test).
 ```code
 $ tctl help login_rule test
 ```

@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -236,7 +238,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	// No app servers should be registered initially
 	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create app servers.
 	lease, err := presence.UpsertApplicationServer(ctx, serverA)
@@ -252,7 +254,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	servers := types.AppServers(out)
 	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Delete an app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
@@ -262,7 +264,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Upsert server with TTL.
 	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -287,6 +289,20 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 func TestDatabaseServersCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -304,8 +320,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "foo",
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
+		Database: mustCreateDatabase(t, "foo", defaults.ProtocolPostgres, "localhost:5432"),
 		Hostname: "localhost",
 		HostID:   uuid.New().String(),
 	})
@@ -314,7 +329,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Initially expect not to be returned any servers.
 	out, err := presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Upsert server.
 	lease, err := presence.UpsertDatabaseServer(ctx, server)
@@ -324,8 +339,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Check again, expect a single server to be found.
 	out, err = presence.GetDatabaseServers(ctx, server.GetNamespace())
 	require.NoError(t, err)
-	server.SetResourceID(out[0].GetResourceID())
-	require.EqualValues(t, []types.DatabaseServer{server}, out)
+	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
@@ -345,7 +359,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Now expect no servers to be returned.
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Upsert server with TTL.
 	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
@@ -372,7 +386,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Now expect no servers to be returned.
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 }
 
 func TestNodeCRUD(t *testing.T) {
@@ -393,7 +407,7 @@ func TestNodeCRUD(t *testing.T) {
 		// Initially expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
-		require.Equal(t, 0, len(nodes))
+		require.Empty(t, nodes)
 
 		// Create nodes
 		_, err = presence.UpsertNode(ctx, node1)
@@ -411,7 +425,7 @@ func TestNodeCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, len(nodes), 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// GetNodes should fail if namespace isn't provided
 			_, err = presence.GetNodes(ctx, "")
@@ -423,7 +437,7 @@ func TestNodeCRUD(t *testing.T) {
 			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
-				cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 			// GetNode should fail if node name isn't provided
 			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
@@ -453,7 +467,7 @@ func TestNodeCRUD(t *testing.T) {
 		// Now expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
-		require.Equal(t, 0, len(nodes))
+		require.Empty(t, nodes)
 	})
 }
 
@@ -471,12 +485,13 @@ func TestListResources(t *testing.T) {
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: db,
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -495,12 +510,13 @@ func TestListResources(t *testing.T) {
 		"DatabaseServersSameHost": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: db,
 					Hostname: "localhost",
 					HostID:   "some-host",
 				})
@@ -847,7 +863,14 @@ func TestListResources_Helpers(t *testing.T) {
 				nodes, err := presence.GetNodes(ctx, namespace)
 				require.NoError(t, err)
 
-				return FakePaginate(types.Servers(nodes).AsResources(), req)
+				return FakePaginate(types.Servers(nodes).AsResources(), FakePaginateParams{
+					ResourceType:        req.ResourceType,
+					Limit:               req.Limit,
+					Labels:              req.Labels,
+					SearchKeywords:      req.SearchKeywords,
+					PredicateExpression: req.PredicateExpression,
+					StartKey:            req.StartKey,
+				})
 			},
 		},
 	}
@@ -886,6 +909,7 @@ func TestListResources_Helpers(t *testing.T) {
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
 			Namespace:    namespace,
+			Limit:        -1,
 		}
 		for _, tc := range tests {
 			tc := tc
@@ -1061,7 +1085,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				req := proto.ListResourcesRequest{
+				req := FakePaginateParams{
 					ResourceType:   types.KindNode,
 					Limit:          int32(tc.limit),
 					NeedTotalCount: true,
@@ -1072,7 +1096,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, resp.Resources, tc.limit)
 				require.Equal(t, resources[0:tc.limit], resp.Resources)
-				require.Equal(t, len(nodes), resp.TotalCount)
+				require.Len(t, nodes, resp.TotalCount)
 
 				// Next fetch should return same amount of totals.
 				if tc.limit != len(nodes) {
@@ -1083,11 +1107,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 					require.NoError(t, err)
 					require.Len(t, resp.Resources, tc.limit)
 					require.Equal(t, resources[tc.limit:tc.limit*2], resp.Resources)
-					require.Equal(t, len(nodes), resp.TotalCount)
+					require.Len(t, nodes, resp.TotalCount)
 				} else {
 					require.Empty(t, resp.NextKey)
 					require.Equal(t, resources, resp.Resources)
-					require.Equal(t, len(nodes), resp.TotalCount)
+					require.Len(t, nodes, resp.TotalCount)
 				}
 			})
 		}
@@ -1095,7 +1119,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 	t.Run("total count with no match", func(t *testing.T) {
 		t.Parallel()
-		req := proto.ListResourcesRequest{
+		req := FakePaginateParams{
 			ResourceType:   types.KindNode,
 			Limit:          5,
 			NeedTotalCount: true,
@@ -1110,7 +1134,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 	t.Run("total count with all matches", func(t *testing.T) {
 		t.Parallel()
-		req := proto.ListResourcesRequest{
+		req := FakePaginateParams{
 			ResourceType:   types.KindNode,
 			Limit:          5,
 			NeedTotalCount: true,
@@ -1328,23 +1352,15 @@ func TestServerInfoCRUD(t *testing.T) {
 			"a": "b",
 			"c": "d",
 		},
-	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "abcd",
-			InstanceID: "1234",
-		},
-	})
+	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfoA.SetSubKind(types.SubKindCloudInfo)
 
 	serverInfoB, err := types.NewServerInfo(types.Metadata{
 		Name: "server2",
-	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "efgh",
-			InstanceID: "5678",
-		},
-	})
+	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfoB.SetSubKind(types.SubKindCloudInfo)
 
 	// No infos present initially.
 	out, err := stream.Collect(presence.GetServerInfos(ctx))
@@ -1359,11 +1375,15 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = presence.GetServerInfo(ctx, "nonexistant")
 	require.True(t, trace.IsNotFound(err))
@@ -1373,7 +1393,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Update server info.
 	serverInfoB.SetStaticLabels(map[string]string{
@@ -1384,7 +1404,7 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// Delete all server infos.
 	require.NoError(t, presence.DeleteAllServerInfos(ctx))

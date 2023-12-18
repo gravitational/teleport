@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package lite
 
@@ -69,57 +71,32 @@ func TestLite(t *testing.T) {
 	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-// newBackend creates a backend instance that automatically deletes itself
-// at the end of the supplied test
-func newBackend(t *testing.T) *Backend {
-	clock := clockwork.NewFakeClock()
-	backend, err := NewWithConfig(context.Background(), Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 300 * time.Millisecond,
-		Clock:            clock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { backend.Close() })
-	return backend
-}
-
-// Import tests importing values
-func TestImport(t *testing.T) {
-	ctx := context.Background()
-	prefix := test.MakePrefix()
-
-	uut := newBackend(t)
-
-	imported, err := uut.Imported(ctx)
-	require.NoError(t, err)
-	require.False(t, imported)
-
-	// add one element that should not show up
-	items := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
+func TestConnectionURIGeneration(t *testing.T) {
+	fileNameAndParams := "/sqlite.db?_busy_timeout=0&_txlock=immediate"
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{
+			name:     "absolute path",
+			path:     "/Users/testuser/data_dir",
+			expected: "file:/Users/testuser/data_dir" + fileNameAndParams,
+		}, {
+			name:     "relative path",
+			path:     "./data_dir",
+			expected: "file:data_dir" + fileNameAndParams,
+		}, {
+			name:     "path with space",
+			path:     "/Users/testuser/dir with spaces/data_dir",
+			expected: "file:/Users/testuser/dir%20with%20spaces/data_dir" + fileNameAndParams,
+		},
 	}
-	err = uut.Import(ctx, items)
-	require.NoError(t, err)
 
-	// prefix range fetch
-	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
-	require.NoError(t, err)
-	expected := []backend.Item{
-		{Key: prefix("/prefix/a"), Value: []byte("val a")},
-		{Key: prefix("/prefix/b"), Value: []byte("val b")},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := Config{Path: tt.path}
+			require.Equal(t, tt.expected, conf.ConnectionURI())
+		})
 	}
-	test.RequireItems(t, result.Items, expected)
-
-	imported, err = uut.Imported(ctx)
-	require.NoError(t, err)
-	require.True(t, imported)
-
-	err = uut.Import(ctx, items)
-	require.True(t, trace.IsAlreadyExists(err))
-
-	imported, err = uut.Imported(ctx)
-	require.NoError(t, err)
-	require.True(t, imported)
 }

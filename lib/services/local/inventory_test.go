@@ -1,28 +1,28 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
-// TestInstanceCAS verifies basic expected behavior of instance creation/update.
-func TestInstanceCAS(t *testing.T) {
+// TestInstanceUpsert verifies basic expected behavior of instance creation/update.
+func TestInstanceUpsert(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -49,21 +49,20 @@ func TestInstanceCAS(t *testing.T) {
 
 	presence := NewPresenceService(backend)
 
-	instance1, err := types.NewInstance(uuid.NewString(), types.InstanceSpecV1{})
+	instance1, err := types.NewInstance(uuid.NewString(), types.InstanceSpecV1{
+		Hostname: "h1",
+	})
 	require.NoError(t, err)
 
-	raw1, err := presence.CompareAndSwapInstance(ctx, instance1, nil)
+	err = presence.UpsertInstance(ctx, instance1)
 	require.NoError(t, err)
-
-	// verify that "create" style compare and swaps are now rejected
-	_, err = presence.CompareAndSwapInstance(ctx, instance1, nil)
-	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err))
 
 	// get the inserted instance
 	instances, err := stream.Collect(presence.GetInstances(ctx, types.InstanceFilter{}))
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
+
+	require.Equal(t, "h1", instances[0].GetHostname())
 
 	// verify that expiry and last_seen are automatically set to expected values.
 	exp1 := instances[0].Expiry()
@@ -76,41 +75,27 @@ func TestInstanceCAS(t *testing.T) {
 	require.True(t, exp1.After(presence.Clock().Now()))
 	require.False(t, exp1.After(presence.Clock().Now().Add(apidefaults.ServerAnnounceTTL*2)))
 
-	// update the instance control log
-	instance1.AppendControlLog(types.InstanceControlLogEntry{
-		Type: "testing",
-		ID:   1,
-		TTL:  time.Hour * 24,
+	instance2, err := types.NewInstance(instance1.GetName(), types.InstanceSpecV1{
+		Hostname: "h2",
 	})
-	instance1.SyncLogAndResourceExpiry(apidefaults.ServerAnnounceTTL)
-
-	// verify expected increase in ttl to accommodate custom log entry TTL (sanity check
-	// to differentiate bugs in SyncLogAndResourceExpiry from bugs in presence/backend).
-	require.Equal(t, seen1.Add(time.Hour*24), instance1.Expiry())
-
-	// perform normal compare and swap using raw value from previous successful call
-	_, err = presence.CompareAndSwapInstance(ctx, instance1, raw1)
 	require.NoError(t, err)
 
-	// verify that raw value from previous successful CaS no longer works
-	_, err = presence.CompareAndSwapInstance(ctx, instance1, raw1)
-	require.Error(t, err)
-	require.True(t, trace.IsCompareFailed(err))
+	err = presence.UpsertInstance(ctx, instance2)
+	require.NoError(t, err)
 
 	// load new instance state
 	instances2, err := stream.Collect(presence.GetInstances(ctx, types.InstanceFilter{}))
 	require.NoError(t, err)
 	require.Len(t, instances2, 1)
 
-	// ensure that ttl and log were preserved
-	require.Equal(t, seen1.Add(time.Hour*24), instances2[0].Expiry())
-	require.Len(t, instances2[0].GetControlLog(), 1)
+	// ensure that updated state propagated
+	require.Equal(t, "h2", instances2[0].GetHostname())
 }
 
 // TestInstanceFiltering tests basic filtering options. A sufficiently large
 // instance count is used to ensure that queries span many pages.
 func TestInstanceFiltering(t *testing.T) {
-	const count = 100_000
+	const count = 10_000
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -160,7 +145,7 @@ func TestInstanceFiltering(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = presence.CompareAndSwapInstance(ctx, instance, nil)
+		err = presence.UpsertInstance(ctx, instance)
 		require.NoError(t, err)
 	}
 

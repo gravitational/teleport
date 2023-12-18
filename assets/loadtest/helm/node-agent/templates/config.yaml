@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  teleport.yaml: |2
+    version: v3
+    teleport:
+      log:
+        severity: DEBUG
+      storage:
+        type: dir
+      {{- if .Values.authServer }}
+      auth_server: {{ .Values.authServer }}
+      {{- end }}
+      {{- if .Values.proxyServer }}
+      proxy_server: {{ .Values.proxyServer }}
+      {{- end }}
+      join_params: {{- toYaml .Values.joinParams | nindent 8 }}
+    auth_service:
+      enabled: false
+    proxy_service:
+      enabled: false
+    ssh_service:
+      enabled: true
+      commands:
+        - name: fullname
+          command: ['bash', '-c', 'echo "$HOSTNAME-$REPLICA"']
+      # listen_addr set at runtime to avoid conflicts in the same pod
+      # listen_addr: 0.0.0.0:3022
+  entrypoint.sh: |2
+    #!/bin/bash
+    set -euxo pipefail
+    cp /etc/teleport-config/teleport.yaml /etc/teleport.yaml
+    echo "  listen_addr: '0.0.0.0:30$REPLICA'" >> /etc/teleport.yaml
+    HOST="$(hostname)-$REPLICA"
+    cat /etc/teleport.yaml
+    exec teleport start -c /etc/teleport.yaml --nodename $HOST

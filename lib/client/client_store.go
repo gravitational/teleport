@@ -1,19 +1,25 @@
 /*
-Copyright 2022 Gravitational, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"time"
@@ -76,11 +82,25 @@ func (s *Store) AddKey(key *Key) error {
 	return nil
 }
 
+// ErrNoCredentials is returned by the client store when a specific key is not found.
+// This error can be used to determine whether a client should retrieve new credentials,
+// like how it is used with lib/client.RetryWithRelogin.
+var ErrNoCredentials = trace.NotFound("no credentials")
+
+// IsNoCredentialsError returns whether the given error is an ErrNoCredentials error.
+func IsNoCredentialsError(err error) bool {
+	return errors.Is(err, ErrNoCredentials)
+}
+
 // GetKey gets the requested key with trusted the requested certificates. The key's
-// trusted certs will be retrieved from the trusted certs store.
+// trusted certs will be retrieved from the trusted certs store. If the key is not
+// found or is missing data (certificates, etc.), then an ErrNoCredentials error
+// is returned.
 func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, trace.Wrap(ErrNoCredentials, err.Error())
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -226,33 +246,10 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 // when the store has a lot of keys and when we call the function multiple times in
 // parallel.
 // Although this function speeds up the process since it removes all transversals,
-// it still has to read 3 different files if the proxy is specified, otherwise it also
-// has to read $TSH_HOME/current_profile.
-// - $TSH_HOME/$profile.yaml
+// it still has to read 2 different files:
 // - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 // - $TSH_HOME/keys/$PROXY/$USER
-func LoadKeysToKubeFromStore(dirPath, proxy, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
-	dirPath = profile.FullProfilePath(dirPath)
-
-	profileStore := NewFSProfileStore(dirPath)
-	// tsh stores the profiles using the proxy host as the profile name.
-	profileName, err := utils.Host(proxy)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	if profileName == "" {
-		// If no profile name is provided, default to the current profile.
-		profileName, err = profileStore.CurrentProfile()
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-	// Load the desired profile.
-	profile, err := profileStore.GetProfile(profileName)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
 	fsKeyStore := NewFSKeyStore(dirPath)
 
 	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)

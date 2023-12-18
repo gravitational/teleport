@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -66,16 +70,30 @@ db_service:
 	{{- range $name, $value := $resourceLabel }}
       "{{ $name }}": "{{ $value }}"
     {{- end }}
+    {{- if $.DatabaseAWSAssumeRoleARN }}
+    aws:
+      {{- if $.DatabaseAWSAssumeRoleARN }}
+      assume_role_arn: "{{ $.DatabaseAWSAssumeRoleARN }}"
+      {{- end }}
+      {{- if $.DatabaseAWSExternalID }}
+      external_id: "{{ $.DatabaseAWSExternalID }}"
+      {{- end }}
+    {{- end }}
   {{- end }}
   {{- else }}
   #
   # resources:
   # - labels:
   #     "env": "dev"
+  #   # Optional AWS role that the Database Service will assume to access the
+  #   # databases.
+  #   aws:
+  #     assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+  #     external_id: "example-external-id"
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
   aws:
   {{- else }}
   # For more information about AWS auto-discovery:
@@ -84,6 +102,7 @@ db_service:
   # Redshift: https://goteleport.com/docs/database-access/guides/postgres-redshift/
   # Redshift Serverless: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
   # ElastiCache/MemoryDB: https://goteleport.com/docs/database-access/guides/redis-aws/
+  # OpenSearch: https://goteleport.com/docs/database-access/guides/aws-opensearch/
   #
   # aws:
   #   # Database types. Valid options are:
@@ -93,7 +112,8 @@ db_service:
   #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
   #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
   #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-  # - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
+  #   # 'opensearch' - discovers and registers AWS OpenSearch domains.
+  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
   #   # AWS regions to register databases from.
   #   regions: ["us-west-1", "us-east-2"]
   #   # AWS resource tags to match when registering databases.
@@ -182,6 +202,21 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .MemoryDBDiscoveryRegions }}
+    - "{{ . }}"
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+  {{- if .OpenSearchDiscoveryRegions }}
+  # OpenSearch databases auto-discovery.
+  # For more information about OpenSearch auto-discovery: https://goteleport.com/docs/database-access/guides/aws-opensearch/
+  - types: ["opensearch"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .OpenSearchDiscoveryRegions }}
     - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -488,6 +523,17 @@ db_service:
   #     memorydb:
   #       # MemoryDB cluster name.
   #       cluster_name: my-memorydb
+  # # OpenSearch database static configuration.
+  # - name: opensearch
+  #   description: AWS OpenSearch domain configuration example.
+  #   protocol: opensearch
+  #   # Database connection endpoint. Must be reachable from Database service.
+  #   uri: search-my-domain-xxxxxx.us-east-1.es.amazonaws.com:443
+  #   # AWS specific configuration.
+  #   aws:
+  #     # Region the database is deployed in.
+  #     region: us-east-1
+  #     account_id: "123456789000"
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -573,6 +619,9 @@ type DatabaseSampleFlags struct {
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
+	// OpenSearchDiscoveryRegions is a list of regions the OpenSearch
+	// auto-discovery is configured.
+	OpenSearchDiscoveryRegions []string
 	// AWSTags is the list of the AWS resource tags used for AWS discoveries.
 	AWSTags map[string]string
 	// AWSRawTags is the "raw" list of AWS resource tags used for AWS discoveries.

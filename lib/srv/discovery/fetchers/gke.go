@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package fetchers
 
@@ -84,6 +86,7 @@ func (a *gkeFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 		return nil, trace.Wrap(err)
 	}
 
+	a.rewriteKubeClusters(clusters)
 	return clusters.AsResources(), nil
 }
 
@@ -108,8 +111,19 @@ func (a *gkeFetcher) getGKEClusters(ctx context.Context) (types.KubeClusters, er
 	return clusters, trace.Wrap(err)
 }
 
+// rewriteKubeClusters rewrites the discovered kube clusters.
+func (a *gkeFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
+	for _, c := range clusters {
+		common.ApplyGKENameSuffix(c)
+	}
+}
+
 func (a *gkeFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
+}
+
+func (a *gkeFetcher) FetcherType() string {
+	return types.GCPMatcherKubernetes
 }
 
 func (a *gkeFetcher) Cloud() string {

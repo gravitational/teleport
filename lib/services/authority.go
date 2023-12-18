@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -47,7 +49,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
@@ -61,9 +63,10 @@ func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
-	if err = ca.CheckAndSetDefaults(); err != nil {
+	if err = CheckAndSetDefaults(ca); err != nil {
 		return trace.Wrap(err)
 	}
+
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
@@ -473,6 +476,9 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			ca.SetRevision(cfg.Revision)
+		}
 		// Correct problems with existing CAs that contain non-UTC times, which
 		// causes panics when doing a gogoproto Clone; should only ever be
 		// possible with LastRotated, but we enforce it on all the times anyway.
@@ -504,14 +510,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *certAuthority
-			copy.SetResourceID(0)
-			certAuthority = &copy
-		}
-		return utils.FastMarshal(certAuthority)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

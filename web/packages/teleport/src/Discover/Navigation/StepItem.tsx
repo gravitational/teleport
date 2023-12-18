@@ -1,24 +1,30 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Flex } from 'design';
+import Flex from 'design/Flex';
 
-import { icons } from 'teleport/Discover/SelectResource/icons';
+import { DiscoverIcon } from 'teleport/Discover/SelectResource/icons';
+import { StepTitle, StepsContainer } from 'teleport/components/StepNavigation';
+import {
+  Bullet,
+  Props as BulletProps,
+} from 'teleport/components/StepNavigation/Bullet';
 
 import { StepList } from './StepList';
 
@@ -52,9 +58,9 @@ export function StepItem(props: StepItemProps) {
     return (
       <StepsContainer>
         <StepTitle>
-          {getBulletIcon({
-            Icon: icons[props.selectedResource.icon],
-          })}
+          <BulletIcon
+            Icon={<DiscoverIcon name={props.selectedResource.icon} />}
+          />
           {props.selectedResource.name}
         </StepTitle>
       </StepsContainer>
@@ -84,104 +90,28 @@ export function StepItem(props: StepItemProps) {
   return (
     <StepsContainer active={isDone || isActive}>
       <StepTitle>
-        {getBulletIcon({
-          isDone,
-          isActive,
-          stepNumber: props.view.index + 1,
-        })}
+        <BulletIcon
+          isDone={isDone}
+          isActive={isActive}
+          stepNumber={props.view.index + 1}
+        />
         {props.view.title}
       </StepTitle>
     </StepsContainer>
   );
 }
 
-function getBulletIcon({
+function BulletIcon({
   isDone,
   isActive,
   Icon,
   stepNumber,
-}: {
-  isDone?: boolean;
-  isActive?: boolean;
+}: BulletProps & {
   Icon?: JSX.Element;
-  stepNumber?: number;
 }) {
   if (Icon) {
     return <Flex mr={2}>{Icon}</Flex>;
   }
 
-  if (isActive) {
-    return <ActiveBullet />;
-  }
-
-  if (isDone) {
-    return <CheckedBullet />;
-  }
-
-  return <Bullet>{stepNumber}</Bullet>;
+  return <Bullet isDone={isDone} isActive={isActive} stepNumber={stepNumber} />;
 }
-
-const StepTitle = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const Bullet = styled.span`
-  height: 14px;
-  width: 14px;
-  border: 1px solid #9b9b9b;
-  font-size: 11px;
-  border-radius: 50%;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const ActiveBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.brand};
-  background: ${props => props.theme.colors.brand};
-
-  :before {
-    content: '';
-    height: 8px;
-    width: 8px;
-    border-radius: 50%;
-    border: 2px solid ${props => props.theme.colors.levels.surface};
-  }
-`;
-
-const CheckedBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.brand};
-  background: ${props => props.theme.colors.brand};
-
-  :before {
-    content: '✓';
-    color: ${props => props.theme.colors.levels.popout};
-  }
-`;
-
-const StepsContainer = styled.div<{ active: boolean }>`
-  display: flex;
-  flex-direction: column;
-  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
-  margin-right: 32px;
-  position: relative;
-
-  &:after {
-    position: absolute;
-    content: '';
-    width: 16px;
-    background: ${({ theme }) => theme.colors.brand};
-    height: 1px;
-    top: 50%;
-    transform: translate(0, -50%);
-    right: -25px;
-  }
-
-  &:last-of-type {
-    &:after {
-      display: none;
-    }
-  }
-`;

@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events_test
 
@@ -57,37 +61,55 @@ func TestSearchEventsLimiter(t *testing.T) {
 		require.NoError(t, err)
 
 		someDate := clockwork.NewFakeClock().Now().UTC()
-		// searchEvents and searchSessionEvents are helper fn to avoid coping those methods with huge
-		// number of attributes multiple times in that test case.
-		searchEvents := func() ([]apievents.AuditEvent, string, error) {
-			return s.SearchEvents(someDate, someDate, "default", nil /* eventTypes */, 100 /* limit */, types.EventOrderAscending, "" /* startKey */)
-		}
-		searchSessionEvents := func() ([]apievents.AuditEvent, string, error) {
-			return s.SearchSessionEvents(someDate, someDate, 100 /* limit */, types.EventOrderAscending, "" /* startKey */, nil /* cond */, "" /* sessionID */)
-		}
 
+		ctx := context.Background()
 		for i := 0; i < burst; i++ {
 			var err error
 			// rate limit is shared between both search endpoints.
 			if i%2 == 0 {
-				_, _, err = searchEvents()
+				_, _, err = s.SearchEvents(ctx, events.SearchEventsRequest{
+					From:  someDate,
+					To:    someDate,
+					Limit: 100,
+					Order: types.EventOrderAscending,
+				})
 			} else {
-				_, _, err = searchSessionEvents()
+				_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+					From:  someDate,
+					To:    someDate,
+					Limit: 100,
+					Order: types.EventOrderAscending,
+				})
 			}
 			require.NoError(t, err)
 		}
 		// Now all tokens from rate limit should be used
-		_, _, err = searchEvents()
+		_, _, err = s.SearchEvents(ctx, events.SearchEventsRequest{
+			From:  someDate,
+			To:    someDate,
+			Limit: 100,
+			Order: types.EventOrderAscending,
+		})
 		require.True(t, trace.IsLimitExceeded(err))
 		// Also on SearchSessionEvents
-		_, _, err = searchSessionEvents()
+		_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+			From:  someDate,
+			To:    someDate,
+			Limit: 100,
+			Order: types.EventOrderAscending,
+		})
 		require.True(t, trace.IsLimitExceeded(err))
 
 		// After 20ms 1 token should be added according to rate.
 		require.Eventually(t, func() bool {
-			_, _, err := searchEvents()
+			_, _, err := s.SearchEvents(ctx, events.SearchEventsRequest{
+				From:  someDate,
+				To:    someDate,
+				Limit: 100,
+				Order: types.EventOrderAscending,
+			})
 			return err == nil
-		}, 40*time.Millisecond, 5*time.Millisecond)
+		}, 1*time.Second, 5*time.Millisecond)
 	})
 }
 
@@ -155,11 +177,11 @@ type mockAuditLogger struct {
 	events.AuditLogger
 }
 
-func (m *mockAuditLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (m *mockAuditLogger) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return m.searchEventsRespFn()
 }
 
-func (m *mockAuditLogger) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (m *mockAuditLogger) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return m.searchEventsRespFn()
 }
 

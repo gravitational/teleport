@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package dynamoevents
 
@@ -23,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
 	"sort"
@@ -94,21 +97,21 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 // of Teleport YAML
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
-	Region string `json:"region,omitempty"`
+	Region string
 	// Tablename where to store K/V in DynamoDB
-	Tablename string `json:"table_name,omitempty"`
+	Tablename string
 	// ReadCapacityUnits is Dynamodb read capacity units
-	ReadCapacityUnits int64 `json:"read_capacity_units"`
+	ReadCapacityUnits int64
 	// WriteCapacityUnits is Dynamodb write capacity units
-	WriteCapacityUnits int64 `json:"write_capacity_units"`
+	WriteCapacityUnits int64
 	// RetentionPeriod is a default retention period for events.
-	RetentionPeriod *types.Duration `json:"audit_retention_period"`
+	RetentionPeriod *types.Duration
 	// Clock is a clock interface, used in tests
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator
 	UIDGenerator utils.UID
 	// Endpoint is an optional non-AWS endpoint
-	Endpoint string `json:"endpoint,omitempty"`
+	Endpoint string
 
 	// ReadMaxCapacity is the maximum provisioned read capacity.
 	ReadMaxCapacity int64
@@ -174,8 +177,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.WriteCapacityUnits == 0 {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
-	if cfg.RetentionPeriod == nil {
-		duration := types.Duration(DefaultRetentionPeriod)
+	if cfg.RetentionPeriod == nil || cfg.RetentionPeriod.Duration() == 0 {
+		duration := DefaultRetentionPeriod
 		cfg.RetentionPeriod = &duration
 	}
 	if cfg.Clock == nil {
@@ -241,7 +244,7 @@ const (
 
 	// DefaultRetentionPeriod is a default data retention period in events table.
 	// The default is 1 year.
-	DefaultRetentionPeriod = 365 * 24 * time.Hour
+	DefaultRetentionPeriod = types.Duration(365 * 24 * time.Hour)
 )
 
 // New returns new instance of DynamoDB backend.
@@ -260,31 +263,39 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		Entry:  l,
 		Config: cfg,
 	}
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
-	b.session, err = awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	awsConfig := aws.Config{
+		EC2MetadataEnableFallback: aws.Bool(false),
 	}
-	// override the default environment (region + credentials) with the values
-	// from the YAML file:
+
+	// Override the default environment's region if value set in YAML file:
 	if cfg.Region != "" {
-		b.session.Config.Region = aws.String(cfg.Region)
+		awsConfig.Region = aws.String(cfg.Region)
 	}
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		b.session.Config.Endpoint = aws.String(cfg.Endpoint)
+		awsConfig.Endpoint = aws.String(cfg.Endpoint)
 	}
 
-	// Explicitly enable or disable FIPS endpoints for DynamoDB
-	b.session.Config.UseFIPSEndpoint = events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint)
+	b.session, err = awssession.NewSessionWithOptions(awssession.Options{
+		SharedConfigState: awssession.SharedConfigEnable,
+		Config:            awsConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// create DynamoDB service:
-	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session))
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Events, dynamodb.New(b.session, &aws.Config{
+		// Setting this on the individual service instead of the session, as DynamoDB Streams
+		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
+		// is available (or whenever AWS adds the missing FIPS endpoints).
+		UseFIPSEndpoint: events.FIPSProtoStateToAWSState(cfg.UseFIPSEndpoint),
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -357,6 +368,7 @@ const (
 
 // EmitAuditEvent emits audit event
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	sessionID := getSessionID(in)
 	if err := l.putAuditEvent(ctx, sessionID, in); err != nil {
 		switch {
@@ -380,6 +392,7 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 	}
 	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
 	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	events.MetricStoredTrimmedEvents.Inc()
 	return nil
 }
 
@@ -492,8 +505,8 @@ type checkpointKey struct {
 // The only mandatory requirement is a date range (UTC).
 //
 // This function may never return more than 1 MiB of event data.
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(context.TODO(), fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
 func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
@@ -668,6 +681,27 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	return values, string(lastKey), nil
 }
 
+func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
+	checkpoint, err := getCheckpointFromStartKey(startKey)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	if checkpoint.Iterator == nil {
+		return time.Time{}, errors.New("missing iterator")
+	}
+	var e event
+	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &e); err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	if e.CreatedAt <= 0 {
+		// Value <= 0 means that either createdAt was not returned or
+		// it has 0 values, either way, we can't use that value.
+		return time.Time{}, errors.New("createdAt is invalid")
+	}
+
+	return time.Unix(e.CreatedAt, 0), nil
+}
+
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	var checkpoint checkpointKey
 	if startKey == "" {
@@ -708,18 +742,18 @@ func getSubPageCheckpoint(e *event) (string, error) {
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
-	if cond != nil {
+	if req.Cond != nil {
 		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
-		expr, err := fromWhereExpr(cond, &params)
+		expr, err := fromWhereExpr(req.Cond, &params)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condExpr = expr
 		filter.condParams = params
 	}
-	return l.searchEventsWithFilter(context.TODO(), fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
+	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 }
 
 type searchEventsFilter struct {
@@ -1090,9 +1124,7 @@ dateLoop:
 		for i, eventType := range l.filter.eventTypes {
 			attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 		}
-		for k, v := range l.filter.condParams.attrValues {
-			attributes[k] = v
-		}
+		maps.Copy(attributes, l.filter.condParams.attrValues)
 		attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1153,9 +1185,8 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	for i, eventType := range l.filter.eventTypes {
 		attributes[fmt.Sprintf(":eventType%d", i)] = eventType
 	}
-	for k, v := range l.filter.condParams.attrValues {
-		attributes[k] = v
-	}
+	maps.Copy(attributes, l.filter.condParams.attrValues)
+
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
 	if err != nil {
 		return nil, trace.Wrap(err)

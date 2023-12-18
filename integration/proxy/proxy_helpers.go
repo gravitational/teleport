@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -20,12 +22,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -36,12 +36,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	v1 "k8s.io/api/core/v1"
+	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -51,24 +52,31 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 type Suite struct {
-	root *helpers.TeleInstance
-	leaf *helpers.TeleInstance
+	root     *helpers.TeleInstance
+	leaf     *helpers.TeleInstance
+	username string
 }
 
 type suiteOptions struct {
@@ -125,12 +133,14 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
+	user := helpers.MustGetCurrentUser(t)
+
 	suite := &Suite{
-		root: rc,
-		leaf: lc,
+		root:     rc,
+		leaf:     lc,
+		username: user.Username,
 	}
 
-	user := helpers.MustGetCurrentUser(t)
 	for _, role := range options.rootClusterRoles {
 		rc.AddUserWithRole(user.Username, role)
 	}
@@ -205,8 +215,6 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, helpers.WaitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
@@ -400,8 +408,7 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 			trustedCluster := root.AsTrustedCluster(trustedClusterToken, types.RoleMap{
 				{Remote: rootRole.GetName(), Local: []string{secondRole.GetName()}},
 			})
-			err = trustedCluster.CheckAndSetDefaults()
-			require.NoError(t, err)
+			require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 			options.trustedCluster = trustedCluster
 		}
@@ -442,9 +449,10 @@ func mustClosePostgresClient(t *testing.T, client *pgconn.PgConn) {
 }
 
 const (
-	kubeClusterName             = "gke_project_europecentral2a_cluster1"
-	kubeClusterDefaultNamespace = "default"
-	kubePodName                 = "firstcontainer-66b6c48dd-bqmwk"
+	// kubeClusterName is the name of the cluster in Teleport.
+	// It it's not a real cluster name, but a cluster that uses
+	// kube mock server.
+	kubeClusterName = "gke_project_europecentral2a_cluster1"
 )
 
 func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
@@ -466,38 +474,11 @@ func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
 	}
 }
 
-func mkPodList() *v1.PodList {
-	return &v1.PodList{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "PodList",
-			APIVersion: "v1",
-		},
-		Items: []v1.Pod{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      kubePodName,
-					Namespace: kubeClusterDefaultNamespace,
-				},
-			},
-		},
-	}
-}
-
-func startKubeAPIMock(t *testing.T) *httptest.Server {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", func(rw http.ResponseWriter, request *http.Request) {
-	})
-	mux.HandleFunc("/api/v1/namespaces/default/pods", func(rw http.ResponseWriter, request *http.Request) {
-		rw.Header().Add("Content-Type", "application/json")
-		err := json.NewEncoder(rw).Encode(mkPodList())
-		require.NoError(t, err)
-	})
-
-	svr := httptest.NewTLSServer(mux)
-	t.Cleanup(func() {
-		svr.Close()
-	})
-	return svr
+func startKubeAPIMock(t *testing.T) *testingkubemock.KubeMockServer {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+	return kubeMock
 }
 
 func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
@@ -563,7 +544,9 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
 	t.Helper()
 
-	fp, err := alpnproxy.NewKubeForwardProxy(context.Background(), "", lpAddr)
+	fp, err := alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
+		ForwardAddr: lpAddr,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		fp.Close()
@@ -583,9 +566,12 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(teleportCluster, kubeCluster, cert)
 
-	return alpnproxy.NewKubeMiddleware(certs, func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		return tls.Certificate{}, nil
-	}, clockwork.NewRealClock(), nil)
+	return alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
+		Certs: certs,
+		CertReissuer: func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+			return tls.Certificate{}, nil
+		},
+	})
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
@@ -602,7 +588,7 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
-func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnelclient.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
 	require.Eventually(t, func() bool {
 		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
 	},
@@ -688,6 +674,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		JoinMethod:   types.JoinMethodIAM,
 		PublicTLSKey: pubTLS,
 		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
+		Insecure:     lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }
@@ -701,11 +688,73 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
 		ResourceType:        types.KindKubePod,
 		KubernetesCluster:   kubeClusterName,
-		KubernetesNamespace: kubeClusterDefaultNamespace,
+		KubernetesNamespace: metav1.NamespaceDefault,
 		TeleportCluster:     tc.SiteName,
 	})
 	require.NoError(t, err)
-	require.Len(t, response.Resources, 1)
+	require.Len(t, response.Resources, 3)
 	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
-	require.Equal(t, kubePodName, response.Resources[0].GetName())
+}
+
+func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+	t.Helper()
+
+	dbGateway, err := gateway.AsDatabase(gw)
+	require.NoError(t, err)
+
+	// Open a new connection.
+	client, err := mysql.MakeTestClientWithoutTLS(
+		net.JoinHostPort(gw.LocalAddress(), gw.LocalPort()),
+		dbGateway.RouteToDatabase())
+	require.NoError(t, err)
+
+	// Execute a query.
+	result, err := client.Execute("select 1")
+	require.NoError(t, err)
+	require.Equal(t, mysql.TestQueryResponse, result)
+
+	// Disconnect.
+	require.NoError(t, client.Close())
+}
+
+func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kubeCluster string) *kubernetes.Clientset {
+	t.Helper()
+
+	config, err := kubeconfig.Load(kubeconfigPath)
+	require.NoError(t, err)
+
+	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
+	require.Contains(t, maps.Keys(config.Clusters), contextName)
+	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
+	require.NoError(t, err)
+
+	tlsClientConfig := rest.TLSClientConfig{
+		CAData:     config.Clusters[contextName].CertificateAuthorityData,
+		CertData:   config.AuthInfos[contextName].ClientCertificateData,
+		KeyData:    config.AuthInfos[contextName].ClientKeyData,
+		ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+	}
+	client, err := kubernetes.NewForConfig(&rest.Config{
+		Host:            "https://" + teleportCluster,
+		TLSClientConfig: tlsClientConfig,
+		Proxy:           http.ProxyURL(proxyURL),
+	})
+	require.NoError(t, err)
+	return client
+}
+
+func mustGetKubePod(t *testing.T, client *kubernetes.Clientset) {
+	t.Helper()
+
+	resp, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 3)
+}
+
+func mustGetProfileName(t *testing.T, webProxyAddr string) string {
+	t.Helper()
+
+	profileName, _, err := net.SplitHostPort(webProxyAddr)
+	require.NoError(t, err)
+	return profileName
 }

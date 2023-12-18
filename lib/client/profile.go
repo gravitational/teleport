@@ -1,15 +1,20 @@
 /*
-Copyright 2016 Gravitational, Inc.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -32,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ProfileStore is a storage interface for client profile data.
@@ -510,6 +516,20 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
+// KubeCertPathForCluster returns path to the specified kube access certificate
+// for this profile, for the specified cluster name.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<username>-kube/<cluster>/<name>-x509.pem
+func (p *ProfileStatus) KubeCertPathForCluster(teleportCluster, kubeCluster string) string {
+	if teleportCluster == "" {
+		teleportCluster = p.Cluster
+	}
+	if path, ok := p.virtualPathFromEnv(VirtualPathKubernetes, VirtualPathKubernetesParams(kubeCluster)); ok {
+		return path
+	}
+	return keypaths.KubeCertPath(p.Dir, p.Name, p.Username, teleportCluster, kubeCluster)
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {
@@ -545,4 +565,26 @@ func (p *ProfileStatus) AppNames() (result []string) {
 		result = append(result, app.Name)
 	}
 	return result
+}
+
+// ProfileNameFromProxyAddress converts proxy address to profile name or
+// returns the current profile if the proxyAddr is not set.
+func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, error) {
+	if proxyAddr == "" {
+		profileName, err := store.CurrentProfile()
+		return profileName, trace.Wrap(err)
+	}
+
+	profileName, err := utils.Host(proxyAddr)
+	return profileName, trace.Wrap(err)
+}
+
+// AccessInfo returns the complete services.AccessInfo for this profile.
+func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
+	return &services.AccessInfo{
+		Username:           p.Username,
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		AllowedResourceIDs: p.AllowedResourceIDs,
+	}
 }

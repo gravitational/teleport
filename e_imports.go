@@ -1,18 +1,22 @@
 //go:build e_imports && !e_imports
 
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package teleport
 
@@ -43,6 +47,7 @@ xargs go list -find -f '{{if (and
 */
 
 import (
+	_ "github.com/alecthomas/kingpin/v2"
 	_ "github.com/beevik/etree"
 	_ "github.com/bufbuild/connect-go"
 	_ "github.com/coreos/go-oidc/jose"
@@ -59,7 +64,6 @@ import (
 	_ "github.com/google/go-tpm-tools/simulator"
 	_ "github.com/google/uuid"
 	_ "github.com/gravitational/form"
-	_ "github.com/gravitational/kingpin"
 	_ "github.com/gravitational/license"
 	_ "github.com/gravitational/roundtrip"
 	_ "github.com/gravitational/trace"
@@ -73,6 +77,7 @@ import (
 	_ "github.com/russellhaering/gosaml2"
 	_ "github.com/russellhaering/gosaml2/types"
 	_ "github.com/russellhaering/goxmldsig"
+	_ "github.com/sijms/go-ora/v2"
 	_ "github.com/sirupsen/logrus"
 	_ "github.com/stretchr/testify/assert"
 	_ "github.com/stretchr/testify/require"

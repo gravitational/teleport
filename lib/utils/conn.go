@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package utils
 
@@ -196,4 +198,55 @@ func (w *TrackingWriter) Write(b []byte) (int, error) {
 	n, err := w.w.Write(b)
 	atomic.AddUint64(&w.count, uint64(n))
 	return n, trace.Wrap(err)
+}
+
+// ConnWithAddr is a [net.Conn] wrapper that allows the local and remote address
+// to be overridden.
+type ConnWithAddr struct {
+	net.Conn
+	localAddrOverride  net.Addr
+	remoteAddrOverride net.Addr
+}
+
+// LocalAddr implements [net.Conn].
+func (c *ConnWithAddr) LocalAddr() net.Addr {
+	if c.localAddrOverride != nil {
+		return c.localAddrOverride
+	}
+
+	return c.Conn.LocalAddr()
+}
+
+// RemoteAddr implements [net.Conn].
+func (c *ConnWithAddr) RemoteAddr() net.Addr {
+	if c.remoteAddrOverride != nil {
+		return c.remoteAddrOverride
+	}
+
+	return c.Conn.RemoteAddr()
+}
+
+// NetConn returns the underlying [net.Conn].
+func (c *ConnWithAddr) NetConn() net.Conn {
+	return c.Conn
+}
+
+// NewConnWithSrcAddr wraps provided connection and overrides client remote address.
+func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithAddr {
+	return &ConnWithAddr{
+		Conn: conn,
+
+		remoteAddrOverride: clientSrcAddr,
+	}
+}
+
+// NewConnWithAddr wraps a [net.Conn] optionally overriding the local and remote
+// addresses with the provided ones, if non-nil.
+func NewConnWithAddr(conn net.Conn, localAddr, remoteAddr net.Addr) *ConnWithAddr {
+	return &ConnWithAddr{
+		Conn: conn,
+
+		localAddrOverride:  localAddr,
+		remoteAddrOverride: remoteAddr,
+	}
 }

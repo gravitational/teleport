@@ -1,7 +1,22 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
-{{- if $proxy.highAvailability.certManager.enabled }}
-  {{- $domain := (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) }}
-  {{- $domainWildcard := printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) }}
+{{- if $proxy.highAvailability.certManager.enabled -}}
+  {{- /* Append clusterName and wildcard version to list of dnsNames on certificate request (original functionality) */ -}}
+  {{- $domainList := list (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) -}}
+  {{- $domainList := append $domainList (printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName)) -}}
+  {{- /* If the config option is enabled and at least one publicAddr is set, append all public addresses to the list of dnsNames */ -}}
+  {{- if and $proxy.highAvailability.certManager.addPublicAddrs (gt (len .Values.publicAddr) 0) -}}
+    {{- /* Trim ports from all public addresses if present */ -}}
+    {{- range .Values.publicAddr -}}
+      {{- $address := . -}}
+      {{- if (contains ":" $address) -}}
+        {{- $split := split ":" $address -}}
+        {{- $address = $split._0 -}}
+      {{- end -}}
+      {{- $domainList = append (mustWithout $domainList .) $address -}}
+    {{- end -}}
+  {{- end -}}
+  {{- /* Finally, remove any duplicate entries from the list of domains */ -}}
+  {{- $domainList := mustUniq $domainList -}}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -11,11 +26,12 @@ metadata:
 spec:
   secretName: teleport-tls
   {{- if $proxy.highAvailability.certManager.addCommonName }}
-  commonName: {{ quote $domain }}
+  commonName: {{ quote $proxy.clusterName }}
   {{- end }}
   dnsNames:
-  - {{ quote $domain }}
-  - {{ quote $domainWildcard }}
+  {{- range $domainList }}
+  - {{ quote . }}
+  {{- end }}
   issuerRef:
     name: {{ required "highAvailability.certManager.issuerName is required in chart values" $proxy.highAvailability.certManager.issuerName }}
     kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" $proxy.highAvailability.certManager.issuerKind }}

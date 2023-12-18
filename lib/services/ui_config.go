@@ -1,17 +1,19 @@
-/**
- * Copyright 2023 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package services
@@ -45,6 +47,9 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 	if cfg.ID != 0 {
 		uiconfig.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		uiconfig.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		uiconfig.SetExpiry(cfg.Expires)
 	}
@@ -53,23 +58,17 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 
 // MarshalUIConfig marshals the UIConfig resource to JSON.
 func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, error) {
-	if err := uiconfig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch uiconfig := uiconfig.(type) {
 	case *types.UIConfigV1:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *uiconfig
-			copy.SetResourceID(0)
-			uiconfig = &copy
+		if err := uiconfig.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(uiconfig)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, uiconfig))
 	default:
 		return nil, trace.BadParameter("unrecognized uiconfig version %T", uiconfig)
 	}

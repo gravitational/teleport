@@ -1,18 +1,20 @@
 /*
-Copyright 2016 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -270,7 +272,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.Debugf("Selecting system key agent.")
-		return tc.localAgent.systemAgent
+		return connectToSSHAgent()
 	case ForwardAgentLocal:
 		log.Debugf("Selecting local Teleport key agent.")
 		return tc.localAgent.ExtendedAgent
@@ -383,7 +385,7 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 		go ns.updateTerminalSize(ctx, s)
 	}
 	go func() {
-		if _, err := io.Copy(os.Stderr, stderr); err != nil {
+		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
 			log.Debugf("Error reading remote STDERR: %v", err)
 		}
 	}()
@@ -493,17 +495,41 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 	}
 }
 
+// sessionWriter wraps the [tracessh.Session]
+// stdout to prevent any panics that may occur
+// by trying to use it before it has been initialized.
+// In those cases output is written to the stdout that
+// is configured for tsh so that output is not lost entirely.
+type sessionWriter struct {
+	tshOut  io.Writer
+	session *tracessh.Session
+}
+
+func (s *sessionWriter) Write(p []byte) (int, error) {
+	if s.session.Stdout != nil {
+		return s.session.Stdout.Write(p)
+	}
+
+	return s.tshOut.Write(p)
+}
+
 // runShell executes user's shell on the remote node under an interactive session
 func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, beforeStart func(io.Writer), callback ShellCreatedCallback) error {
 	return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
+		w := &sessionWriter{
+			tshOut:  ns.nodeClient.TC.Stdout,
+			session: s,
+		}
+
 		if beforeStart != nil {
-			beforeStart(s.Stdout)
+			beforeStart(w)
 		}
 
 		// start the shell on the server:
 		if err := s.Shell(ctx); err != nil {
 			return trace.Wrap(err)
 		}
+
 		// call the client-supplied callback
 		if callback != nil {
 			exit, err := callback(s, ns.nodeClient.Client, shell)
@@ -529,7 +555,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// fallback to non-interactive mode
 	if interactive && !ns.terminal.IsAttached() {
 		interactive = false
-		fmt.Fprintf(os.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
+		fmt.Fprintf(ns.nodeClient.TC.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
 	}
 
 	// Start a interactive session ("exec" request with a TTY).

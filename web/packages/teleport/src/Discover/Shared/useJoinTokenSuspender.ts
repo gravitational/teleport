@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { useEffect, useState } from 'react';
@@ -25,7 +27,7 @@ import {
 
 import { useDiscover } from '../useDiscover';
 
-import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
 
 interface SuspendResult {
@@ -35,15 +37,15 @@ interface SuspendResult {
 }
 
 let abortController: AbortController;
-let joinTokenCache = new Map<ResourceKind, SuspendResult>();
+let joinTokenCache = new Map<string, SuspendResult>();
 
-export function clearCachedJoinTokenResult(resourceKind: ResourceKind) {
-  joinTokenCache.delete(resourceKind);
+export function clearCachedJoinTokenResult(resourceKinds: ResourceKind[]) {
+  joinTokenCache.delete(resourceKinds.sort().join());
 }
 
 export function useJoinTokenSuspender(
-  resourceKind: ResourceKind,
-  suggestedAgentMatcherLabels: AgentLabel[] = [],
+  resourceKinds: ResourceKind[],
+  suggestedAgentMatcherLabels: ResourceLabel[] = [],
   joinMethod: JoinMethod = 'token'
 ): {
   joinToken: JoinToken;
@@ -54,6 +56,8 @@ export function useJoinTokenSuspender(
 
   const [, rerender] = useState(0);
 
+  const kindsKey = resourceKinds.sort().join();
+
   function run() {
     abortController = new AbortController();
 
@@ -63,7 +67,7 @@ export function useJoinTokenSuspender(
       promise: ctx.joinTokenService
         .fetchJoinToken(
           {
-            roles: [resourceKindToJoinRole(resourceKind)],
+            roles: resourceKinds.map(resourceKindToJoinRole),
             method: joinMethod,
             suggestedAgentMatcherLabels,
           },
@@ -85,7 +89,7 @@ export function useJoinTokenSuspender(
         }),
     };
 
-    joinTokenCache.set(resourceKind, result);
+    joinTokenCache.set(kindsKey, result);
 
     return result;
   }
@@ -96,7 +100,7 @@ export function useJoinTokenSuspender(
     };
   }, []);
 
-  const existing = joinTokenCache.get(resourceKind);
+  const existing = joinTokenCache.get(kindsKey);
 
   if (existing) {
     if (existing.error) {
@@ -110,7 +114,7 @@ export function useJoinTokenSuspender(
           // Delete the cached token and force a rerender
           // so that this hook runs again and creates a new one.
 
-          joinTokenCache.delete(resourceKind);
+          joinTokenCache.delete(kindsKey);
 
           rerender(c => c + 1);
         },

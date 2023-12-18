@@ -12,6 +12,9 @@ annotations:
   pod:
     kubernetes.io/pod: "test-annotation"
     kubernetes.io/pod-different: 4
+  secret:
+    kubernetes.io/secret: "test-annotation"
+    kubernetes.io/secret-different: 6
   serviceAccount:
     kubernetes.io/serviceaccount: "test-annotation"
     kubernetes.io/serviceaccount-different: 5

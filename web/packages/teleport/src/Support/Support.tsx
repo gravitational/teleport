@@ -1,21 +1,23 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Card, Box, Text, Flex } from 'design';
+import React, { PropsWithChildren } from 'react';
+import { Box, Card, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import styled from 'styled-components';
@@ -34,13 +36,16 @@ export default function Container({
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
+  // showCTA returns the premium support value for enterprise customers and true for OSS users
+  const showCTA = cfg.isEnterprise ? ctx.lockedFeatures.premiumSupport : true;
+
   return (
     <Support
       {...cluster}
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
-      showPremiumSupportCTA={ctx.lockedFeatures.premiumSupport}
+      showPremiumSupportCTA={showCTA}
       children={children}
     />
   );
@@ -63,7 +68,7 @@ export const Support = ({
       <Card px={5} pt={1} pb={6}>
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
-            <Header title="Support" icon={<Icons.LocalPlay />} />
+            <Header title="Support" icon={<Icons.Headset />} />
             {isEnterprise && !showPremiumSupportCTA && (
               <SupportLink
                 title="Create a Support Ticket"
@@ -82,17 +87,17 @@ export const Support = ({
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
-            {isEnterprise && showPremiumSupportCTA && (
+            {showPremiumSupportCTA && (
               <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
                 Unlock Premium Support w/Enterprise
               </ButtonLockedFeature>
             )}
           </Box>
           <Box>
-            <Header title="Resources" icon={<Icons.ListCheck />} />
-            <SupportLink title="Quickstart Guide" url={docs.quickstart} />
-            <SupportLink title="tsh User Guide" url={docs.userManual} />
-            <SupportLink title="Admin Guide" url={docs.adminGuide} />
+            <Header title="Resources" icon={<Icons.BookOpenText />} />
+            <SupportLink title="Get Started" url={docs.getStarted} />
+            <SupportLink title="tsh User Guide" url={docs.tshGuide} />
+            <SupportLink title="Admin Guides" url={docs.adminGuide} />
             <SupportLink
               title="Download Page"
               url={getDownloadLink(isCloud, isEnterprise)}
@@ -108,10 +113,7 @@ export const Support = ({
           </Box>
           <Box>
             <Header title="Updates" icon={<Icons.NotificationsActive />} />
-            <SupportLink
-              title="Product Changelog"
-              url="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
-            />
+            <SupportLink title="Product Changelog" url={docs.changeLog} />
             <SupportLink
               title="Teleport Blog"
               url="https://goteleport.com/blog/"
@@ -133,7 +135,7 @@ export const Support = ({
   );
 };
 
-export const DataContainer: React.FC<{ title: string }> = ({
+export const DataContainer: React.FC<PropsWithChildren<{ title: string }>> = ({
   title,
   children,
 }) => (
@@ -168,14 +170,27 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   const withUTM = (url = '', anchorHash = '') =>
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
+  let docVer = '';
+  if (version && version.length > 0) {
+    const major = version.split('.')[0];
+    docVer = `/ver/${major}.x`;
+  }
+
   return {
-    quickstart: withUTM('https://goteleport.com/docs/getting-started'),
-    userManual: withUTM('https://goteleport.com/docs/server-access/guides/tsh'),
-    adminGuide: withUTM('https://goteleport.com/docs/setup/admin'),
-    troubleshooting: withUTM(
-      'https://goteleport.com/docs/setup/admin/troubleshooting'
+    getStarted: withUTM(`https://goteleport.com/docs${docVer}/getting-started`),
+    tshGuide: withUTM(
+      `https://goteleport.com/docs${docVer}/server-access/guides/tsh`
     ),
-    faq: withUTM('https://goteleport.com/docs/faq'),
+    adminGuide: withUTM(
+      `https://goteleport.com/docs${docVer}/management/admin/`
+    ),
+    faq: withUTM(`https://goteleport.com${docVer}/docs/faq`),
+    troubleshooting: withUTM(
+      `https://goteleport.com/docs${docVer}/management/admin/troubleshooting/`
+    ),
+
+    // there isn't a version-specific changelog page
+    changeLog: withUTM('https://goteleport.com/docs/changelog'),
   };
 };
 
@@ -185,7 +200,7 @@ const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
   }
 
   if (isEnterprise) {
-    return 'https://dashboard.gravitational.com/web/downloads';
+    return 'https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard';
   }
 
   return 'https://goteleport.com/download/';
@@ -207,6 +222,7 @@ const StyledSupportLink = styled.a.attrs({
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
+
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
@@ -228,10 +244,8 @@ export const DataItem = ({ title = '', data = null }) => (
 
 const Header = ({ title = '', icon = null }) => (
   <StyledHeader alignItems="center" mb={3} width={210} mt={4} pb={2}>
-    <Text pr={2} fontSize={18}>
-      {icon}
-    </Text>
-    <Text as="h5" caps>
+    {icon}
+    <Text as="h5" ml={2} caps>
       {title}
     </Text>
   </StyledHeader>

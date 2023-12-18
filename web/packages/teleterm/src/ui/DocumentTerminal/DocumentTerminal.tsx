@@ -1,65 +1,67 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
-import { Flex, Text, ButtonPrimary } from 'design';
-import { Danger } from 'design/Alert';
 import {
   FileTransferActionBar,
   FileTransfer,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
-import { Attempt } from 'shared/hooks/useAsync';
 
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { assertUnreachable } from 'teleterm/ui/utils';
 import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
 
 import { Terminal } from './Terminal';
-import { Props, useDocumentTerminal } from './useDocumentTerminal';
+import { Reconnect } from './Reconnect';
+import { useDocumentTerminal } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
 
 import type * as types from 'teleterm/ui/services/workspacesService';
 
-export function DocumentTerminal(props: Props & { visible: boolean }) {
+export function DocumentTerminal(props: {
+  doc: types.DocumentTerminal;
+  visible: boolean;
+}) {
   const ctx = useAppContext();
   const { configService } = ctx.mainProcessClient;
   const { visible, doc } = props;
-  const { attempt, reconnect } = useDocumentTerminal(doc);
-  const ptyProcess = attempt.data?.ptyProcess;
+  const { attempt, initializePtyProcess } = useDocumentTerminal(doc);
   const { upload, download } = useTshFileTransferHandlers();
   const unsanitizedTerminalFontFamily = configService.get(
     'terminal.fontFamily'
   ).value;
   const terminalFontSize = configService.get('terminal.fontSize').value;
 
-  // Creating a new terminal might fail for multiple reasons, for example:
+  // Initializing a new terminal might fail for multiple reasons, for example:
   //
   // * The user tried to execute `tsh ssh user@host` from the command bar and the request which
   // tries to resolve `host` to a server object failed due to a network or cluster error.
   // * The PTY service has failed to create a new PTY process.
   if (attempt.status === 'error') {
     return (
-      <DocumentReconnect
-        visible={visible}
-        doc={doc}
-        attempt={attempt}
-        reconnect={reconnect}
-      />
+      <Document visible={props.visible}>
+        <Reconnect
+          docKind={doc.kind}
+          attempt={attempt}
+          reconnect={initializePtyProcess}
+        />
+      </Document>
     );
   }
 
@@ -117,9 +119,16 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       autoFocusDisabled={true}
     >
       {$fileTransfer}
-      {ptyProcess && (
+      {attempt.status === 'success' && (
         <Terminal
-          ptyProcess={ptyProcess}
+          // The key prop makes sure that we render Terminal only once for each PTY process.
+          //
+          // When startError occurs and the user initializes a new PTY process, we want to reset all
+          // state in <Terminal> and re-run all hooks for the new PTY process.
+          key={attempt.data.ptyProcess.getPtyId()}
+          docKind={doc.kind}
+          ptyProcess={attempt.data.ptyProcess}
+          reconnect={initializePtyProcess}
           visible={props.visible}
           unsanitizedFontFamily={unsanitizedTerminalFontFamily}
           fontSize={terminalFontSize}
@@ -128,55 +137,4 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       )}
     </Document>
   );
-}
-
-function DocumentReconnect(props: {
-  visible: boolean;
-  doc: types.DocumentTerminal;
-  attempt: Attempt<unknown>;
-  reconnect: () => void;
-}) {
-  const { message, buttonText } = getReconnectCopy(props.doc);
-
-  return (
-    <Document visible={props.visible} flexDirection="column" pl={2}>
-      <Flex
-        gap={4}
-        flexDirection="column"
-        mx="auto"
-        alignItems="center"
-        mt={100}
-      >
-        <Text typography="h5" color="text.main">
-          {message}
-        </Text>
-        <Flex flexDirection="column" alignItems="center" mx="auto">
-          <Danger mb={3}>{props.attempt.statusText}</Danger>
-          <ButtonPrimary width="100px" onClick={props.reconnect}>
-            {buttonText}
-          </ButtonPrimary>
-        </Flex>
-      </Flex>
-    </Document>
-  );
-}
-
-function getReconnectCopy(doc: types.DocumentTerminal) {
-  switch (doc.kind) {
-    case 'doc.terminal_tsh_node': {
-      return {
-        message: 'This SSH connection is currently offline.',
-        buttonText: 'Reconnect',
-      };
-    }
-    case 'doc.terminal_shell':
-    case 'doc.terminal_tsh_kube': {
-      return {
-        message: 'Ran into an error when starting the terminal session.',
-        buttonText: 'Retry',
-      };
-    }
-    default:
-      assertUnreachable(doc);
-  }
 }

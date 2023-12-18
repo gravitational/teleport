@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package server
 
@@ -24,13 +26,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockClients struct {
@@ -141,24 +143,24 @@ func TestEC2Watcher(t *testing.T) {
 	clients := mockClients{
 		ec2Client: &mockEC2Client{},
 	}
-	matchers := []services.AWSMatcher{
+	matchers := []types.AWSMatcher{
 		{
-			Params: services.InstallerParams{
+			Params: &types.InstallerParams{
 				InstallTeleport: true,
 			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-			SSM:     &services.AWSSSM{},
+			SSM:     &types.AWSSSM{},
 		},
 		{
-			Params: services.InstallerParams{
+			Params: &types.InstallerParams{
 				InstallTeleport: true,
 			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
-			SSM:     &services.AWSSSM{},
+			SSM:     &types.AWSSSM{},
 		},
 	}
 	ctx := context.Background()
@@ -216,7 +218,14 @@ func TestEC2Watcher(t *testing.T) {
 		}},
 	}
 	clients.ec2Client.output = &output
-	watcher, err := NewEC2Watcher(ctx, matchers, &clients)
+
+	fetchersFn := func() []Fetcher {
+		fetchers, err := MatchersToEC2InstanceFetchers(ctx, matchers, &clients)
+		require.NoError(t, err)
+
+		return fetchers
+	}
+	watcher, err := NewEC2Watcher(ctx, fetchersFn, make(<-chan []types.Server))
 	require.NoError(t, err)
 
 	go watcher.Run()
@@ -224,13 +233,38 @@ func TestEC2Watcher(t *testing.T) {
 	result := <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
-		Instances:  []*ec2.Instance{&present},
+		Instances:  []EC2Instance{toEC2Instance(&present)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2Instances)
+	}, *result.EC2)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
-		Instances:  []*ec2.Instance{&presentOther},
+		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2Instances)
+	}, *result.EC2)
+}
+
+func TestConvertEC2InstancesToServerInfos(t *testing.T) {
+	t.Parallel()
+	expected, err := types.NewServerInfo(types.Metadata{
+		Name: "aws-myaccount-myinstance",
+	}, types.ServerInfoSpecV1{
+		NewLabels: map[string]string{"aws/foo": "bar"},
+	})
+	require.NoError(t, err)
+
+	ec2Instances := &EC2Instances{
+		AccountID: "myaccount",
+		Instances: []EC2Instance{
+			{
+				InstanceID: "myinstance",
+				Tags:       map[string]string{"foo": "bar"},
+			},
+		},
+	}
+	serverInfos, err := ec2Instances.ServerInfos()
+	require.NoError(t, err)
+	require.Len(t, serverInfos, 1)
+
+	require.Empty(t, cmp.Diff(expected, serverInfos[0]))
 }

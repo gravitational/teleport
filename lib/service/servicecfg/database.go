@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package servicecfg
 
@@ -37,9 +41,9 @@ type DatabasesConfig struct {
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers match Azure hosted databases.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
 }
@@ -70,6 +74,28 @@ type Database struct {
 	AD DatabaseAD
 	// Azure contains Azure database configuration.
 	Azure DatabaseAzure
+	// AdminUser contains information about database admin user.
+	AdminUser DatabaseAdminUser
+	// Oracle are additional Oracle database options.
+	Oracle OracleOptions
+}
+
+// DatabaseAdminUser contains information about database admin user.
+type DatabaseAdminUser struct {
+	// Name is the database admin username (e.g. "postgres").
+	Name string
+	// DefaultDatabase is the database that the admin user logs into by
+	// default.
+	//
+	// Depending on the database type, this database may be used to store
+	// procedures or data for managing database users.
+	DefaultDatabase string
+}
+
+// OracleOptions are additional Oracle options.
+type OracleOptions struct {
+	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	AuditUser string
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -141,6 +167,11 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		MySQL: types.MySQLOptions{
 			ServerVersion: d.MySQL.ServerVersion,
 		},
+		AdminUser: &types.DatabaseAdminUser{
+			Name:            d.AdminUser.Name,
+			DefaultDatabase: d.AdminUser.DefaultDatabase,
+		},
+		Oracle: convOracleOptions(d.Oracle),
 		AWS: types.AWS{
 			AccountID:     d.AWS.AccountID,
 			AssumeRoleARN: d.AWS.AssumeRoleARN,
@@ -186,6 +217,12 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			IsFlexiServer: d.Azure.IsFlexiServer,
 		},
 	})
+}
+
+func convOracleOptions(o OracleOptions) types.OracleOptions {
+	return types.OracleOptions{
+		AuditUser: o.AuditUser,
+	}
 }
 
 // MySQLOptions are additional MySQL options.

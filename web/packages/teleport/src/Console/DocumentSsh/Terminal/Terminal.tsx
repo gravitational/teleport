@@ -1,72 +1,171 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
-import { ThemeContext } from 'styled-components';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { Flex } from 'design';
+import { ITheme } from 'xterm';
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 
 import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
+import { TerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssist';
+import { ActionBar } from 'teleport/Console/DocumentSsh/TerminalAssist/ActionBar';
+import { useTerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssistContext';
+
 import StyledXterm from '../../StyledXterm';
 
-export default class Terminal extends React.Component<{ tty: Tty }> {
-  static contextType = ThemeContext;
+export interface TerminalRef {
+  focus(): void;
+}
 
-  terminal: XTermCtrl;
+export interface TerminalProps {
+  tty: Tty;
+  fontFamily: string;
+  theme: ITheme;
+  assistEnabled: boolean;
+}
 
-  refTermContainer = React.createRef<HTMLElement>();
+interface ActionBarState {
+  visible: boolean;
+  left: number;
+  top: number;
+}
 
-  componentDidMount() {
-    const platform = getPlatform();
+export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
+  const termCtrlRef = useRef<XTermCtrl>();
+  const elementRef = useRef<HTMLElement>();
+
+  const assist = useTerminalAssist();
+
+  const [actionBarState, setActionBarState] = useState<ActionBarState | null>({
+    top: 0,
+    left: 0,
+    visible: false,
+  });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => termCtrlRef.current.term.focus(),
+    }),
+    []
+  );
+
+  useEffect(() => {
+    const platform = getPlatformType();
     const fontSize = platform.isMac ? 12 : 14;
 
-    this.terminal = new XTermCtrl(this.props.tty, {
-      el: this.refTermContainer.current,
-      fontFamily: this.context.fonts.mono,
+    const termCtrl = new XTermCtrl(props.tty, {
+      el: elementRef.current,
+      fontFamily: props.fontFamily,
       fontSize,
+      theme: props.theme,
     });
+    termCtrlRef.current = termCtrl;
 
-    this.terminal.open();
+    termCtrl.open();
 
-    this.terminal.term.attachCustomKeyEventHandler(event => {
+    termCtrl.term.attachCustomKeyEventHandler(event => {
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;
       }
     });
+
+    if (props.assistEnabled) {
+      termCtrl.term.onSelectionChange(() => {
+        const term = termCtrl.term;
+
+        const position = term.getSelectionPosition();
+        const selection = term.getSelection().trim();
+
+        if (position && selection) {
+          const charWidth = Math.ceil(term.element.offsetWidth / term.cols);
+          const charHeight = Math.ceil(term.element.offsetHeight / term.rows);
+
+          const left = Math.round(
+            ((position.start.x + position.end.x) / 2) * charWidth
+          );
+          const top = Math.round((position.end.y + 2) * charHeight) + 15;
+
+          setActionBarState({
+            visible: true,
+            left,
+            top,
+          });
+
+          return;
+        }
+
+        setActionBarState(position => ({
+          ...position,
+          visible: false,
+        }));
+      });
+    }
+
+    return () => termCtrl.destroy();
+    // do not re-initialize xterm when theme changes, use specialized handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.assistEnabled]);
+
+  function handleUseCommand(command: string) {
+    termCtrlRef.current.term.paste(command);
   }
 
-  componentWillUnmount() {
-    this.terminal.destroy();
+  function handleAssistClose() {
+    termCtrlRef.current.term.focus();
   }
 
-  shouldComponentUpdate() {
-    return false;
+  function handleAskAssist() {
+    assist.explainSelection(termCtrlRef.current.term.getSelection());
   }
 
-  focus() {
-    this.terminal.term.focus();
+  function handleActionBarClose() {
+    setActionBarState(position => ({
+      ...position,
+      visible: false,
+    }));
   }
 
-  render() {
-    return (
+  function handleActionBarCopy() {
+    const selection = termCtrlRef.current.term.getSelection();
+
+    if (selection) {
+      void navigator.clipboard.writeText(selection);
+    }
+  }
+
+  useEffect(() => {
+    termCtrlRef.current?.updateTheme(props.theme);
+  }, [props.theme]);
+
+  return (
+    <>
       <Flex
         flexDirection="column"
         height="100%"
@@ -74,8 +173,25 @@ export default class Terminal extends React.Component<{ tty: Tty }> {
         px="2"
         style={{ overflow: 'auto' }}
       >
-        <StyledXterm ref={this.refTermContainer} />
+        <StyledXterm ref={elementRef} />
       </Flex>
-    );
-  }
-}
+
+      {props.assistEnabled && (
+        <>
+          <ActionBar
+            position={actionBarState}
+            visible={actionBarState.visible}
+            onClose={handleActionBarClose}
+            onCopy={handleActionBarCopy}
+            onAskAssist={handleAskAssist}
+          />
+
+          <TerminalAssist
+            onUseCommand={handleUseCommand}
+            onClose={handleAssistClose}
+          />
+        </>
+      )}
+    </>
+  );
+});

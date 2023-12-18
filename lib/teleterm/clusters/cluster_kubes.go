@@ -1,23 +1,26 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package clusters
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -28,6 +31,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -59,7 +63,7 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 		UseSearchAsRoles:    r.SearchAsRoles == "yes",
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -104,4 +108,59 @@ type GetKubesResponse struct {
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// reissueKubeCert issue new certificates for kube cluster and saves them to disk.
+func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) error {
+	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
+	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Fetch the certs for the kube cluster.
+	return trace.Wrap(c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster:    c.clusterClient.SiteName,
+		KubernetesCluster: kubeCluster,
+		AccessRequests:    c.status.ActiveRequests.AccessRequests,
+	}))
+}
+
+func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCluster, error) {
+	var kubeClusters []types.KubeCluster
+	err := AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{
+			PredicateExpression: fmt.Sprintf("name == %q", kubeCluster),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, cluster := range kubeClusters {
+		if cluster.GetName() == kubeCluster {
+			return cluster, nil
+		}
+	}
+	return nil, trace.NotFound("kubernetes cluster %q not found", kubeCluster)
 }

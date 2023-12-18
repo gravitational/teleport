@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -28,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -58,8 +62,36 @@ type KeyAgentTestSuite struct {
 	tlscaCert   auth.TrustedCerts
 }
 
-func makeSuite(t *testing.T) *KeyAgentTestSuite {
+type keyAgentTestSuiteFunc func(opt *keyAgentTestSuiteOpt)
+
+func withHostname(hostname string) keyAgentTestSuiteFunc {
+	return func(opt *keyAgentTestSuiteOpt) {
+		opt.hostname = hostname
+	}
+}
+
+func withClusterName(cluster string) keyAgentTestSuiteFunc {
+	return func(opt *keyAgentTestSuiteOpt) {
+		opt.clusterName = cluster
+	}
+}
+
+type keyAgentTestSuiteOpt struct {
+	hostname    string
+	clusterName string
+}
+
+func makeSuite(t *testing.T, opts ...keyAgentTestSuiteFunc) *KeyAgentTestSuite {
 	t.Helper()
+
+	settings := keyAgentTestSuiteOpt{
+		hostname:    "bar",
+		clusterName: "some-cluster",
+	}
+
+	for _, o := range opts {
+		o(&settings)
+	}
 
 	err := startDebugAgent(t)
 	require.NoError(t, err)
@@ -67,14 +99,14 @@ func makeSuite(t *testing.T) *KeyAgentTestSuite {
 	s := &KeyAgentTestSuite{
 		keyDir:      t.TempDir(),
 		username:    "foo",
-		hostname:    "bar",
-		clusterName: "some-cluster",
+		hostname:    settings.hostname,
+		clusterName: settings.clusterName,
 	}
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 
-	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, "localhost")
+	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, settings.clusterName)
 	require.NoError(t, err)
 
 	keygen := testauthority.New()
@@ -247,6 +279,54 @@ func TestLoadKey(t *testing.T) {
 	}
 }
 
+type caType struct {
+	signer       ssh.Signer
+	trustedCerts auth.TrustedCerts
+}
+
+func (s *KeyAgentTestSuite) generateCA(t *testing.T, keygen *testauthority.Keygen, lka *LocalKeyAgent, hostnames ...string) []caType {
+	result := make([]caType, 0, len(hostnames))
+	usedKeys := make(map[string]struct{})
+
+	for _, hostname := range hostnames {
+		var caPriv, caPub []byte
+		var err error
+
+		// retry until we get a unique keypair
+		attempts := 20
+		for i := 0; i < attempts; i++ {
+			if i == attempts-1 {
+				require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
+			}
+			caPriv, caPub, err = keygen.GenerateKeyPair()
+			require.NoError(t, err)
+
+			// ensure we don't reuse the same keypair for different hosts
+			if _, ok := usedKeys[string(caPriv)]; ok {
+				continue
+			}
+			usedKeys[string(caPriv)] = struct{}{}
+			break
+		}
+
+		caSigner, err := ssh.ParsePrivateKey(caPriv)
+		require.NoError(t, err)
+
+		hostKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
+		require.NoError(t, err)
+
+		err = lka.clientStore.AddTrustedHostKeys(s.hostname, hostname, hostKey)
+		require.NoError(t, err)
+
+		_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
+		require.NoError(t, err)
+		trustedCerts.ClusterName = hostname
+		result = append(result, caType{signer: caSigner, trustedCerts: trustedCerts})
+	}
+	require.Len(t, result, len(hostnames))
+	return result
+}
+
 func TestHostCertVerification(t *testing.T) {
 	s := makeSuite(t)
 
@@ -275,53 +355,7 @@ func TestHostCertVerification(t *testing.T) {
 	// hosts cache (done by "tsh login").
 	keygen := testauthority.New()
 
-	type ca struct {
-		signer       ssh.Signer
-		trustedCerts auth.TrustedCerts
-	}
-	generateCA := func(hostnames ...string) []ca {
-		result := make([]ca, 0, len(hostnames))
-		usedKeys := make(map[string]struct{})
-
-		for _, hostname := range hostnames {
-			var caPriv, caPub []byte
-			var err error
-
-			// retry until we get a unique keypair
-			attempts := 20
-			for i := 0; i < attempts; i++ {
-				if i == attempts-1 {
-					require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
-				}
-				caPriv, caPub, err = keygen.GenerateKeyPair()
-				require.NoError(t, err)
-
-				// ensure we don't reuse the same keypair for different hosts
-				if _, ok := usedKeys[string(caPriv)]; ok {
-					continue
-				}
-				usedKeys[string(caPriv)] = struct{}{}
-				break
-			}
-
-			caSigner, err := ssh.ParsePrivateKey(caPriv)
-			require.NoError(t, err)
-
-			hostKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
-			require.NoError(t, err)
-
-			err = lka.clientStore.AddTrustedHostKeys(s.hostname, hostname, hostKey)
-			require.NoError(t, err)
-
-			_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
-			require.NoError(t, err)
-			trustedCerts.ClusterName = hostname
-			result = append(result, ca{signer: caSigner, trustedCerts: trustedCerts})
-		}
-		require.Len(t, result, len(hostnames))
-		return result
-	}
-	cas := generateCA("example.com", "leaf.example.com")
+	cas := s.generateCA(t, keygen, lka, "example.com", "leaf.example.com")
 	root, leaf := cas[0], cas[1]
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
@@ -503,6 +537,103 @@ func TestHostKeyVerification(t *testing.T) {
 	err = lka.HostKeyCallback("luna", &a, pk)
 	require.NoError(t, err)
 	require.False(t, userWasAsked)
+}
+
+// TestHostCertVerificationLoadAllCasProxyAddrEqClusterName verifiers the HostKeyCallback logic when the
+// loadAllCA cluster setting and ProxyAddr is the same as Cluster Name
+// In this flow the know_hosts contains following entries:
+//
+// @cert-authority root.example.com,root.example.com,*.root.example.com ssh-rsa ...
+// @cert-authority root.example.com,leaf.example.com,*.leaf.example.com ssh-rsa ...
+//
+// Note that the first @cert-authority entries (proxy addresses) are the same for root and leaf CA.
+// When the HostKeyCallback callback is called for loadAllCA = false the direct connection to root cluster
+// should only load the root cluster CA.
+func TestHostCertVerificationLoadAllCasProxyAddrEqClusterName(t *testing.T) {
+	const (
+		rootClusterName = "root.example.com"
+		leafClusterName = "leaf.example.com"
+		leafNodeName    = "server02"
+		leafNodeAddr    = "server02.leaf.example.com:3022"
+		proxyHost       = "root.example.com"
+	)
+
+	s := makeSuite(t, withClusterName(rootClusterName), withHostname(rootClusterName))
+	clientStore := NewFSClientStore(s.keyDir)
+	lka, err := NewLocalAgent(LocalAgentConfig{
+		ClientStore: clientStore,
+		ProxyHost:   proxyHost,
+		Username:    s.username,
+		KeysOption:  AddKeysToAgentAuto,
+		Site:        rootClusterName,
+	})
+	require.NoError(t, err)
+
+	err = lka.AddKey(s.key)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = lka.UnloadKey(s.key.KeyIndex)
+		require.NoError(t, err)
+	})
+
+	keygen := testauthority.New()
+
+	cas := s.generateCA(t, keygen, lka, rootClusterName, leafClusterName)
+	rootClusterCA, leafClusterCA := cas[0], cas[1]
+
+	err = lka.clientStore.SaveTrustedCerts(proxyHost, []auth.TrustedCerts{rootClusterCA.trustedCerts, leafClusterCA.trustedCerts})
+	require.NoError(t, err)
+	leafSSHPubKey := mustGenerateHostPublicCert(t, keygen, leafClusterCA.signer, leafNodeName, leafClusterName)
+
+	t.Run("verify loadAllCA=true", func(t *testing.T) {
+		lka.loadAllCAs = true
+		err = lka.HostKeyCallback(leafNodeAddr, nil, leafSSHPubKey)
+		require.NoError(t, err)
+	})
+
+	t.Run("verify loadAllCA=false", func(t *testing.T) {
+		lka.loadAllCAs = false
+		err = lka.HostKeyCallback(leafNodeAddr, nil, leafSSHPubKey)
+		require.Error(t, err)
+	})
+
+	t.Run("verify loadAllCA=false insecure", func(t *testing.T) {
+		// Insecure flow will add the unknown CA to know_hosts CA list
+		lka.insecure = true
+		lka.hostPromptFunc = func(host string, k ssh.PublicKey) error {
+			return nil
+		}
+		err = lka.HostKeyCallback(leafNodeAddr, nil, leafSSHPubKey)
+		require.NoError(t, err)
+
+		// The unknown CA was added during insecure flow  to known_hosts file:
+		// @cert-authority root.example.com,server02.leaf.example.com:3022,*.server02.leaf.example.com:3022 ssh-rsa ...
+		// After that the insecure=true flow should successfully verify the host key
+		// against server02.leaf.example.com:3022 entry.
+		lka.insecure = false
+		lka.hostPromptFunc = nil
+		err = lka.HostKeyCallback(leafNodeAddr, nil, leafSSHPubKey)
+		require.NoError(t, err)
+	})
+}
+
+func mustGenerateHostPublicCert(t *testing.T, keygen *testauthority.Keygen, signer ssh.Signer, nodeName, clusterName string) ssh.PublicKey {
+	_, leafHostPub, err := keygen.GenerateKeyPair()
+	require.NoError(t, err)
+	leafHostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
+		CASigner:      signer,
+		PublicHostKey: leafHostPub,
+		HostID:        uuid.NewString(),
+		NodeName:      nodeName,
+		ClusterName:   clusterName,
+		Role:          types.RoleNode,
+		TTL:           1 * time.Hour,
+	})
+	require.NoError(t, err)
+	leafCerts, err := sshutils.ParseAuthorizedKeys([][]byte{leafHostCertBytes})
+	require.NoError(t, err)
+	require.Len(t, leafCerts, 1)
+	return leafCerts[0]
 }
 
 func TestDefaultHostPromptFunc(t *testing.T) {

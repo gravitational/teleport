@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -104,16 +106,19 @@ func (m *mockSSHClient) GlobalRequests() <-chan *ssh.Request {
 	return m.MockGlobalRequests
 }
 
+type fakeReaderWriter struct{}
+
+func (n fakeReaderWriter) Read(_ []byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (n fakeReaderWriter) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
 type mockSSHChannel struct {
+	fakeReaderWriter
 	MockSendRequest func(name string, wantReply bool, payload []byte) (bool, error)
-}
-
-func (m *mockSSHChannel) Read(data []byte) (int, error) {
-	return 0, trace.NotImplemented("")
-}
-
-func (m *mockSSHChannel) Write(data []byte) (int, error) {
-	return 0, trace.NotImplemented("")
 }
 
 func (m *mockSSHChannel) Close() error { return nil }
@@ -129,7 +134,7 @@ func (m *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte
 }
 
 func (m *mockSSHChannel) Stderr() io.ReadWriter {
-	return nil
+	return fakeReaderWriter{}
 }
 
 // mockAgentInjection implements several interfaces for injecting into an agent.
@@ -150,17 +155,15 @@ func (m *mockAgentInjection) getVersion(context.Context) (string, error) {
 }
 
 func testAgent(t *testing.T) (*agent, *mockSSHClient) {
-	tracker, err := track.New(context.Background(), track.Config{
+	tracker, err := track.New(track.Config{
 		ClusterName: "test",
 	})
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
 
-	tracker.Start()
-	t.Cleanup(tracker.StopAll)
-
-	lease := <-tracker.Acquire()
+	lease := tracker.TryAcquire()
+	require.NotNil(t, lease)
 
 	client := &mockSSHClient{
 		MockPrincipals:        []string{"default"},
@@ -237,7 +240,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	callback := newCallback()
 	agent.stateCallback = callback.callback
-	agent.tracker.Claim(claimedProxy)
+
+	agent.tracker.TrackExpected(track.Proxy{Name: claimedProxy}, track.Proxy{Name: "other-proxy"})
+	lease := agent.tracker.TryAcquire()
+	require.NotNil(t, lease)
+	lease.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
 
@@ -246,7 +253,7 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 
 	err := agent.Start(ctx)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
+	require.Contains(t, err.Error(), proxyAlreadyClaimedError, "Expected failed to claim proxy error.")
 
 	callback.waitForCount(t, 2)
 	require.Contains(t, callback.states, AgentConnecting)
@@ -280,13 +287,13 @@ func TestAgentStart(t *testing.T) {
 		<-waitForVersion
 
 		atomic.AddInt32(openChannels, 1)
-		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
+		assert.Equal(t, chanHeartbeat, name, "Unexpected channel opened during startup.")
 		return tracessh.NewTraceChannel(
 				&mockSSHChannel{
 					MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
 						atomic.AddInt32(sentPings, 1)
 
-						assert.Equal(t, name, "ping", "Unexpected request name.")
+						assert.Equal(t, "ping", name, "Unexpected request name.")
 						assert.False(t, wantReply, "Expected no reply wanted.")
 						return true, nil
 					},
@@ -323,14 +330,9 @@ func TestAgentStart(t *testing.T) {
 	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
 	require.Equal(t, AgentConnected, agent.GetState())
 
-	unclaimed := false
-	agent.unclaim = func() {
-		unclaimed = true
-	}
-
 	err = agent.Stop()
 	require.NoError(t, err)
-	require.True(t, unclaimed, "Expected unclaim to be called.")
+	require.True(t, agent.lease.IsReleased(), "Expected lease to be released.")
 
 	callback.waitForCount(t, 3)
 	require.Contains(t, callback.states, AgentClosed)

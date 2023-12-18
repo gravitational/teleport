@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
@@ -383,8 +385,9 @@ func (s *ProtoStream) Done() <-chan struct{} {
 	return s.cancelCtx.Done()
 }
 
-// EmitAuditEvent emits a single audit event to the stream
-func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+// RecordEvent emits a single audit event to the stream
+func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
+	event := pe.GetAuditEvent()
 	messageSize := event.Size()
 	if messageSize > MaxProtoMessageSizeBytes {
 		switch v := event.(type) {
@@ -405,7 +408,7 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	case s.eventsCh <- protoEvent{index: event.GetIndex(), oneof: oneof}:
 		diff := time.Since(start)
 		if diff > 100*time.Millisecond {
-			log.Debugf("[SLOW] EmitAuditEvent took %v.", diff)
+			log.Debugf("[SLOW] RecordEvent took %v.", diff)
 		}
 		return nil
 	case <-s.cancelCtx.Done():
@@ -652,7 +655,7 @@ func (w *sliceWriter) submitEvent(event protoEvent) error {
 		}
 	}
 
-	return w.current.emitAuditEvent(event)
+	return w.current.recordEvent(event)
 }
 
 // completeStream waits for in-flight uploads to finish
@@ -724,6 +727,12 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
+		log := log.WithFields(log.Fields{
+			"part":    partNumber,
+			"upload":  w.proto.cfg.Upload.ID,
+			"session": w.proto.cfg.Upload.SessionID,
+		})
+
 		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			reader, err := slice.reader()
@@ -736,11 +745,17 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 				activeUpload.setPart(*part)
 				return
 			}
+
+			log.WithError(err).Warn("failed to upload part")
+
 			// upload is not found is not a transient error, so abort the operation
 			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) {
+				log.Info("aborting part upload")
 				activeUpload.setError(err)
 				return
 			}
+			log.Info("will retry part upload")
+
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error
@@ -853,8 +868,8 @@ func (s *slice) shouldUpload() bool {
 	return int64(s.buffer.Len()) >= s.proto.cfg.MinUploadBytes
 }
 
-// emitAuditEvent emits a single audit event to the stream
-func (s *slice) emitAuditEvent(event protoEvent) error {
+// recordEvent emits a single session event to the stream
+func (s *slice) recordEvent(event protoEvent) error {
 	bytes := s.proto.cfg.SlicePool.Get()
 	defer s.proto.cfg.SlicePool.Put(bytes)
 
@@ -891,10 +906,10 @@ func NewProtoReader(r io.Reader) *ProtoReader {
 	}
 }
 
-// AuditReader provides method to read
-// audit events one by one
-type AuditReader interface {
-	// Read reads audit events
+// SessionReader provides method to read
+// session events one by one
+type SessionReader interface {
+	// Read reads session events
 	Read(context.Context) (apievents.AuditEvent, error)
 }
 

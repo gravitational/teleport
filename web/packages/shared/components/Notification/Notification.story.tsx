@@ -1,18 +1,20 @@
-/*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { useState } from 'react';
 import { Info, Warning } from 'design/Icon';
@@ -36,7 +38,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content: {
               title: 'Info with title and description',
@@ -51,7 +53,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'warn',
             content: {
               title: 'Warning with title and description',
@@ -66,7 +68,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'error',
             content: {
               title: 'Error with title and description',
@@ -83,7 +85,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content: 'Multiline info without title. ' + loremIpsum,
           }}
@@ -95,7 +97,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'warn',
             content: 'Multiline warning without title. ' + loremIpsum,
           }}
@@ -107,7 +109,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'error',
             content: 'Multiline error without title. ' + loremIpsum,
           }}
@@ -121,7 +123,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content: 'Info without title',
           }}
@@ -133,7 +135,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'warn',
             content: 'Warning without title',
           }}
@@ -145,7 +147,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'error',
             content: 'Error without title',
           }}
@@ -159,7 +161,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content: {
               title: 'Info with link',
@@ -177,7 +179,7 @@ export const Notifications = () => {
         />
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'warn',
             content: {
               title: 'Warning with link',
@@ -195,7 +197,7 @@ export const Notifications = () => {
         />
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'error',
             content: {
               title: 'Error with link',
@@ -216,7 +218,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content: {
               title: 'Info with list',
@@ -230,7 +232,7 @@ export const Notifications = () => {
         />
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'warn',
             content: {
               title: 'Warning with list',
@@ -244,7 +246,7 @@ export const Notifications = () => {
         />
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'error',
             content: {
               title: 'Error with list',
@@ -261,7 +263,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content:
               'Unbreakable text. /Users/test/Library/ApplicationSupport/Electron/configuration.json',
@@ -286,7 +288,7 @@ export const AutoRemovable = () => {
       {showInfo ? (
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'info',
             content:
               "This will be automatically removed after 5 seconds. Click to expand it. Mouseover it to restart the timer. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
@@ -303,7 +305,7 @@ export const AutoRemovable = () => {
       {showWarning ? (
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'warn',
             content:
               "This will be automatically removed after 5 seconds. Click to expand it. Mouseover it to restart the timer. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
@@ -320,7 +322,7 @@ export const AutoRemovable = () => {
       {showError ? (
         <Notification
           item={{
-            id: getId(),
+            id: crypto.randomUUID(),
             severity: 'error',
             content:
               "This can only be removed by clicking on the X. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
@@ -336,13 +338,6 @@ export const AutoRemovable = () => {
     </Flex>
   );
 };
-
-// Alternative to crypto.randomUUID, which doesn't work in storybook.
-let id = 0;
-function getId() {
-  id++;
-  return id.toString();
-}
 
 const loremIpsum =
   'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut non ipsum dignissim, dignissim est vitae, facilisis nunc.';

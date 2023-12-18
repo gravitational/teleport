@@ -1,18 +1,24 @@
-# This Dockerfile makes the "build box": the container used to build official
-# releases of Teleport and its documentation.
+# syntax=docker/dockerfile:1
+
+###################################################################################
+#                                                                                 #
+#      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
+#                                                                                 #
+###################################################################################
+
+# This Dockerfile makes the "build box" the container used to:
+# * run test and linters in CI
+# * building other Docker images
+#
+# For Teleport releases we're using CentOS 7 box to keep the binaries compatible
+# with older Linux distributions (glibc 2.17+).
 #
 # Check the README to learn how to safely introduce changes to Dockerfiles.
-
-# Use Ubuntu 18.04 as base to get an older glibc version.
-# Using a newer base image will build against a newer glibc, which creates a
-# runtime requirement for the host to have newer glibc too. For example,
-# teleport built on any newer Ubuntu version will not run on Centos 7 because
-# of this.
 
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:18.04 AS libfido2
+FROM buildpack-deps:22.04 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -20,9 +26,9 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
+    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
     make install-static && \
     make clean
 
@@ -40,15 +46,16 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
-    ./config --release --libdir=/usr/local/lib && \
-    make && \
+    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
+    ./config --release -fPIC --libdir=/usr/local/lib && \
+    make -j"$(nproc)" && \
     make install_sw
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
+# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
@@ -56,6 +63,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DCMAKE_BUILD_TYPE=Release . && \
     grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
@@ -64,7 +72,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:18.04 AS libbpf
+FROM buildpack-deps:22.04 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -73,11 +81,14 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev
 
 ARG LIBBPF_VERSION
+# BUILD_STATIC_ONLY - builds only static libraries without shared ones
+# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
+# DESTDIR - where to install the library
+# V=1 - verbose build
 RUN mkdir -p /opt && cd /opt &&  \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
+    BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers
 
 ## BUILDBOX ###################################################################
 #
@@ -96,7 +107,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:18.04 AS buildbox
+FROM ubuntu:22.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -112,8 +123,7 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 # Install packages.
-# Java JRE is required by gcloud firestore emulator.
-# Latest git 2.18+ is required for GitHub actions
+# Latest git 2.18+ is required for GitHub actions.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
     apt-get -y install software-properties-common && \
@@ -124,10 +134,9 @@ RUN apt-get -y update && \
         apt-utils \
         build-essential \
         ca-certificates \
-        clang-10 \
-        clang-format-10 \
+        clang \
+        clang-format \
         curl \
-        default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
         gnupg \
@@ -135,29 +144,28 @@ RUN apt-get -y update && \
         libc6-dev \
         libelf-dev \
         libpam-dev \
+        libpcsclite-dev \
         libsqlite3-0 \
         libssl-dev \
-        llvm-10 \
+        llvm \
         locales \
         mingw-w64 \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
-        osslsigncode \
+        pkg-config \
         python3-pip \
         python3-setuptools \
         python3-wheel \
-        pkg-config \
-        # Used during tag builds to build the RPM package of Connect.
-        rpm \
+        # rsync is required for some integration tests
+        rsync \
         softhsm2 \
         sudo \
         tree \
         unzip \
+        xauth \
         zip \
         zlib1g-dev \
-        xauth \
-        libpcsclite-dev \
         && \
     install -m 0755 -d /etc/apt/keyrings && \
     gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
@@ -168,21 +176,24 @@ RUN apt-get -y update && \
     tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
+    # Manually install the wasm-opt binary from the binaryen package on ARM64.
+    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install gcloud SDK and Firestore emulator.
-ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
-    gcloud components install cloud-firestore-emulator beta && \
-    rm -rf /opt/google-cloud-sdk/.install/.backup
-
-# Install etcd.
-RUN curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-    cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-    rm -rf etcd-v3.3.9-linux-${BUILDARCH}
+# Install osslsigncode for Windows Code Signing. The format of our
+# Code Signing Certificate needs us to use osslsigncode >= 2.6, which
+# allows the use of legacy OpenSSL algorithms. This is not yet provided
+# by Ubuntu, so we will have to fetch it ourselves.
+RUN --mount=type=bind,target=/context \
+    curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
+    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
+    && unzip -d /tmp/osslsigncode osslsigncode.zip \
+    && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
+    && rm -rf /tmp/osslsigncode \
+    && rm osslsigncode.zip
 
 # Add the CI user.
 ARG UID
@@ -210,6 +221,11 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+
+ARG WASM_PACK_VERSION
+# Install wasm-pack for targeting WebAssembly from Rust.
+RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
@@ -242,9 +258,11 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
-    cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-    rm -r bats-core-1.2.1
+RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && \
+    cd bats-core && \
+    [ "$(git rev-parse HEAD)" = 'dcaec03e32e0b152f8ef9cf14b75296cf5caeaff' ] && \
+    ./install.sh /usr/local && cd .. && \
+    rm -r bats-core
 
 # Install shellcheck.
 RUN scversion='v0.9.0' && \
@@ -254,8 +272,9 @@ RUN scversion='v0.9.0' && \
     shellcheck --version
 
 # Install helm.
+# Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
-    curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
@@ -272,36 +291,41 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
+ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
+ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
+RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
-# Install protobuf and grpc build tools.
-ARG PROTOC_VER
-ARG GOGO_PROTO_TAG
+# Install protoc.
+ARG PROTOC_VERSION # eg, "3.20.2"
+RUN VERSION="$PROTOC_VERSION" && \
+  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
 
-RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN go install github.com/gogo/protobuf/protoc-gen-gogofast@${GOGO_PROTO_TAG}
+# Install protoc-gen-gogofast.
+ARG GOGO_PROTO_TAG # eg, "v1.3.2"
+RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.9.1
+RUN go install github.com/daixiang0/gci@v0.11.0
+
+# Install gotestsum.
+RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+RUN VERSION='v1.55.2'; \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
 # Install Buf.
-RUN BIN="/usr/local/bin" && \
-    VERSION="1.18.0" && \
-      curl -fsSL \
-        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
-        -o "${BIN}/buf" && \
-      chmod +x "${BIN}/buf"
+ARG BUF_VERSION # eg, "v1.26.1"
+RUN VERSION="$BUF_VERSION"; \
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION

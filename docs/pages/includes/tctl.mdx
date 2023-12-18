@@ -1,31 +1,18 @@
-Make sure you can connect to Teleport. Log in to your cluster using `tsh`, then use `tctl`
-remotely:
+To check that you can connect to your Teleport cluster, sign in with `tsh login`, then 
+verify that you can run `tctl` commands using your current credentials. 
+`tctl` is supported on macOS and Linux machines.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+For example:
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=email@example.com
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
 $ tctl status
-# Cluster  teleport.example.com
+# Cluster  (=teleport.url=)
 # Version  (=teleport.version=)
 # CA pin   (=presets.ca_pin=)
 ```
 
-You can run subsequent `tctl` commands in this guide on your local machine.
-
-For full privileges, you can also run `tctl` commands on your Auth Service host.
-
-</ScopedBlock>
-<ScopedBlock scope="cloud">
-
-```code
-$ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
-$ tctl status
-# Cluster  myinstance.teleport.sh
-# Version  (=cloud.version=)
-# CA pin   sha256:sha-hash-here
-```
-
-You must run subsequent `tctl` commands in this guide on your local machine.
-
-</ScopedBlock>
+If you can connect to the cluster and run the `tctl status` command, you can use your
+current credentials to run subsequent `tctl` commands from your workstation.
+If you host your own Teleport cluster, you can also run `tctl` commands on the computer that 
+hosts the Teleport Auth Service for full permissions.

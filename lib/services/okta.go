@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -80,10 +82,6 @@ type OktaAssignments interface {
 
 // MarshalOktaImportRule marshals the Okta import rule resource to JSON.
 func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOption) ([]byte, error) {
-	if err := importRule.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,12 +89,11 @@ func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOptio
 
 	switch i := importRule.(type) {
 	case *types.OktaImportRuleV1:
-		if !cfg.PreserveResourceID {
-			copy := *i
-			copy.SetResourceID(0)
-			i = &copy
+		if err := i.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(i)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, i))
 	default:
 		return nil, trace.BadParameter("unsupported Okta import rule resource %T", i)
 	}
@@ -127,6 +124,9 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 		if cfg.ID != 0 {
 			i.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			i.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			i.SetExpiry(cfg.Expires)
 		}
@@ -137,10 +137,6 @@ func UnmarshalOktaImportRule(data []byte, opts ...MarshalOption) (types.OktaImpo
 
 // MarshalOktaAssignment marshals the Okta assignment resource to JSON.
 func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOption) ([]byte, error) {
-	if err := assignment.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -148,12 +144,11 @@ func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOptio
 
 	switch a := assignment.(type) {
 	case *types.OktaAssignmentV1:
-		if !cfg.PreserveResourceID {
-			copy := *a
-			copy.SetResourceID(0)
-			a = &copy
+		if err := a.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(a)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, a))
 	default:
 		return nil, trace.BadParameter("unsupported Okta assignment resource %T", a)
 	}
@@ -183,6 +178,9 @@ func UnmarshalOktaAssignment(data []byte, opts ...MarshalOption) (types.OktaAssi
 		}
 		if cfg.ID != 0 {
 			a.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			a.SetRevision(cfg.Revision)
 		}
 		if !cfg.Expires.IsZero() {
 			a.SetExpiry(cfg.Expires)

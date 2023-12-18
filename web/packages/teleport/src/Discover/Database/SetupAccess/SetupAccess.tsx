@@ -1,23 +1,24 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { Box, Text, Flex, Link } from 'design';
-import { InfoFilled } from 'design/Icon';
+import { Info as InfoIcon } from 'design/Icon';
 
 import {
   SelectCreatable,
@@ -27,8 +28,9 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark } from 'teleport/Discover/Shared';
+import { Mark, StyledBox } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
@@ -47,6 +49,8 @@ export function SetupAccess(props: State) {
     getFixedOptions,
     getSelectableOptions,
     resourceSpec,
+    onPrev,
+    agentMeta,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -105,6 +109,8 @@ export function SetupAccess(props: State) {
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
 
+  const dbMeta = agentMeta as DbMeta;
+
   return (
     <SetupAccessWrapper
       {...restOfProps}
@@ -114,6 +120,9 @@ export function SetupAccess(props: State) {
       hasTraits={hasTraits}
       onProceed={handleOnProceed}
       infoContent={<Info dbEngine={engine} dbLocation={location} />}
+      // Don't allow going back to previous screen when deploy db
+      // service got skipped or user auto deployed the db service.
+      onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
     >
       <Box mb={4}>
         Database Users
@@ -166,7 +175,7 @@ const Info = (props: {
 }) => (
   <StyledBox mt={5}>
     <Flex mb={2}>
-      <InfoFilled fontSize={18} mr={1} mt="2px" />
+      <InfoIcon size="medium" mr={1} />
       <Text bold>To allow access using your Database Users</Text>
     </Flex>
     <DbEngineInstructions {...props} />
@@ -273,8 +282,8 @@ function DbEngineInstructions({
               >
                 host-based authentication
               </Link>{' '}
-              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL require's
-              client CA from clients connecting over TLS:
+              file named <Mark>pg_hba.conf</Mark>, so that PostgreSQL requires
+              client certificates from clients connecting over TLS:
             </Text>
             <TextSelectCopyMulti
               bash={false}
@@ -373,10 +382,3 @@ function DbEngineInstructions({
 
   return null;
 }
-
-const StyledBox = styled(Box)`
-  max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;

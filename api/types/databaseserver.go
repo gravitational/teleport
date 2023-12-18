@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils"
@@ -47,6 +48,9 @@ type DatabaseServer interface {
 	String() string
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
+
+	// CloneResource returns a copy of the DatabaseServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetDatabase returns the database this database server proxies.
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
@@ -112,6 +116,16 @@ func (s *DatabaseServerV3) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *DatabaseServerV3) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *DatabaseServerV3) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the resource metadata.
 func (s *DatabaseServerV3) GetMetadata() Metadata {
 	return s.Metadata
@@ -154,32 +168,10 @@ func (s *DatabaseServerV3) SetRotation(r Rotation) {
 
 // GetDatabase returns the database this database server proxies.
 func (s *DatabaseServerV3) GetDatabase() Database {
-	if s.Spec.Database != nil {
-		return s.Spec.Database
+	if s.Spec.Database == nil {
+		return nil
 	}
-	// If any older database agents are still heartbeating back, they have
-	// fields like protocol, URI, etc. set in the DatabaseServer object
-	// itself, so construct the Database object from them.
-	//
-	// DELETE IN 9.0.
-	return &DatabaseV3{
-		Kind:    KindDatabase,
-		Version: V3,
-		Metadata: Metadata{
-			Name:        s.Metadata.Name,
-			Namespace:   s.Metadata.Namespace,
-			Description: s.Spec.Description,
-			Labels:      s.Metadata.Labels,
-		},
-		Spec: DatabaseSpecV3{
-			Protocol:      s.Spec.Protocol,
-			URI:           s.Spec.URI,
-			CACert:        string(s.Spec.CACert),
-			DynamicLabels: s.Spec.DynamicLabels,
-			AWS:           s.Spec.AWS,
-			GCP:           s.Spec.GCP,
-		},
-	}
+	return s.Spec.Database
 }
 
 // SetDatabase sets the database this database server proxies.
@@ -214,24 +206,6 @@ func (s *DatabaseServerV3) setStaticFields() {
 	s.Version = V3
 }
 
-// setLegacyFields sets fields that database servers used to have before
-// Database resource became a separate field.
-//
-// This is required for backwards compatibility in case a database agent
-// connects back to a pre-8.0 auth server.
-//
-// DELETE IN 9.0.
-func (s *DatabaseServerV3) setLegacyFields(database *DatabaseV3) {
-	s.Metadata.Labels = database.Metadata.Labels
-	s.Spec.Description = database.Metadata.Description
-	s.Spec.Protocol = database.Spec.Protocol
-	s.Spec.URI = database.Spec.URI
-	s.Spec.CACert = []byte(database.Spec.CACert)
-	s.Spec.DynamicLabels = database.Spec.DynamicLabels
-	s.Spec.AWS = database.Spec.AWS
-	s.Spec.GCP = database.Spec.GCP
-}
-
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	s.setStaticFields()
@@ -247,12 +221,15 @@ func (s *DatabaseServerV3) CheckAndSetDefaults() error {
 	if s.Spec.Version == "" {
 		s.Spec.Version = api.Version
 	}
-	if s.Spec.Database != nil {
-		if err := s.Spec.Database.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-		s.setLegacyFields(s.Spec.Database)
+
+	if s.Spec.Database == nil {
+		return trace.BadParameter("missing database server Database")
 	}
+
+	if err := s.Spec.Database.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -283,18 +260,13 @@ func (s *DatabaseServerV3) GetLabel(key string) (value string, ok bool) {
 // * Static labels from `Metadata.Labels` and `Spec.Database`.
 // * Dynamic labels from `Spec.DynamicLabels`.
 func (s *DatabaseServerV3) GetAllLabels() map[string]string {
-	staticLabels := make(map[string]string)
-	for name, value := range s.Metadata.Labels {
-		staticLabels[name] = value
-	}
-
+	staticLabels := map[string]string{}
+	maps.Copy(staticLabels, s.Metadata.Labels)
 	if s.Spec.Database != nil {
-		for name, value := range s.Spec.Database.Metadata.Labels {
-			staticLabels[name] = value
-		}
+		maps.Copy(staticLabels, s.Spec.Database.GetAllLabels())
 	}
 
-	return CombineLabels(staticLabels, s.Spec.DynamicLabels)
+	return staticLabels
 }
 
 // GetStaticLabels returns the database server static labels.
@@ -310,6 +282,11 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
+}
+
+// CloneResource returns a copy of this database server object.
+func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

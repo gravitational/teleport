@@ -1,32 +1,36 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type * as tsh from './types';
+import * as tsh from './types';
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
-  uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
+  uri: '/clusters/teleport-local/servers/1234abcd-1234-abcd-1234-abcd1234abcd',
   tunnel: false,
-  name: '178ef081-259b-4aa5-a018-449b5ea7e694',
+  name: '1234abcd-1234-abcd-1234-abcd1234abcd',
   hostname: 'foo',
   addr: '127.0.0.1:3022',
   labelsList: [],
+  subKind: 'teleport',
   ...props,
 });
 
 export const databaseUri = '/clusters/teleport-local/dbs/foo';
+export const kubeUri = '/clusters/teleport-local/kubes/foo';
 
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
@@ -60,21 +64,149 @@ export const makeRootCluster = (
   connected: true,
   leaf: false,
   proxyHost: 'teleport-local:3080',
-  authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  loggedInUser: {
-    activeRequestsList: [],
-    assumedRequests: {},
-    name: 'admin',
-    acl: {},
-    sshLoginsList: [],
-    rolesList: [],
-    requestableRolesList: [],
-    suggestedReviewersList: [],
-  },
+  authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
+  loggedInUser: makeLoggedInUser(),
+  proxyVersion: '11.1.0',
   ...props,
 });
 
-export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
+export const makeLeafCluster = (
+  props: Partial<tsh.Cluster> = {}
+): tsh.Cluster => ({
+  uri: '/clusters/teleport-local/leaves/leaf',
+  name: 'teleport-local-leaf',
+  connected: true,
+  leaf: true,
+  proxyHost: '',
+  authClusterId: '',
+  loggedInUser: makeLoggedInUser(),
+  proxyVersion: '',
+  ...props,
+});
+
+export const makeLoggedInUser = (
+  props: Partial<tsh.LoggedInUser> = {}
+): tsh.LoggedInUser => ({
+  activeRequestsList: [],
+  assumedRequests: {},
+  name: 'alice',
+  acl: {
+    recordedSessions: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    activeSessions: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    authConnectors: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    roles: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    users: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    trustedClusters: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    events: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    tokens: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    servers: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    apps: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    dbs: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    kubeservers: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+    accessRequests: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      pb_delete: true,
+      use: true,
+    },
+  },
+  sshLoginsList: [],
+  rolesList: [],
+  requestableRolesList: [],
+  suggestedReviewersList: [],
+  userType: tsh.UserType.USER_TYPE_LOCAL,
+  ...props,
+});
+
+export const makeDatabaseGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
   uri: '/gateways/foo',
   targetName: 'sales-production',
   targetUri: databaseUri,
@@ -82,7 +214,32 @@ export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
   localAddress: 'localhost',
   localPort: '1337',
   protocol: 'postgres',
-  cliCommand: 'connect-me-to-db-please',
+  gatewayCliCommand: {
+    path: '/foo/psql',
+    argsList: ['psql', 'localhost:1337'],
+    envList: [],
+    preview: 'psql localhost:1337',
+  },
   targetSubresourceName: 'bar',
+  ...props,
+});
+
+export const makeKubeGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
+  uri: '/gateways/foo',
+  targetName: 'foo',
+  targetUri: kubeUri,
+  targetUser: '',
+  localAddress: 'localhost',
+  localPort: '1337',
+  protocol: '',
+  gatewayCliCommand: {
+    path: '/bin/kubectl',
+    argsList: ['version'],
+    envList: ['KUBECONFIG=/path/to/kubeconfig'],
+    preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
+  },
+  targetSubresourceName: '',
   ...props,
 });

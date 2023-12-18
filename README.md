@@ -1,6 +1,23 @@
+Teleport provides connectivity, authentication, access controls and audit for infrastructure.
+
+Here is why you might use Teleport:
+
+* Set up SSO for all of your cloud infrastructure [1].
+* Protect access to cloud and on-prem services using mTLS endpoints and short-lived certificates.
+* Establish tunnels to access services behind NATs and firewalls.
+* Provide an audit log with session recording and replay for various protocols.
+* Unify Role-Based Access Control (RBAC) and enforce the principle of least privilege with  [access requests](https://goteleport.com/features/access-requests/).
+
+[1] The open source version supports only GitHub SSO.
+
+Teleport works with SSH, Kubernetes, databases, RDP, and web services.
+
+* Architecture: https://goteleport.com/docs/architecture/
+* Getting Started: https://goteleport.com/docs/getting-started/
+
 <div align="center">
    <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.png" width=750/>
+   <img src="./assets/img/hero-teleport-platform.svg" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/download">
@@ -12,16 +29,12 @@
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
       </a>
-      <a href="https://www.apache.org/licenses/LICENSE-2.0">
-      <img src="https://img.shields.io/badge/Apache-2.0-red.svg" />
+      <a href="https://www.gnu.org/licenses/agpl-3.0.en.html">
+      <img src="https://img.shields.io/badge/AGPL-3.0-red.svg" />
       </a>
    </div>
 </div>
 </br>
-
-> Read our Blog: https://goteleport.com/blog/
-
-> Read our Documentation: https://goteleport.com/docs/getting-started/
 
 ## Table of Contents
 
@@ -37,48 +50,33 @@
 
 ## Introduction
 
-Teleport is the easiest, most secure way to access all your infrastructure.
-Teleport is an identity-aware, multi-protocol access proxy which understands
-SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire protocols.
+Teleport includes an identity-aware access proxy, a CA that issues short-lived certificates, a unified access control system and a tunneling system to access resources behind the firewall.
 
-On the server-side, Teleport is a single binary which enables convenient secure
-access to behind-NAT resources such as:
+We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
 
-* [SSH nodes](https://goteleport.com/docs/getting-started/) - SSH works in browsers too!
+* [SSH nodes](https://goteleport.com/docs/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/)
-* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/)
-* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/)
-* [Networked servers](https://goteleport.com/docs/server-access/introduction/)
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/).
+* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/).
+* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/).
+* [Networked servers](https://goteleport.com/docs/server-access/introduction/).
 
-Teleport is trivial to set up as a Linux daemon or in a Kubernetes pod. It's rapidly
-replacing legacy `sshd`-based setups at organizations who need:
+You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/#set-up-a-demo-cluster) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
 
-* Developer convenience of having instant secure access to everything they need
-  across many environments and cloud providers.
-* Audit log with session recording/replay for multiple protocols
-* Easily manage trust between teams, organizations and data centers.
-* Role-based access control (RBAC) and flexible access workflows (one-time [access requests](https://goteleport.com/features/access-requests/))
+Teleport focuses on best practices for infrastructure security:
 
-In addition to its hallmark features, Teleport is interesting for smaller teams
-because it facilitates easy adoption of the best infrastructure security
-practices like:
-
-- No need to manage shared secrets such as SSH keys: Teleport uses certificate-based access with automatic certificate expiration time for all protocols.
+- No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
 - Two-factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for everything via Github Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
+- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
 - Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
 
-Teleport is built upon the high-quality [Golang SSH](https://godoc.org/golang.org/x/crypto/ssh)
-implementation. It is _fully compatible with OpenSSH_,
-`sshd` servers, and `ssh` clients.
+Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
 
 |Project Links| Description
 |---|----
 | [Teleport Website](https://goteleport.com/) | The official website of the project. |
 | [Documentation](https://goteleport.com/docs/) | Admin guide, user manual and more. |
-| [Demo Video](https://www.youtube.com/watch?v=b1WHFW0NIoM) | 3-minute video overview of Teleport. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
@@ -87,36 +85,27 @@ implementation. It is _fully compatible with OpenSSH_,
 
 ## Installing and Running
 
-| Follow the [Installation](https://goteleport.com/docs/installation/) Guide
+To set up a single-instance Teleport cluster, follow our [getting started
+guide](https://goteleport.com/docs/get-started). You can then register your
+servers, Kubernetes clusters, and other infrastructure with your Teleport
+cluster.
 
-Download the [latest binary release](https://goteleport.com/download),
-unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
-`/usr/local/bin`.
+You can also get started with Teleport Team, a managed Teleport deployment that
+makes it easier for small organizations to enable secure access to their
+infrastructure.
 
-Then you can run Teleport as a single-node cluster:
+[Sign up for a free trial](https://goteleport.com/signup) of Teleport Team.
 
-```bash
-sudo teleport start
-```
-
-In a production environment, Teleport must run as `root`. For testing or non-production environments, run it as the `$USER`:
-
-`chown $USER /var/lib/teleport`
-
-* In this case, you will not be able to log in as another user.
+Follow our guide to [registering your first
+server](https://goteleport.com/docs/choose-an-edition/teleport-team/) with
+Teleport Team
 
 ## Docker
 
-| Follow the Docker-Compose [Getting Started](https://goteleport.com/docs/setup/guides/docker-compose/) Guide
-
 ### Deploy Teleport
 
-If you wish to deploy Teleport inside a Docker container:
-```
-# This command will pull the Teleport container image for version 8
-docker pull public.ecr.aws/gravitational/teleport:8
-```
-View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
+If you wish to deploy Teleport inside a Docker container see the 
+[installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
 
 ### For Local Testing and Development
 
@@ -134,7 +123,7 @@ If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
 development branch for an upcoming major version.  Get the latest release tags
 listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2.
+For example `git clone https://github.com/gravitational/teleport.git -b v13.0.0` gets release v13.0.0.
 
 ### Dockerized Build
 
@@ -251,18 +240,6 @@ DEBUG=1 ./build/teleport start -d
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
-#### Updating Web UI assets
-
-After you commit a change to [the `webapps`
-repo](https://github.com/gravitational/webapps), you need to update the Web UI
-assets in the `webassets/` git submodule.
-
-Run `make update-webassets` to update the `webassets` repo and create a PR for
-`teleport` to update its git submodule.
-
-You will need to have the `gh` utility installed on your system for the script
-to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
-
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
@@ -312,6 +289,28 @@ Why is a specific version of a module imported?
 
 `go mod graph | grep $modname`
 
+### Devbox Build (experimental)
+
+**Note**: Devbox support is still experimental. It's very possible things make not work as intended.
+
+Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
+the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
+then run:
+
+`devbox shell`
+
+This will install Teleport's various build dependencies and drop you into a shell with these
+dependencies. From here, you can build Teleport normally.
+
+#### flake.nix
+
+A nix flake is located in `build.assets/flake` that allows for installation of Teleport's less
+common build tooling. If this flake is updated, run:
+
+`devbox install`
+
+in order to make sure the changes in the flake are reflected in the local devbox shell.
+
 ## Why did We Build Teleport?
 
 The Teleport creators used to work together at Rackspace. We noticed that most cloud computing users struggle with setting up and configuring infrastructure security because popular tools, while flexible, are complex to understand and expensive to maintain. Additionally, most organizations use multiple infrastructure form factors such as several cloud providers, multiple cloud accounts, servers in colocation, and even smart devices. Some of those devices run on untrusted networks, behind third-party firewalls. This only magnifies complexity and increases operational overhead.
@@ -322,15 +321,15 @@ We had a choice, either start a security consulting business or build a solution
 
 * [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
 * [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
-* [Reference](https://goteleport.com/docs/setup/reference/)
+* [Reference](https://goteleport.com/docs/reference)
 * [FAQ](https://goteleport.com/docs/faq)
 
 ## Support and Contributing
 
-We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in Github, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in GitHub, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
 
 * Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
-* If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in Github.
+* If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in GitHub.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
 
 ## Is Teleport Secure and Production-Ready?

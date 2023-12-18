@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -60,6 +62,10 @@ type Terminal interface {
 
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
+
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -114,7 +120,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -208,6 +214,13 @@ func (t *terminal) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := t.serverContext.readyw.Close(); err != nil {
+		t.serverContext.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	t.serverContext.readyw = nil
+
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
 
@@ -234,6 +247,14 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		Code:    status.ExitStatus(),
 		Command: t.cmd.Path,
 	}, nil
+}
+
+func (t *terminal) WaitForChild() error {
+	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
+	closeErr := t.serverContext.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	t.serverContext.readyr = nil
+	return trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -453,7 +474,7 @@ func (t *terminal) setOwner() error {
 		return trace.Wrap(err)
 	}
 
-	err = os.Chown(t.tty.Name(), uid, gid)
+	err = os.Lchown(t.tty.Name(), uid, gid)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -590,6 +611,10 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		Code:    teleport.RemoteCommandSuccess,
 		Command: execRequest.GetCommand(),
 	}, nil
+}
+
+func (t *remoteTerminal) WaitForChild() error {
+	return nil
 }
 
 // Continue does nothing for remote command execution.

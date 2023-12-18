@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -49,7 +52,7 @@ import (
 
 type githubContext struct {
 	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	mockEmitter *eventstest.MockRecorderEmitter
 	b           backend.Backend
 	c           clockwork.FakeClock
 }
@@ -86,7 +89,7 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
 
-	tt.mockEmitter = &eventstest.MockEmitter{}
+	tt.mockEmitter = &eventstest.MockRecorderEmitter{}
 	tt.a.emitter = tt.mockEmitter
 
 	return &tt
@@ -115,7 +118,6 @@ func TestPopulateClaims(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}))
-
 }
 
 func TestCreateGithubUser(t *testing.T) {
@@ -123,21 +125,21 @@ func TestCreateGithubUser(t *testing.T) {
 	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
-	user, err := tt.a.createGithubUser(context.Background(), &CreateUserParams{
+	user, err := tt.a.createGithubUser(ctx, &CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo@example.com",
 		Roles:         []string{"admin"},
 		SessionTTL:    1 * time.Minute,
 	}, true)
 	require.NoError(t, err)
-	require.Equal(t, user.GetName(), "foo@example.com")
+	require.Equal(t, "foo@example.com", user.GetName())
 
 	// Dry-run must not create a user.
-	_, err = tt.a.GetUser("foo@example.com", false)
+	_, err = tt.a.GetUser(ctx, "foo@example.com", false)
 	require.Error(t, err)
 
 	// Create GitHub user with 1 minute expiry.
-	_, err = tt.a.createGithubUser(context.Background(), &CreateUserParams{
+	_, err = tt.a.createGithubUser(ctx, &CreateUserParams{
 		ConnectorName: "github",
 		Username:      "foo",
 		Roles:         []string{"admin"},
@@ -146,12 +148,12 @@ func TestCreateGithubUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = tt.a.GetUser("foo", false)
+	_, err = tt.a.GetUser(ctx, "foo", false)
 	require.NoError(t, err)
 
 	// Advance time 2 minutes, the user should be gone.
 	tt.c.Advance(2 * time.Minute)
-	_, err = tt.a.GetUser("foo", false)
+	_, err = tt.a.GetUser(ctx, "foo", false)
 	require.Error(t, err)
 }
 
@@ -213,12 +215,14 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	diagCtx := ssoDiagContextFixture(false /* testFlow */)
 	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
+		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginCode)
-	require.Equal(t, ssoDiagInfoCalls, 0)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
+	require.Equal(t, events.UserSSOLoginCode, tt.mockEmitter.LastEvent().GetCode())
+	require.Equal(t, []string{"login-rule"}, tt.mockEmitter.LastEvent().(*apievents.UserLogin).AppliedLoginRules)
+	require.Equal(t, 0, ssoDiagInfoCalls)
 	tt.mockEmitter.Reset()
 
 	// Test failure event, non-test-flow.
@@ -228,8 +232,8 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		return auth, trace.BadParameter("")
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginFailureCode)
-	require.Equal(t, ssoDiagInfoCalls, 0)
+	require.Equal(t, events.UserSSOLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
+	require.Equal(t, 0, ssoDiagInfoCalls)
 
 	// Test success event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
@@ -238,9 +242,9 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		return auth, nil
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginCode)
-	require.Equal(t, ssoDiagInfoCalls, 1)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
+	require.Equal(t, events.UserSSOTestFlowLoginCode, tt.mockEmitter.LastEvent().GetCode())
+	require.Equal(t, 1, ssoDiagInfoCalls)
 	tt.mockEmitter.Reset()
 
 	// Test failure event, test-flow.
@@ -250,8 +254,8 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		return auth, trace.BadParameter("")
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginFailureCode)
-	require.Equal(t, ssoDiagInfoCalls, 2)
+	require.Equal(t, events.UserSSOTestFlowLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
+	require.Equal(t, 2, ssoDiagInfoCalls)
 }
 
 type mockedGithubManager struct {
@@ -280,7 +284,9 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = a.calculateGithubUser(ctx, connector, &types.GithubClaims{
+	diagCtx := &SSODiagContext{}
+
+	_, err = a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1", "team2"},
@@ -325,6 +331,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	}
 	mockEvaluator := &mockLoginRuleEvaluator{
 		outputTraits: evaluatedTraits,
+		ruleNames:    []string{"mock"},
 	}
 	a.SetLoginRuleEvaluator(mockEvaluator)
 
@@ -340,7 +347,9 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	userParams, err := a.calculateGithubUser(ctx, connector, &types.GithubClaims{
+	diagCtx := &SSODiagContext{}
+
+	userParams, err := a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1"},
@@ -359,6 +368,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 		SessionTTL:    defaults.MaxCertDuration,
 	}, userParams, "user params does not match expected")
 	require.Equal(t, 1, mockEvaluator.evaluatedCount, "login rules were not evaluated exactly once")
+	require.Equal(t, mockEvaluator.ruleNames, diagCtx.Info.AppliedLoginRules)
 }
 
 type mockRoleCache struct {
@@ -373,12 +383,14 @@ func (m *mockRoleCache) GetRole(_ context.Context, name string) (types.Role, err
 type mockLoginRuleEvaluator struct {
 	outputTraits   map[string][]string
 	evaluatedCount int
+	ruleNames      []string
 }
 
 func (m *mockLoginRuleEvaluator) Evaluate(context.Context, *loginrule.EvaluationInput) (*loginrule.EvaluationOutput, error) {
 	m.evaluatedCount++
 	return &loginrule.EvaluationOutput{
-		Traits: m.outputTraits,
+		Traits:       m.outputTraits,
+		AppliedRules: m.ruleNames,
 	}, nil
 }
 
@@ -546,5 +558,42 @@ func TestGithubURLFormat(t *testing.T) {
 
 	for _, tt := range tts {
 		require.Equal(t, tt.expect, formatGithubURL(tt.host, tt.path))
+	}
+}
+
+func TestBuildAPIEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no path",
+			input:    "https://github.com",
+			expected: "github.com",
+		},
+		{
+			name:     "with path",
+			input:    "https://mykewlapiendpoint/apage",
+			expected: "mykewlapiendpoint/apage",
+		},
+		{
+			name:     "with path and double slashes",
+			input:    "https://mykewlapiendpoint//apage//",
+			expected: "mykewlapiendpoint/apage/",
+		},
+		{
+			name:     "with path and query",
+			input:    "https://mykewlapiendpoint/apage?legit=nope",
+			expected: "mykewlapiendpoint/apage",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildAPIEndpoint(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
 	}
 }

@@ -297,7 +297,7 @@ All values must be strings.
 ```
 dict(
   pair("fruits", set("apple", "banana")),
-  pair("vegetables", set("asparagus", "brocolli")),
+  pair("vegetables", set("asparagus", "broccoli")),
 )
 ```
 
@@ -306,7 +306,7 @@ returns
 ```
 {
   "fruits": ("apple", "banana"),
-  "vegetables": ("asparagus", "brocolli"),
+  "vegetables": ("asparagus", "broccoli"),
 }
 ```
 
@@ -324,7 +324,7 @@ its only elements.
 ```
 dict(
   pair("fruits", set("apple")),
-).add_values("fruits", "banana").add_values("vegetables", "asparagus", "brocolli")
+).add_values("fruits", "banana").add_values("vegetables", "asparagus", "broccoli")
 ```
 
 returns
@@ -332,7 +332,7 @@ returns
 ```
 {
   "fruits": ("apple", "banana"),
-  "vegetables": ("asparagus", "brocolli"),
+  "vegetables": ("asparagus", "broccoli"),
 }
 ```
 
@@ -344,7 +344,7 @@ removed.
 ```
 dict(
   pair("fruits", set("apple", "banana")),
-  pair("vegetables", set("asparagus", "brocolli")),
+  pair("vegetables", set("asparagus", "broccoli")),
 ).remove("vegetables")
 ```
 
@@ -366,7 +366,7 @@ error will be returned when the expression is evaluated.
 ```
 dict(
   pair("fruits", set("apple", "banana")),
-  pair("vegetables", set("asparagus", "brocolli")),
+  pair("vegetables", set("asparagus", "broccoli")),
 ).put("vegetables", set("carrot")).put("trees", set("aspen"))
 ```
 

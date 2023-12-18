@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package authclient contains common code for creating an auth server client
 // which may use SSH tunneling through a proxy.
@@ -31,7 +33,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,14 +51,16 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
+	// Insecure turns off TLS certificate verification when enabled.
+	Insecure bool
 }
 
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
-func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
-	directClient, err := connectViaAuthDirect(cfg)
+	directClient, err := connectViaAuthDirect(ctx, cfg)
 	if err == nil {
 		return directClient, nil
 	}
@@ -79,57 +83,57 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	)
 }
 
-func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
+func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	// Try connecting to the auth server directly over TLS.
-	directDialClient, err := auth.NewClient(apiclient.Config{
+	directClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
-		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
+		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Check connectivity by calling something on the client.
-	if _, err := directDialClient.GetClusterName(); err != nil {
+	// Check connectivity with a ping.
+	if _, err := directClient.Ping(ctx); err != nil {
 		// This client didn't work for us, so we close it.
-		_ = directDialClient.Close()
+		_ = directClient.Close()
 		return nil, trace.Wrap(err)
-
 	}
-	return directDialClient, nil
+
+	return directClient, nil
 }
 
-func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, error) {
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
 	//
 	// TODO(nic): this logic should be implemented once and reused in IoT
 	// nodes.
-	resolver := reversetunnel.WebClientResolver(&webclient.Config{
+	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.TLS.InsecureSkipVerify,
+		Insecure:  cfg.Insecure,
 		Timeout:   cfg.DialTimeout,
 	})
 
-	resolver, err := reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
+	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 	// within an SSH tunnel.
-	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
-		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+		InsecureSkipTLSVerify: cfg.Insecure,
 		ClusterCAs:            cfg.TLS.RootCAs,
 	})
 	if err != nil {
@@ -144,11 +148,13 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check connectivity by calling something on the client.
-	if _, err := tunnelClient.GetClusterName(); err != nil {
+
+	// Check connectivity with a ping.
+	if _, err = tunnelClient.Ping(ctx); err != nil {
 		// This client didn't work for us, so we close it.
 		_ = tunnelClient.Close()
 		return nil, trace.Wrap(err)
 	}
+
 	return tunnelClient, nil
 }

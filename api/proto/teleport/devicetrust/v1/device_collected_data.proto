@@ -18,6 +18,7 @@ package teleport.devicetrust.v1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/devicetrust/v1/os_type.proto";
+import "teleport/devicetrust/v1/tpm.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
@@ -56,7 +57,8 @@ message DeviceCollectedData {
   string os_version = 6;
 
   // OS build identifier. Augments the os_version.
-  // Example: "22D68".
+  // May match either the DeviceProfile os_build or os_build_supplemental.
+  // Example: "22D68" or "22F770820d".
   string os_build = 7;
 
   // OS username (distinct from the Teleport user).
@@ -81,4 +83,24 @@ message DeviceCollectedData {
   // The serial number of the "base board" as reported by BIOS DMI Type 2.
   // This field can be empty if no value has been configured.
   string base_board_serial_number = 13;
+
+  // If during the collection of this device data, the device performed a TPM
+  // platform attestation (e.g during enrollment or authentication), then this
+  // field holds the record of this attestation. This allows the state of the
+  // device to be compared to historical state, and allows for the platform
+  // attestations to be revalidated at a later date.
+  //
+  // This field is not explicitly sent up by the client, and any DCD sent by a
+  // client including this field should be rejected. The server should inject
+  // this field once verifying that the submitted platform attestation during
+  // the enrollment or authentication.
+  //
+  // System managed.
+  TPMPlatformAttestation tpm_platform_attestation = 14;
+
+  // OS identifier.
+  // Mainly used to differentiate Linux distros, as there is be no variation
+  // for systems like macOS or Windows.
+  // Example: "ubuntu", "centos", "fedora", "rhel".
+  string os_id = 15;
 }

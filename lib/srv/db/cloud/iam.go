@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package cloud
 
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // IAMConfig is the IAM configurator config.
@@ -96,6 +99,9 @@ type IAM struct {
 	agentIdentity awslib.Identity
 	mu            sync.RWMutex
 	tasks         chan iamTask
+
+	// iamPolicyStatus indicates whether the required IAM Policy to access the database was created.
+	iamPolicyStatus sync.Map
 }
 
 // NewIAM returns a new IAM configurator service.
@@ -104,9 +110,10 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &IAM{
-		cfg:   config,
-		log:   logrus.WithField(trace.Component, "iam"),
-		tasks: make(chan iamTask, defaultIAMTaskQueueSize),
+		cfg:             config,
+		log:             logrus.WithField(trace.Component, "iam"),
+		tasks:           make(chan iamTask, defaultIAMTaskQueueSize),
+		iamPolicyStatus: sync.Map{},
 	}, nil
 }
 
@@ -137,6 +144,7 @@ func (c *IAM) Start(ctx context.Context) error {
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 	if c.isSetupRequiredForDatabase(database) {
+		c.iamPolicyStatus.Store(database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_PENDING)
 		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
@@ -156,12 +164,50 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 	return nil
 }
 
+// UpdateIAMStatus updates the IAMPolicyExists for the Database.
+func (c *IAM) UpdateIAMStatus(database types.Database) error {
+	if c.isSetupRequiredForDatabase(database) {
+		awsStatus := database.GetAWS()
+
+		iamPolicyStatus, ok := c.iamPolicyStatus.Load(database.GetName())
+		if !ok {
+			// If there was no key found it was a result of un-registering database
+			// (and policy) as a result of deletion or failing to re-register from
+			// updating database.
+			awsStatus.IAMPolicyStatus = types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED
+			database.SetStatusAWS(awsStatus)
+			return nil
+		}
+
+		awsStatus.IAMPolicyStatus = iamPolicyStatus.(types.IAMPolicyStatus)
+		database.SetStatusAWS(awsStatus)
+	}
+	return nil
+}
+
 // isSetupRequiredForDatabase returns true if database type is supported.
 func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy, types.DatabaseTypeRedshift:
+	case types.DatabaseTypeRDS,
+		types.DatabaseTypeRDSProxy,
+		types.DatabaseTypeRedshift:
 		return true
-
+	case types.DatabaseTypeElastiCache:
+		ok, err := iam.CheckElastiCacheSupportsIAMAuth(database)
+		if err != nil {
+			c.log.WithError(err).Debugf("Assuming database %s supports IAM auth.",
+				database.GetName())
+			return true
+		}
+		return ok
+	case types.DatabaseTypeMemoryDB:
+		ok, err := iam.CheckMemoryDBSupportsIAMAuth(database)
+		if err != nil {
+			c.log.WithError(err).Debugf("Assuming database %s supports IAM auth.",
+				database.GetName())
+			return true
+		}
+		return ok
 	default:
 		return false
 	}
@@ -201,7 +247,7 @@ func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awsl
 		return c.agentIdentity, nil
 	}
 	c.mu.RUnlock()
-	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region)
+	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region, cloud.WithAmbientCredentials())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,6 +284,7 @@ func (c *IAM) getPolicyName() (string, error) {
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
 			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
@@ -270,6 +317,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		},
 	})
 	if err != nil {
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
 		return trace.Wrap(err)
 	}
 
@@ -281,8 +329,18 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	}()
 
 	if task.isSetup {
-		return configurator.setupIAM(ctx)
+		iamAuthErr := configurator.setupIAMAuth(ctx)
+		iamPolicySetup, iamPolicyErr := configurator.setupIAMPolicy(ctx)
+		statusEnum := types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED
+		if iamPolicySetup {
+			statusEnum = types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS
+		}
+		c.iamPolicyStatus.Store(task.database.GetName(), statusEnum)
+
+		return trace.NewAggregate(iamAuthErr, iamPolicyErr)
 	}
+
+	c.iamPolicyStatus.Delete(task.database.GetName())
 	return configurator.teardownIAM(ctx)
 }
 

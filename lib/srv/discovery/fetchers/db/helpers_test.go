@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -26,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -44,15 +45,15 @@ func toTypeLabels(labels map[string]string) types.Labels {
 	return result
 }
 
-func makeAWSMatchersForType(matcherType, region string, tags map[string]string) []services.AWSMatcher {
-	return []services.AWSMatcher{{
+func makeAWSMatchersForType(matcherType, region string, tags map[string]string) []types.AWSMatcher {
+	return []types.AWSMatcher{{
 		Types:   []string{matcherType},
 		Regions: []string{region},
 		Tags:    toTypeLabels(tags),
 	}}
 }
 
-func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []services.AWSMatcher) []common.Fetcher {
+func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []types.AWSMatcher) []common.Fetcher {
 	t.Helper()
 
 	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers)
@@ -66,7 +67,7 @@ func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []serv
 	return fetchers
 }
 
-func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []services.AzureMatcher) []common.Fetcher {
+func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
 	fetchers, err := MakeAzureFetchers(clients, matchers)
@@ -101,7 +102,7 @@ func mustGetDatabases(t *testing.T, fetchers []common.Fetcher) types.Databases {
 // Tests will cover:
 //   - that fetchers use the configured assume role when using AWS cloud clients.
 //   - that databases discovered and created by fetchers have the assumed role used to discover them populated.
-var testAssumeRole = services.AssumeRole{
+var testAssumeRole = types.AssumeRole{
 	RoleARN:    "arn:aws:iam::123456789012:role/test-role",
 	ExternalID: "externalID123",
 }
@@ -110,7 +111,7 @@ var testAssumeRole = services.AssumeRole{
 type awsFetcherTest struct {
 	name          string
 	inputClients  *cloud.TestCloudClients
-	inputMatchers []services.AWSMatcher
+	inputMatchers []types.AWSMatcher
 	wantDatabases types.Databases
 }
 
@@ -141,26 +142,28 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 }
 
 // copyDatabasesWithAWSAssumeRole copies input databases and sets a given AWS assume role for each copy.
-func copyDatabasesWithAWSAssumeRole(role services.AssumeRole, databases ...types.Database) types.Databases {
+func copyDatabasesWithAWSAssumeRole(role types.AssumeRole, databases ...types.Database) types.Databases {
 	if len(databases) == 0 {
 		return databases
 	}
 	out := make(types.Databases, 0, len(databases))
 	for _, db := range databases {
-		out = append(out, db.Copy())
+		dbCopy := db.Copy()
+		dbCopy.SetAWSAssumeRole(role.RoleARN)
+		dbCopy.SetAWSExternalID(role.ExternalID)
+		out = append(out, dbCopy)
 	}
-	applyAssumeRoleToDatabases(out, role)
 	return out
 }
 
 // copyAWSMatchersWithAssumeRole copies input AWS matchers and sets a given AWS assume role for each copy.
-func copyAWSMatchersWithAssumeRole(role services.AssumeRole, matchers ...services.AWSMatcher) []services.AWSMatcher {
+func copyAWSMatchersWithAssumeRole(role types.AssumeRole, matchers ...types.AWSMatcher) []types.AWSMatcher {
 	if len(matchers) == 0 {
 		return matchers
 	}
-	out := make([]services.AWSMatcher, 0, len(matchers))
+	out := make([]types.AWSMatcher, 0, len(matchers))
 	for _, m := range matchers {
-		m.AssumeRole = role
+		m.AssumeRole = &role
 		out = append(out, m)
 	}
 	return out

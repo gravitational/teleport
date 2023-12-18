@@ -23,8 +23,8 @@ fi
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.10.2
 readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
-readonly CRYPTO_VERSION=openssl-3.0.8
-readonly CRYPTO_COMMIT=31157bc0b46e04227b8468d3e6915e4d0332777c
+readonly CRYPTO_VERSION=openssl-3.0.12
+readonly CRYPTO_COMMIT=c3cc0f1386b0544383a61244a4beeb762b67498f
 readonly FIDO2_VERSION=1.13.0
 readonly FIDO2_COMMIT=486a8f8667e42f55cee2bba301b41433cacec830
 
@@ -115,6 +115,7 @@ crypto_build() {
 
   ./Configure \
     "darwin64-$C_ARCH-cc" \
+    -fPIC \
     -mmacosx-version-min="$MACOS_VERSION_MIN" \
     --prefix="$dest" \
     no-shared \
@@ -150,6 +151,7 @@ fido2_build() {
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -G "Unix Makefiles" \
     .
   grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt # double-check OpenSSL

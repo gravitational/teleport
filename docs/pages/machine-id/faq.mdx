@@ -5,24 +5,30 @@ description: Frequently asked questions about Teleport Machine ID
 
 ## Can Machine ID be used within CI/CD jobs?
 
-Yes, however it depends on your CI/CD provider. It's currently a good fit in the
-following situations:
+On CI/CD platforms where your workflow runs in an ephemeral environment (e.g
+no persistent state exists between individual workflow runs), Machine ID works
+best where a supported join method exists. These are:
 
- - Either short-lived or long-lived tasks run on AWS instances using AWS IAM
-   joining.
- - Long-lived worker nodes, like self-hosted Jenkins workers, using token-based
-   joining.
- - You use a supported SaaS CI/CD Provider:
-   - GitHub Actions (Teleport 11)
-   - CircleCI (coming in Teleport 11.1)
+- GitHub Actions
+- CircleCI
+- GitLab
+- AWS
+- GCP
+- Azure
+- Kubernetes
+- Spacelift
+
+On CI/CD platforms where you control the runner environment (e.g self-hosted
+Jenkins runner), Machine ID can run as a daemon on the runner and the generated
+credentials can be mounted into the environment of your individual workflow
+runs.
 
 ## Can Machine ID be used with Trusted Clusters ?
 
-From Teleport 12.2, Trusted Cluster support for SSH Access has been included in
-Machine ID.
+From Teleport 12.2, you can use Machine ID for SSH Access in trusted leaf clusters.
 
 We currently do not support access to applications, databases, or Kubernetes
-clusters in Trusted Clusters configured as leaf clusters.
+clusters in leaf clusters.
 
 ## Should I define allowed logins as user traits or within roles?
 
@@ -35,16 +41,15 @@ options:
   that includes the `{{ internal.logins }}` role variable. This is usually done
   by providing the `--logins` parameter when creating the bot.
 
-For simpler scenarios, where you only expect to configure your bot with a single 
-destination or role, it is permissible to add the login to the logins trait of 
-the bot user. This will allow you to leverage existing roles like `access`.
+For simpler scenarios — where you only expect the bot to use a single output
+or role — you can add the login to the logins trait of the bot user. This
+approach allows you to leverage default roles like `access`.
 
 For situations where your bot is producing certificates for different roles in
-different destinations it is important to consider if using login traits will 
-grant access to resources that you were not intending to grant. For this reason,
-we recommend that in this situation you create bespoke roles that directly
-include the logins that you wish to grant to the certificates output in that
-destination.
+different outputs, it is important to consider whether using a login trait
+grants access to resources that you didn't intend. To prevent a login trait from
+granting access you didn't intend, we recommend that you create bespoke roles
+that explicitly specify the logins that should be included in the certificates.
 
 ## Can Machine ID be used with per-session MFA?
 

@@ -1,17 +1,19 @@
-/**
- * Copyright 2021 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package web
@@ -58,7 +60,7 @@ func TestRequestParameters(t *testing.T) {
 		Roles:  []string{"testrole"},
 		Traits: userTraits{},
 	}
-	require.Nil(t, r.checkAndSetDefaults())
+	require.NoError(t, r.checkAndSetDefaults())
 }
 
 func TestCRUDs(t *testing.T) {
@@ -69,19 +71,19 @@ func TestCRUDs(t *testing.T) {
 	}
 
 	m := &mockedUserAPIGetter{}
-	m.mockCreateUser = func(ctx context.Context, user types.User) error {
-		return nil
+	m.mockCreateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return user, nil
 	}
 
-	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+	m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 		return types.NewUser(name)
 	}
 
-	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
-		return nil
+	m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return user, nil
 	}
 
-	m.mockGetUsers = func(withSecrets bool) ([]types.User, error) {
+	m.mockGetUsers = func(ctx context.Context, withSecrets bool) ([]types.User, error) {
 		u, err := types.NewUser("testname")
 		return []types.User{u}, err
 	}
@@ -92,7 +94,7 @@ func TestCRUDs(t *testing.T) {
 
 	// test create
 	user, err := createUser(newRequest(t, u), m, "")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, "testname", user.Name)
 	require.Equal(t, "local", user.AuthType)
 	require.Contains(t, user.Roles, "testrole")
@@ -100,22 +102,22 @@ func TestCRUDs(t *testing.T) {
 	// test update
 	u.Roles = []string{"newrole"}
 	user, err = updateUser(newRequest(t, u), m, "")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
-	users, err := getUsers(m)
-	require.Nil(t, err)
+	users, err := getUsers(context.Background(), m)
+	require.NoError(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, "testname", users[0].Name)
 
 	// test delete
 	param := httprouter.Params{httprouter.Param{Key: "username", Value: "testname"}}
 	req, err := http.NewRequest("", "/:username", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = deleteUser(req, param, m, "self")
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestUpdateUser_setTraits(t *testing.T) {
@@ -235,11 +237,11 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			user.SetLogins(defaultLogins)
 
 			m := &mockedUserAPIGetter{}
-			m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+			m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 				return user, nil
 			}
-			m.mockUpdateUser = func(ctx context.Context, user types.User) error {
-				return nil
+			m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+				return user, nil
 			}
 
 			_, err = updateUser(newRequest(t, tt.updateReq), m, "")
@@ -252,7 +254,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			require.ElementsMatch(t, user.GetRoles(), defaultRoles)
 
 			// We can read back the user traits
-			uiUser, err := getUser(tt.name, m)
+			uiUser, err := getUser(context.Background(), tt.name, m)
 			require.NoError(t, err)
 
 			require.ElementsMatch(t, uiUser.Traits.Logins, tt.expectedTraits[constants.TraitLogins])
@@ -268,19 +270,19 @@ func TestUpdateUser_setTraits(t *testing.T) {
 
 func TestCRUDErrors(t *testing.T) {
 	m := &mockedUserAPIGetter{}
-	m.mockCreateUser = func(ctx context.Context, user types.User) error {
-		return trace.AlreadyExists("")
+	m.mockCreateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return nil, trace.AlreadyExists("")
 	}
 
-	m.mockGetUser = func(name string, withSecrets bool) (types.User, error) {
+	m.mockGetUser = func(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 		return nil, trace.NotFound("")
 	}
 
-	m.mockUpdateUser = func(ctx context.Context, user types.User) error {
-		return trace.NotFound("")
+	m.mockUpdateUser = func(ctx context.Context, user types.User) (types.User, error) {
+		return nil, trace.NotFound("")
 	}
 
-	m.mockGetUsers = func(withSecrets bool) ([]types.User, error) {
+	m.mockGetUsers = func(ctx context.Context, withSecrets bool) ([]types.User, error) {
 		return nil, trace.AccessDenied("")
 	}
 
@@ -304,14 +306,14 @@ func TestCRUDErrors(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, user)
 
-	users, err := getUsers(m)
+	users, err := getUsers(context.Background(), m)
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, users)
 
 	// delete errors
 	param := httprouter.Params{httprouter.Param{Key: "username", Value: "testname"}}
 	req, err := http.NewRequest("", "/:username", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = deleteUser(req, param, m, "self")
 	require.True(t, trace.IsNotFound(err))
@@ -319,7 +321,7 @@ func TestCRUDErrors(t *testing.T) {
 	// deleting self error
 	param = httprouter.Params{httprouter.Param{Key: "username", Value: "self"}}
 	req, err = http.NewRequest("", "/:username", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = deleteUser(req, param, m, "self")
 	require.True(t, trace.IsBadParameter(err))
@@ -328,47 +330,47 @@ func TestCRUDErrors(t *testing.T) {
 // newRequest creates http request with given body
 func newRequest(t *testing.T, body interface{}) *http.Request {
 	reqBody, err := json.Marshal(body)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	req, err := http.NewRequest("", "", bytes.NewBuffer(reqBody))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	req.Header.Add("Content-Type", "application/json")
 
 	return req
 }
 
 type mockedUserAPIGetter struct {
-	mockGetUser    func(name string, withSecrets bool) (types.User, error)
-	mockCreateUser func(ctx context.Context, user types.User) error
-	mockUpdateUser func(ctx context.Context, user types.User) error
-	mockGetUsers   func(withSecrets bool) ([]types.User, error)
+	mockGetUser    func(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	mockCreateUser func(ctx context.Context, user types.User) (types.User, error)
+	mockUpdateUser func(ctx context.Context, user types.User) (types.User, error)
+	mockGetUsers   func(ctx context.Context, withSecrets bool) ([]types.User, error)
 	mockDeleteUser func(ctx context.Context, user string) error
 }
 
-func (m *mockedUserAPIGetter) GetUser(name string, withSecrets bool) (types.User, error) {
+func (m *mockedUserAPIGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	if m.mockGetUser != nil {
-		return m.mockGetUser(name, withSecrets)
+		return m.mockGetUser(ctx, name, withSecrets)
 	}
 	return nil, trace.NotImplemented("mockGetUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) CreateUser(ctx context.Context, user types.User) error {
+func (m *mockedUserAPIGetter) CreateUser(ctx context.Context, user types.User) (types.User, error) {
 	if m.mockCreateUser != nil {
 		return m.mockCreateUser(ctx, user)
 	}
-	return trace.NotImplemented("mockCreateUser not implemented")
+	return nil, trace.NotImplemented("mockCreateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user types.User) error {
+func (m *mockedUserAPIGetter) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if m.mockUpdateUser != nil {
 		return m.mockUpdateUser(ctx, user)
 	}
-	return trace.NotImplemented("mockUpdateUser not implemented")
+	return nil, trace.NotImplemented("mockUpdateUser not implemented")
 }
 
-func (m *mockedUserAPIGetter) GetUsers(withSecrets bool) ([]types.User, error) {
+func (m *mockedUserAPIGetter) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
 	if m.mockGetUsers != nil {
-		return m.mockGetUsers(withSecrets)
+		return m.mockGetUsers(ctx, withSecrets)
 	}
 	return nil, trace.NotImplemented("mockGetUsers not implemented")
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -101,6 +103,12 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromSAMLConnector(r)
 	case types.ProvisionToken:
 		item, err = itemFromProvisionToken(r)
+	case types.Lock:
+		item, err = itemFromLock(r)
+	case types.ClusterNetworkingConfig:
+		item, err = itemFromClusterNetworkingConfig(r)
+	case types.AuthPreference:
+		item, err = itemFromAuthPreference(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -113,21 +121,64 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	return items, nil
 }
 
+// itemFromClusterNetworkingConfig attempts to encode the supplied cluster_networking_config as an
+// instance of `backend.Item` suitable for storage.
+func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backend.Item, error) {
+	if err := services.CheckAndSetDefaults(cnc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalClusterNetworkingConfig(cnc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		ID:       cnc.GetResourceID(),
+		Revision: cnc.GetRevision(),
+	}
+	return item, nil
+}
+
+// itemFromAuthPreference attempts to encode the supplied cluster_auth_preference as an
+// instance of `backend.Item` suitable for storage.
+func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
+	if err := services.CheckAndSetDefaults(ap); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalAuthPreference(ap)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		ID:       ap.GetResourceID(),
+		Revision: ap.GetRevision(),
+	}
+
+	return item, nil
+}
+
 // itemFromUser attempts to encode the supplied user as an
 // instance of `backend.Item` suitable for storage.
 func itemFromUser(user types.User) (*backend.Item, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := user.GetRevision()
 	value, err := services.MarshalUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: user.Expiry(),
-		ID:      user.GetResourceID(),
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -139,6 +190,7 @@ func itemToUser(item backend.Item) (types.User, error) {
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -155,15 +207,17 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := ca.GetRevision()
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
-		Value:   value,
-		Expires: ca.Expiry(),
-		ID:      ca.GetResourceID(),
+		Key:      backend.Key(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Value:    value,
+		Expires:  ca.Expiry(),
+		ID:       ca.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -171,18 +225,20 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 // itemFromProvisionToken attempts to encode the supplied provision token
 // as an instance of `backend.Item` suitable for storage.
 func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
-	if err := p.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := p.GetRevision()
 	value, err := services.MarshalProvisionToken(p)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(tokensPrefix, p.GetName()),
-		Value:   value,
-		Expires: p.Expiry(),
-		ID:      p.GetResourceID(),
+		Key:      backend.Key(tokensPrefix, p.GetName()),
+		Value:    value,
+		Expires:  p.Expiry(),
+		ID:       p.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -190,18 +246,20 @@ func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
 // itemFromTrustedCluster attempts to encode the supplied trusted cluster
 // as an instance of `backend.Item` suitable for storage.
 func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
-	if err := tc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := tc.GetRevision()
 	value, err := services.MarshalTrustedCluster(tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(trustedClustersPrefix, tc.GetName()),
-		Value:   value,
-		Expires: tc.Expiry(),
-		ID:      tc.GetResourceID(),
+		Key:      backend.Key(trustedClustersPrefix, tc.GetName()),
+		Value:    value,
+		Expires:  tc.Expiry(),
+		ID:       tc.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -209,18 +267,20 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 // itemFromGithubConnector attempts to encode the supplied github connector
 // as an instance of `backend.Item` suitable for storage.
 func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
-	if err := gc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(gc); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := gc.GetRevision()
 	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
-		Value:   value,
-		Expires: gc.Expiry(),
-		ID:      gc.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, gc.GetName()),
+		Value:    value,
+		Expires:  gc.Expiry(),
+		ID:       gc.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -228,16 +288,18 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 // itemFromRole attempts to encode the supplied role as an
 // instance of `backend.Item` suitable for storage.
 func itemFromRole(role types.Role) (*backend.Item, error) {
+	rev := role.GetRevision()
 	value, err := services.MarshalRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	item := &backend.Item{
-		Key:     backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:   value,
-		Expires: role.Expiry(),
-		ID:      role.GetResourceID(),
+		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		ID:       role.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -245,15 +307,17 @@ func itemFromRole(role types.Role) (*backend.Item, error) {
 // itemFromOIDCConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error) {
+	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -261,6 +325,7 @@ func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error)
 // itemFromSAMLConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error) {
+	rev := connector.GetRevision()
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -269,10 +334,11 @@ func itemFromSAMLConnector(connector types.SAMLConnector) (*backend.Item, error)
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-		ID:      connector.GetResourceID(),
+		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:    value,
+		Expires:  connector.Expiry(),
+		ID:       connector.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -348,6 +414,26 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 		})
 	}
 	return items, nil
+}
+
+// itemFromLock attempts to encode the supplied lock as an
+// instance of `backend.Item` suitable for storage.
+func itemFromLock(l types.Lock) (*backend.Item, error) {
+	if err := services.CheckAndSetDefaults(l); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev := l.GetRevision()
+	value, err := services.MarshalLock(l)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:      backend.Key(locksPrefix, l.GetName()),
+		Value:    value,
+		Expires:  l.Expiry(),
+		ID:       l.GetResourceID(),
+		Revision: rev,
+	}, nil
 }
 
 // TODO: convert username/suffix ops to work on bytes by default; string/byte conversion

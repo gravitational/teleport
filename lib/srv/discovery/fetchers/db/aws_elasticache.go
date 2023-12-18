@@ -1,91 +1,62 @@
 /*
-Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package db
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// elastiCacheFetcherConfig is the ElastiCache databases fetcher configuration.
-type elastiCacheFetcherConfig struct {
-	// Labels is a selector to match cloud databases.
-	Labels types.Labels
-	// ElastiCache is the ElastiCache API client.
-	ElastiCache elasticacheiface.ElastiCacheAPI
-	// Region is the AWS region to query databases in.
-	Region string
-	// AssumeRole is the AWS IAM role to assume before discovering databases.
-	AssumeRole services.AssumeRole
+// newElastiCacheFetcher returns a new AWS fetcher for ElastiCache databases.
+func newElastiCacheFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
+	return newAWSFetcher(cfg, &elastiCachePlugin{})
 }
 
-// CheckAndSetDefaults validates the config and sets defaults.
-func (c *elastiCacheFetcherConfig) CheckAndSetDefaults() error {
-	if len(c.Labels) == 0 {
-		return trace.BadParameter("missing parameter Labels")
-	}
-	if c.ElastiCache == nil {
-		return trace.BadParameter("missing parameter ElastiCache")
-	}
-	if c.Region == "" {
-		return trace.BadParameter("missing parameter Region")
-	}
-	return nil
+// elastiCachePlugin retrieves ElastiCache Redis databases.
+type elastiCachePlugin struct{}
+
+func (f *elastiCachePlugin) ComponentShortName() string {
+	return "elasticache"
 }
 
-// elastiCacheFetcher retrieves ElastiCache Redis databases.
-type elastiCacheFetcher struct {
-	awsFetcher
-
-	cfg elastiCacheFetcherConfig
-	log logrus.FieldLogger
-}
-
-// newElastiCacheFetcher returns a new ElastiCache databases fetcher instance.
-func newElastiCacheFetcher(config elastiCacheFetcherConfig) (common.Fetcher, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &elastiCacheFetcher{
-		cfg: config,
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:elasticache",
-			"labels":        config.Labels,
-			"region":        config.Region,
-			"role":          config.AssumeRole,
-		}),
-	}, nil
-}
-
-// Get returns ElastiCache Redis databases matching the watcher's selectors.
+// GetDatabases returns ElastiCache Redis databases matching the watcher's selectors.
 //
 // TODO(greedy52) support ElastiCache global datastore.
-func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	clusters, err := getElastiCacheClusters(ctx, f.cfg.ElastiCache)
+func (f *elastiCachePlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
+	ecClient, err := cfg.AWSClients.GetAWSElastiCacheClient(ctx, cfg.Region,
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusters, err := getElastiCacheClusters(ctx, ecClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,12 +64,12 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels
 	var eligibleClusters []*elasticache.ReplicationGroup
 	for _, cluster := range clusters {
 		if !services.IsElastiCacheClusterSupported(cluster) {
-			f.log.Debugf("ElastiCache cluster %q is not supported. Skipping.", aws.StringValue(cluster.ReplicationGroupId))
+			cfg.Log.Debugf("ElastiCache cluster %q is not supported. Skipping.", aws.StringValue(cluster.ReplicationGroupId))
 			continue
 		}
 
 		if !services.IsElastiCacheClusterAvailable(cluster) {
-			f.log.Debugf("The current status of ElastiCache cluster %q is %q. Skipping.",
+			cfg.Log.Debugf("The current status of ElastiCache cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.ReplicationGroupId),
 				aws.StringValue(cluster.Status))
 			continue
@@ -108,25 +79,25 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels
 	}
 
 	if len(eligibleClusters) == 0 {
-		return types.ResourcesWithLabels{}, nil
+		return nil, nil
 	}
 
 	// Fetch more information to provide extra labels. Do not fail because some
 	// of these labels are missing.
-	allNodes, err := getElastiCacheNodes(ctx, f.cfg.ElastiCache)
+	allNodes, err := getElastiCacheNodes(ctx, ecClient)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			f.log.WithError(err).Debug("No permissions to describe nodes")
+			cfg.Log.WithError(err).Debug("No permissions to describe nodes")
 		} else {
-			f.log.WithError(err).Info("Failed to describe nodes.")
+			cfg.Log.WithError(err).Info("Failed to describe nodes.")
 		}
 	}
-	allSubnetGroups, err := getElastiCacheSubnetGroups(ctx, f.cfg.ElastiCache)
+	allSubnetGroups, err := getElastiCacheSubnetGroups(ctx, ecClient)
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			f.log.WithError(err).Debug("No permissions to describe subnet groups")
+			cfg.Log.WithError(err).Debug("No permissions to describe subnet groups")
 		} else {
-			f.log.WithError(err).Info("Failed to describe subnet groups.")
+			cfg.Log.WithError(err).Info("Failed to describe subnet groups.")
 		}
 	}
 
@@ -135,50 +106,25 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels
 		// Resource tags are not found in elasticache.ReplicationGroup but can
 		// be on obtained by elasticache.ListTagsForResource (one call per
 		// resource).
-		tags, err := getElastiCacheResourceTags(ctx, f.cfg.ElastiCache, cluster.ARN)
+		tags, err := getElastiCacheResourceTags(ctx, ecClient, cluster.ARN)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				f.log.WithError(err).Debug("No permissions to list resource tags")
+				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
 			} else {
-				f.log.WithError(err).Infof("Failed to list resource tags for ElastiCache cluster %q.", aws.StringValue(cluster.ReplicationGroupId))
+				cfg.Log.WithError(err).Infof("Failed to list resource tags for ElastiCache cluster %q.", aws.StringValue(cluster.ReplicationGroupId))
 			}
 		}
 
 		extraLabels := services.ExtraElastiCacheLabels(cluster, tags, allNodes, allSubnetGroups)
 
-		// Create database using configuration endpoint for Redis with cluster
-		// mode enabled.
-		if aws.BoolValue(cluster.ClusterEnabled) {
-			if database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels); err != nil {
-				f.log.Infof("Could not convert ElastiCache cluster %q configuration endpoint to database resource: %v.",
-					aws.StringValue(cluster.ReplicationGroupId), err)
-			} else {
-				databases = append(databases, database)
-			}
-
-			continue
-		}
-
-		// Create databases using primary and reader endpoints for Redis with
-		// cluster mode disabled. When cluster mode is disabled, it is expected
-		// there is only one node group (aka shard) with one primary endpoint
-		// and one reader endpoint.
-		if databasesFromNodeGroups, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels); err != nil {
-			f.log.Infof("Could not convert ElastiCache cluster %q node groups to database resources: %v.",
+		if dbs, err := services.NewDatabasesFromElastiCacheReplicationGroup(cluster, extraLabels); err != nil {
+			cfg.Log.Infof("Could not convert ElastiCache cluster %q to database resources: %v.",
 				aws.StringValue(cluster.ReplicationGroupId), err)
 		} else {
-			databases = append(databases, databasesFromNodeGroups...)
+			databases = append(databases, dbs...)
 		}
 	}
-
-	applyAssumeRoleToDatabases(databases, f.cfg.AssumeRole)
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
-}
-
-// String returns the fetcher's string description.
-func (f *elastiCacheFetcher) String() string {
-	return fmt.Sprintf("elastiCacheFetcher(Region=%v, Labels=%v)",
-		f.cfg.Region, f.cfg.Labels)
+	return databases, nil
 }
 
 // getElastiCacheClusters fetches all ElastiCache replication groups.

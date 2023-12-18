@@ -1,86 +1,53 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Text, Popover, Box } from 'design';
+import React, { PropsWithChildren } from 'react';
+import { useTheme } from 'styled-components';
+
+import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
 
 type Props = {
   borderRadius?: number;
+  badgeTitle?: BadgeTitle;
+  sticky?: boolean;
 };
 
-export const ToolTipNoPermBadge: React.FC<Props> = ({
+export const ToolTipNoPermBadge: React.FC<PropsWithChildren<Props>> = ({
   children,
   borderRadius = 2,
+  badgeTitle = BadgeTitle.LackingPermissions,
+  sticky = false,
 }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
+  const theme = useTheme();
 
   return (
-    <>
-      <Box
-        data-testid="tooltip"
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-        borderTopRightRadius={borderRadius}
-        borderBottomLeftRadius={borderRadius}
-        bg="red"
-        css={`
-          position: absolute;
-          padding: 0px 6px;
-          top: 0px;
-          right: 0px;
-          font-size: 10px;
-        `}
-      >
-        Lacking Permissions
-      </Box>
-      <Popover
-        modalCss={() => `pointer-events: none;`}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={3} py={2} data-testid="tooltip-msg">
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
+    <ToolTipBadge
+      borderRadius={borderRadius}
+      badgeTitle={badgeTitle}
+      sticky={sticky}
+      color={theme.colors.error.main}
+    >
+      {children}
+    </ToolTipBadge>
   );
 };
 
-const StyledOnHover = styled(Text)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
-`;
+export enum BadgeTitle {
+  LackingPermissions = 'Lacking Permissions',
+  LackingEnterpriseLicense = 'Enterprise Only',
+}

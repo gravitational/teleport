@@ -1,24 +1,25 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -30,7 +31,8 @@ import (
 	"github.com/vulcand/predicate"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -42,11 +44,19 @@ import (
 
 const maxAccessRequestReasonSize = 4096
 
+// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
+const day = 24 * time.Hour
+
+// maxAccessDuration is the maximum duration that an access request can be
+// granted for.
+const maxAccessDuration = 7 * day
+
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
-	if err := ar.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
 	}
+
 	_, err := uuid.Parse(ar.GetName())
 	if err != nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
@@ -153,19 +163,15 @@ func (r *RequestIDs) IsEmpty() bool {
 type AccessRequestGetter interface {
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	// GetPluginData loads all plugin data matching the supplied filter.
-	GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error)
 }
 
 // DynamicAccessCore is the core functionality common to all DynamicAccess implementations.
 type DynamicAccessCore interface {
 	AccessRequestGetter
-	// CreateAccessRequest stores a new access request.
-	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	// CreateAccessRequestV2 stores a new access request.
+	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
-	// UpdatePluginData updates a per-resource PluginData entry.
-	UpdatePluginData(ctx context.Context, params types.PluginDataUpdateParams) error
 }
 
 // DynamicAccess is a service which manages dynamic RBAC.  Specifically, this is the
@@ -176,6 +182,8 @@ type DynamicAccess interface {
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
+	// GetAccessRequestAllowedPromotions returns suggested access lists for the given access request.
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // DynamicAccessOracle is a service capable of answering questions related
@@ -215,6 +223,10 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
 
+	caps.RequireReason = v.requireReason
+	caps.RequestPrompt = v.prompt
+	caps.AutoRequest = v.autoRequest
+
 	return &caps, nil
 }
 
@@ -230,7 +242,7 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 		rolesToRequest = append(rolesToRequest, roleName)
 	}
 	if len(rolesToRequest) == 0 {
-		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.user.GetName())
+		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.userState.GetName())
 	}
 
 	// Prune the list of roles to request to only those which may be necessary
@@ -248,6 +260,8 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 // used to implement some auth server internals.
 type DynamicAccessExt interface {
 	DynamicAccessCore
+	// CreateAccessRequest stores a new access request.
+	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	// ApplyAccessReview applies a review to a request in the backend and returns the post-application state.
 	ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker ReviewPermissionChecker) (types.AccessRequest, error)
 	// UpsertAccessRequest creates or updates an access request.
@@ -256,6 +270,10 @@ type DynamicAccessExt interface {
 	DeleteAllAccessRequests(ctx context.Context) error
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
+	// CreateAccessRequestAllowedPromotions creates a list of allowed access list promotions for the given access request.
+	CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
+	// GetAccessRequestAllowedPromotions returns a lists of allowed access list promotions for the given access request.
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -349,11 +367,16 @@ func ValidateAccessPredicates(role types.Role) error {
 		}
 	}
 
+	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
+		maxDuration.Duration() > maxAccessDuration {
+		return trace.BadParameter("max access duration must be less or equal 7 days")
+	}
+
 	return nil
 }
 
 // ApplyAccessReview attempts to apply the specified access review to the specified request.
-func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author types.User) error {
+func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author UserState) error {
 	if rev.Author != author.GetName() {
 		return trace.BadParameter("mismatched review author (expected %q, got %q)", rev.Author, author)
 	}
@@ -378,16 +401,20 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		rev.Created = time.Now()
 	}
 
-	// set threshold indexes and store the review
+	// set threshold indexes
 	rev.ThresholdIndexes = tids
-	req.SetReviews(append(req.GetReviews(), rev))
 
-	// if request has already exited the pending state, then no further work
-	// needs to be done (subsequent reviews have no effect after initial
-	// state-transition).
-	if !req.GetState().IsPending() {
-		return nil
+	// Resolved requests should not be updated.
+	switch {
+	case req.GetState().IsApproved():
+		return trace.AccessDenied("the access request has been already approved")
+	case req.GetState().IsDenied():
+		return trace.AccessDenied("the access request has been already denied")
+	case req.GetState().IsPromoted():
+		return trace.AccessDenied("the access request has been already promoted")
 	}
+
+	req.SetReviews(append(req.GetReviews(), rev))
 
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.
@@ -396,24 +423,36 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		return trace.Wrap(err)
 	}
 
-	// state-transition was triggered.  update the appropriate fields.
-	req.SetState(res.state)
+	// state-transition was triggered. update the appropriate fields.
+	if err := req.SetState(res.state); err != nil {
+		return trace.Wrap(err)
+	}
 	req.SetResolveReason(res.reason)
+	if req.GetPromotedAccessListName() == "" {
+		// Set the title only if it's not set yet. This is to prevent
+		// overwriting the title by another promotion review.
+		req.SetPromotedAccessListName(rev.GetAccessListName())
+		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
+	}
 	req.SetExpiry(req.GetAccessExpiry())
+	if rev.AssumeStartTime != nil {
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
 	return nil
 }
 
 // checkReviewCompat performs basic checks to ensure that the specified review can be
 // applied to the specified request (part of review application logic).
 func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
-	// we currently only support reviews that propose approval/denial.  future iterations
-	// may support additional states (e.g. None for comment-only reviews).
-	if !rev.ProposedState.IsApproved() && !rev.ProposedState.IsDenied() {
+	// Proposal cannot be already resolved.
+	if !rev.ProposedState.IsResolved() {
+		// Skip the promoted state in the error message. It's not a state that most people
+		// should be concerned with.
 		return trace.BadParameter("invalid state proposal: %s (expected approval/denial)", rev.ProposedState)
 	}
 
 	// the default threshold should exist. if it does not, the request either is not fully
-	// initialized (i.e. variable expansion has not been run yet) or the request was inserted into
+	// initialized (i.e., variable expansion has not been run yet), or the request was inserted into
 	// the backend by a teleport instance which does not support the review feature.
 	if len(req.GetThresholds()) == 0 {
 		return trace.BadParameter("request is uninitialized or does not support reviews")
@@ -452,7 +491,7 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 
 // collectReviewThresholdIndexes aggregates the indexes of all thresholds whose filters match
 // the supplied review (part of review application logic).
-func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessReview, author types.User) ([]uint32, error) {
+func collectReviewThresholdIndexes(req types.AccessRequest, rev types.AccessReview, author UserState) ([]uint32, error) {
 	parser, err := newThresholdFilterParser(req, rev, author)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -501,7 +540,7 @@ func accessReviewThresholdMatchesFilter(t types.AccessReviewThreshold, parser pr
 
 // newThresholdFilterParser creates a custom parser context which exposes a simplified view of the review author
 // and the request for evaluation of review threshold filters.
-func newThresholdFilterParser(req types.AccessRequest, rev types.AccessReview, author types.User) (BoolPredicateParser, error) {
+func newThresholdFilterParser(req types.AccessRequest, rev types.AccessReview, author UserState) (BoolPredicateParser, error) {
 	return NewJSONBoolParser(thresholdFilterContext{
 		Reviewer: reviewAuthorContext{
 			Roles:  author.GetRoles(),
@@ -527,7 +566,7 @@ type requestResolution struct {
 }
 
 // calculateReviewBasedResolution calculates the request resolution based upon
-// a request's reviews.  Returns (nil,nil) in the event no resolution has been reached.
+// a request's reviews. Returns (nil,nil) in the event no resolution has been reached.
 func calculateReviewBasedResolution(req types.AccessRequest) (*requestResolution, error) {
 	// thresholds and reviews must be populated before state-transitions are possible
 	thresholds, reviews := req.GetThresholds(), req.GetReviews()
@@ -566,6 +605,9 @@ ProcessReviews:
 				counts[idx].approval++
 			case rev.ProposedState.IsDenied():
 				counts[idx].denial++
+			case rev.ProposedState.IsPromoted():
+				// Promote skips the threshold check.
+				break ProcessReviews
 			default:
 				return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", rev.ProposedState)
 			}
@@ -637,6 +679,9 @@ ProcessReviews:
 			// their denial thresholds; no state-transition.
 			return nil, nil
 		}
+	case lastReview.ProposedState.IsPromoted():
+		// Let the state change. Promoted won't grant any access, meaning it is roughly equivalent to denial.
+		// But we want to be able to distinguish between promoted and denied in audit logs/UI.
 	default:
 		return nil, trace.BadParameter("cannot calculate state-transition, unexpected proposal: %s", lastReview.ProposedState)
 	}
@@ -650,7 +695,7 @@ ProcessReviews:
 }
 
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
-func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (types.AccessRequest, error) {
+func GetAccessRequest(ctx context.Context, acc DynamicAccessCore, reqID string) (types.AccessRequest, error) {
 	reqs, err := acc.GetAccessRequests(ctx, types.AccessRequestFilter{
 		ID: reqID,
 	})
@@ -676,17 +721,13 @@ func GetTraitMappings(cms []types.ClaimMapping) types.TraitMappingSet {
 	return types.TraitMappingSet(tm)
 }
 
-// ResourceLister is an interface which can list resources.
-type ResourceLister interface {
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-}
-
 // RequestValidatorGetter is the interface required by the request validation
 // functions used to get necessary resources.
 type RequestValidatorGetter interface {
+	UserLoginStatesGetter
 	UserGetter
 	RoleGetter
-	ResourceLister
+	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
 }
@@ -737,11 +778,11 @@ func insertAnnotations(annotations map[string][]string, conditions types.AccessR
 	}
 }
 
-// ReviewPermissionChecker is a helper for validating whether or not a user
+// ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
-	User  types.User
-	Roles struct {
+	UserState UserState
+	Roles     struct {
 		// allow/deny mappings sort role matches into lists based on their
 		// constraining predicate (where) expression.
 		AllowReview, DenyReview map[string][]parse.Matcher
@@ -768,7 +809,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 	// adding role subselection support.
 
 	// user cannot review their own request
-	if c.User.GetName() == req.GetUser() {
+	if c.UserState.GetName() == req.GetUser() {
 		return false, nil
 	}
 
@@ -778,8 +819,8 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 
 	parser, err := NewJSONBoolParser(reviewPermissionContext{
 		Reviewer: reviewAuthorContext{
-			Roles:  c.User.GetRoles(),
-			Traits: c.User.GetTraits(),
+			Roles:  c.UserState.GetRoles(),
+			Traits: c.UserState.GetTraits(),
 		},
 		Request: reviewRequestContext{
 			Roles:             requestedRoles,
@@ -863,14 +904,70 @@ Outer:
 	return len(needsAllow) == 0, nil
 }
 
-func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGetter, username string) (ReviewPermissionChecker, error) {
-	user, err := getter.GetUser(username, false)
+type userStateRoleOverride struct {
+	UserState
+	Roles []string
+}
+
+func (u userStateRoleOverride) GetRoles() []string {
+	return u.Roles
+}
+
+func NewReviewPermissionChecker(
+	ctx context.Context,
+	getter RequestValidatorGetter,
+	username string,
+	identity *tlsca.Identity,
+) (ReviewPermissionChecker, error) {
+	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return ReviewPermissionChecker{}, trace.Wrap(err)
 	}
 
+	// By default, the users freshly fetched roles are used rather than the
+	// roles on the x509 identity. This prevents recursive access request
+	// review.
+	//
+	// For bots, however, the roles on the identity must be used. This is
+	// because the certs output by a bot always use role impersonation and the
+	// role directly assigned to a bot has minimal permissions.
+	if uls.IsBot() {
+		if identity == nil {
+			// Handle an edge case where SubmitAccessReview is being invoked
+			// in-memory but as a bot user.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot user provided but identity parameter is nil",
+			)
+		}
+		if identity.Username != username {
+			// It should not be possible for these to be different as a
+			// guard in AuthorizeAccessReviewRequest prevents submitting a
+			// request as another user unless you have the admin role. This
+			// safeguard protects against that regressing and creating an
+			// inconsistent state.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot identity username and review author mismatch",
+			)
+		}
+		if len(identity.ActiveRequests) > 0 {
+			// It should not be possible for a bot's output certificates to
+			// have active requests - but this additional check safeguards us
+			// against a regression elsewhere and prevents recursive access
+			// requests occurring.
+			return ReviewPermissionChecker{}, trace.BadParameter(
+				"bot should not have active requests",
+			)
+		}
+
+		// Override list of roles to roles currently present on the x509 ident.
+		uls = userStateRoleOverride{
+			UserState: uls,
+			Roles:     identity.Groups,
+		}
+	}
+
 	c := ReviewPermissionChecker{
-		User: user,
+		UserState: uls,
 	}
 
 	c.Roles.AllowReview = make(map[string][]parse.Matcher)
@@ -878,7 +975,7 @@ func NewReviewPermissionChecker(ctx context.Context, getter RequestValidatorGett
 
 	// load all statically assigned roles for the user and
 	// use them to build our checker state.
-	for _, roleName := range c.User.GetRoles() {
+	for _, roleName := range c.UserState.GetRoles() {
 		role, err := getter.GetRole(ctx, roleName)
 		if err != nil {
 			return ReviewPermissionChecker{}, trace.Wrap(err)
@@ -896,12 +993,12 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 
 	var err error
 
-	c.Roles.DenyReview[deny.Where], err = appendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.User.GetTraits())
+	c.Roles.DenyReview[deny.Where], err = appendRoleMatchers(c.Roles.DenyReview[deny.Where], deny.Roles, deny.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	c.Roles.AllowReview[allow.Where], err = appendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.User.GetTraits())
+	c.Roles.AllowReview[allow.Where], err = appendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -910,16 +1007,18 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 }
 
 // RequestValidator a helper for validating access requests.
-// a user's statically assigned roles are are "added" to the
+// a user's statically assigned roles are "added" to the
 // validator via the push() method, which extracts all the
-// relevant rules, peforms variable substitutions, and builds
+// relevant rules, performs variable substitutions, and builds
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
 	clock         clockwork.Clock
 	getter        RequestValidatorGetter
-	user          types.User
+	userState     UserState
 	requireReason bool
+	autoRequest   bool
+	prompt        string
 	opts          struct {
 		expandVars bool
 	}
@@ -934,20 +1033,24 @@ type RequestValidator struct {
 		Matchers   []parse.Matcher
 		Thresholds []types.AccessReviewThreshold
 	}
-	SuggestedReviewers []string
+	SuggestedReviewers  []string
+	MaxDurationMatchers []struct {
+		Matchers    []parse.Matcher
+		MaxDuration time.Duration
+	}
 }
 
-// NewRequestValidator configures a new RequestValidor for the specified user.
+// NewRequestValidator configures a new RequestValidator for the specified user.
 func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
-	user, err := getter.GetUser(username, false)
+	uls, err := GetUserOrLoginState(ctx, getter, username)
 	if err != nil {
 		return RequestValidator{}, trace.Wrap(err)
 	}
 
 	m := RequestValidator{
-		clock:  clock,
-		getter: getter,
-		user:   user,
+		clock:     clock,
+		getter:    getter,
+		userState: uls,
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -962,7 +1065,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
-	for _, roleName := range m.user.GetRoles() {
+	for _, roleName := range m.userState.GetRoles() {
 		role, err := m.getter.GetRole(ctx, roleName)
 		if err != nil {
 			return RequestValidator{}, trace.Wrap(err)
@@ -977,12 +1080,16 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 // Validate validates an access request and potentially modifies it depending on how
 // the validator was configured.
 func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
-	if m.user.GetName() != req.GetUser() {
+	if m.userState.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
 
 	if m.requireReason && req.GetRequestReason() == "" {
 		return trace.BadParameter("request reason must be specified (required by static role configuration)")
+	}
+
+	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
+		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests
@@ -1020,7 +1127,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			if !m.CanSearchAsRole(roleName) {
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
-				// requested or a new deny rule has since been added.
+				// requested, or a new deny rule has since been added.
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		} else {
@@ -1069,7 +1176,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		now := m.clock.Now().UTC()
 
-		// Calculate expiration time of the Access Request (how long it
+		// Calculate the expiration time of the Access Request (how long it
 		// will await approval).
 		ttl, err := m.requestTTL(ctx, identity, req)
 		if err != nil {
@@ -1077,16 +1184,90 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		}
 		req.SetExpiry(now.Add(ttl))
 
-		// Calculate expiration time of the elevated certificate that will
-		// be issued if the Access Request is approved.
-		ttl, err = m.sessionTTL(ctx, identity, req)
+		maxDuration, err := m.calculateMaxAccessDuration(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SetAccessExpiry(now.Add(ttl))
+
+		// Calculate the expiration time of the elevated certificate that will
+		// be issued if the Access Request is approved.
+		sessionTTL, err := m.sessionTTL(ctx, identity, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If the maxDuration flag is set, consider it instead of only using the session TTL.
+		if maxDuration > 0 {
+			req.SetSessionTLL(now.Add(minDuration(sessionTTL, maxDuration)))
+			ttl = maxDuration
+		} else {
+			req.SetSessionTLL(now.Add(sessionTTL))
+			ttl = sessionTTL
+		}
+
+		accessTTL := now.Add(ttl)
+		req.SetAccessExpiry(accessTTL)
+		// Adjusted max access duration is equal to the access expiry time.
+		req.SetMaxDuration(accessTTL)
 	}
 
 	return nil
+}
+
+// minDuration returns the smaller of two durations.
+// DELETE after upgrading to Go 1.21. Replace with min function.
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// calculateMaxAccessDuration calculates the maximum time for the access request.
+// The max duration time is the minimum of the max_duration time set on the request
+// and the max_duration time set on the request role.
+func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (time.Duration, error) {
+	// Check if the maxDuration time is set.
+	maxDurationTime := req.GetMaxDuration()
+	if maxDurationTime.IsZero() {
+		return 0, nil
+	}
+
+	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
+
+	// For dry run requests, the max_duration is set to 7 days.
+	// This prevents the time drift that can occur as the value is set on the client side.
+	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
+	if req.GetDryRun() {
+		maxDuration = maxAccessDuration
+	} else if maxDuration < 0 {
+		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
+	}
+
+	if maxDuration > maxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
+	}
+
+	minAdjDuration := maxDuration
+	// Adjust the expiration time if the max_duration value is set on the request role.
+	for _, roleName := range req.GetRoles() {
+		var maxDurationForRole time.Duration
+		for _, tms := range m.MaxDurationMatchers {
+			for _, matcher := range tms.Matchers {
+				if matcher.Match(roleName) {
+					if tms.MaxDuration > maxDurationForRole {
+						maxDurationForRole = tms.MaxDuration
+					}
+				}
+			}
+		}
+
+		if maxDurationForRole < minAdjDuration {
+			minAdjDuration = maxDurationForRole
+		}
+	}
+
+	return minAdjDuration, nil
 }
 
 // requestTTL calculates the TTL of the Access Request (how long it will await
@@ -1175,7 +1356,7 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 // GetRequestableRoles gets the list of all existent roles which the user is
 // able to request.  This operation is expensive since it loads all existent
 // roles in order to determine the role list.  Prefer calling CanRequestRole
-// when checking againt a known role list.
+// when checking against a known role list.
 func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 	allRoles, err := m.getter.GetRoles(context.TODO())
 	if err != nil {
@@ -1184,7 +1365,7 @@ func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 
 	var expanded []string
 	for _, role := range allRoles {
-		if n := role.GetName(); !slices.Contains(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+		if n := role.GetName(); !slices.Contains(m.userState.GetRoles(), n) && m.CanRequestRole(n) {
 			// user does not currently hold this role, and is allowed to request it.
 			expanded = append(expanded, n)
 		}
@@ -1199,10 +1380,14 @@ func (m *RequestValidator) push(role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
+	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
+	if m.prompt == "" {
+		m.prompt = role.GetOptions().RequestPrompt
+	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
-	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.user.GetTraits())
+	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1211,7 +1396,7 @@ func (m *RequestValidator) push(role types.Role) error {
 	// matchers for this role, if it applies any.
 	astart := len(m.Roles.AllowRequest)
 
-	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.user.GetTraits())
+	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1237,11 +1422,21 @@ func (m *RequestValidator) push(role types.Role) error {
 			})
 		}
 
+		if allow.MaxDuration != 0 {
+			m.MaxDurationMatchers = append(m.MaxDurationMatchers, struct {
+				Matchers    []parse.Matcher
+				MaxDuration time.Duration
+			}{
+				Matchers:    newMatchers,
+				MaxDuration: allow.MaxDuration.Duration(),
+			})
+		}
+
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		insertAnnotations(m.Annotations.Deny, deny, m.user.GetTraits())
-		insertAnnotations(m.Annotations.Allow, allow, m.user.GetTraits())
+		insertAnnotations(m.Annotations.Deny, deny, m.userState.GetTraits())
+		insertAnnotations(m.Annotations.Allow, allow, m.userState.GetTraits())
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
 	}
@@ -1454,6 +1649,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (types.AccessReq
 	if cfg.ID != 0 {
 		req.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		req.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		req.SetExpiry(cfg.Expires)
 	}
@@ -1473,17 +1671,25 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *accessRequest
-			copy.SetResourceID(0)
-			accessRequest = &copy
-		}
-		return utils.FastMarshal(accessRequest)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}
+}
+
+// MarshalAccessRequestAllowedPromotion marshals the list of access list IDs to JSON.
+func MarshalAccessRequestAllowedPromotion(accessListIDs *types.AccessRequestAllowedPromotions) ([]byte, error) {
+	payload, err := utils.FastMarshal(accessListIDs)
+	return payload, trace.Wrap(err)
+}
+
+// UnmarshalAccessRequestAllowedPromotion unmarshals the list of access list IDs from JSON.
+func UnmarshalAccessRequestAllowedPromotion(data []byte) (*types.AccessRequestAllowedPromotions, error) {
+	var accessListIDs types.AccessRequestAllowedPromotions
+	if err := utils.FastUnmarshal(data, &accessListIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accessListIDs, nil
 }
 
 // pruneResourceRequestRoles takes an access request and does one of two things:
@@ -1524,7 +1730,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 	}
 
-	allRoles, err := FetchRoles(roles, m.getter, m.user.GetTraits())
+	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1548,7 +1754,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
 		}
 		for _, role := range allRoles {
-			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1628,7 +1834,7 @@ func countAllowedLogins(role types.Role) int {
 	return len(allowed)
 }
 
-func roleAllowsResource(
+func (m *RequestValidator) roleAllowsResource(
 	ctx context.Context,
 	role types.Role,
 	resource types.ResourceWithLabels,
@@ -1641,7 +1847,7 @@ func roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, AccessState{MFAVerified: true}, matchers...)
+	err := roleSet.checkAccess(resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
@@ -1655,137 +1861,19 @@ func roleAllowsResource(
 	return true, nil
 }
 
-type ListResourcesRequestOption func(*proto.ListResourcesRequest)
-
-func GetResourceDetails(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
-	var nodeIDs []types.ResourceID
-	for _, resourceID := range ids {
-		if resourceID.Kind != types.KindNode {
-			// The only detail we want, for now, is the server hostname, so we
-			// can skip all other resource kinds as a minor optimization.
-			continue
-		}
-		nodeIDs = append(nodeIDs, resourceID)
-	}
-
-	withExtraRoles := func(req *proto.ListResourcesRequest) {
-		req.UseSearchAsRoles = true
-		req.UsePreviewAsRoles = true
-	}
-
-	resources, err := GetResourcesByResourceIDs(ctx, lister, nodeIDs, withExtraRoles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	result := make(map[string]types.ResourceDetails)
-	for _, resource := range resources {
-		hn, ok := resource.(interface{ GetHostname() string })
-		if !ok {
-			continue
-		}
-		id := types.ResourceID{
-			ClusterName: clusterName,
-			Kind:        resource.GetKind(),
-			Name:        resource.GetName(),
-		}
-		result[types.ResourceIDToString(id)] = types.ResourceDetails{
-			Hostname: hn.GetHostname(),
-		}
-	}
-
-	return result, nil
+// TODO(atburke): Remove this once teleport.e reference is switched over
+func GetResourceDetails(ctx context.Context, clusterName string, lister client.ListResourcesClient, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
+	return accessrequest.GetResourceDetails(ctx, clusterName, lister, ids)
 }
 
-func GetNodeResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
-	resourceIDsByCluster := make(map[string][]types.ResourceID)
-	for _, resourceID := range r.GetRequestedResourceIDs() {
-		if resourceID.Kind != types.KindNode {
-			continue
-		}
-		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
-	}
-	return resourceIDsByCluster
+// TODO(atburke): Remove this once teleport.e reference is switched over
+func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
+	return accessrequest.GetResourceIDsByCluster(r)
 }
 
-func GetResourcesByResourceIDs(ctx context.Context, lister ResourceLister, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
-	resourceNamesByKind := make(map[string][]string)
-	for _, resourceID := range resourceIDs {
-		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
-	}
-	var resources []types.ResourceWithLabels
-	for kind, resourceNames := range resourceNamesByKind {
-		req := proto.ListResourcesRequest{
-			ResourceType:        MapResourceKindToListResourcesType(kind),
-			PredicateExpression: anyNameMatcher(resourceNames),
-			Limit:               int32(len(resourceNames)),
-		}
-		for _, opt := range opts {
-			opt(&req)
-		}
-		resp, err := lister.ListResources(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, result := range resp.Resources {
-			leafResources, err := MapListResourcesResultToLeafResource(result, kind)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resources = append(resources, leafResources...)
-		}
-	}
-	return resources, nil
-}
-
-// anyNameMatcher returns a PredicateExpression which matches any of a given list
-// of names. Given names will be escaped and quoted when building the expression.
-func anyNameMatcher(names []string) string {
-	matchers := make([]string, len(names))
-	for i := range names {
-		matchers[i] = fmt.Sprintf(`resource.metadata.name == %q`, names[i])
-	}
-	return strings.Join(matchers, " || ")
-}
-
-// MapResourceKindToListResourcesType returns the value to use for ResourceType in a
-// ListResourcesRequest based on the kind of resource you're searching for.
-// Necessary because some resource kinds don't support ListResources directly,
-// so you have to list the parent kind. Use MapListResourcesResultToLeafResource to map back
-// to the given kind.
-func MapResourceKindToListResourcesType(kind string) string {
-	switch kind {
-	case types.KindApp:
-		return types.KindAppServer
-	case types.KindDatabase:
-		return types.KindDatabaseServer
-	case types.KindKubernetesCluster:
-		return types.KindKubeServer
-	default:
-		return kind
-	}
-}
-
-// MapListResourcesResultToLeafResource is the inverse of
-// MapResourceKindToListResourcesType, after the ListResources call it maps the
-// result back to the kind we really want. `hint` should be the name of the
-// desired resource kind, used to disambiguate normal SSH nodes and kubernetes
-// services which are both returned as `types.Server`.
-func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hint string) (types.ResourcesWithLabels, error) {
-	switch r := resource.(type) {
-	case types.AppServer:
-		return types.ResourcesWithLabels{r.GetApp()}, nil
-	case types.KubeServer:
-		return types.ResourcesWithLabels{r.GetCluster()}, nil
-	case types.DatabaseServer:
-		return types.ResourcesWithLabels{r.GetDatabase()}, nil
-	case types.Server:
-		if hint == types.KindKubernetesCluster {
-			return nil, trace.BadParameter("expected kubernetes server, got server")
-		}
-	default:
-	}
-	return types.ResourcesWithLabels{resource}, nil
+// TODO(atburke): Remove this once teleport.e reference is switched over
+func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesClient, resourceIDs []types.ResourceID, opts ...accessrequest.ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
+	return accessrequest.GetResourcesByResourceIDs(ctx, lister, resourceIDs, opts...)
 }
 
 // resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
@@ -1813,7 +1901,7 @@ func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Conte
 		}
 	}
 	// load the underlying resources.
-	resources, err := GetResourcesByResourceIDs(ctx, m.getter, searchableResourcesIDs)
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, m.getter, searchableResourcesIDs)
 	return resources, trace.Wrap(err)
 }
 
@@ -1824,15 +1912,23 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 
 	for _, resourceID := range resourceIDs {
 		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
-			splits := strings.Split(resourceID.SubResourceName, "/")
-			if len(splits) != 2 {
-				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+			switch {
+			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
+				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+					Kind: resourceID.Kind,
+					Name: resourceID.SubResourceName,
+				})
+			default:
+				splits := strings.Split(resourceID.SubResourceName, "/")
+				if len(splits) != 2 {
+					return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+				}
+				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+					Kind:      resourceID.Kind,
+					Namespace: splits[0],
+					Name:      splits[1],
+				})
 			}
-			kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-				Kind:      resourceID.Kind,
-				Namespace: splits[0],
-				Name:      splits[1],
-			})
 		}
 	}
 	return kubernetesResources, nil

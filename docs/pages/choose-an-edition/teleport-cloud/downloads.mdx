@@ -7,19 +7,43 @@ Teleport Enterprise Cloud is currently running Teleport (=cloud.version=). We re
 running Teleport agents at Teleport (=cloud.version=) or one major version
 below.
 
-## Teleport archives
+## Teleport package repositories
 
-The following archives contain all of the binaries you will need to manually
-install and run Teleport.
+Teleport currently maintains DEB and RPM package repositories. Follow these
+instructions to add a package repository and install Teleport.
 
 Binaries include:
 
-|Binary Name|Purpose|
+Binary Name|Purpose|
 |---|---|
 |`teleport`| The Teleport binary that you can run within your private networks to enable access to resources in your infrastructure|
+|`tbot`| The agent for [Teleport's Machine ID](../../machine-id/introduction.mdx)|
+|`teleport-upgrade`| The [automatic agent updater](../../architecture/agent-update-management.mdx) that keeps your Teleport agent automatically updated|
 |`tctl`| A client tool for managing Teleport resources|
 |`tsh`| A client tool for accessing resources within your cluster|
-|`tbot`| A client tool you will use to associate a bot user with a machine identity|
+
+(!docs/pages/includes/cloud/install-linux-cloud.mdx!)
+
+## Teleport client tools
+
+Teleport client tools are available for managing Teleport resources and accessing
+resources within your cluster. These are tools meant to be deployed on users' workstations.
+
+Binaries include:
+
+Binary Name|Purpose|
+|---|---|
+|`tctl`| A client tool for managing Teleport resources|
+|`tsh`| A client tool for accessing resources within your cluster|
+
+For macOS, `tsh` comes in the main Teleport package and also in a separate `tsh`-only package.
+The `tsh`-only package includes a signed variant of `tsh`. Certain functionality, such as Touch ID support,
+only works when `tsh` has been signed. Therefore, if you are installing the main Teleport package on a macOS system,
+we recommend you first install the main Teleport package and then install the `tsh`-only package over this.
+
+### Binary installation
+
+The following archives contain the client tool binaries.
 
 Here are the available archives:
 
@@ -27,21 +51,12 @@ Description                        | | | | |
 -----------------------------------|-|-|-|-|
 Linux (Debian/Ubuntu compatible)   | [amd64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz) | [arm64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-arm64-bin.tar.gz) | [armv7](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-arm-bin.tar.gz) | [i386](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-386-bin.tar.gz) |
 Linux (RHEL/CentOS 7.x compatible) | [amd64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-amd64-centos7-bin.tar.gz) |
-macOS                              | [amd64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-darwin-amd64-bin.tar.gz) |
+macOS                              | [universal amd64/arm64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-darwin-universal-bin.tar.gz) | [amd64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-darwin-amd64-bin.tar.gz) | [arm64](https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-darwin-arm64-bin.tar.gz) |
 
-## Teleport packages
+### Package installation
 
 The following packages allow you to use your operating system's package manager
-to install and run Teleport.
-
-Binaries include:
-
-|Binary Name| Purpose|
-|------|---|
-|`teleport`| The Teleport binary that you can run within your private networks to enable access to resources in your infrastructure|
-|`tctl`| A client tool for managing Teleport resources|
-|`tsh`| A client tool for accessing resources within your cluster|
-|`tbot`| A client tool you will use to associate a bot user with a machine identity|
+to install the client tools.
 
 Here are the available archives:
 
@@ -49,52 +64,11 @@ Description                        | | | | |
 -----------------------------------|-|-|-|-|
 Linux Debian Packages              | [amd64](https://cdn.teleport.dev/teleport-ent_(=cloud.version=)_amd64.deb) | [arm64](https://cdn.teleport.dev/teleport-ent_(=cloud.version=)_arm64.deb) | [armv7](https://cdn.teleport.dev/teleport-ent_(=cloud.version=)_arm.deb) | [i386](https://cdn.teleport.dev/teleport-ent_(=cloud.version=)_i386.deb) |
 Linux RPM Packages                 | [amd64](https://cdn.teleport.dev/teleport-ent-(=cloud.version=)-1.x86_64.rpm) | [arm64](https://cdn.teleport.dev/teleport-ent-(=cloud.version=)-1.arm64.rpm) | [armv7](https://cdn.teleport.dev/teleport-ent-(=cloud.version=)-1.arm.rpm) | [i386](https://cdn.teleport.dev/teleport-ent-(=cloud.version=)-1.i386.rpm) |
-macOS Packages                     | [amd64](https://cdn.teleport.dev/teleport-ent-(=cloud.version=).pkg) |
+macOS Packages                     | [universal amd64/arm64](https://cdn.teleport.dev/teleport-ent-(=cloud.version=).pkg) |
 
-## Teleport package repositories
+### Teleport tsh-only packages
 
-Teleport currently maintains DEB and RPM package repositories. Follow these
-instructions to add a package repository and install Teleport.
-
-<Tabs>
-    <TabItem label="Debian/Ubuntu (DEB)">
-        ```code
-        # Download Teleport's PGP public key
-        $ sudo curl https://apt.releases.teleport.dev/gpg \
-          -o /usr/share/keyrings/teleport-archive-keyring.asc
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport APT repository for v(=cloud.major_version=). You'll need to update this
-        # file for each major (breaking) release of Teleport.
-        # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-apt-repos/main.go#L26
-        $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-          https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=cloud.major_version=)" \
-        | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-        $ sudo apt-get update
-        $ sudo apt-get install teleport-ent
-        ```
-    </TabItem>
-    <TabItem label="Amazon Linux 2/RHEL (RPM)">
-        ```code
-        # Source variables about OS version
-        $ source /etc/os-release
-        # Add the Teleport YUM repository for v(=cloud.major_version=). You'll need to update this
-        # file for each major release of Teleport.
-        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-        # and the codename your distro was forked from instead of '$ID'
-        $ sudo yum-config-manager \
-            --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=cloud.major_version=)/teleport.repo")
-        $ sudo yum install teleport-ent
-        ```
-    </TabItem>
-</Tabs>
-
-## Teleport client-only packages
-
-Client-only packages contain only binaries that need to be deployed to users'
-workstations.
+`tsh`-only packages contain only the `tsh` binary.
 
 Binaries include:
 
@@ -106,5 +80,5 @@ Here are the available archives:
 
 Description                        | |
 -----------------------------------|-|
-macOS                              | [amd64](https://cdn.teleport.dev/tsh-(=cloud.version=).pkg) |
+macOS (signed)                     | [universal amd64/arm64 signed](https://cdn.teleport.dev/tsh-(=cloud.version=).pkg) |
 Windows                            | [amd64](https://cdn.teleport.dev/teleport-v(=cloud.version=)-windows-amd64-bin.zip) |

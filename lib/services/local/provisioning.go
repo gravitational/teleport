@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -66,18 +68,20 @@ func (s *ProvisioningService) CreateToken(ctx context.Context, p types.Provision
 }
 
 func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item, error) {
-	if err := p.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rev := p.GetRevision()
 	data, err := services.MarshalProvisionToken(p)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:     backend.Key(tokensPrefix, p.GetName()),
-		Value:   data,
-		Expires: p.Expiry(),
-		ID:      p.GetResourceID(),
+		Key:      backend.Key(tokensPrefix, p.GetName()),
+		Value:    data,
+		Expires:  p.Expiry(),
+		ID:       p.GetResourceID(),
+		Revision: rev,
 	}
 	return item, nil
 }
@@ -100,7 +104,7 @@ func (s *ProvisioningService) GetToken(ctx context.Context, token string) (types
 		return nil, trace.Wrap(err)
 	}
 
-	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalProvisionToken(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteToken deletes a token by ID
@@ -117,7 +121,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -128,6 +132,7 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 			item.Value,
 			services.WithResourceID(item.ID),
 			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

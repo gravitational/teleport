@@ -43,6 +43,9 @@ spec:
       labels:
         {{- include "teleport-cluster.auth.labels" . | nindent 8 }}
         app: {{ .Release.Name }}
+{{- if eq $auth.chartMode "azure"}}
+        azure.workload.identity/use: "true"
+{{- end }}
     spec:
 {{- if $auth.nodeSelector }}
       nodeSelector: {{- toYaml $auth.nodeSelector | nindent 8 }}
@@ -228,38 +231,9 @@ spec:
 {{- if $auth.extraVolumeMounts }}
   {{- toYaml $auth.extraVolumeMounts | nindent 8 }}
 {{- end }}
-{{- /* Operator uses '.Values' instead of '$auth' as it will likely be moved out of the auth pods */}}
-{{- if .Values.operator.enabled }}
-      - name: "operator"
-        image: '{{ .Values.operator.image }}:{{ include "teleport-cluster.version" . }}'
-        imagePullPolicy: {{ .Values.imagePullPolicy }}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
-  {{- if .Values.operator.resources }}
-        resources: {{- toYaml .Values.operator.resources | nindent 10 }}
-  {{- end }}
-        volumeMounts:
-        - mountPath: /etc/teleport
-          name: "config"
-          readOnly: true
-        - mountPath: /var/lib/teleport
-          name: "data"
-  {{- if $projectedServiceAccountToken }}
-        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-          name: auth-serviceaccount-token
-          readOnly: true
-  {{- end }}
-{{ end }}
+{{- if $auth.extraContainers }}
+  {{- toYaml $auth.extraContainers | nindent 6 }}
+{{- end }}
 {{- if $projectedServiceAccountToken }}
       automountServiceAccountToken: false
 {{- end }}
@@ -302,7 +276,7 @@ spec:
         configMap:
           name: {{ .Release.Name }}-auth
       - name: "data"
-        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws"))) }}
+        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws")) (not (eq $auth.chartMode "azure"))) }}
         persistentVolumeClaim:
           claimName: {{ if $auth.persistence.existingClaimName }}{{ $auth.persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
         {{- else }}

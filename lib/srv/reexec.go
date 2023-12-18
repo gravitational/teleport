@@ -1,18 +1,20 @@
 /*
-Copyright 2020-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -26,8 +28,10 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -45,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/envutils"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -59,6 +64,10 @@ const (
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
 	ContinueFile
+	// ReadyFile is used to communicate to the parent process that
+	// the child has completed any setup operations that must occur before
+	// the child is placed into its cgroup.
+	ReadyFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
 	// SSH session and without termination the terminal process will be assigned
@@ -68,7 +77,7 @@ const (
 	// X11File is used to communicate to the parent process that the child
 	// process has set up X11 forwarding.
 	X11File
-	// ErrorFile  is used to communicate any errors terminating the child process
+	// ErrorFile is used to communicate any errors terminating the child process
 	// to the parent process
 	ErrorFile
 	// PTYFile is a PTY the parent process passes to the child process.
@@ -89,7 +98,8 @@ func fdName(f FileFD) string {
 // construct and execute a shell.
 type ExecCommand struct {
 	// Command is the command to execute. If an interactive session is being
-	// requested, will be empty.
+	// requested, will be empty. If a subsystem is requested, it will contain
+	// the subsystem name.
 	Command string `json:"command"`
 
 	// DestinationAddress is the target address to dial to.
@@ -122,7 +132,7 @@ type ExecCommand struct {
 
 	// RequestType is the type of request: either "exec" or "shell". This will
 	// be used to control where to connect std{out,err} based on the request
-	// type: "exec" or "shell".
+	// type: "exec", "shell" or "subsystem".
 	RequestType string `json:"request_type"`
 
 	// PAMConfig is the configuration data that needs to be passed to the child and then to PAM modules.
@@ -187,11 +197,20 @@ type UaccMetadata struct {
 
 	// WtmpPath is the path of the system wtmp log.
 	WtmpPath string `json:"wtmp_path,omitempty"`
+
+	// BtmpPath is the path of the system btmp log.
+	BtmpPath string `json:"btmp_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
+	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
+	// existing exec sessions to close before ending the process. For this to
+	// work when closing the entire teleport process group, exec sessions must
+	// ignore SIGQUIT signals.
+	signal.Ignore(syscall.SIGQUIT)
+
 	// errorWriter is used to return any error message back to the client. By
 	// default, it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
@@ -206,6 +225,21 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
+	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	if readyfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+	}
+
+	// Ensure that the ready signal is sent if a failure causes execution
+	// to terminate prior to actually becoming ready to unblock the parent process.
+	defer func() {
+		if readyfd == nil {
+			return
+		}
+
+		_ = readyfd.Close()
+	}()
+
 	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if termiantefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -258,13 +292,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
 		errorWriter = tty
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
-		// command output, so for now we essentially ignore it.
-		if err == nil {
-			uaccEnabled = true
-		}
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
@@ -310,9 +337,32 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	// Alert the parent process that the child process has completed any setup operations,
+	// and that we are now waiting for the continue signal before proceeding. This is needed
+	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	if err := readyfd.Close(); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	readyfd = nil
+
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
+		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			log.WithError(uaccErr).Debug("uacc unsupported.")
+		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	if c.Terminal {
+		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
+		// uacc support is best-effort, only enable it if Open is successful.
+		// Currently, there is no way to log this error out-of-band with the
+		// command output, so for now we essentially ignore it.
+		if err == nil {
+			uaccEnabled = true
+		} else {
+			log.WithError(err).Debug("uacc unsupported.")
+		}
 	}
 
 	// Build the actual command that will launch the shell.
@@ -323,7 +373,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForContinue(contfd)
+	err = waitForSignal(contfd, 10*time.Second)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -357,7 +407,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
-		if err := os.Chown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
+		if err := os.Lchown(c.X11Config.XServerUnixSocket, uid, gid); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
@@ -697,6 +747,7 @@ func IsReexec() bool {
 // function is run by Teleport while it's re-executing.
 func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
+	isReexec := false
 
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
@@ -708,9 +759,24 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 		shellPath = "/bin/sh"
 	}
 
-	// If no command was given, configure a shell to run in 'login' mode.
-	// Otherwise, execute a command through the shell.
-	if c.Command == "" {
+	// If a subsystem was requested, handle the known subsystems or error out;
+	// if it's a normal command execution, and if no command was given,
+	// configure a shell to run in 'login' mode. Otherwise, execute a command
+	// through the shell.
+	if c.RequestType == sshutils.SubsystemRequest {
+		switch c.Command {
+		case teleport.SFTPSubsystem:
+			executable, err := os.Executable()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cmd.Path = executable
+			cmd.Args = []string{executable, teleport.SFTPSubCommand}
+			isReexec = true
+		default:
+			return nil, trace.BadParameter("unsupported subsystem execution request %q", c.Command)
+		}
+	} else if c.Command == "" {
 		// Set the path to the path of the shell.
 		cmd.Path = shellPath
 
@@ -728,7 +794,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Create default environment for user.
-	cmd.Env = []string{
+	env := &envutils.SafeEnv{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
 		"HOME=" + localUser.HomeDir,
@@ -737,21 +803,25 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Add in Teleport specific environment variables.
-	cmd.Env = append(cmd.Env, c.Environment...)
+	env.AddFullTrusted(c.Environment...)
+
+	// If any additional environment variables come from PAM, apply them as well.
+	env.AddFullTrusted(pamEnvironment...)
 
 	// If the server allows reading in of ~/.tsh/environment read it in
 	// and pass environment variables along to new session.
+	// User controlled values are added last to ensure administrator controlled sources take priority (duplicates ignored)
 	if c.PermitUserEnvironment {
 		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := utils.ReadEnvironmentFile(filename)
+		userEnvs, err := envutils.ReadEnvironmentFile(filename)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Env = append(cmd.Env, userEnvs...)
+		env.AddFullUnique(userEnvs...)
 	}
 
-	// If any additional environment variables come from PAM, apply them as well.
-	cmd.Env = append(cmd.Env, pamEnvironment...)
+	// after environment is fully built, set it to cmd
+	cmd.Env = *env
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
@@ -835,7 +905,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Perform OS-specific tweaks to the command.
-	userCommandOSTweaks(&cmd)
+	if isReexec {
+		reexecCommandOSTweaks(&cmd)
+	} else {
+		userCommandOSTweaks(&cmd)
+	}
 
 	return &cmd, nil
 }
@@ -885,14 +959,21 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
 
+	// build env for `teleport exec`
+	env := &envutils.SafeEnv{}
+	env.AddFullTrusted(cmdmsg.Environment...)
+	env.AddExecEnvironment()
+
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
 		Dir:  executableDir,
+		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.readyw,
 			ctx.killShellr,
 			ctx.x11rdyw,
 			ctx.errw,
@@ -1002,13 +1083,24 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 // getCmdCredentials parses the uid, gid, and groups of the
 // given user into a credential object for a command to use.
 func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
-	uid, err := strconv.Atoi(localUser.Uid)
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gid, err := strconv.Atoi(localUser.Gid)
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
 	}
 
 	// Lookup supplementary groups for the user.
@@ -1018,7 +1110,7 @@ func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
 	}
 	groups := make([]uint32, 0)
 	for _, sgid := range userGroups {
-		igid, err := strconv.Atoi(sgid)
+		igid, err := strconv.ParseUint(sgid, 10, 32)
 		if err != nil {
 			log.Warnf("Cannot interpret user group: '%v'", sgid)
 		} else {

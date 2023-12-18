@@ -1,18 +1,20 @@
-/*
-Copyright 2019-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
@@ -44,7 +46,6 @@ import {
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import { StepSlider, StepComponentProps } from 'design/StepSlider';
 
-import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 import { UserCredentials } from 'teleport/services/auth';
 
 import SSOButtonList from './SsoButtons';
@@ -55,18 +56,7 @@ export default function LoginForm(props: Props) {
     attempt,
     isLocalAuthEnabled = true,
     authProviders = [],
-    privateKeyPolicyEnabled,
-    isRecoveryEnabled,
-    onRecover,
   } = props;
-  if (privateKeyPolicyEnabled) {
-    return (
-      <PrivateKeyLoginDisabledCard
-        title={title}
-        onRecover={isRecoveryEnabled ? onRecover : null}
-      />
-    );
-  }
 
   const ssoEnabled = authProviders?.length > 0;
 
@@ -74,7 +64,7 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
+      <Card my="5" mx="auto" width="464px" pb={4}>
         <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
@@ -83,14 +73,14 @@ export default function LoginForm(props: Props) {
             {attempt.message}
           </Alerts.Danger>
         )}
-        <SsoList {...props} />
+        <SsoList {...props} autoFocus={true} hasTransitionEnded={true} />
       </Card>
     );
   }
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
+      <Card my="5" mx="auto" width="464px" px={5} pb={4}>
         <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
@@ -105,7 +95,7 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
+    <Card my="5" mx="auto" width={464} pb={4}>
       <Text typography="h3" pt={4} textAlign="center">
         {title}
       </Text>
@@ -128,7 +118,11 @@ const SsoList = ({
   authProviders,
   onLoginWithSso,
   autoFocus = false,
-}: Props) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded?: boolean }) => {
+  const ref = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded && autoFocus,
+  });
   const { isProcessing } = attempt;
   return (
     <SSOButtonList
@@ -136,7 +130,7 @@ const SsoList = ({
       isDisabled={isProcessing}
       providers={authProviders}
       onClick={onLoginWithSso}
-      autoFocus={autoFocus}
+      ref={ref}
     />
   );
 };
@@ -145,7 +139,11 @@ const Passwordless = ({
   onLoginWithWebauthn,
   attempt,
   autoFocus = false,
-}: Props) => {
+  hasTransitionEnded,
+}: Props & { hasTransitionEnded: boolean }) => {
+  const ref = useRefAutoFocus<HTMLInputElement>({
+    shouldFocus: hasTransitionEnded && autoFocus,
+  });
   // Firefox currently does not support passwordless and when
   // logging in, it will return an ambigugous error.
   // We display a soft warning because firefox may provide
@@ -162,17 +160,17 @@ const Passwordless = ({
         </Alerts.Info>
       )}
       <StyledPaswordlessBtn
+        setRef={ref}
         mt={3}
         py={2}
         px={3}
         width="100%"
         onClick={() => onLoginWithWebauthn()}
         disabled={attempt.isProcessing}
-        autoFocus={autoFocus}
       >
         <Flex alignItems="center" justifyContent="space-between">
           <Flex alignItems="center">
-            <Key mr={3} fontSize={16} />
+            <Key mr={3} size="medium" />
             <Box>
               <Text typography="h6">Passwordless</Text>
               <Text
@@ -185,7 +183,7 @@ const Passwordless = ({
               </Text>
             </Box>
           </Flex>
-          <ArrowForward fontSize={16} />
+          <ArrowForward size="medium" />
         </Flex>
       </StyledPaswordlessBtn>
     </Box>
@@ -297,7 +295,7 @@ const LocalForm = ({
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -309,7 +307,7 @@ const LocalForm = ({
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator code"
+                    label="Authenticator Code"
                     rule={requiredToken}
                     autoComplete="one-time-code"
                     inputMode="numeric"
@@ -361,10 +359,22 @@ const Primary = ({
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
-      $primary = <Passwordless {...otherProps} autoFocus={true} />;
+      $primary = (
+        <Passwordless
+          {...otherProps}
+          autoFocus={true}
+          hasTransitionEnded={hasTransitionEnded}
+        />
+      );
       break;
     case 'sso':
-      $primary = <SsoList {...otherProps} autoFocus={true} />;
+      $primary = (
+        <SsoList
+          {...otherProps}
+          autoFocus={true}
+          hasTransitionEnded={hasTransitionEnded}
+        />
+      );
       break;
     case 'local':
       otherOptionsAvailable = otherProps.isPasswordlessEnabled || ssoEnabled;
@@ -525,7 +535,6 @@ export type Props = {
   title?: string;
   isLocalAuthEnabled?: boolean;
   isPasswordlessEnabled: boolean;
-  privateKeyPolicyEnabled: boolean;
   authProviders?: AuthProvider[];
   auth2faType?: Auth2faType;
   primaryAuthType: PrimaryAuthType;

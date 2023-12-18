@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package teleport
 
@@ -38,8 +40,8 @@ const (
 	// SSHTeleportUser is the current Teleport user that is logged in.
 	SSHTeleportUser = "SSH_TELEPORT_USER"
 
-	// SSHSessionWebproxyAddr is the address the web proxy.
-	SSHSessionWebproxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
+	// SSHSessionWebProxyAddr is the address the web proxy.
+	SSHSessionWebProxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
 
 	// SSHTeleportClusterName is the name of the cluster this node belongs to.
 	SSHTeleportClusterName = "SSH_TELEPORT_CLUSTER_NAME"
@@ -104,7 +106,7 @@ const (
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
 
-	// ComponentGRPC is grpc server
+	// ComponentGRPC is gRPC server
 	ComponentGRPC = "grpc"
 
 	// ComponentMigrate is responsible for data migrations
@@ -205,6 +207,10 @@ const (
 	// ComponentWeb is a web server
 	ComponentWeb = "web"
 
+	// ComponentUnifiedResource is a cache of resources meant to be listed and displayed
+	// together in the web UI
+	ComponentUnifiedResource = "unified_resource"
+
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
 
@@ -269,6 +275,9 @@ const (
 
 	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
+
+	// ComponentAssist represents Teleport Assist
+	ComponentAssist = "assist"
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -335,8 +344,15 @@ const (
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
+	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
+	// Storage tests.
+	AZBlobTestURI = "TEST_AZBLOB_URI"
+
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
+
+	// AWSRunDBTests turns on tests executed against AWS databases directly.
+	AWSRunDBTests = "TEST_AWS_DB"
 
 	// Region is AWS region parameter
 	Region = "region"
@@ -367,6 +383,14 @@ const (
 
 	// SchemeGCS is used for Google Cloud Storage
 	SchemeGCS = "gs"
+
+	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over https.
+	SchemeAZBlob = "azblob"
+
+	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over http.
+	SchemeAZBlobHTTP = "azblob-http"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -572,6 +596,10 @@ const (
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
 
+	// TraitInternalDBRolesVariable is the variable used to store allowed
+	// database roles for automatic database user provisioning.
+	TraitInternalDBRolesVariable = "{{internal.db_roles}}"
+
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
@@ -608,9 +636,50 @@ const (
 	// PresetAuditorRoleName is a name of a preset role that allows
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
+
+	// PresetReviewerRoleName is a name of a preset role that allows
+	// for reviewing access requests.
+	PresetReviewerRoleName = "reviewer"
+
+	// PresetRequesterRoleName is a name of a preset role that allows
+	// for requesting access to resources.
+	PresetRequesterRoleName = "requester"
+
+	// PresetGroupAccessRoleName is a name of a preset role that allows
+	// access to all user groups.
+	PresetGroupAccessRoleName = "group-access"
+
+	// PresetDeviceAdminRoleName is the name of the "device-admin" role.
+	// The role is used to administer trusted devices.
+	PresetDeviceAdminRoleName = "device-admin"
+
+	// PresetDeviceEnrollRoleName is the name of the "device-enroll" role.
+	// The role is used to grant device enrollment powers to users.
+	PresetDeviceEnrollRoleName = "device-enroll"
+
+	// PresetRequireTrustedDeviceRoleName is the name of the
+	// "require-trusted-device" role.
+	// The role is used as a basis for requiring trusted device access to
+	// resources.
+	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
+
+	// SystemAutomaticAccessApprovalRoleName names a preset role that may
+	// automatically approve any Role Access Request
+	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
+
+	// ConnectMyComputerRoleNamePrefix is the prefix used for roles prepared for individual users
+	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
+	// user. See teleterm.connectmycomputer.RoleSetup.
+	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// SystemAccessApproverUserName names a Teleport user that acts as
+	// an Access Request approver for access plugins
+	SystemAccessApproverUserName = "@teleport-access-approval-bot"
+)
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -803,9 +872,6 @@ const (
 	// internal application being proxied.
 	AppJWTHeader = "teleport-jwt-assertion"
 
-	// AppCFHeader is a compatibility header.
-	AppCFHeader = "cf-access-token"
-
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
 )
@@ -828,4 +894,10 @@ const (
 	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
 	// to invite to the session.
 	KubeSessionInvitedQueryParam = "invite"
+)
+
+const (
+	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
+	// generating their names Server names.
+	KubeLegacyProxySuffix = "-proxy_service"
 )

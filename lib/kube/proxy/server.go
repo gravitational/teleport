@@ -1,38 +1,41 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
 import (
 	"context"
 	"crypto/tls"
+	"maps"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	logrus "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -96,6 +99,8 @@ type TLSServerConfig struct {
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
 	KubernetesServersWatcher *services.KubeServerWatcher
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -237,11 +242,16 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
-			IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			TLSConfig:         cfg.TLS,
-			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			// Setting ReadTimeout and WriteTimeout will cause the server to
+			// terminate long running requests. This will cause issues with
+			// long running watch streams. The server will close the connection
+			// and the client will receive incomplete data and will fail to
+			// parse it.
+			IdleTimeout: apidefaults.DefaultIdleTimeout,
+			TLSConfig:   cfg.TLS,
+			ConnState:   ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
@@ -262,26 +272,43 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	return server, nil
 }
 
+// ServeOption is a functional option for the multiplexer.
+type ServeOption func(*multiplexer.Config)
+
+// WithMultiplexerIgnoreSelfConnections is used for tests, it makes multiplexer ignore the fact that it's self
+// connection (coming from same IP as the listening address) when deciding if it should drop connection with
+// missing required PROXY header. This is needed since all connections in tests are self connections.
+func WithMultiplexerIgnoreSelfConnections() ServeOption {
+	return func(cfg *multiplexer.Config) {
+		cfg.IgnoreSelfConnections = true
+	}
+}
+
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
-func (t *TLSServer) Serve(listener net.Listener) error {
+func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
 	}
-	// Wrap listener with a multiplexer to get Proxy Protocol support.
-	mux, err := multiplexer.New(multiplexer.Config{
-		Context:                     t.Context,
-		Listener:                    listener,
-		Clock:                       t.Clock,
-		EnableExternalProxyProtocol: true,
-		ID:                          t.Component,
-		CertAuthorityGetter:         caGetter,
-		LocalClusterName:            t.ClusterName,
+	muxConfig := multiplexer.Config{
+		Context:             t.Context,
+		Listener:            listener,
+		Clock:               t.Clock,
+		PROXYProtocolMode:   t.PROXYProtocolMode,
+		ID:                  t.Component,
+		CertAuthorityGetter: caGetter,
+		LocalClusterName:    t.ClusterName,
 		// Increases deadline until the agent receives the first byte to 10s.
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
-		ReadDeadline: 10 * time.Second,
-	})
+		DetectTimeout: 10 * time.Second,
+	}
+	for _, opt := range options {
+		opt(&muxConfig)
+	}
+
+	// Wrap listener with a multiplexer to get PROXY Protocol support.
+	mux, err := multiplexer.New(muxConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -291,10 +318,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 	t.mu.Lock()
 	t.listener = mux.TLS()
-	if err = http2.ConfigureServer(t.Server, &http2.Server{}); err != nil {
+	err = http2.ConfigureServer(t.Server, &http2.Server{})
+	t.mu.Unlock()
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.mu.Unlock()
 
 	// startStaticClusterHeartbeats starts the heartbeat process for static clusters.
 	// static clusters can be specified via kubeconfig or clusterName for Teleport agent
@@ -420,7 +448,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	if t.KubeServiceType != KubeService {
-		name += "-proxy_service"
+		name += teleport.KubeLegacyProxySuffix
 	}
 
 	srv, err := types.NewKubernetesServerV3(
@@ -550,9 +578,7 @@ func (t *TLSServer) getServiceStaticLabels() map[string]string {
 	}
 	labels := maps.Clone(t.CloudLabels.Get())
 	// Let static labels override ec2 labels.
-	for k, v := range t.StaticLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, t.StaticLabels)
 	return labels
 }
 

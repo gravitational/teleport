@@ -1,5 +1,8 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $configTemplate := printf "teleport-cluster.proxy.config.%s" $proxy.chartMode -}}
+{{- if (contains ":" $proxy.clusterName) -}}
+  {{- fail "clusterName must not contain a colon, you can override the cluster's public address with publicAddr" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

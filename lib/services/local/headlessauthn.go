@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -23,29 +25,19 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CreateHeadlessAuthenticationStub creates a headless authentication stub in the backend.
-func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	expires := s.Clock().Now().Add(defaults.CallbackTimeout)
-	headlessAuthn, err := types.NewHeadlessAuthenticationStub(name, expires)
+// UpsertHeadlessAuthentication upserts a headless authentication in the backend.
+func (s *IdentityService) UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error {
+	item, err := marshalHeadlessAuthenticationToItem(ha)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	item, err := MarshalHeadlessAuthenticationToItem(headlessAuthn)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err = s.Create(ctx, *item); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return headlessAuthn, nil
+	_, err = s.Put(ctx, *item)
+	return trace.Wrap(err)
 }
 
 // CompareAndSwapHeadlessAuthentication validates the new headless authentication and
@@ -55,12 +47,12 @@ func (s *IdentityService) CompareAndSwapHeadlessAuthentication(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
-	oldItem, err := MarshalHeadlessAuthenticationToItem(old)
+	oldItem, err := marshalHeadlessAuthenticationToItem(old)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newItem, err := MarshalHeadlessAuthenticationToItem(new)
+	newItem, err := marshalHeadlessAuthenticationToItem(new)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,9 +65,9 @@ func (s *IdentityService) CompareAndSwapHeadlessAuthentication(ctx context.Conte
 	return new, nil
 }
 
-// GetHeadlessAuthentication returns a headless authentication from the backend by name.
-func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	item, err := s.Get(ctx, headlessAuthenticationKey(name))
+// GetHeadlessAuthentication returns a headless authentication from the backend.
+func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error) {
+	item, err := s.Get(ctx, headlessAuthenticationKey(username, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,8 +82,9 @@ func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, name st
 
 // GetHeadlessAuthentications returns all headless authentications from the backend.
 func (s *IdentityService) GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error) {
-	rangeStart := headlessAuthenticationKey("")
+	rangeStart := backend.ExactKey(headlessAuthenticationPrefix)
 	rangeEnd := backend.RangeEnd(rangeStart)
+
 	items, err := s.GetRange(ctx, rangeStart, rangeEnd, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -109,34 +102,49 @@ func (s *IdentityService) GetHeadlessAuthentications(ctx context.Context) ([]*ty
 	return headlessAuthns, nil
 }
 
-// DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
-func (s *IdentityService) DeleteHeadlessAuthentication(ctx context.Context, name string) error {
-	err := s.Delete(ctx, headlessAuthenticationKey(name))
-	return trace.Wrap(err)
+// DeleteHeadlessAuthentication deletes a headless authentication from the backend.
+func (s *IdentityService) DeleteHeadlessAuthentication(ctx context.Context, username, name string) error {
+	return trace.Wrap(s.Delete(ctx, headlessAuthenticationKey(username, name)))
 }
 
-// MarshalHeadlessAuthenticationToItem marshals a headless authentication to a backend.Item.
-func MarshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
-	if err := headlessAuthn.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
+func (s *IdentityService) DeleteAllHeadlessAuthentications(ctx context.Context) error {
+	startKey := backend.ExactKey(headlessAuthenticationPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
 
-	value, err := utils.FastMarshal(headlessAuthn)
+// marshalHeadlessAuthenticationToItem marshals a headless authentication to a backend.Item.
+func marshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
+	value, err := marshalHeadlessAuthentication(headlessAuthn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &backend.Item{
-		Key:     headlessAuthenticationKey(headlessAuthn.Metadata.Name),
+		Key:     headlessAuthenticationKey(headlessAuthn.User, headlessAuthn.Metadata.Name),
 		Value:   value,
 		Expires: *headlessAuthn.Metadata.Expires,
 	}, nil
 }
 
+// marshalHeadlessAuthentication marshals a headless authentication to JSON.
+func marshalHeadlessAuthentication(ha *types.HeadlessAuthentication) ([]byte, error) {
+	if err := ha.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return utils.FastMarshal(ha)
+}
+
 // unmarshalHeadlessAuthenticationFromItem unmarshals a headless authentication from a backend.Item.
 func unmarshalHeadlessAuthenticationFromItem(item *backend.Item) (*types.HeadlessAuthentication, error) {
+	return unmarshalHeadlessAuthentication(item.Value)
+}
+
+// unmarshalHeadlessAuthentication unmarshals a headless authentication from JSON.
+func unmarshalHeadlessAuthentication(data []byte) (*types.HeadlessAuthentication, error) {
 	var headlessAuthn types.HeadlessAuthentication
-	if err := utils.FastUnmarshal(item.Value, &headlessAuthn); err != nil {
+	if err := utils.FastUnmarshal(data, &headlessAuthn); err != nil {
 		return nil, trace.Wrap(err, "error unmarshalling headless authentication from storage")
 	}
 
@@ -147,6 +155,8 @@ func unmarshalHeadlessAuthenticationFromItem(item *backend.Item) (*types.Headles
 	return &headlessAuthn, nil
 }
 
-func headlessAuthenticationKey(name string) []byte {
-	return backend.Key("headless_authentication", name)
+const headlessAuthenticationPrefix = "headless_authentication"
+
+func headlessAuthenticationKey(username, name string) []byte {
+	return backend.Key(headlessAuthenticationPrefix, usersPrefix, username, name)
 }

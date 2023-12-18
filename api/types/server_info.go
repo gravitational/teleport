@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,10 @@ import (
 type ServerInfo interface {
 	// ResourceWithLabels provides common resource headers
 	ResourceWithLabels
+	// GetNewLabels gets the labels to apply to matched Nodes.
+	GetNewLabels() map[string]string
+	// SetNewLabels sets the labels to apply to matched Nodes.
+	SetNewLabels(map[string]string)
 }
 
 // NewServerInfo creates an instance of ServerInfo.
@@ -97,6 +102,16 @@ func (s *ServerInfoV1) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *ServerInfoV1) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *ServerInfoV1) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // Origin returns the origin value of the resource.
 func (s *ServerInfoV1) Origin() string {
 	return s.Metadata.Origin()
@@ -135,15 +150,23 @@ func (s *ServerInfoV1) MatchSearch(searchValues []string) bool {
 		utils.MapToStrings(s.GetAllLabels()),
 		s.GetName(),
 	)
-	if s.Spec.AWS != nil {
-		fieldVals = append(fieldVals, s.Spec.AWS.AccountID, s.Spec.AWS.InstanceID)
-	}
 	return MatchSearch(fieldVals, searchValues, nil)
+}
+
+// GetNewLabels gets the labels to apply to matched Nodes.
+func (s *ServerInfoV1) GetNewLabels() map[string]string {
+	return s.Spec.NewLabels
+}
+
+// SetNewLabels sets the labels to apply to matched Nodes.
+func (s *ServerInfoV1) SetNewLabels(labels map[string]string) {
+	s.Spec.NewLabels = labels
 }
 
 func (s *ServerInfoV1) setStaticFields() {
 	s.Kind = KindServerInfo
 	s.Version = V1
+	s.SubKind = SubKindCloudInfo
 }
 
 // CheckAndSetDefaults validates the Resource and sets any empty fields to
@@ -151,4 +174,16 @@ func (s *ServerInfoV1) setStaticFields() {
 func (s *ServerInfoV1) CheckAndSetDefaults() error {
 	s.setStaticFields()
 	return trace.Wrap(s.Metadata.CheckAndSetDefaults())
+}
+
+// ServerInfoNameFromAWS gets the name of the ServerInfo that matches the node
+// with the given AWS account ID and instance ID.
+func ServerInfoNameFromAWS(accountID, instanceID string) string {
+	return fmt.Sprintf("aws-%v-%v", accountID, instanceID)
+}
+
+// ServerInfoNameFromNodeName gets the name of the ServerInfo that matches the
+// node with the given name.
+func ServerInfoNameFromNodeName(name string) string {
+	return fmt.Sprintf("si-%v", name)
 }

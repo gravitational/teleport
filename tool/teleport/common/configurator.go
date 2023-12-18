@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -25,12 +29,12 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/configurators/configuratorbuilder"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // awsDatabaseTypes list of databases supported on the configurator.
@@ -43,6 +47,7 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeMemoryDB,
 	types.DatabaseTypeAWSKeyspaces,
 	types.DatabaseTypeDynamoDB,
+	types.DatabaseTypeOpenSearch,
 }
 
 type installSystemdFlags struct {
@@ -115,25 +120,51 @@ func onDumpDatabaseConfig(flags createDatabaseConfigFlags) error {
 type configureDiscoveryBootstrapFlags struct {
 	config  configurators.BootstrapFlags
 	confirm bool
+
+	databaseServiceRole       string
+	databaseServicePolicyName string
+}
+
+func makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags configureDiscoveryBootstrapFlags) configurators.BootstrapFlags {
+	config := flags.config
+	config.Service = configurators.DatabaseServiceByDiscoveryServiceConfig
+	config.AttachToUser = ""
+	config.AttachToRole = flags.databaseServiceRole
+	config.PolicyName = flags.databaseServicePolicyName
+	return config
 }
 
 // onConfigureDiscoveryBootstrap subcommand that bootstraps configuration for
 // discovery  agents.
 func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error {
+	fmt.Printf("Reading configuration at %q...\n", flags.config.ConfigPath)
+
 	ctx := context.TODO()
 	configurators, err := configuratorbuilder.BuildConfigurators(flags.config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Reading configuration at %q...\n\n", flags.config.ConfigPath)
+	// If database service role is specified while bootstrap discovery service,
+	// generate configurator actions for database service using the discovery
+	// service config.
+	if flags.config.Service.IsDiscovery() && flags.databaseServiceRole != "" {
+		config := makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags)
+		dbConfigurators, err := configuratorbuilder.BuildConfigurators(config)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		configurators = append(configurators, dbConfigurators...)
+	}
+
 	if len(configurators) == 0 {
 		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
 	for _, configurator := range configurators {
-		fmt.Println(configurator.Name())
+		fmt.Println()
+		fmt.Println(configurator.Description())
 		printDiscoveryConfiguratorActions(configurator.Actions())
 	}
 
@@ -243,6 +274,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceAWSKeyspacesPermissions = true
 		case types.DatabaseTypeDynamoDB:
 			configuratorFlags.ForceDynamoDBPermissions = true
+		case types.DatabaseTypeOpenSearch:
+			configuratorFlags.ForceOpenSearchPermissions = true
 		}
 	}
 

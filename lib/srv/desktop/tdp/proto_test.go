@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package tdp
 
@@ -31,8 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -125,12 +127,12 @@ func TestMFA(t *testing.T) {
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
-			WebauthnChallenge: &wanlib.CredentialAssertion{
-				Response: protocol.PublicKeyCredentialRequestOptions{
+			WebauthnChallenge: &wantypes.CredentialAssertion{
+				Response: wantypes.PublicKeyCredentialRequestOptions{
 					Challenge:      []byte("challenge"),
 					Timeout:        10,
 					RelyingPartyID: "teleport",
-					AllowedCredentials: []protocol.CredentialDescriptor{
+					AllowedCredentials: []wantypes.CredentialDescriptor{
 						{
 							Type:         "public-key",
 							CredentialID: []byte("credential id"),
@@ -138,7 +140,7 @@ func TestMFA(t *testing.T) {
 						},
 					},
 					UserVerification: "discouraged",
-					Extensions: protocol.AuthenticationExtensions{
+					Extensions: wantypes.AuthenticationExtensions{
 						"ext1": "value1",
 					},
 				},
@@ -160,16 +162,16 @@ func TestMFA(t *testing.T) {
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: &wantypes.CredentialAssertionResponse{
+				Webauthn: &wanpb.CredentialAssertionResponse{
 					Type:  "public-key",
 					RawId: []byte("credential id"),
-					Response: &wantypes.AuthenticatorAssertionResponse{
+					Response: &wanpb.AuthenticatorAssertionResponse{
 						ClientDataJson:    []byte("client data json"),
 						AuthenticatorData: []byte("authenticator data"),
 						Signature:         []byte("signature"),
 						UserHandle:        []byte("user handle"),
 					},
-					Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+					Extensions: &wanpb.AuthenticationExtensionsClientOutputs{
 						AppId: true,
 					},
 				},

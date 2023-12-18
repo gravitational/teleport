@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package devicetrust
 
@@ -61,11 +65,11 @@ func EncryptedCredentialToProto(in *attest.EncryptedCredential) *devicepb.TPMEnc
 
 // EncryptedCredentialFromProto extracts an attest.EncryptedCredential from
 // its protobuf representation.
-func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) attest.EncryptedCredential {
+func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) *attest.EncryptedCredential {
 	if in == nil {
-		return attest.EncryptedCredential{}
+		return nil
 	}
-	return attest.EncryptedCredential{
+	return &attest.EncryptedCredential{
 		Credential: in.CredentialBlob,
 		Secret:     in.Secret,
 	}
@@ -86,16 +90,38 @@ func PlatformParametersToProto(in *attest.PlatformParameters) *devicepb.TPMPlatf
 
 // PlatformParametersFromProto extracts an attest.PlatformParameters from
 // its protobuf representation.
-func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) attest.PlatformParameters {
+func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) *attest.PlatformParameters {
 	if in == nil {
-		return attest.PlatformParameters{}
+		return nil
 	}
-	return attest.PlatformParameters{
+	return &attest.PlatformParameters{
 		TPMVersion: attest.TPMVersion20,
 		Quotes:     quotesFromProto(in.Quotes),
 		PCRs:       pcrsFromProto(in.Pcrs),
 		EventLog:   in.EventLog,
 	}
+}
+
+// PlatformAttestationToProto converts an *attest.PlatformParameters and nonce
+// to a PlatformAttestation proto message.
+func PlatformAttestationToProto(in *attest.PlatformParameters, nonce []byte) *devicepb.TPMPlatformAttestation {
+	if in == nil {
+		return nil
+	}
+	platParams := PlatformParametersToProto(in)
+	return &devicepb.TPMPlatformAttestation{
+		PlatformParameters: platParams,
+		Nonce:              nonce,
+	}
+}
+
+// PlatformAttestationFromProto extracts a attest.PlatformParameters and nonce
+// from a PlatformAttestation proto message.
+func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platParams *attest.PlatformParameters, nonce []byte) {
+	if in == nil {
+		return nil, nil
+	}
+	return PlatformParametersFromProto(in.PlatformParameters), in.Nonce
 }
 
 func quotesToProto(in []attest.Quote) []*devicepb.TPMQuote {

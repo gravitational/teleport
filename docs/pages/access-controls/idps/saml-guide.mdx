@@ -11,7 +11,7 @@ authenticate to external services.
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
@@ -44,13 +44,13 @@ spec:
       - read
       - update
       - delete
-version: v6
+version: v7
 ```
 
 Create the role with `tctl`:
 
 ```code
-$ tctl create sp-manager.yaml 
+$ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
 

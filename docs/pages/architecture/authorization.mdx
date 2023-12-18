@@ -62,7 +62,7 @@ This list is called "role mappings".
 Teleport supports non-interactive users for automation services, e.g. Jenkins or micro-services
 running in your organization.
 
-### Local non-interactive users
+#### Local non-interactive users
 
 Local non-interactive users also have a user entry that maps their name to roles,
 but they do not have credentials stored in the database.
@@ -75,11 +75,11 @@ of non-interactive users:
   bordered="true"
   caption="Machine-ID certs"
   >
-  
+
 ![Certificates for services](../../img/architecture/certs-machine-id@1.8x.svg)
 </Figure>
 
-### External non-interactive users
+#### External non-interactive users
 
 External non-interactive users behave just like local ones, but it is another
 cluster or certificate authority that issues certificates for them.
@@ -169,12 +169,13 @@ spec:
        'environment': ['test', 'stage']
     kubernetes_labels:
        'environment': ['test', 'stage']
-    # Allow access to any Kubernetes pod in a cluster with the labels specified
+    # Allow access to any Kubernetes resources in a cluster with the labels specified
     # above.
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Prod role allows SSH access as `ubuntu` and `view` access to kubernetes for
@@ -192,9 +193,10 @@ spec:
     kubernetes_labels:
        'environment': ['prod']
     kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['*']
 ```
 
 Here is how Teleport will evaluate Alice's access:
@@ -245,6 +247,10 @@ You can use predicate language function calls in templates, e.g. `{{email.local(
 - Invalid expressions will be ignored, e.g. `external.foo}}` will be skipped, just as invalid function calls.
 - Invalid values will be omitted, for example `-foo` is not a valid Unix login, so if variable `external.foo` equals
 `"-foo"`, it will be omitted in `logins: ["{{external.foo}}"]`.
+
+For full details on how variable expansion works in Teleport roles, see the
+[Teleport Access Controls
+Reference](../access-controls/reference.mdx).
 
 **How role templates are evaluated**
 
@@ -351,15 +357,12 @@ options, Teleport will choose `strict` option.
 
 ### Just in Time Access Requests
 
-<ScopedBlock
-  scope={["oss"]}
->
-
 <Notice type="tip">
-  The full version of Just In Time Access Requests is available only in Teleport Cloud or Enterprise.
-</Notice>
 
-</ScopedBlock>
+  The full version of Just In Time Access Requests is available only in Teleport
+  Enterprise (including Enterprise Cloud).
+
+</Notice>
 
 Roles allow requesting elevated privileges - other roles or individual resources.
 
@@ -396,3 +399,4 @@ spec:
 - [Teleport Auth](authentication.mdx)
 - [Teleport Nodes](nodes.mdx)
 - [Teleport Proxy](proxy.mdx)
+

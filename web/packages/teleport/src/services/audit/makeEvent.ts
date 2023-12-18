@@ -1,20 +1,23 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { formatDistanceStrict } from 'date-fns';
+import { pluralize } from 'shared/utils/text';
 
 import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
 
@@ -77,8 +80,9 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_REVIEWED]: {
     type: 'access_request.review',
     desc: 'Access Request Reviewed',
-    format: ({ id, reviewer }) =>
-      `User [${reviewer}] reviewed access request [${id}]`,
+    format: ({ id, reviewer, state }) => {
+      return `User [${reviewer}] ${state.toLowerCase()} access request [${id}]`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_DELETED]: {
     type: 'access_request.delete',
@@ -87,7 +91,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
-    desc: 'Resource Access Request Search',
+    desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
   },
@@ -184,13 +188,19 @@ export const formatters: Formatters = {
     type: 'github.created',
     desc: 'GITHUB Auth Connector Created',
     format: ({ user, name }) =>
-      `User [${user}] created GitHub connector [${name}] has been created`,
+      `User [${user}] created GitHub connector [${name}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
     desc: 'GITHUB Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted GitHub connector [${name}]`,
+  },
+  [eventCodes.GITHUB_CONNECTOR_UPDATED]: {
+    type: 'github.updated',
+    desc: 'GITHUB Auth Connector Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated GitHub connector [${name}]`,
   },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
@@ -203,6 +213,12 @@ export const formatters: Formatters = {
     desc: 'OIDC Auth Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted OIDC connector [${name}]`,
+  },
+  [eventCodes.OIDC_CONNECTOR_UPDATED]: {
+    type: 'oidc.updated',
+    desc: 'OIDC Auth Connector Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated OIDC connector [${name}]`,
   },
   [eventCodes.PORTFORWARD]: {
     type: 'port',
@@ -226,6 +242,12 @@ export const formatters: Formatters = {
     desc: 'SAML Connector Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted SAML connector [${name}]`,
+  },
+  [eventCodes.SAML_CONNECTOR_UPDATED]: {
+    type: 'saml.updated',
+    desc: 'SAML Connector Updated',
+    format: ({ user, name }) =>
+      `User [${user}] updated SAML connector [${name}]`,
   },
   [eventCodes.SCP_DOWNLOAD]: {
     type: 'scp',
@@ -698,6 +720,28 @@ export const formatters: Formatters = {
     desc: 'SSO Test Flow Login Failed',
     format: ({ error }) => `SSO Test flow: user login failed [${error}]`,
   },
+  [eventCodes.USER_HEADLESS_LOGIN_REQUESTED]: {
+    type: 'user.login',
+    desc: 'Headless Login Requested',
+    format: ({ user }) => `Headless login was requested for user [${user}]`,
+  },
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVED]: {
+    type: 'user.login',
+    desc: 'Headless Login Approved',
+    format: ({ user }) =>
+      `User [${user}] successfully approved headless login request`,
+  },
+  [eventCodes.USER_HEADLESS_LOGIN_APPROVEDFAILURE]: {
+    type: 'user.login',
+    desc: 'Headless Login Failed',
+    format: ({ user, error }) =>
+      `User [${user}] tried to approve headless login request, but got an error [${error}]`,
+  },
+  [eventCodes.USER_HEADLESS_LOGIN_REJECTED]: {
+    type: 'user.login',
+    desc: 'Headless Login Rejected',
+    format: ({ user }) => `User [${user}] rejected headless login request`,
+  },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
     desc: 'User Role Created',
@@ -707,6 +751,11 @@ export const formatters: Formatters = {
     type: 'role.deleted',
     desc: 'User Role Deleted',
     format: ({ user, name }) => `User [${user}] deleted a role [${name}]`,
+  },
+  [eventCodes.ROLE_UPDATED]: {
+    type: 'role.updated',
+    desc: 'User Role Updated',
+    format: ({ user, name }) => `User [${user}] updated a role [${name}]`,
   },
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: {
     type: 'trusted_cluster_token.create',
@@ -718,6 +767,12 @@ export const formatters: Formatters = {
     desc: 'Trusted Cluster Created',
     format: ({ user, name }) =>
       `User [${user}] has created a trusted relationship with cluster [${name}]`,
+  },
+  [eventCodes.PROVISION_TOKEN_CREATED]: {
+    type: 'join_token.create',
+    desc: 'Join Token Created',
+    format: ({ user, roles, join_method }) =>
+      `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
   },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',
@@ -752,10 +807,12 @@ export const formatters: Formatters = {
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
     desc: 'Database Session Started',
-    format: ({ user, db_service, db_name, db_user }) =>
+    format: ({ user, db_service, db_name, db_user, db_roles }) =>
       `User [${user}] has connected ${
         db_name ? `to database [${db_name}] ` : ''
-      }as [${db_user}] on [${db_service}]`,
+      }as [${db_user}] ${
+        db_roles ? `with roles [${db_roles}] ` : ''
+      }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',
@@ -1103,8 +1160,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1114,8 +1171,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` on [${windows_domain}]`;
       }
@@ -1125,8 +1182,8 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
-      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         desktopMessage += ` on [${windows_domain}]`;
       }
@@ -1425,6 +1482,141 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
+  [eventCodes.ACCESS_LIST_CREATE]: {
+    type: 'access_list.create',
+    desc: 'Access list created',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] created access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
+    type: 'access_list.create',
+    desc: 'Access list create failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to create access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_UPDATE]: {
+    type: 'access_list.update',
+    desc: 'Access list updated',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] updated access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
+    type: 'access_list.update',
+    desc: 'Access list update failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to update access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_DELETE]: {
+    type: 'access_list.delete',
+    desc: 'Access list deleted',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] deleted access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
+    type: 'access_list.delete',
+    desc: 'Access list delete failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to delete access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_REVIEW]: {
+    type: 'access_list.review',
+    desc: 'Access list reviewed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] reviewed access list [${name}]`,
+  },
+  [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
+    type: 'access_list.review',
+    desc: 'Access list review failed',
+    format: ({ name, updated_by }) =>
+      `User [${updated_by}] failed to to review access list [${name}]]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
+    type: 'access_list.member.create',
+    desc: 'Access list member added',
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] added ${formatMembers(
+        members
+      )} to access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
+    type: 'access_list.member.create',
+    desc: 'Access list member addition failure',
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] failed to add ${formatMembers(
+        members
+      )} to access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
+    type: 'access_list.member.update',
+    desc: 'Access list member updated',
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] updated ${formatMembers(
+        members
+      )} in access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
+    type: 'access_list.member.update',
+    desc: 'Access list member update failure',
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] failed to update ${formatMembers(
+        members
+      )} in access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
+    type: 'access_list.member.delete',
+    desc: 'Access list member removed',
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] removed ${formatMembers(
+        members
+      )} from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
+    type: 'access_list.member.delete',
+    desc: 'Access list member removal failure',
+    format: ({ access_list_name, members, updated_by }) =>
+      `User [${updated_by}] failed to remove ${formatMembers(
+        members
+      )} from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
+    type: 'access_list.member.delete_all_members',
+    desc: 'All members removed from access list',
+    format: ({ access_list_name, updated_by }) =>
+      `User [${updated_by}] removed all members from access list [${access_list_name}]`,
+  },
+  [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
+    type: 'access_list.member.delete_all_members',
+    desc: 'Access list member delete all members failure',
+    format: ({ access_list_name, updated_by }) =>
+      `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
+  },
+  [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
+    type: 'secreports.audit.query.run"',
+    desc: 'Access Monitoring Query Executed',
+    format: ({ user, query }) =>
+      `User [${user}] executed Access Monitoring query [${truncateStr(
+        query,
+        80
+      )}]`,
+  },
+  [eventCodes.SECURITY_REPORT_RUN]: {
+    type: 'secreports.report.run""',
+    desc: 'Access Monitoring Report Executed',
+    format: ({ user, name }) =>
+      `User [${user}] executed [${name}] access monitoring report`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: {
+    type: 'external_audit_storage.enable',
+    desc: 'External Audit Storage Enabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] enabled External Audit Storage`,
+  },
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: {
+    type: 'external_audit_storage.disable',
+    desc: 'External Audit Storage Disabled',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] disabled External Audit Storage`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
@@ -1470,4 +1662,11 @@ function truncateStr(str: string, len: number): string {
     return str;
   }
   return str.substring(0, len - 3) + '...';
+}
+
+function formatMembers(members: { member_name: string }[]) {
+  const memberNames = members.map(m => m.member_name);
+  const memberNamesJoined = memberNames.join(', ');
+
+  return `${pluralize(memberNames.length, 'member')} [${memberNamesJoined}]`;
 }

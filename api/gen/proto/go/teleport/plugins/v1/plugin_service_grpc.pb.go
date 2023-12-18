@@ -35,13 +35,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	PluginService_CreatePlugin_FullMethodName            = "/teleport.plugins.v1.PluginService/CreatePlugin"
-	PluginService_GetPlugin_FullMethodName               = "/teleport.plugins.v1.PluginService/GetPlugin"
-	PluginService_DeletePlugin_FullMethodName            = "/teleport.plugins.v1.PluginService/DeletePlugin"
-	PluginService_ListPlugins_FullMethodName             = "/teleport.plugins.v1.PluginService/ListPlugins"
-	PluginService_SetPluginCredentials_FullMethodName    = "/teleport.plugins.v1.PluginService/SetPluginCredentials"
-	PluginService_SetPluginStatus_FullMethodName         = "/teleport.plugins.v1.PluginService/SetPluginStatus"
-	PluginService_GetAvailablePluginTypes_FullMethodName = "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes"
+	PluginService_CreatePlugin_FullMethodName                  = "/teleport.plugins.v1.PluginService/CreatePlugin"
+	PluginService_GetPlugin_FullMethodName                     = "/teleport.plugins.v1.PluginService/GetPlugin"
+	PluginService_DeletePlugin_FullMethodName                  = "/teleport.plugins.v1.PluginService/DeletePlugin"
+	PluginService_ListPlugins_FullMethodName                   = "/teleport.plugins.v1.PluginService/ListPlugins"
+	PluginService_SetPluginCredentials_FullMethodName          = "/teleport.plugins.v1.PluginService/SetPluginCredentials"
+	PluginService_SetPluginStatus_FullMethodName               = "/teleport.plugins.v1.PluginService/SetPluginStatus"
+	PluginService_GetAvailablePluginTypes_FullMethodName       = "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes"
+	PluginService_SearchPluginStaticCredentials_FullMethodName = "/teleport.plugins.v1.PluginService/SearchPluginStaticCredentials"
 )
 
 // PluginServiceClient is the client API for PluginService service.
@@ -63,6 +64,9 @@ type PluginServiceClient interface {
 	// GetAvailablePluginTypes returns the types of plugins
 	// that the auth server supports onboarding.
 	GetAvailablePluginTypes(ctx context.Context, in *GetAvailablePluginTypesRequest, opts ...grpc.CallOption) (*GetAvailablePluginTypesResponse, error)
+	// SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
+	// in the case of Teleport Assist, RoleProxy.
+	SearchPluginStaticCredentials(ctx context.Context, in *SearchPluginStaticCredentialsRequest, opts ...grpc.CallOption) (*SearchPluginStaticCredentialsResponse, error)
 }
 
 type pluginServiceClient struct {
@@ -136,6 +140,15 @@ func (c *pluginServiceClient) GetAvailablePluginTypes(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *pluginServiceClient) SearchPluginStaticCredentials(ctx context.Context, in *SearchPluginStaticCredentialsRequest, opts ...grpc.CallOption) (*SearchPluginStaticCredentialsResponse, error) {
+	out := new(SearchPluginStaticCredentialsResponse)
+	err := c.cc.Invoke(ctx, PluginService_SearchPluginStaticCredentials_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PluginServiceServer is the server API for PluginService service.
 // All implementations must embed UnimplementedPluginServiceServer
 // for forward compatibility
@@ -155,6 +168,9 @@ type PluginServiceServer interface {
 	// GetAvailablePluginTypes returns the types of plugins
 	// that the auth server supports onboarding.
 	GetAvailablePluginTypes(context.Context, *GetAvailablePluginTypesRequest) (*GetAvailablePluginTypesResponse, error)
+	// SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
+	// in the case of Teleport Assist, RoleProxy.
+	SearchPluginStaticCredentials(context.Context, *SearchPluginStaticCredentialsRequest) (*SearchPluginStaticCredentialsResponse, error)
 	mustEmbedUnimplementedPluginServiceServer()
 }
 
@@ -182,6 +198,9 @@ func (UnimplementedPluginServiceServer) SetPluginStatus(context.Context, *SetPlu
 }
 func (UnimplementedPluginServiceServer) GetAvailablePluginTypes(context.Context, *GetAvailablePluginTypesRequest) (*GetAvailablePluginTypesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAvailablePluginTypes not implemented")
+}
+func (UnimplementedPluginServiceServer) SearchPluginStaticCredentials(context.Context, *SearchPluginStaticCredentialsRequest) (*SearchPluginStaticCredentialsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SearchPluginStaticCredentials not implemented")
 }
 func (UnimplementedPluginServiceServer) mustEmbedUnimplementedPluginServiceServer() {}
 
@@ -322,6 +341,24 @@ func _PluginService_GetAvailablePluginTypes_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PluginService_SearchPluginStaticCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchPluginStaticCredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginServiceServer).SearchPluginStaticCredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginService_SearchPluginStaticCredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginServiceServer).SearchPluginStaticCredentials(ctx, req.(*SearchPluginStaticCredentialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PluginService_ServiceDesc is the grpc.ServiceDesc for PluginService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -356,6 +393,10 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAvailablePluginTypes",
 			Handler:    _PluginService_GetAvailablePluginTypes_Handler,
+		},
+		{
+			MethodName: "SearchPluginStaticCredentials",
+			Handler:    _PluginService_SearchPluginStaticCredentials_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

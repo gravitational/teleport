@@ -1,0 +1,38 @@
+Now, you must decide if you want to run `tbot` as a daemon or in one-shot mode.
+
+In daemon mode, `tbot` runs continually, renewing the short-lived credentials
+for the configured outputs on a fixed interval. This is often combined with a
+service manager (such as systemd) in order to run `tbot` in the background.
+This is the default behaviour of `tbot`.
+
+In one-shot mode, `tbot` generates short-lived credentials and then exits. This
+is useful when combining `tbot` with scripting (such as in CI/CD) as it allows
+further steps to be dependent on `tbot` having succeeded. It is important to
+note that the credentials will expire if not renewed and to ensure that the
+TTL for the certificates is long enough to cover the length of the CI/CD job.
+
+#### Configuring `tbot` as a daemon
+
+(!docs/pages/includes/machine-id/daemon.mdx!)
+
+#### Configuring `tbot` for one-shot mode
+
+To use `tbot` in one-shot mode, modify `/etc/tbot.yaml` to add `oneshot: true`:
+
+```yaml
+version: v2
+oneshot: true
+auth_server: ...
+```
+
+Now, you should test your `tbot` configuration. When started, several log
+messages will be emitted before it exits with status 0:
+
+```code
+$ export TELEPORT_ANONYMOUS_TELEMETRY=1
+$ tbot start -c /etc/tbot.yaml
+```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.

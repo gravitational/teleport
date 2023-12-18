@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package backend
 
@@ -43,7 +45,7 @@ func TestWatcherSimple(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Type, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -52,7 +54,7 @@ func TestWatcherSimple(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Item.ID, int64(1))
+		require.Equal(t, int64(1), e.Item.ID)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -92,7 +94,7 @@ func TestWatcherCapacity(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Type, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	default:
 		t.Fatalf("Expected immediate OpInit.")
 	}
@@ -157,14 +159,14 @@ func TestWatcherClose(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Type, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	require.Equal(t, b.watchers.Len(), 1)
+	require.Equal(t, 1, b.watchers.Len())
 	w.(*BufferWatcher).closeAndRemove(removeSync)
-	require.Equal(t, b.watchers.Len(), 0)
+	require.Equal(t, 0, b.watchers.Len())
 }
 
 // TestRemoveRedundantPrefixes removes redundant prefixes
@@ -196,7 +198,7 @@ func TestRemoveRedundantPrefixes(t *testing.T) {
 		},
 	}
 	for _, tc := range tcs {
-		require.Empty(t, cmp.Diff(removeRedundantPrefixes(tc.in), tc.out))
+		require.Empty(t, cmp.Diff(RemoveRedundantPrefixes(tc.in), tc.out))
 	}
 }
 
@@ -216,7 +218,7 @@ func TestWatcherMulti(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Type, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -225,13 +227,12 @@ func TestWatcherMulti(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Item.ID, int64(1))
+		require.Equal(t, int64(1), e.Item.ID)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	require.Equal(t, len(w.Events()), 0)
-
+	require.Empty(t, w.Events())
 }
 
 // TestWatcherReset tests scenarios with watchers and buffer resets
@@ -249,7 +250,7 @@ func TestWatcherReset(t *testing.T) {
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, e.Type, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -270,7 +271,7 @@ func TestWatcherReset(t *testing.T) {
 
 	select {
 	case e := <-w2.Events():
-		require.Equal(t, e.Type, types.OpInit)
+		require.Equal(t, types.OpInit, e.Type)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -279,7 +280,7 @@ func TestWatcherReset(t *testing.T) {
 
 	select {
 	case e := <-w2.Events():
-		require.Equal(t, e.Item.ID, int64(2))
+		require.Equal(t, int64(2), e.Item.ID)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -288,10 +289,10 @@ func TestWatcherReset(t *testing.T) {
 // TestWatcherTree tests buffer watcher tree
 func TestWatcherTree(t *testing.T) {
 	wt := newWatcherTree()
-	require.Equal(t, wt.rm(nil), false)
+	require.False(t, wt.rm(nil))
 
 	w1 := &BufferWatcher{Watch: Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/a1"), []byte("/c")}}}
-	require.Equal(t, wt.rm(w1), false)
+	require.False(t, wt.rm(w1))
 
 	w2 := &BufferWatcher{Watch: Watch{Prefixes: [][]byte{[]byte("/a")}}}
 
@@ -319,8 +320,8 @@ func TestWatcherTree(t *testing.T) {
 	require.Equal(t, matched[0], w1)
 	require.Equal(t, matched[1], w2)
 
-	require.Equal(t, wt.rm(w1), true)
-	require.Equal(t, wt.rm(w1), false)
+	require.True(t, wt.rm(w1))
+	require.False(t, wt.rm(w1))
 
 	matched = nil
 	wt.walkPath("/a", func(w *BufferWatcher) {
@@ -329,5 +330,5 @@ func TestWatcherTree(t *testing.T) {
 	require.Len(t, matched, 1)
 	require.Equal(t, matched[0], w2)
 
-	require.Equal(t, wt.rm(w2), true)
+	require.True(t, wt.rm(w2))
 }

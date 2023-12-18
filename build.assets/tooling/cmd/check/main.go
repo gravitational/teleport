@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Command version-check validates that a tag is not a prerelease
 // or that it is the latest version ever. version-check exits non-zero
@@ -45,8 +47,16 @@ func main() {
 	switch check {
 	case "latest":
 		err = checkLatest(ctx, tag, github.NewGitHub())
+
 	case "prerelease":
-		err = checkPrerelease(tag)
+		// Assert that the supplied tag is a valid semver version with no
+		// prerelease or build-metadata components
+		err = checkIsBareRelease(tag)
+
+	case "valid":
+		// Assert that the supplied tag is a valid semver version string.
+		err = checkValidSemver(tag)
+
 	default:
 		log.Fatalf("invalid check: %v", check)
 	}
@@ -58,7 +68,7 @@ func main() {
 
 func parseFlags() (string, string, error) {
 	tag := flag.String("tag", "", "tag to validate")
-	check := flag.String("check", "", "check to run [latest, prerelease]")
+	check := flag.String("check", "", "check to run [latest, prerelease, valid]")
 	flag.Parse()
 
 	if *tag == "" {
@@ -68,7 +78,7 @@ func parseFlags() (string, string, error) {
 		return "", "", trace.BadParameter("check missing")
 	}
 	switch *check {
-	case "latest", "prerelease":
+	case "latest", "prerelease", "valid":
 	default:
 		return "", "", trace.BadParameter("invalid check: %v", *check)
 	}
@@ -108,7 +118,23 @@ func checkLatest(ctx context.Context, tag string, gh github.GitHub) error {
 	return nil
 }
 
-func checkPrerelease(tag string) error {
+// checkValidSemver returns an error if the supplied string is not a valid
+// Semver identifier
+func checkValidSemver(tag string) error {
+	if !semver.IsValid(tag) {
+		return trace.BadParameter("version is invalid semver: %v", tag)
+	}
+	return nil
+}
+
+// checkIsBareRelease returns nil if the supplied tag is a valid semver
+// version string without pre-release or build-metadata components. Returns
+// an error if any of these conditions is not met.
+func checkIsBareRelease(tag string) error {
+	if err := checkValidSemver(tag); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if semver.Prerelease(tag) != "" { // https://semver.org/#spec-item-9
 		return trace.BadParameter("version is pre-release: %v", tag)
 	}

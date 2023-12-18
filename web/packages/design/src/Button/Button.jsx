@@ -1,24 +1,26 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import { bool, string } from 'prop-types';
 
-import { space, width, height } from 'design/system';
+import { space, width, height, alignSelf, gap } from 'design/system';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -84,6 +86,11 @@ const themedStyles = props => {
     ...width(props),
     ...block(props),
     ...height(props),
+    ...textTransform(props),
+    ...alignSelf(props),
+    // Since a Button has `display: inline-flex`, we want to be able to set gap within it in case we
+    // need to use an icon.
+    ...gap(props),
   };
 };
 
@@ -156,6 +163,9 @@ const block = props =>
       }
     : null;
 
+const textTransform = props =>
+  props.textTransform ? { textTransform: props.textTransform } : null;
+
 const StyledButton = styled.button`
   line-height: 1.5;
   margin: 0;
@@ -184,25 +194,36 @@ Button.propTypes = {
    * block specifies if an element's display is set to block or not.
    * Set to true to set display to block.
    */
-  block: PropTypes.bool,
+  block: bool,
 
   /**
    * kind specifies the styling a button takes.
    * Select from primary (default), secondary, warning.
    */
-  kind: PropTypes.string,
+  kind: string,
 
   /**
    * size specifies the size of button.
    * Select from small, medium (default), large
    */
-  size: PropTypes.string,
+  size: string,
+
+  /**
+   * textTransform specifies the case transform of the button text.
+   * default is UPPERCASE
+   *
+   * TODO (avatus): eventually, we will move away from every button being
+   * uppercase and this probably won't be needed anymore. This is a temporary
+   * fix before we audit the whole site and migrate
+   */
+  textTransform: string,
 
   /**
    * styled-system
    */
   ...space.propTypes,
   ...height.propTypes,
+  ...alignSelf.propTypes,
 };
 
 Button.defaultProps = {

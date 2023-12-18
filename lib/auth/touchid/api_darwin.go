@@ -1,19 +1,23 @@
 //go:build touchid
 // +build touchid
 
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package touchid
 
@@ -56,6 +60,11 @@ const (
 	promptReason = "authenticate user"
 )
 
+const (
+	kLAErrorDomain       = "com.apple.LocalAuthentication"
+	kLAErrorSystemCancel = -4
+)
+
 type parsedLabel struct {
 	rpID, user string
 }
@@ -88,11 +97,33 @@ type touchIDImpl struct{}
 func (touchIDImpl) Diag() (*DiagResult, error) {
 	var resC C.DiagResult
 	C.RunDiag(&resC)
+	defer func() {
+		C.free(unsafe.Pointer(resC.la_error_domain))
+		C.free(unsafe.Pointer(resC.la_error_description))
+	}()
 
 	signed := (bool)(resC.has_signature)
 	entitled := (bool)(resC.has_entitlements)
 	passedLA := (bool)(resC.passed_la_policy_test)
 	passedEnclave := (bool)(resC.passed_secure_enclave_test)
+	laErrorCode := int64(resC.la_error_code)
+	laErrorDomain := C.GoString(resC.la_error_domain)
+	laErrorDescription := C.GoString(resC.la_error_description)
+	if !passedLA && laErrorDescription != "" {
+		log.Debugf("Touch ID: LAError description: %v", laErrorDescription)
+	}
+
+	isAvailable := signed && entitled && passedLA && passedEnclave
+	isClamshellFailure := !isAvailable &&
+		// LAContext test failed.
+		!passedLA &&
+		// Everything else worked.
+		signed &&
+		entitled &&
+		passedEnclave &&
+		// We got an LAErrorSystemCancel error.
+		laErrorDomain == kLAErrorDomain &&
+		laErrorCode == kLAErrorSystemCancel
 
 	return &DiagResult{
 		HasCompileSupport:       true,
@@ -100,7 +131,8 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 		HasEntitlements:         entitled,
 		PassedLAPolicyTest:      passedLA,
 		PassedSecureEnclaveTest: passedEnclave,
-		IsAvailable:             signed && entitled && passedLA && passedEnclave,
+		IsAvailable:             isAvailable,
+		isClamshellFailure:      isClamshellFailure,
 	}, nil
 }
 
@@ -262,7 +294,7 @@ func (touchIDImpl) ListCredentials() ([]CredentialInfo, error) {
 	})
 	if res < 0 {
 		errMsg := C.GoString(errMsgC)
-		return nil, errorFromStatus("listing credentials", int(res), errMsg)
+		return nil, errorFromStatus("listing credentials", res, errMsg)
 	}
 
 	return infos, nil

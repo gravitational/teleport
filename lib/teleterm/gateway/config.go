@@ -1,23 +1,27 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package gateway
 
 import (
 	"context"
+	"crypto/x509"
+	"net"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -39,9 +43,11 @@ type Config struct {
 	// TargetName is the remote resource name
 	TargetName string
 	// TargetURI is the remote resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetGroups is a list of target groups
+	TargetGroups []string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
 	// name on a database server. It is used only for generating the CLI command.
 	TargetSubresourceName string
@@ -52,18 +58,23 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
-	// CertPath
+	// CertPath specifies the path to the user certificate that the local proxy
+	// uses to connect to the Teleport Proxy. The path may depend on the type
+	// and the parameters of the gateway.
 	CertPath string
-	// KeyPath
+	// KeyPath specifies the path to the private key of the cert specified in
+	// the CertPath. This is usually the private key of the user profile.
 	KeyPath string
 	// Insecure
 	Insecure bool
+	// ClusterName is the Teleport cluster name.
+	ClusterName string
+	// Username is the username of the profile.
+	Username string
 	// WebProxyAddr
 	WebProxyAddr string
 	// Log is a component logger
 	Log *logrus.Entry
-	// CLICommandProvider returns a CLI command for the gateway
-	CLICommandProvider CLICommandProvider
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
@@ -80,13 +91,15 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
+	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
+	KubeconfigsDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
 // accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
 //
 // Handling of the connection is blocked until the function returns.
-type OnExpiredCertFunc func(context.Context, *Gateway) error
+type OnExpiredCertFunc func(context.Context, Gateway) error
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
@@ -110,21 +123,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	c.Log = c.Log.WithFields(logrus.Fields{
-		"resource": c.TargetURI,
-		"gateway":  c.URI.String(),
-	})
-
 	if c.TargetName == "" {
 		return trace.BadParameter("missing target name")
 	}
 
-	if c.TargetURI == "" {
+	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
-	}
-
-	if c.CLICommandProvider == nil {
-		return trace.BadParameter("missing CLICommandProvider")
 	}
 
 	if c.TCPPortAllocator == nil {
@@ -135,6 +139,19 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.RootClusterCACertPoolFunc == nil {
+		if !c.Insecure {
+			return trace.BadParameter("missing RootClusterCACertPoolFunc")
+		}
+		c.RootClusterCACertPoolFunc = func(_ context.Context) (*x509.CertPool, error) {
+			return x509.NewCertPool(), nil
+		}
+	}
+
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI.String(),
+		"gateway":  c.URI.String(),
+	})
 	return nil
 }
 
@@ -148,4 +165,20 @@ func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
 		Protocol:    c.Protocol,
 		Username:    c.TargetUser,
 	}
+}
+
+func (c *Config) makeListener() (net.Listener, error) {
+	listener, err := c.TCPPortAllocator.Listen(c.LocalAddress, c.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// retrieve automatically assigned port number
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.LocalPort = port
+	return listener, nil
 }

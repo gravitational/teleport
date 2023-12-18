@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package firestore
 
@@ -70,12 +74,27 @@ func firestoreParams() backend.Params {
 	// Creating the indices on - even an empty - live Firestore collection
 	// can take 5 minutes, so we re-use the same project and collection
 	// names for each test.
+	collection := "tp-cluster-data-test"
+	projectID := "tp-testproj"
+	endpoint := ""
+
+	if c := os.Getenv("TELEPORT_FIRESTORE_TEST_COLLECTION"); c != "" {
+		collection = c
+	}
+
+	if p := os.Getenv("TELEPORT_FIRESTORE_TEST_PROJECT"); p != "" {
+		projectID = p
+	}
+
+	if e := os.Getenv("TELEPORT_FIRESTORE_TEST_ENDPOINT"); e != "" {
+		endpoint = e
+	}
 
 	return map[string]interface{}{
-		"collection_name":                   "tp-cluster-data-test",
-		"project_id":                        "tp-testproj",
-		"endpoint":                          "localhost:8618",
-		"purgeExpiredDocumentsPollInterval": time.Second,
+		"collection_name":                       collection,
+		"project_id":                            projectID,
+		"endpoint":                              endpoint,
+		"purge_expired_documents_poll_interval": 300 * time.Millisecond,
 	}
 }
 
@@ -87,7 +106,12 @@ func ensureTestsEnabled(t *testing.T) {
 }
 
 func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
-	con, err := net.Dial("tcp", cfg["endpoint"].(string))
+	endpoint, _ := cfg["endpoint"].(string)
+	if endpoint == "" {
+		return
+	}
+
+	con, err := net.Dial("tcp", endpoint)
 	if err != nil {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
@@ -114,14 +138,19 @@ func TestFirestoreDB(t *testing.T) {
 			return nil, nil, test.ErrConcurrentAccessNotSupported
 		}
 
-		clock := clockwork.NewFakeClock()
+		clock := clockwork.NewRealClock()
 
-		uut, err := New(context.Background(), cfg, Options{Clock: clock})
+		// we can't fiddle with clocks inside the firestore client, so instead of creating
+		// and returning a fake clock, we wrap the real clock used by the client
+		// in a FakeClock interface that sleeps instead of instantly advancing.
+		sleepingClock := test.BlockingFakeClock{Clock: clock}
+
+		uut, err := New(context.Background(), cfg, Options{Clock: sleepingClock})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return uut, clock, nil
+		return uut, sleepingClock, nil
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)

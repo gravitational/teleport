@@ -1,11 +1,7 @@
 ---
-title: Deploy Login Rules using Kubernetes Operator (Preview)
+title: Deploy Login Rules using Kubernetes Operator 
 description: Use Teleport's Kubernetes Operator to deploy Login Rules to your cluster
 ---
-
-<Admonition type="warning" title="Preview">
-  Login Rules and the Teleport Kubernetes Operator are currently in Preview mode.
-</Admonition>
 
 This guide will explain how to:
 
@@ -43,10 +39,10 @@ This guide is applicable if you self-host Teleport in Kubernetes using the
 
   </Admonition>
 
-- Follow Step 1 of the
-  [Teleport operator guide](../../management/guides/teleport-operator.mdx#step-13-install-teleport-cluster-helm-chart-with-the-operator)
+- Follow the [Teleport operator guides](../../management/dynamic-resources/teleport-operator.mdx)
   to install the Teleport Operator in your Kubernetes cluster.
-  Make sure to follow the Enterprise instructions.
+  Make sure to follow the Enterprise instructions if you're deploying the
+  operator as part of the `teleport-cluster` chart.
 
   Confirm that the CRD (Custom Resource Definition) for Login Rules has been
   installed with the following command:
@@ -250,7 +246,7 @@ logins:
 
 ## Next Steps
 
-- Read the [Teleport Operator Guide](../../management/guides/teleport-operator.mdx) to
+- Read the [Teleport Operator Guide](../../management/dynamic-resources/teleport-operator.mdx) to
   learn more about the Teleport Operator.
 - Read the [Login Rules reference](./reference.mdx) to learn mode about the
   Login Rule expression syntax.

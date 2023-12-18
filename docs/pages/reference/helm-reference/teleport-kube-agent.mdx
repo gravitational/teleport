@@ -25,6 +25,7 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | [`kubernetes_service`](../../kubernetes-access/introduction.mdx)   | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster   |
 | [`application_service`](../../application-access/guides.mdx) | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications |
 | [`database_service`](../../database-access/guides.mdx)       | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases              |
+| [`discovery_service`](../../kubernetes-access/discovery/)       | `discovery`                                   | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster             |
 
 ### Legacy releases
 
@@ -81,24 +82,41 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 | Services                     | Value for `roles` | Mandatory additional settings for this role |
 |------------------------------|-------------------|---------------------------------------------|
 | Teleport Kubernetes service  | `kube`            | [`kubeClusterName`](#kubeclustername)       |
-| Teleport Application service | `app`             | [`apps`](#apps)                             |
-| Teleport Database service    | `db`              | [`databases`](#databases)                   |
+| Teleport Application service | `app`             | [`apps`](#apps) or [`appResources`](#appresources) |
+| Teleport Database service    | `db`              | [`databases`](#databases) or [`databaseResources`](#databaseresources) |
+| Teleport Discovery service   | `discovery`       | [`kubeClusterName`](#kubeclustername) |
 
 `values.yaml` example:
 
   ```yaml
-  roles: kube,app,db
+  roles: kube,app,discovery
   ```
 
-If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
+## `enterprise`
+
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
+
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent.
+
+`values.yaml` example:
+
+  ```yaml
+  enterprise: true
+  ```
 
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment.
+image signature, and updates the teleport deployment. The `enterprise` value should
+have been set to `true`.
 
-All kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 ... default to the agent values. However, they can be overridden from the
 `updater` object. For example:
 
@@ -146,9 +164,9 @@ You must not enable this if:
 
 ### `updater.versionServer`
 
-| Type     | Default value                         | Required?                       |
-|----------|---------------------------------------|---------------------------------|
-| `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
+| Type     | Default value                               | Required?                       |
+|----------|---------------------------------------------|---------------------------------|
+| `string` | "https://updates.releases.teleport.dev/v1/" | Yes if not using Teleport Cloud |
 
 `updater.versionServer` is the URL of the version server the agent fetches the
 target version from. The complete version endpoint is built by concatenating
@@ -186,6 +204,14 @@ Cloud user, and manage your own version server.
 
 You can override this to use your own Teleport Kube Agent Updater image rather
 than a Teleport-published image.
+
+### `updater.extraArgs`
+
+| Type   | Default value | Required? |
+|--------|---------------|-----------|
+| `list` | `[]`          | No        |
+
+`extraArgs` contains additional arguments to pass to the updater binary.
 
 ## `roleBindingName`
 
@@ -284,10 +310,8 @@ These sub-values must be configured for the agent to connect to a cluster.
 `joinParams.method` defines which join method will be used to join the Teleport cluster.
 Possible values are `token`, `iam` and `ec2`.
 
-- For `iam`, see [Joining Nodes Via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-iam.mdx).
-- For `ec2`, see [Joining Nodes Via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-ec2.mdx).
+- For `iam`, see [Joining Nodes Via AWS IAM Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS EC2 Identity Document](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
   [through an existing Kubernetes Secret](#joinTokenSecret).
 
@@ -363,6 +387,56 @@ connecting to the cluster.
   kubeClusterName: my-gke-cluster
   ```
 
+## `kubernetesDiscovery`
+
+| Type   | Required? |
+|--------|-----------|
+| `list` | No |
+
+`kubernetesDiscovery` is a YAML list object detailing the Kubernetes App Discovery Configuration
+
+You can specify multiple discovery configurations by adding additional list elements.
+
+`values.yaml` example:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: [ "toronto", "porto" ]
+    labels:
+      env: staging
+  - types: ["app"]
+    namespaces: [ "seattle", "oakland" ]
+    labels:
+      env: testing
+  ```
+
+### `kubernetesDiscovery.types`
+
+| Type   | Required? |
+|--------|-----------|
+| `list` | Yes |
+
+`kubernetesDiscovery.types` is a list of Teleport resource types to be created
+from the discovered Kubernetes Services. Currently only supports `app`.
+
+### `kubernetesDiscovery.namespaces`
+
+| Type  | Default | Required? |
+|-------| ------- |-----------|
+| `list`| All Namespaces | No |
+
+`kubernetesDiscovery.namespaces` is a list of Kubernetes namespaces to be scanned for resources.
+
+### `kubernetesDiscovery.labels`
+
+| Type  | Default | Required? |
+|-------| ------- |-----------|
+| `map` | `{"*":"*"}` | No |
+
+`kubernetesDiscovery.labels` is a map of labels to be matched against the Kubernetes Services.
+Only Services with matching labels will be imported to Teleport.
+
 ## `apps`
 
 | Type   | Default value | Required?                                                                            |
@@ -422,7 +496,7 @@ You can specify multiple selectors by including additional list elements.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-create-an-iam-policy-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-create-iam-policies-for-teleport).
 
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
@@ -639,6 +713,49 @@ You can specify multiple selectors by adding elements to the list.
   Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
 </Admonition>
 
+
+## kubernetesDiscovery
+
+| Type   | Default value | Required?                                                                                                                             |
+|--------|---------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `list` | Discovery of all applications in all namespaces   | When the `discovery` chart role is used, `kubernetesDiscovery` is required. |
+
+Default value:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
+  ```
+
+`kubernetesDiscovery` is a YAML list object detailing the filters for the services of the Kubernetes cluster that should be discovered
+ and exposed as apps in Teleport. By default the Discovery Service will try to find all apps that are serving HTTP/HTTPS, but you can manually
+ make it expose TCP apps as well, using Kubernetes annotations.
+
+You can specify multiple filters, each of which can include these parameters:
+- `types` is a list of types of services to be exposed in Teleport. Currently only `app` is supported.
+- `namespaces` is a list of namespaces of the Kubernetes cluster to search in. The default value is `*`, which denotes all namespaces.
+- `labels` is a list of Kubernetes labels based on which to filter out services. The default value is `*`: `*` that will match any labels.
+
+
+`values.yaml` example:
+
+  ```yaml
+  kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["staging", "test"]
+    labels:
+      "*": "*"
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "purpose": "monitoring"
+      "department": "security"
+  ```
+
+
 ## `teleportVersionOverride`
 
 | Type     | Default value |
@@ -676,7 +793,7 @@ If you want to run Teleport version `X.Y.Z`, you should use
 When `caPin` is set, the Teleport pod will use its values to check the
 Auth Service's identity when first joining a cluster. This enables a more secure
 way of adding new Teleport instances to a cluster. See
-["Adding Nodes to the Cluster"](../../management/join-services-to-your-cluster/join-token.mdx).
+["Adding Nodes to the Cluster"](../../agents/join-services-to-your-cluster/join-token.mdx).
 
 Each list element can be the pin itself (recommended, works out of the box),
 or a path to a file containing the pin. For the latter it is your
@@ -788,7 +905,7 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
 |--------|--------------------------------------|
 | `bool` | `true` for < 1.23 `false` for >= 1.23 |
 
-By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/templates/psp.yaml).
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/branch/(=teleport.major_version=)/examples/chart/teleport-cluster/templates/psp.yaml).
 
 PodSecurityPolicy resources (PSP) have been removed in Kubernetes 1.25
 and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
@@ -956,9 +1073,9 @@ connecting to a Teleport Cloud instance enrolled in automatic updates.
 
 ## `imagePullSecrets`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
 
@@ -1064,6 +1181,45 @@ Ensures that this number of replicas is available during voluntary disruptions, 
       minAvailable: 1
   ```
 
+## `podMonitor`
+
+`podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
+](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
+that monitors the workload (Auth and Proxy Services) deployed by the chart.
+This custom resource configures Prometheus and makes it scrape Teleport metrics.
+
+The CRD is deployed by the prometheus-operator and allows workload to
+get monitored. You need to deploy the `prometheus-operator`
+in the cluster prior to configuring the `podMonitor` section of the chart. See
+[the prometheus-operator documentation](https://prometheus-operator.dev/docs/prologue/introduction/)
+for setup instructions.
+
+### `podMonitor.enabled`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+Whether the chart should deploy a `PodMonitor` resource. This is disabled by
+default as it requires the `PodMonitor` CRD to be installed in the cluster.
+
+### `podMonitor.additionalLabels`
+
+| Type                   | Default value              |
+|------------------------|----------------------------|
+| `object[string]string` | `{"prometheus":"default"}` |
+
+Additional labels to put on the created PodMonitor Resource.
+Those labels are used to be selected by a specific Prometheus instance.
+
+### `podMonitor.interval`
+
+| Type     | Default value |
+|----------|---------------|
+| `string` | `30s`         |
+
+`interval` is the interval between two metrics scrapes by Prometheus.
+
 ## `clusterRoleName`
 
 | Type     | Default value |
@@ -1116,9 +1272,9 @@ Ensures that this number of replicas is available during voluntary disruptions, 
 
 ## `serviceAccount.create`
 
-| Type      | Default value | Required? | Can be used in `custom` mode? |
-|-----------|---------------|-----------|-------------------------------|
-| `boolean` | `true`        | No        | ✅                             |
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `true`        | No        |
 
 [Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 
@@ -1135,9 +1291,9 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
 
 ## `serviceAccount.name`
 
-| Type     | Default value | Required? | Can be used in `custom` mode? |
-|----------|---------------|-----------|-------------------------------|
-| `string` | `""`          | No        | ✅                             |
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `string` | `""`          | No        |
 
 `serviceAccount.name` provides a custom name for the `ServiceAccount` resource
 that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
@@ -1230,9 +1386,9 @@ The default is `INFO`, which is recommended in production.
 
 ### `log.output`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `string` | `stderr`      | ❌                             | `teleport.log.output`      |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `stderr`      | `teleport.log.output`      |
 
 `log.output` sets the output destination for the Teleport process.
 
@@ -1249,9 +1405,9 @@ The value can also be set to a file path (such as `/var/log/teleport.log`) to wr
 
 ### `log.format`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent   |
-|----------|---------------|-------------------------------|------------------------------|
-| `string` | `text`        | ❌                             | `teleport.log.format.output` |
+| Type     | Default value | `teleport.yaml` equivalent   |
+|----------|---------------|------------------------------|
+| `string` | `text`        | `teleport.log.format.output` |
 
 `log.format` sets the output type for the Teleport process.
 
@@ -1266,9 +1422,9 @@ Possible values are `text` (default) or `json`.
 
 ### `log.extraFields`
 
-| Type   | Default value                                   | Can be used in `custom` mode? | `teleport.yaml` equivalent         |
-|--------|-------------------------------------------------|-------------------------------|------------------------------------|
-| `list` | `["timestamp", "level", "component", "caller"]` | ❌                             | `teleport.log.format.extra_fields` |
+| Type   | Default value                                   | `teleport.yaml` equivalent         |
+|--------|-------------------------------------------------|------------------------------------|
+| `list` | `["timestamp", "level", "component", "caller"]` | `teleport.log.format.extra_fields` |
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
@@ -1567,18 +1723,13 @@ chart for the Teleport pod.
 
 ## `annotations.config`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `object` | `{}`          | ❌                             | None                       |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `object` | `{}`          | None                       |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
-
-<Admonition type="note">
-  These annotations will not be applied in `custom` mode, as the `ConfigMap` is not managed by the chart.
-  In this instance, you should apply annotations manually to your created `ConfigMap`.
-</Admonition>
 
 `values.yaml` example:
 
@@ -1590,9 +1741,9 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 
 ## `annotations.deployment`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1608,9 +1759,9 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 
 ## `annotations.pod`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1624,11 +1775,29 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
       kubernetes.io/annotation: value
   ```
 
+## `annotations.secret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Secret` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    secret:
+      kubernetes.io/annotation: value
+  ```
+
 ## `annotations.serviceAccount`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1644,9 +1813,9 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 ## `extraVolumes`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
@@ -1697,9 +1866,9 @@ A list of extra environment variables to be set on the main Teleport container.
 
 ## `extraVolumeMounts`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
@@ -1714,11 +1883,36 @@ mounts will also be mounted into any `initContainers` configured by the chart.
     mountPath: /path/to/mount/volume
   ```
 
+## `hostAliases`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+Configure aliases in the pod's `/etc/hosts`.
+This can be used to have the agent join the Teleport cluster through a different
+non-public route, or to allow the agent to access applications or databases that
+are not resolvable. See [the Kubernetes documentation
+](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/) for
+more details.
+
+```yaml
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
+```
+
 ## `imagePullPolicy`
 
-| Type     | Default value  | Can be used in `custom` mode? |
-|----------|----------------|-------------------------------|
-| `string` | `IfNotPresent` | ✅                             |
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `IfNotPresent` |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
@@ -1732,9 +1926,9 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
 ## `initContainers`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 
@@ -1751,9 +1945,9 @@ A list of `initContainers` which will be run before the main Teleport container 
 
 ## `resources`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
@@ -1807,11 +2001,24 @@ securityContext:
 
 To unset the security context, set it to `null` or `~`.
 
+## `podSecurityContext`
+
+[Pod security context](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)
+to set for the main Teleport container.
+Defaults to:
+
+```yaml
+podSecurityContext:
+  fsGroup: 9807
+```
+
+To unset the security context, set it to `null` or `~`.
+
 ## `tolerations`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 

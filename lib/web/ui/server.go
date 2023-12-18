@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package ui
 
@@ -38,8 +40,12 @@ type Label struct {
 
 // Server describes a server for webapp
 type Server struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Tunnel indicates of this server is connected over a reverse tunnel.
 	Tunnel bool `json:"tunnel"`
+	// SubKind is a node subkind such as OpenSSH
+	SubKind string `json:"subKind"`
 	// Name is this server name
 	Name string `json:"id"`
 	// ClusterName is this server cluster name
@@ -52,6 +58,19 @@ type Server struct {
 	Labels []Label `json:"tags"`
 	// SSHLogins is the list of logins this user can use on this server
 	SSHLogins []string `json:"sshLogins"`
+	// AWS contains metadata for instances hosted in AWS.
+	AWS *AWSMetadata `json:"aws,omitempty"`
+}
+
+// AWSMetadata describes the AWS metadata for instances hosted in AWS.
+// This type is the same as types.AWSInfo but has json fields in camelCase form for the WebUI.
+type AWSMetadata struct {
+	AccountID   string `json:"accountId"`
+	InstanceID  string `json:"instanceId"`
+	Region      string `json:"region"`
+	VPCID       string `json:"vpcId"`
+	Integration string `json:"integration"`
+	SubnetID    string `json:"subnetId"`
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name
@@ -62,35 +81,77 @@ func (s sortedLabels) Len() int {
 }
 
 func (s sortedLabels) Less(i, j int) bool {
-	return s[i].Name < s[j].Name
+	labelA := strings.ToLower(s[i].Name)
+	labelB := strings.ToLower(s[j].Name)
+
+	// types.CloudLabelPrefixes are label names that we want to always be at the end of
+	// the sorted labels list to reduce visual clutter. This will generally be automatically
+	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
+	for _, sortName := range types.CloudLabelPrefixes {
+		name := strings.ToLower(sortName)
+		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
+			return false // labelA should be at the end
+		}
+		if !strings.Contains(labelA, name) && strings.Contains(labelB, name) {
+			return true // labelB should be at the end
+		}
+	}
+
+	// If neither label contains any of the sendToBackOfSortNames, sort them as usual
+	return labelA < labelB
 }
 
 func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-// MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) ([]Server, error) {
-	uiServers := []Server{}
-	for _, server := range servers {
-		serverLabels := server.GetStaticLabels()
-		serverCmdLabels := server.GetCmdLabels()
-		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+// MakeServer creates a server object for the web ui
+func MakeServer(clusterName string, server types.Server, accessChecker services.AccessChecker) (Server, error) {
+	serverLabels := server.GetStaticLabels()
+	serverCmdLabels := server.GetCmdLabels()
+	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
-		serverLogins, err := userRoles.GetAllowedLoginsForResource(server)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
+	if err != nil {
+		return Server{}, trace.Wrap(err)
+	}
+
+	uiServer := Server{
+		Kind:        server.GetKind(),
+		ClusterName: clusterName,
+		Labels:      uiLabels,
+		Name:        server.GetName(),
+		Hostname:    server.GetHostname(),
+		Addr:        server.GetAddr(),
+		Tunnel:      server.GetUseTunnel(),
+		SubKind:     server.GetSubKind(),
+		SSHLogins:   serverLogins,
+	}
+
+	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
+		awsMetadata := server.GetAWSInfo()
+		uiServer.AWS = &AWSMetadata{
+			AccountID:   awsMetadata.AccountID,
+			InstanceID:  awsMetadata.InstanceID,
+			Region:      awsMetadata.Region,
+			Integration: awsMetadata.Integration,
+			SubnetID:    awsMetadata.SubnetID,
+			VPCID:       awsMetadata.VPCID,
 		}
+	}
 
-		uiServers = append(uiServers, Server{
-			ClusterName: clusterName,
-			Labels:      uiLabels,
-			Name:        server.GetName(),
-			Hostname:    server.GetHostname(),
-			Addr:        server.GetAddr(),
-			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   serverLogins,
-		})
+	return uiServer, nil
+}
+
+// MakeServers creates server objects for webapp
+func MakeServers(clusterName string, servers []types.Server, accessChecker services.AccessChecker) ([]Server, error) {
+	uiServers := []Server{}
+	for _, s := range servers {
+		server, err := MakeServer(clusterName, s, accessChecker)
+		if err != nil {
+			return nil, trace.Wrap(err, "making server for ui")
+		}
+		uiServers = append(uiServers, server)
 	}
 
 	return uiServers, nil
@@ -98,6 +159,8 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 
 // KubeCluster describes a kube cluster.
 type KubeCluster struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Name is the name of the kube cluster.
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
@@ -108,15 +171,30 @@ type KubeCluster struct {
 	KubeGroups []string `json:"kubernetes_groups"`
 }
 
+// MakeKubeCluster creates a kube cluster object for the web ui
+func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker) KubeCluster {
+	staticLabels := cluster.GetStaticLabels()
+	dynamicLabels := cluster.GetDynamicLabels()
+	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
+	return KubeCluster{
+		Kind:       cluster.GetKind(),
+		Name:       cluster.GetName(),
+		Labels:     uiLabels,
+		KubeUsers:  kubeUsers,
+		KubeGroups: kubeGroups,
+	}
+}
+
 // MakeKubeClusters creates ui kube objects and returns a list.
-func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) []KubeCluster {
+func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.AccessChecker) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
 		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 
-		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
+		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
 			Name:       cluster.GetName(),
@@ -170,14 +248,14 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // This function ignores any verification of the TTL associated with
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
-func getAllowedKubeUsersAndGroupsForCluster(roles services.RoleSet, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
+func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
 	// denied by Kubernetes Service.
 	// We ignore the returning error since we are only interested in allowed users and groups.
-	kubeGroups, kubeUsers, _ = roles.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
+	kubeGroups, kubeUsers, _ = accessChecker.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
 	return
 }
 
@@ -226,6 +304,8 @@ func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTr
 
 // Database describes a database server.
 type Database struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Name is the name of the database.
 	Name string `json:"name"`
 	// Desc is the database description.
@@ -267,6 +347,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
+		Kind:          database.GetKind(),
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -332,6 +413,8 @@ func MakeDatabaseServices(databaseServices []types.DatabaseService) []DatabaseSe
 
 // Desktop describes a desktop to pass to the ui.
 type Desktop struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// OS is the os of this desktop. Should be one of constants.WindowsOS, constants.LinuxOS, or constants.DarwinOS.
 	OS string `json:"os"`
 	// Name is name (uuid) of the windows desktop.
@@ -347,7 +430,7 @@ type Desktop struct {
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet) (Desktop, error) {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.AccessChecker) (Desktop, error) {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -359,12 +442,13 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
-	logins, err := userRoles.GetAllowedLoginsForResource(windowsDesktop)
+	logins, err := accessChecker.GetAllowedLoginsForResource(windowsDesktop)
 	if err != nil {
 		return Desktop{}, trace.Wrap(err)
 	}
 
 	return Desktop{
+		Kind:   windowsDesktop.GetKind(),
 		OS:     constants.WindowsOS,
 		Name:   windowsDesktop.GetName(),
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
@@ -375,11 +459,11 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 }
 
 // MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop, userRoles services.RoleSet) ([]Desktop, error) {
+func MakeDesktops(windowsDesktops []types.WindowsDesktop, accessChecker services.AccessChecker) ([]Desktop, error) {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiDesktop, err := MakeDesktop(windowsDesktop, userRoles)
+		uiDesktop, err := MakeDesktop(windowsDesktop, accessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

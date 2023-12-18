@@ -1,22 +1,25 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package sqlserver
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -72,6 +75,8 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target SQL Server server and starts proxying messages between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
+
 	// Pre-Login packet was handled on the Proxy. Now we expect the client to
 	// send us a Login7 packet that contains username/database information and
 	// other connection options.
@@ -101,6 +106,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
 
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
@@ -132,6 +139,13 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 		e.Log.Debug("Stop receiving from client.")
 		close(clientErrCh)
 	}()
+
+	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
+	// initialPacketHeader and chunkData are used to accumulate chunked packets
+	// to build a single packet with full contents for auditing.
+	var initialPacketHeader protocol.PacketHeader
+	var chunkData bytes.Buffer
+
 	for {
 		p, err := protocol.ReadPacket(clientConn)
 		if err != nil {
@@ -143,14 +157,26 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			clientErrCh <- err
 			return
 		}
+		msgFromClient.Inc()
 
-		sqlPacket, err := protocol.ToSQLPacket(p)
-		switch {
-		case err != nil:
-			e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
-			e.emitMalformedPacket(e.Context, sessionCtx, p)
-		default:
-			e.auditPacket(e.Context, sessionCtx, sqlPacket)
+		// Audit events are going to be emitted only on final messages, this way
+		// the packet parsing can be complete and provide the query/RPC
+		// contents.
+		if protocol.IsFinalPacket(p) {
+			sqlPacket, err := e.toSQLPacket(initialPacketHeader, p, &chunkData)
+			switch {
+			case err != nil:
+				e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
+				e.emitMalformedPacket(e.Context, sessionCtx, p)
+			default:
+				e.auditPacket(e.Context, sessionCtx, sqlPacket)
+			}
+		} else {
+			if chunkData.Len() == 0 {
+				initialPacketHeader = p.Header()
+			}
+
+			chunkData.Write(p.Data())
 		}
 
 		_, err = serverConn.Write(p.Bytes())
@@ -162,9 +188,32 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 	}
 }
 
+// toSQLPacket Parses a regular (self-contained) or chunked packet into an SQL
+// packet (used for auditing).
+func (e *Engine) toSQLPacket(header protocol.PacketHeader, packet *protocol.BasicPacket, chunks *bytes.Buffer) (protocol.Packet, error) {
+	if chunks.Len() > 0 {
+		defer chunks.Reset()
+		chunks.Write(packet.Data())
+		// We're safe to "read" chunk using `Bytes()` function because the
+		// packet processing copies the packet contents.
+		packetData := chunks.Bytes()
+
+		var err error
+		// The final chucked packet header must be the first packet header.
+		packet, err = protocol.NewBasicPacket(header, packetData)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return protocol.ToSQLPacket(packet)
+}
+
 // receiveFromServer relays protocol messages received from MySQL database
 // to MySQL client.
 func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, serverErrCh chan<- error) {
+	// Note: we don't increment common.GetMessagesFromServerMetric here because messages are not parsed, so we cannot count them.
+	// The total bytes written is still available as a metric.
 	defer clientConn.Close()
 	_, err := io.Copy(clientConn, serverConn)
 	if err != nil && !utils.IsOKNetworkError(err) {

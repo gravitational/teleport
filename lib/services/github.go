@@ -1,32 +1,38 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var ErrRequiresEnterprise = trace.AccessDenied("this feature requires Teleport Enterprise")
+// ErrRequiresEnterprise indicates that a feature requires
+// Teleport Enterprise.
+var ErrRequiresEnterprise = &trace.AccessDeniedError{Message: "this feature requires Teleport Enterprise"}
 
 // githubConnectorMutex is a mutex for the GitHub auth connector
 // registration functions.
@@ -56,7 +62,7 @@ type GithubAuthInitializer func(types.GithubConnector) (types.GithubConnector, e
 
 var githubAuthInitializer GithubAuthInitializer
 
-// RegisterGithubAuthCreator registers a function to initialize GitHub auth connectors.
+// RegisterGithubAuthInitializer registers a function to initialize GitHub auth connectors.
 func RegisterGithubAuthInitializer(init GithubAuthInitializer) {
 	githubConnectorMutex.Lock()
 	defer githubConnectorMutex.Unlock()
@@ -78,14 +84,14 @@ type GithubAuthConverter func(types.GithubConnector) (*types.GithubConnectorV3, 
 
 var githubAuthConverter GithubAuthConverter
 
-// RegisterGithubAuthCreator registers a function to convert GitHub auth connectors.
+// RegisterGithubAuthConverter registers a function to convert GitHub auth connectors.
 func RegisterGithubAuthConverter(convert GithubAuthConverter) {
 	githubConnectorMutex.Lock()
 	defer githubConnectorMutex.Unlock()
 	githubAuthConverter = convert
 }
 
-// GithubAuthConverter converts a GitHub auth connector so it can be
+// ConvertGithubConnector converts a GitHub auth connector so it can be
 // sent over gRPC.
 func ConvertGithubConnector(c types.GithubConnector) (*types.GithubConnectorV3, error) {
 	githubConnectorMutex.RLock()
@@ -108,8 +114,8 @@ func init() {
 }
 
 // UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
-func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
-	r, err := UnmarshalResource(types.KindGithubConnector, bytes, nil)
+func UnmarshalGithubConnector(bytes []byte, opts ...MarshalOption) (types.GithubConnector, error) {
+	r, err := UnmarshalResource(types.KindGithubConnector, bytes, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +127,12 @@ func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
 	return connector, nil
 }
 
-func unmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
+// UnmarshalOSSGithubConnector unmarshals the open source variant of the GithubConnector resource from JSON.
+func UnmarshalOSSGithubConnector(bytes []byte, opts ...MarshalOption) (types.GithubConnector, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var h types.ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
@@ -135,22 +146,28 @@ func unmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
 		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if cfg.ID != 0 {
+			c.SetResourceID(cfg.ID)
+		}
+		if cfg.Revision != "" {
+			c.SetRevision(cfg.Revision)
+		}
+		if !cfg.Expires.IsZero() {
+			c.SetExpiry(cfg.Expires)
+		}
 		return &c, nil
 	}
 	return nil, trace.BadParameter(
 		"GitHub connector resource version %q is not supported", h.Version)
 }
 
-// MarshalGithubConnector marshals the GithubConnector resource to JSON.
+// MarshalGithubConnector marshals a GithubConnector resource to JSON.
 func MarshalGithubConnector(connector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	return MarshalResource(connector, opts...)
 }
 
-func marshalGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := githubConnector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// MarshalOSSGithubConnector marshals the open source variant of the GithubConnector resource to JSON.
+func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -158,18 +175,18 @@ func marshalGithubConnector(githubConnector types.GithubConnector, opts ...Marsh
 
 	switch githubConnector := githubConnector.(type) {
 	case *types.GithubConnectorV3:
-		if githubConnector.Spec.EndpointURL != "" {
-			return nil, ErrRequiresEnterprise
+		if err := githubConnector.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *githubConnector
-			copy.SetResourceID(0)
-			githubConnector = &copy
+		// Only return an error if the endpoint url is set and the build is OSS
+		// so that the enterprise marshaler can call this marshaler to produce
+		// the final output without receiving an error.
+		if modules.GetModules().BuildType() == modules.BuildOSS &&
+			githubConnector.Spec.EndpointURL != "" {
+			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
-		return utils.FastMarshal(githubConnector)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, githubConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}

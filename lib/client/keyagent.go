@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -30,13 +32,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // LocalKeyAgent holds Teleport certificates for a user connected to a cluster.
@@ -381,10 +384,26 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 	return func(key ssh.PublicKey, addr string) bool {
 		// Check the local cache (where all Teleport CAs are placed upon login) to
 		// see if any of them match.
-		keys, err := a.clientStore.GetTrustedHostKeys(clusters...)
+		var keys []ssh.PublicKey
+		trustedCerts, err := a.clientStore.GetTrustedCerts(a.proxyHost)
 		if err != nil {
-			a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
+			a.log.Errorf("Failed to get trusted certs: %v.", err)
 			return false
+		}
+
+		// In case of a know host entry added by insecure flow (checkHostKey function)
+		// the parsed know_hosts entry (trustedCerts.ClusterName) contains node address.
+		clusters = append(clusters, addr)
+		for _, cert := range trustedCerts {
+			if !a.loadAllCAs && !slices.Contains(clusters, cert.ClusterName) {
+				continue
+			}
+			key, err := sshutils.ParseAuthorizedKeys(cert.AuthorizedKeys)
+			if err != nil {
+				a.log.Errorf("Failed to parse authorized keys: %v.", err)
+				return false
+			}
+			keys = append(keys, key...)
 		}
 
 		for i := range keys {

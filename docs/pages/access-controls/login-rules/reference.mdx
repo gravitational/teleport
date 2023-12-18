@@ -1,11 +1,8 @@
 ---
-title: Login Rules Reference (Preview)
+title: Login Rules Reference 
 description: Reference documentation for Login Rules
+tocDepth: 3
 ---
-
-<Admonition type="warning" title="Preview">
-  Login Rules are currently in Preview mode.
-</Admonition>
 
 This page provides details on the expression language that powers Login Rules.
 To learn how to add the first login rule to your cluster, checkout out the
@@ -17,8 +14,7 @@ To learn how to add the first login rule to your cluster, checkout out the
 
 ## `traits_map` vs `traits_expression`
 
-Every login rule spec must contain either the `traits_map` field or a
-`traits_expression` field.
+Every login rule spec must contain either the `traits_map` field or a `traits_expression` field.
 
 They both serve the same purpose of transforming user traits.
 The logic difference lies only in the syntax you prefer for your use case, since you can write
@@ -29,8 +25,8 @@ every `traits_map` as an equivalent `traits_expression`.
 while keeping the rest unchanged.
 The `traits_map` behavior can be useful if you want to keep only a handful
 of necessary traits while filtering out all others.
-If lower priority Login Rules set traits those must be also included with higher priority `traits_map`
-to remain populated. For example this configuration will keep the `groups` trait unmodified.
+If lower priority Login Rules set traits, those traits must be also included with higher priority `traits_map`
+to remain populated. For example, the following configuration keeps the `groups` trait unmodified.
 
 ```yaml
   traits_map:
@@ -40,15 +36,16 @@ to remain populated. For example this configuration will keep the `groups` trait
 
 ### `traits_map`
 
-Here is an example Login Rule using a `traits_map` which implements the
+Here is an example Login Rule that uses a `traits_map` to implement the
 following rules:
-1. Every user with the `groups: devs` trait should receive an extra trait
+
+- Every user with the `groups: devs` trait should receive an extra trait
    `access: [staging]`.
-2. Every user with the `groups: admins` trait should receive an extra trait
+- Every user with the `groups: admins` trait should receive an extra trait
    `access: [staging, prod]`.
-3. Every user should receive a `logins` trait with the value of their incoming
+- Every user should receive a `logins` trait with the value of their incoming
    `username` trait converted to lowercase.
-4. All traits other than `groups`, `logins`, and `access` should be filtered
+- All traits other than `groups`, `logins`, and `access` should be filtered
    out.
 
 ```yaml
@@ -70,7 +67,7 @@ spec:
     # lowercase.
     logins:
       - 'strings.lower(external.username)'
-   
+
     # the access trait is determined conditionally based on the incoming groups trait.
     access:
       - 'ifelse(external.groups.contains("devs"), set("staging"), set())'
@@ -508,7 +505,7 @@ Argument | Type | Description
 
 Type | Description
 ---- | ----------
-`set`  | a copy of `input` where each string has been convert to uppercase
+`set`  | a copy of `input` where each string has been converted to uppercase
 
 #### Examples
 
@@ -540,7 +537,7 @@ Argument | Type | Description
 
 Type | Description
 ---- | ----------
-`set`  | a copy of `input` where each string has been convert to lowercase
+`set`  | a copy of `input` where each string has been converted to lowercase
 
 #### Examples
 
@@ -584,6 +581,123 @@ Expression | Result
 ------- | ------
 `strings.replaceall(set("user-name"), "-", "_")` | `("user_name")`
 `strings.replaceall(set("user-alice", "user-bob"), "user-", "")` | `("alice", "bob")`
+
+### `strings.split`
+
+<Admonition type="note">
+The `strings.split` helper was introduced in Teleport v13.3.0. All Auth Service
+instances must be running this version or greater before it can be used.
+</Admonition>
+
+#### Signature
+
+```go
+func strings.split(input set, separator string) set
+```
+
+#### Description
+
+`strings.split` splits each element of `input` at each match of `separator` and
+returns a set containing the union of all split strings.
+This may be useful when an IdP does not have the ability to pass multi-valued
+claims, a Login Rule with this helper function can split a single claim value
+into a Teleport trait with multiple values.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings which should be split |
+`sep` | `string` | literal string separator |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | the union of all split strings |
+
+#### Examples
+
+Expression | Result
+------- | ------
+`strings.split(set("alice,bob,charlie"), ",")` | `("alice", "bob", "charlie")`
+`strings.split(set("devs security"), " ")` | `("devs", "security")`
+
+### `email.local`
+
+<Admonition type="note">
+The `email.local` helper was introduced in Teleport v13.3.0. All Auth Service instances
+must be running this version or greater before it can be used.
+</Admonition>
+
+#### Signature
+
+```go
+func email.local(input set) set
+```
+
+#### Description
+
+`email.local` maps each email in the input set to its local part.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input emails |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each email has been converted to its local part.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`email.local(set("alice@example.com"))` | `("alice")`
+`email.local(set("Alice <alice@example.com>"))` | `("alice")`
+
+### `regexp.replace`
+
+<Admonition type="note">
+The `regexp.replace` helper was introduced in Teleport v13.3.0. All Auth Service instances
+must be running this version or greater before it can be used.
+</Admonition>
+
+#### Signature
+
+```go
+func regexp.replace(input set, expression string, replacement string) set
+```
+
+#### Description
+
+`regexp.replace` finds all matches of `expression` in each element of `input`
+and replaces them with `replacement`.
+Values which do not match the expression will be filtered out.
+The replacement supports expansion of capture groups from `expression`.
+`$N` is used to refer to the Nth captured group, starting at `$1`.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | a copy of `input` where each string has had all matches of `expression` replaced with `replacement`.
+
+#### Examples
+
+Expression | Result
+------- | ------
+`regexp.replace(set("team-devs"), "^team-(.*)$", "$1")` | `("devs")`
+`regexp.replace(set("team-dev-security"), "^team-(.*)-(.*)$", "$1.$2")` | `("dev.security")`
 
 ### `ifelse`
 

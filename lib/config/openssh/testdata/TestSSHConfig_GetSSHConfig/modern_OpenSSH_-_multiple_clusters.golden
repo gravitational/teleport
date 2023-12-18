@@ -10,7 +10,7 @@ Host *.root proxy.example.com
 # Flags for all root hosts except the proxy
 Host *.root !proxy.example.com
     Port 3022
-    ProxyCommand "/tmp/tsh" proxy ssh --cluster=root --proxy=proxy.example.com %r@%h:%p
+    ProxyCommand "/tmp/tsh" proxy ssh --cluster=root --proxy=proxy.example.com:443 %r@%h:%p
 # Common flags for all leaf hosts
 Host *.leaf proxy.example.com
     UserKnownHostsFile "/home/alice/.tsh/known_hosts"
@@ -21,6 +21,6 @@ Host *.leaf proxy.example.com
 # Flags for all leaf hosts except the proxy
 Host *.leaf !proxy.example.com
     Port 3022
-    ProxyCommand "/tmp/tsh" proxy ssh --cluster=leaf --proxy=proxy.example.com %r@%h:%p
+    ProxyCommand "/tmp/tsh" proxy ssh --cluster=leaf --proxy=proxy.example.com:443 %r@%h:%p
 
 # End generated Teleport configuration

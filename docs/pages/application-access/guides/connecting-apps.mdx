@@ -3,7 +3,7 @@ title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
 ---
 
-Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/download)
+Download the latest version of Teleport for your platform from the [downloads page](https://goteleport.com/download)
 and follow the installation [instructions](../../installation.mdx).
 
 ## Start Auth/Proxy service
@@ -30,7 +30,7 @@ ssh_service:
 
 ### Generate a token
 
-A join token is required to authorize a Teleport Application Proxy service to
+A join token is required to authorize a Teleport Application Service to
 join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
@@ -38,7 +38,7 @@ in `/tmp/token`:
 # Log in to your cluster with tsh so you can use tctl from your local machine.
 # You can also run tctl on your Auth Service host without running "tsh login"
 # first.
-$ tsh login --user=myuser --proxy=teleport.example.com
+$ tsh login --user=<Var name="myuser"/> --proxy=<Var name="teleport.example.com"/>
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
@@ -47,19 +47,20 @@ $ tctl tokens add \
 
 ### TLS requirements
 
-TLS is required to secure Teleport's Access Plane and any connected
+TLS is required to secure the Teleport Access Platform and any connected
 applications. When setting up Teleport, the minimum requirement is a certificate
-for the proxy and a wildcard certificate for its sub-domain. This is where
+for the Teleport Proxy Service and a wildcard certificate for its sub-domain. This is where
 everyone will log into Teleport.
 
 <Admonition type="tip" title="Application Access and DNS">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
-In our example:
+In this example:
 
-- `teleport.example.com` will host the Access Plane.
-- `*.teleport.example.com` will host all of the applications e.g. `grafana.teleport.example.com`.
+- `teleport.example.com` hosts the Teleport Auth Service and the Teleport Proxy Service that are the
+  that form the core cluster services of the Teleport Access Platform.
+- `*.teleport.example.com` hosts all of the applications, for example, `grafana.teleport.example.com`.
 
 (!docs/pages/includes/tls-certificate-setup.mdx!)
 
@@ -95,6 +96,12 @@ endpoint because the Application Service always connects back to the cluster ove
 a reverse tunnel.
 
 ### Application name
+
+{/*
+Note: this section of the docs is linked to from error messages in the product.
+Please make sure to update lib/srv/servicecfg/app.go if you change this section
+header or move this page.
+*/}
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
 
@@ -239,6 +246,13 @@ redirect responses to the application's public address:
 You can configure application access to inject additional headers in the
 requests forwarded to a web application.
 
+<Tabs>
+<TabItem label="teleport.yaml syntax">
+
+For apps defined in the `teleport.yaml` configuration, the `headers` field of
+each app is a list of strings. Be careful to quote the entire value to ensure it
+is parsed correctly.
+
 ```yaml
 - name: "dashboard"
   uri: https://localhost:4321
@@ -256,6 +270,42 @@ requests forwarded to a web application.
     - "Host: dashboard.example.com"
 ```
 
+</TabItem>
+<TabItem label="Dynamic registration syntax">
+
+In a dynamic `app` resource, configure header rewrites with the
+`spec.rewrite.headers` field. The value is a list of mappings that specify the
+name and value of each header you would like to rewrite.
+
+```yaml
+kind: app
+version: v3
+metadata:
+  name: "dashboard"
+spec:
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    headers:
+      # Inject a static header.
+      - name: X-Custom-Header
+        value: example
+      # Inject headers with internal/external user traits.
+      - name: X-Internal-Trait
+        value: "{{internal.logins}}"
+      - name: X-External-Trait
+        value: "{{external.env}}"
+      # Inject header with Teleport-signed JWT token.
+      - name: Authorization
+        value: "Bearer {{internal.jwt}}"
+      # Override Host header.
+      - name: Host
+        value: dashboard.example.com
+```
+
+</TabItem>
+</Tabs>
+
 Headers injected this way override any headers with the same names that may
 be sent by an application. The following headers are reserved and can't be
 rewritten:
@@ -265,14 +315,45 @@ rewritten:
 - Any header matching the pattern `X-Teleport-*`
 - Any header matching the pattern `X-Forwarded-*`
 
-Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
-In the example above, `X-Internal-Trait` header will be populated with the value
-of internal user trait `logins` and `X-External-Trait` header will get the value
-of the user's external `env` trait coming from the identity provider.
+Rewritten header values support the same templating variables as
+[role templates](../../access-controls/guides/role-templates.mdx). In the
+example above, `X-Internal-Trait` header will be populated with the value of
+internal user trait `logins` and `X-External-Trait` header will get the value of
+the user's external `env` trait coming from the identity provider.
 
 Additionally, the `{{internal.jwt}}` template variable will be replaced with
 a JWT token signed by Teleport that contains user identity information. See
 [Integrating with JWTs](../jwt/introduction.mdx) for more details.
+
+For full details on configuring Teleport roles, including how Teleport
+populates the `external` and `internal` traits, see the [Teleport Access
+Controls Reference](../../access-controls/reference.mdx).
+
+### Configuring the JWT token
+
+By default, Teleport includes a user's roles and traits in the JWT
+generated for application access. If your application doesn't care
+about these values, or you are encountering an error due to exceeding
+the size limit of HTTP headers, you can configure Teleport to omit
+this information from the token.
+
+```yaml
+- name: "dashboard"
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    # Specify whether to include roles or traits in the JWT.
+    # Options:
+    # - roles-and-traits: include both roles and traits
+    # - roles: include only roles
+    # - traits: include only traits
+    # - none: exclude both roles and traits from the JWT token
+    # Default: roles-and-traits
+    jwt_claims: roles-and-traits
+    headers:
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
+```
 
 ## View applications in Teleport
 

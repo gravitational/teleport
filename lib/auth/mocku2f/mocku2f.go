@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mocku2f
 
@@ -149,14 +151,20 @@ type signRegisterResult struct {
 }
 
 func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterResult, error) {
-	pubKey := elliptic.Marshal(elliptic.P256(), muk.PrivateKey.PublicKey.X, muk.PrivateKey.PublicKey.Y)
+	// Marshal pubKey into the uncompressed "4||X||Y" form.
+	ecdhPubKey, err := muk.PrivateKey.PublicKey.ECDH()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pubKey := ecdhPubKey.Bytes()
 
-	var dataToSign []byte
-	dataToSign = append(dataToSign[:], 0)
-	dataToSign = append(dataToSign[:], appIDHash[:]...)
-	dataToSign = append(dataToSign[:], clientDataHash[:]...)
-	dataToSign = append(dataToSign[:], muk.KeyHandle[:]...)
-	dataToSign = append(dataToSign[:], pubKey[:]...)
+	cap := 1 + len(appIDHash) + len(clientDataHash) + len(muk.KeyHandle) + len(pubKey)
+	dataToSign := make([]byte, 0, cap)
+	dataToSign = append(dataToSign, 0)
+	dataToSign = append(dataToSign, appIDHash...)
+	dataToSign = append(dataToSign, clientDataHash...)
+	dataToSign = append(dataToSign, muk.KeyHandle...)
+	dataToSign = append(dataToSign, pubKey...)
 
 	dataHash := sha256.Sum256(dataToSign)
 
@@ -172,13 +180,14 @@ func (muk *Key) signRegister(appIDHash, clientDataHash []byte) (*signRegisterRes
 		flags = uint8(protocol.FlagUserPresent | protocol.FlagUserVerified | protocol.FlagAttestedCredentialData)
 	}
 
-	var regData []byte
+	cap = 1 + len(pubKey) + 1 + len(muk.KeyHandle) + len(muk.Cert) + len(sig)
+	regData := make([]byte, 0, cap)
 	regData = append(regData, flags)
-	regData = append(regData, pubKey[:]...)
+	regData = append(regData, pubKey...)
 	regData = append(regData, byte(len(muk.KeyHandle)))
-	regData = append(regData, muk.KeyHandle[:]...)
-	regData = append(regData, muk.Cert[:]...)
-	regData = append(regData, sig[:]...)
+	regData = append(regData, muk.KeyHandle...)
+	regData = append(regData, muk.Cert...)
+	regData = append(regData, sig...)
 
 	return &signRegisterResult{
 		RawResp:   regData,

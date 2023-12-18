@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 
@@ -33,32 +35,49 @@ export default {
 };
 
 export const Buttons = () => (
-  <>
-    <ButtonPrimary mr={3}>Primary</ButtonPrimary>
-    <ButtonSecondary mr={3}>Secondary</ButtonSecondary>
-    <ButtonBorder mr={3}>Border</ButtonBorder>
-    <ButtonWarning mb={5}>Warning</ButtonWarning>
-    <div />
-    <Button size="large" mr={3}>
-      Large
-    </Button>
-    <Button size="medium" mr={3}>
-      Medium
-    </Button>
-    <Button size="small">Small</Button>
-    <Button block mb={3} mt={4}>
-      block = true
-    </Button>
-    <Button mr={3} disabled>
-      Disabled
-    </Button>
-    <Button mb={3} autoFocus>
-      Focused
-    </Button>
-    <div />
-    <ButtonLink href="">Button Link</ButtonLink>
-    <ButtonText>Button Text</ButtonText>
-    <Flex mb={3}>
+  <Flex gap={4} flexDirection="column" alignItems="flex-start">
+    <Flex gap={3}>
+      <ButtonPrimary>Primary</ButtonPrimary>
+      <ButtonSecondary>Secondary</ButtonSecondary>
+      <ButtonBorder>Border</ButtonBorder>
+      <ButtonWarning>Warning</ButtonWarning>
+    </Flex>
+
+    <Flex gap={3} alignItems="center">
+      <Button size="large">Large</Button>
+      <Button size="medium">Medium</Button>
+      <Button size="small">Small</Button>
+    </Flex>
+
+    <Button block>block = true</Button>
+
+    <Flex gap={3}>
+      <Button disabled>Disabled</Button>
+      <Button autoFocus>Focused</Button>
+    </Flex>
+
+    <Flex gap={3}>
+      <ButtonPrimary gap={2}>
+        <AddUsers />
+        Add users
+      </ButtonPrimary>
+    </Flex>
+
+    <Flex gap={3}>
+      <Button as="a" href="https://example.com" target="_blank">
+        Link as button
+      </Button>
+      <ButtonSecondary as="a" href="https://example.com" target="_blank">
+        Link as button
+      </ButtonSecondary>
+    </Flex>
+
+    <Flex gap={3}>
+      <ButtonLink href="">Button Link</ButtonLink>
+      <ButtonText>Button Text</ButtonText>
+    </Flex>
+
+    <Flex gap={3}>
       <ButtonIcon size={2}>
         <AddUsers />
       </ButtonIcon>
@@ -69,7 +88,8 @@ export const Buttons = () => (
         <Trash />
       </ButtonIcon>
     </Flex>
-    <Flex mb={4}>
+
+    <Flex gap={3}>
       <ButtonIcon size={1}>
         <AddUsers />
       </ButtonIcon>
@@ -80,7 +100,8 @@ export const Buttons = () => (
         <Trash />
       </ButtonIcon>
     </Flex>
-    <Flex>
+
+    <Flex gap={3}>
       <ButtonIcon size={0}>
         <AddUsers />
       </ButtonIcon>
@@ -91,5 +112,5 @@ export const Buttons = () => (
         <Trash />
       </ButtonIcon>
     </Flex>
-  </>
+  </Flex>
 );

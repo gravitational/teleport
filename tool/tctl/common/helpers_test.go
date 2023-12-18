@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -29,14 +31,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -49,6 +50,7 @@ import (
 type options struct {
 	CertPool *x509.CertPool
 	Insecure bool
+	Editor   func(string) error
 }
 
 type optionsFunc func(o *options)
@@ -62,6 +64,12 @@ func withRootCertPool(pool *x509.CertPool) optionsFunc {
 func withInsecure(insecure bool) optionsFunc {
 	return func(o *options) {
 		o.Insecure = insecure
+	}
+}
+
+func withEditor(editor func(string) error) optionsFunc {
+	return func(o *options) {
+		o.Editor = editor
 	}
 }
 
@@ -87,9 +95,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if closer, ok := client.(io.Closer); ok {
-			closer.Close()
-		}
+		client.Close()
 	})
 
 	return client
@@ -124,6 +130,19 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
+func runEditCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var stdoutBuff bytes.Buffer
+	command := &EditCommand{
+		Editor: o.Editor,
+	}
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+}
+
 func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
 	command := &LockCommand{}
 	args = append([]string{"lock"}, args...)
@@ -152,15 +171,36 @@ func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
-func mustDecodeJSON(t *testing.T, r io.Reader, i interface{}) {
-	err := json.NewDecoder(r).Decode(i)
+func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
+	return out
 }
 
-func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
-	err := yaml.NewDecoder(r).Decode(i)
-	require.NoError(t, err)
+func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+	decoder := yaml.NewDecoder(r)
+	for {
+		var entry T
+		if err := decoder.Decode(&entry); err != nil {
+			// Break when there are no more documents to decode
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		*out = append(*out, entry)
+	}
+	return nil
 }
+
+func mustDecodeYAML[T any](t *testing.T, r io.Reader) T {
+	var out T
+	err := yaml.NewDecoder(r).Decode(&out)
+	require.NoError(t, err)
+	return out
+}
+
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
@@ -171,7 +211,7 @@ func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
 	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
 	fileConfYAML, err := yaml.Marshal(fc)
 	require.NoError(t, err)
-	err = os.WriteFile(fileConfPath, fileConfYAML, 0600)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
 	require.NoError(t, err)
 	return fileConfPath
 }
@@ -190,7 +230,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
-	fileDescriptors []servicecfg.FileDescriptor
+	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       clockwork.FakeClock
 }
 
@@ -202,7 +242,7 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
-func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
+func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
 	}
@@ -264,6 +304,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+	if len(dbs) == 0 {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -290,28 +333,4 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			t.Fatal("databases not registered after 10s")
 		}
 	}
-}
-
-func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
-	var fds []servicecfg.FileDescriptor
-	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
-	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
-	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
-
-	return &dynamicServiceAddr{
-		descriptors: fds,
-		webAddr:     webAddr,
-		tunnelAddr:  tunnelAddr,
-		authAddr:    authAddr,
-	}
-}
-
-// dynamicServiceAddr collects listeners addresses and sockets descriptors allowing to create and network listeners
-// and pass the file descriptors to teleport service.
-// This is usefully when Teleport service is created from config file where a port is allocated by OS.
-type dynamicServiceAddr struct {
-	webAddr     string
-	tunnelAddr  string
-	authAddr    string
-	descriptors []servicecfg.FileDescriptor
 }

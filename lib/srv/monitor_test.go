@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-		http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -23,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -41,15 +44,16 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 	conn := &mockTrackingConn{closedC: make(chan struct{})}
 	emitter := eventstest.NewChannelEmitter(1)
 	cfg := MonitorConfig{
-		Context:     ctx,
-		Conn:        conn,
-		Emitter:     emitter,
-		Clock:       asrv.Clock(),
-		Tracker:     &mockActivityTracker{asrv.Clock()},
-		Entry:       logrus.StandardLogger(),
-		LockWatcher: asrv.LockWatcher,
-		LockTargets: []types.LockTarget{{User: "test-user"}},
-		LockingMode: constants.LockingModeBestEffort,
+		Context:        ctx,
+		Conn:           conn,
+		Emitter:        emitter,
+		EmitterContext: context.Background(),
+		Clock:          asrv.Clock(),
+		Tracker:        &mockActivityTracker{asrv.Clock()},
+		Entry:          logrus.StandardLogger(),
+		LockWatcher:    asrv.LockWatcher,
+		LockTargets:    []types.LockTarget{{User: "test-user"}},
+		LockingMode:    constants.LockingModeBestEffort,
 	}
 	for _, f := range mut {
 		f(&cfg)
@@ -74,12 +78,13 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 	// Auth server.
 	emitter := eventstest.NewChannelEmitter(1)
 	monitor, err := NewConnectionMonitor(ConnectionMonitorConfig{
-		AccessPoint: asrv.AuthServer,
-		Emitter:     emitter,
-		Clock:       asrv.Clock(),
-		Logger:      logrus.StandardLogger(),
-		LockWatcher: asrv.LockWatcher,
-		ServerID:    "test",
+		AccessPoint:    asrv.AuthServer,
+		Emitter:        emitter,
+		EmitterContext: ctx,
+		Clock:          asrv.Clock(),
+		Logger:         logrus.StandardLogger(),
+		LockWatcher:    asrv.LockWatcher,
+		ServerID:       "test",
 	})
 	require.NoError(t, err)
 
@@ -101,23 +106,28 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 
 	t.Run("lock created after connection has been established", func(t *testing.T) {
 		// Create a fake connection and monitor it.
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
-		monitorCtx, err := monitor.MonitorConn(ctx, authzCtx, conn)
+		tconn := &mockTrackingConn{closedC: make(chan struct{})}
+		monitorCtx, _, err := monitor.MonitorConn(ctx, authzCtx, tconn)
 		require.NoError(t, err)
-		require.Nil(t, monitorCtx.Err())
+		require.NoError(t, monitorCtx.Err())
 
 		// Create a lock targeting the user that was connected above.
 		require.NoError(t, asrv.AuthServer.UpsertLock(ctx, lock))
 
 		// Assert that the connection was terminated.
 		select {
-		case <-conn.closedC:
+		case <-tconn.closedC:
 		case <-time.After(2 * time.Second):
 			t.Fatal("Timeout waiting for connection close.")
 		}
 
-		// Assert that the context was canceled.
+		// Assert that the context was canceled and verify the cause.
 		require.Error(t, monitorCtx.Err())
+		cause := context.Cause(monitorCtx)
+		require.True(t, trace.IsAccessDenied(cause))
+		for _, contains := range []string{"lock", "in force"} {
+			require.Contains(t, cause.Error(), contains)
+		}
 
 		// Validate that the disconnect event was logged.
 		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
@@ -126,14 +136,14 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 	t.Run("connection terminated if lock already exists", func(t *testing.T) {
 		// Create another connection for the locked user and validate
 		// that it is terminated right away.
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
-		monitorCtx, err := monitor.MonitorConn(ctx, authzCtx, conn)
+		tconn := &mockTrackingConn{closedC: make(chan struct{})}
+		monitorCtx, _, err := monitor.MonitorConn(ctx, authzCtx, tconn)
 		require.NoError(t, err)
 
 		// Assert that the context was canceled and that the connection was terminated.
 		require.Error(t, monitorCtx.Err())
 		select {
-		case <-conn.closedC:
+		case <-tconn.closedC:
 		case <-time.After(2 * time.Second):
 			t.Fatal("Timeout waiting for connection close.")
 		}
@@ -163,12 +173,21 @@ func TestMonitorLockInForce(t *testing.T) {
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: cfg.LockTargets[0]})
 	require.NoError(t, err)
 	require.NoError(t, asrv.AuthServer.UpsertLock(ctx, lock))
+
+	select {
+	case disconnectEvent := <-emitter.C():
+		reason := (disconnectEvent).(*apievents.ClientDisconnect).Reason
+		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), reason, "expected error matching client disconnect")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for connection close event.")
+	}
+
 	select {
 	case <-conn.closedC:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for connection close.")
+		// connection closed, continue
+	default:
+		t.Fatal("Connection not yet closed.")
 	}
-	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 
 	// Monitor should also detect preexistent locks.
 	conn, emitter, cfg = newTestMonitor(ctx, t, asrv)
@@ -205,11 +224,6 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher loop check.")
 	}
-	select {
-	case asrv.LockWatcher.StaleC <- struct{}{}:
-	default:
-		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
-	}
 
 	// ensure ResetC is drained
 	select {
@@ -224,6 +238,12 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher reset.")
 	}
+	// StaleC is listened by multiple goroutines, so we need to close to ensure
+	// that all of them are unblocked and the stale state is detected.
+	close(asrv.LockWatcher.StaleC)
+	require.Eventually(t, func() bool {
+		return asrv.LockWatcher.IsStale()
+	}, 15*time.Second, 100*time.Millisecond, "Timeout waiting for LockWatcher to be stale.")
 	select {
 	case <-conn.closedC:
 	case <-time.After(15 * time.Second):
@@ -281,7 +301,7 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	}
 }
 
-func TestTrackingReadConnEOF(t *testing.T) {
+func TestTrackingReadConn(t *testing.T) {
 	server, client := net.Pipe()
 	defer client.Close()
 
@@ -289,7 +309,7 @@ func TestTrackingReadConnEOF(t *testing.T) {
 	require.NoError(t, server.Close())
 
 	// Wrap the client in a TrackingReadConn.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancelCause(context.Background())
 	tc, err := NewTrackingReadConn(TrackingReadConnConfig{
 		Conn:    client,
 		Clock:   clockwork.NewFakeClock(),
@@ -298,10 +318,30 @@ func TestTrackingReadConnEOF(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Make sure it returns an EOF and not a wrapped exception.
-	buf := make([]byte, 64)
-	_, err = tc.Read(buf)
-	require.Equal(t, io.EOF, err)
+	t.Run("Read EOF", func(t *testing.T) {
+		// Make sure it returns an EOF and not a wrapped exception.
+		buf := make([]byte, 64)
+		_, err = tc.Read(buf)
+		require.Equal(t, io.EOF, err)
+	})
+
+	t.Run("CloseWithCause", func(t *testing.T) {
+		require.NoError(t, tc.CloseWithCause(trace.AccessDenied("fake problem")))
+		require.ErrorIs(t, context.Cause(ctx), trace.AccessDenied("fake problem"))
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		tc, err := NewTrackingReadConn(TrackingReadConnConfig{
+			Conn:    client,
+			Clock:   clockwork.NewFakeClock(),
+			Context: ctx,
+			Cancel:  cancel,
+		})
+		require.NoError(t, err)
+		require.NoError(t, tc.Close())
+		require.ErrorIs(t, context.Cause(ctx), io.EOF)
+	})
 }
 
 type mockChecker struct {

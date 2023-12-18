@@ -5,6 +5,18 @@ app_service:
     # Application Service is working correctly. The app outputs JWTs so it can
     # be useful when extending your application.
     debug_app: true
+
+    # Matchers for dynamic application resources
+    #
+    # All application resources have a predefined "teleport.dev/origin" label with
+    # one of the following values:
+    # "dynamic": application resources created via an Auth Service API 
+    # client like `tctl` or the Teleport Terraform provider
+    # "config": application resources defined in the "apps" array below
+    resources:
+      - labels:
+          "*": "*"
+
     apps:
     - name: "kubernetes-dashboard"
       # Optional: For access to cloud provider APIs, specify the cloud
@@ -37,4 +49,12 @@ app_service:
         # headers:
         #   For example:
         #   - "Host: jenkins.example.com"
+        ## Optional rewrite to remove parts of the JWT token.
+        ## Can be one of three options:
+        ## - roles-and-traits: include both roles and traits in the JWT token
+        ## - roles: include only roles in the JWT token
+        ## - traits: include only traits in the JWT token
+        ## - none: include neither roles nor traits in the JWT token
+        ## Default: roles-and-traits
+        # jwt_claims: roles-and-traits
 

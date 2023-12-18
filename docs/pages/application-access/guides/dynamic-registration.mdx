@@ -3,19 +3,36 @@ title: Dynamic App Registration
 description: Register/unregister apps without restarting Teleport.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="8.0"
->
-  Dynamic app registration is available starting from Teleport `8.0`.
-</Details>
+Dynamic app registration allows Teleport administrators to register new apps (or
+update/unregister existing ones) without having to update the static
+configuration files read by Teleport Application Service instances. 
 
-Dynamic app registration allows Teleport administrators to register new apps
-(or update/unregister existing ones) without having to update the static
-configuration and restarting Teleport Application Service instances.
+Application Service instances periodically query the Teleport Auth Service for
+`app` resources, each of which includes the information that the Application
+Service needs to proxy an application. 
+
+Dynamic registration is useful for [managing pools of Application Service
+instances](../../agents/deploy-agents-terraform.mdx). And behind the scenes, the
+Teleport Discovery Service uses dynamic registration to [register Kubernetes
+applications](../enroll-kubernetes-applications.mdx).
+
+## Required permissions
+
+In order to interact with dynamically registered applications, a user must have
+a Teleport role with permissions to manage `app` resources. 
+
+In the following example, a role allows a user to perform all possible
+operations against `app` resources:
+
+```yaml
+allow:
+  rules:
+    - resources:
+        - app
+      verbs: [list, create, read, update, delete]
+```
+
+## Enabling dynamic registration
 
 To enable dynamic registration, include a `resources` section in your Application
 Service configuration with a list of resource label selectors you'd like this
@@ -40,7 +57,12 @@ resources:
     "env": "test"
 ```
 
-Next define an application resource:
+## Creating an app resource
+
+Configure Teleport to proxy an application dynamically by creating an `app`
+resource. The following example configures Teleport to proxy the application
+called `example` at `localhost:4321`, making it available at the public address
+`test.example.com`:
 
 ```yaml
 kind: app
@@ -60,6 +82,7 @@ See the full app resource spec [reference](../reference.mdx#application-resource
 The user creating the dynamic registration needs to have a role with access to the 
 application labels and the `app` resource.  In this example role the user can only
 create and maintain application services labeled `env: test`.
+
 ```yaml
 kind: role
 metadata:
@@ -82,7 +105,8 @@ version: v5
 
 To create an application resource, run:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -92,8 +116,8 @@ $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create app.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your Teleport cluster so you can use tctl remotely.
@@ -101,7 +125,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create app.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 After the resource has been created, it will appear among the list of available
 apps (in `tsh apps ls` or UI) as long as at least one Application Service

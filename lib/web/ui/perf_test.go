@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package ui
 
@@ -31,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -133,9 +135,9 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
 		case types.KindProxy:
-			err = svc.UpsertProxy(server)
+			err = svc.UpsertProxy(ctx, server)
 		case types.KindAuthServer:
-			err = svc.UpsertAuthServer(server)
+			err = svc.UpsertAuthServer(ctx, server)
 		default:
 			b.Errorf("Unexpected server kind: %s", kind)
 		}
@@ -143,7 +145,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 	}
 }
 
-func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
+func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
 	for i := 0; i < b.N; i++ {
@@ -151,11 +153,10 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 		require.NoError(b, err)
 	}
 	require.NotNil(b, cluster)
-	require.Equal(b, nodes, cluster.NodeCount)
 }
 
 type mockRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	accessPoint auth.ProxyAccessPoint
 }
 

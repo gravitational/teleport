@@ -1,23 +1,26 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -25,10 +28,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// SAMLIdPServiceProvider defines an interface for managing SAML IdP service providers.
+// SAMLIdpServiceProviderGetter defines interface for fetching SAMLIdPServiceProvider resources.
+type SAMLIdpServiceProviderGetter interface {
+	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
+}
+
+// SAMLIdPServiceProviders defines an interface for managing SAML IdP service providers.
 type SAMLIdPServiceProviders interface {
-	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
-	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
+	SAMLIdpServiceProviderGetter
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 	// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
@@ -43,10 +50,6 @@ type SAMLIdPServiceProviders interface {
 
 // MarshalSAMLIdPServiceProvider marshals the SAMLIdPServiceProvider resource to JSON.
 func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider, opts ...MarshalOption) ([]byte, error) {
-	if err := serviceProvider.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,12 +57,11 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 
 	switch sp := serviceProvider.(type) {
 	case *types.SAMLIdPServiceProviderV1:
-		if !cfg.PreserveResourceID {
-			copy := *sp
-			copy.SetResourceID(0)
-			sp = &copy
+		if err := sp.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(sp)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, sp))
 	default:
 		return nil, trace.BadParameter("unsupported SAML IdP service provider resource %T", sp)
 	}
@@ -90,10 +92,45 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported SAML IdP service provider resource version %q", h.Version)
+}
+
+// GenerateIdPServiceProviderFromFields takes `name` and `entityDescriptor` fields and returns a SAMLIdPServiceProvider.
+func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) (types.SAMLIdPServiceProvider, error) {
+	if len(name) == 0 {
+		return nil, trace.BadParameter("missing name")
+	}
+	if len(entityDescriptor) == 0 {
+		return nil, trace.BadParameter("missing entity descriptor")
+	}
+
+	var s types.SAMLIdPServiceProviderV1
+	s.SetName(name)
+	s.SetEntityDescriptor(entityDescriptor)
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &s, nil
+}
+
+// ValidateAssertionConsumerServicesEndpoint ensures that the Assertion Consumer Service location
+// is a valid HTTPS endpoint.
+func ValidateAssertionConsumerServicesEndpoint(acs string) error {
+	endpoint, err := url.Parse(acs)
+	switch {
+	case err != nil:
+		return trace.Wrap(err)
+	case endpoint.Scheme != "https":
+		return trace.BadParameter("the assertion consumer services location must be an https endpoint")
+	}
+
+	return nil
 }

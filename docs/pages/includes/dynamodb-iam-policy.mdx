@@ -9,8 +9,17 @@ Service to create and configure one for you:
 <Tabs>
 <TabItem label="Manage a Table Yourself">
 
-If you choose to manage a DynamoDB table yourself, the table must have the
-following attribute definitions:
+If you choose to manage DynamoDB tables yourself, you must take the following
+steps, which we will explain in more detail below:
+
+- Create a cluster state table.
+- Create an audit event table.
+- Create an IAM policy and attach it to the Teleport Auth Service's IAM
+  identity.
+
+#### Create a cluster state table
+
+The cluster state table must have the following attribute definitions:
 
 |Name|Type|
 |---|---|
@@ -23,6 +32,29 @@ The table must also have the following key schema elements:
 |---|---|
 |`HashKey`|`HASH`|
 |`FullPath`|`RANGE`|
+
+#### Create an audit event table
+
+The audit event table must have the following attribute definitions:
+
+|Name|Type|
+|---|---|
+|`SessionID`|`S`|
+|`EventIndex`|`N`|
+|`CreatedAtDate`|`S`|
+|`CreatedAt`|`N`|
+
+The table must also have the following key schema elements:
+
+|Name|Type|
+|---|---|
+|`CreatedAtDate`|`HASH`|
+|`CreatedAt`|`RANGE`|
+
+#### Create and attach an IAM policy
+
+Create the following IAM policy and attach it to the Teleport Auth Service's IAM
+identity.
 
 You'll need to replace these values in the policy example below:
 
@@ -100,8 +132,8 @@ You'll need to replace these values in the policy example below:
 |-------------------------|----------------------------------------------------------------------------------------------------|
 | `us-west-2`             | AWS region                                                                                         |
 | `1234567890`            | AWS account ID                                                                                     |
-| `teleport-helm-backend` | DynamoDB table name to use for the Teleport backend                                                |
-| `teleport-helm-events`  | DynamoDB table name to use for the Teleport audit log (**must** be different to the backend table) |
+| `teleport-backend` | DynamoDB table name to use for the Teleport backend                                                |
+| `teleport-events`  | DynamoDB table name to use for the Teleport audit log (**must** be different to the backend table) |
 
 ```json
 {
@@ -129,8 +161,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
-                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
-                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend/stream/*"
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-backend",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-backend/stream/*"
             ]
         },
         {
@@ -152,8 +184,8 @@ You'll need to replace these values in the policy example below:
                 "dynamodb:UpdateContinuousBackups"
             ],
             "Resource": [
-                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events",
-                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events/index/*"
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-events",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-events/index/*"
             ]
         }
     ]

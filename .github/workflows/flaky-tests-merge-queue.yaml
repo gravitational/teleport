@@ -22,4 +22,4 @@ jobs:
       contents: none
 
     steps:
-      - run: 'echo "Skipping reviewers check in merge queue"'
+      - run: 'echo "Skipping flaky test detector in merge queue"'

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -20,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -31,7 +34,7 @@ import (
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
-func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
+func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	if !modules.GetModules().Features().Desktop {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
@@ -40,18 +43,18 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := s.GetCertAuthority(ctx, types.CertAuthID{
+	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
+	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,18 +65,26 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for cert requirements for Windows authn.
 	certReq := tlsca.CertificateRequest{
-		Clock:           s.clock,
+		Clock:           a.clock,
 		PublicKey:       csr.PublicKey,
 		Subject:         csr.Subject,
-		NotAfter:        s.clock.Now().UTC().Add(req.TTL.Get()),
+		NotAfter:        a.clock.Now().UTC().Add(req.TTL.Get()),
 		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
 		// CRL is required for Windows smartcard certs.
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
+
+	limitExceeded, err := a.desktopsLimitExceeded(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
 		Value: []byte(modules.GetModules().BuildType()),
+	}, pkix.Extension{
+		Id:    tlsca.DesktopsLimitExceededOID,
+		Value: []byte(strconv.FormatBool(limitExceeded)),
 	})
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {

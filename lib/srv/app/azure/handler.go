@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package azure
 
@@ -26,8 +30,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/gravitational/oxy/forward"
-	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,7 +49,7 @@ type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
 	// Log is the Logger.
-	Log logrus.FieldLogger
+	Log utils.FieldLoggerWithWriter
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 
@@ -82,7 +85,7 @@ type handler struct {
 	HandlerConfig
 
 	// fwd is used to forward requests to Azure API after the handler has rewritten them.
-	fwd *forward.Forwarder
+	fwd *reverseproxy.Forwarder
 
 	// tokenCache caches access tokens.
 	tokenCache *utils.FnCache
@@ -113,18 +116,13 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 		tokenCache:    tokenCache,
 	}
 
-	fwd, err := forward.New(
-		forward.RoundTripper(config.RoundTripper),
-		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(svc.formatForwardResponseError)),
-		// Explicitly passing false here to be clear that we always want the host
-		// header to be the same as the outbound request's URL host.
-		forward.PassHostHeader(false),
+	svc.fwd, err = reverseproxy.New(
+		reverseproxy.WithRoundTripper(config.RoundTripper),
+		reverseproxy.WithLogger(config.Log),
+		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	svc.fwd = fwd
-	return svc, nil
+
+	return svc, trace.Wrap(err)
 }
 
 // RoundTrip handles incoming requests and forwards them to the proper API.
@@ -167,8 +165,10 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 
 // prepareForwardRequest prepares a request for forwarding, updating headers and target host. Several checks are made along the way.
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
-	forwardedHost := r.Header.Get("X-Forwarded-Host")
-	if !azure.IsAzureEndpoint(forwardedHost) {
+	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
+	if err != nil {
+		return nil, trace.AccessDenied(err.Error())
+	} else if !azure.IsAzureEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}
 
@@ -207,7 +207,6 @@ func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
 	}
 
 	return pk, nil
-
 }
 
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {

@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -25,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 )
 
@@ -59,13 +64,13 @@ func TestTrimDurationSuffix(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.comment, func(t *testing.T) {
 			fmt := trimDurationZeroSuffix(tt.ts)
-			require.Equal(t, fmt, tt.wantFmt)
+			require.Equal(t, tt.wantFmt, fmt)
 		})
 	}
 }
 
 func TestUserAdd(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -73,11 +78,11 @@ func TestUserAdd(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
@@ -202,7 +207,7 @@ func TestUserAdd(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			createdUser, err := client.GetUser(username, false)
+			createdUser, err := client.GetUser(ctx, username, false)
 			require.NoError(t, err)
 
 			if len(tc.wantRoles) > 0 {
@@ -217,7 +222,7 @@ func TestUserAdd(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -225,11 +230,11 @@ func TestUserUpdate(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
@@ -304,6 +309,13 @@ func TestUserUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "new db roles",
+			args: []string{"--set-db-roles", "d7,d8,d9"},
+			wantTraits: map[string][]string{
+				constants.TraitDBRoles: {"d7", "d8", "d9"},
+			},
+		},
+		{
 			name: "new AWS role ARNs",
 			args: []string{"--set-aws-role-arns", "a1,a2,a3"},
 			wantTraits: map[string][]string{
@@ -343,7 +355,8 @@ func TestUserUpdate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.NoError(t, client.UpsertUser(baseUser))
+			_, err = client.UpsertUser(ctx, baseUser)
+			require.NoError(t, err)
 			args := append([]string{"update"}, tc.args...)
 			args = append(args, "test-user")
 			err := runUserCommand(t, fileConfig, args)
@@ -353,7 +366,7 @@ func TestUserUpdate(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			updatedUser, err := client.GetUser("test-user", false)
+			updatedUser, err := client.GetUser(ctx, "test-user", false)
 			require.NoError(t, err)
 
 			if len(tc.wantRoles) > 0 {

@@ -1,14 +1,13 @@
 Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
 must be able to:
 
-<ScopedBlock scope={["oss","enterprise"]}>
-- Ensure that HTTP/TLS certificates are configured properly for both Teleport
-  proxy and the SSO provider.
-</ScopedBlock>
 - Be able to see what SAML/OIDC claims and values are getting exported and passed
   by the SSO provider to Teleport.
 - Be able to see how Teleport maps the received claims to role mappings as defined
   in the connector.
+- For self-hosted Teleport Enterprise clusters, ensure that HTTP/TLS
+  certificates are configured properly for both the Teleport Proxy Service and
+  the SSO provider.
 
 If something is not working, we recommend to:
 
@@ -17,7 +16,8 @@ If something is not working, we recommend to:
 ### Using the Web UI
 
 If you get "access denied" or other login errors, the number one place to check is the Audit
-Log. You can access it in the **Activity** tab of the Teleport Web UI.
+Log. Under the **Management** area you can access it within the **Activity** tab in the
+Teleport Web UI. 
 
 ![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
 
@@ -57,3 +57,13 @@ spec:
       'env': 'dev'
 version: v5
 ```
+
+### Single sign-on fails with OIDC
+
+When encountering the error message **"Failed to verify JWT: oidc: unable to verify JWT signature: no matching keys"**, it typically indicates a discrepancy between the algorithm used to sign the JWT token and the algorithm(s) supported by the JSON Web Key Set (JWKS). Specifically, the token might be signed with one algorithm, e.g., HS256, while the JWKS only lists keys for a different algorithm. e.g., RS256. This issue predominantly arises when using identity providers that offer extremely low-level functionality.
+
+Here are some things to check:
+- Verify the JWT header specifies the correct signing algorithm. This should match one of the algorithms listed in the keys section of the JWKS endpoint response.
+- Ensure the JWKS endpoint is returning all relevant public keys. Sometimes key rotation can cause valid keys to be omitted.
+
+To resolve the issue, align the JWT algorithm header with a supported algorithm in the JWKS. Rotate keys if necessary. Verify the JWKS only publishes the active public keys. With proper configuration, the signature should validate successfully.

@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -64,7 +66,7 @@ func TestPluginsCRUD(t *testing.T) {
 	// Initially we expect no items.
 	out, err := service.GetPlugins(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	require.Empty(t, out)
 
 	// Create both plugins.
 	err = service.CreatePlugin(ctx, plugin1)
@@ -76,14 +78,14 @@ func TestPluginsCRUD(t *testing.T) {
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Plugin{plugin1, plugin2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Fetch a specific plugin.
 	cluster, err := service.GetPlugin(ctx, plugin2.GetName(), true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(plugin2, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to fetch a plugin that doesn't exist.
@@ -104,10 +106,19 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	// Fields other than Status should remain unchanged
 	require.Empty(t, cmp.Diff(plugin1, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.PluginV1{}, "Status"),
 	))
 	require.Empty(t, cmp.Diff(status, cluster.GetStatus()))
+
+	// Test if plugin types exist.
+	exists, err := service.HasPluginType(ctx, types.PluginTypeOkta)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	exists, err = service.HasPluginType(ctx, types.PluginTypeSlack)
+	require.NoError(t, err)
+	require.True(t, exists)
 
 	// Delete a plugin.
 	err = service.DeletePlugin(ctx, plugin1.GetName())
@@ -115,7 +126,7 @@ func TestPluginsCRUD(t *testing.T) {
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Plugin{plugin2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 	))
 
 	// Try to delete a plugin that doesn't exist.
@@ -127,7 +138,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 func TestListPlugins(t *testing.T) {
@@ -183,7 +194,7 @@ func TestListPlugins(t *testing.T) {
 		fetchedPlugins = append(fetchedPlugins, page3...)
 
 		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	})
 
@@ -193,7 +204,7 @@ func TestListPlugins(t *testing.T) {
 		require.Empty(t, nextKey)
 
 		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	})
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package app
 
@@ -45,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -330,7 +332,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClock()
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr),
@@ -349,9 +351,9 @@ func TestMatchApplicationServers(t *testing.T) {
 	}
 
 	// Create a fake remote site and tunnel.
-	fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
-	tunnel := &reversetunnel.FakeServer{
-		Sites: []reversetunnel.RemoteSite{
+	fakeRemoteSite := reversetunnelclient.NewFakeRemoteSite(clusterName, authClient)
+	tunnel := &reversetunnelclient.FakeServer{
+		Sites: []reversetunnelclient.RemoteSite{
 			fakeRemoteSite,
 		},
 	}
@@ -405,14 +407,14 @@ func TestHealthCheckAppServer(t *testing.T) {
 	for _, tc := range []struct {
 		desc                string
 		publicAddr          string
-		appServersFunc      func(t *testing.T, remoteSite *reversetunnel.FakeRemoteSite) []types.AppServer
+		appServersFunc      func(t *testing.T, remoteSite *reversetunnelclient.FakeRemoteSite) []types.AppServer
 		expectedTunnelCalls int
 		expectErr           require.ErrorAssertionFunc
 	}{
 		{
 			desc:       "match and online services",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, _ *reversetunnel.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeRemoteSite) []types.AppServer {
 				return []types.AppServer{createAppServer(t, "valid.example.com")}
 			},
 			expectedTunnelCalls: 1,
@@ -421,7 +423,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 		{
 			desc:       "match and but no online services",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, tunnel *reversetunnelclient.FakeRemoteSite) []types.AppServer {
 				appServer := createAppServer(t, "valid.example.com")
 				tunnel.OfflineTunnels = map[string]struct{}{
 					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
@@ -434,7 +436,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 		{
 			desc:       "no match",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, tunnel *reversetunnelclient.FakeRemoteSite) []types.AppServer {
 				return []types.AppServer{}
 			},
 			expectedTunnelCalls: 0,
@@ -458,7 +460,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 				caCert:      cert,
 			}
 
-			fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
+			fakeRemoteSite := reversetunnelclient.NewFakeRemoteSite(clusterName, authClient)
 			authClient.appServers = tc.appServersFunc(t, fakeRemoteSite)
 
 			// Create a httptest server to serve the application requests. It must serve
@@ -476,8 +478,8 @@ func TestHealthCheckAppServer(t *testing.T) {
 			}
 			server.StartTLS()
 
-			tunnel := &reversetunnel.FakeServer{
-				Sites: []reversetunnel.RemoteSite{fakeRemoteSite},
+			tunnel := &reversetunnelclient.FakeServer{
+				Sites: []reversetunnelclient.RemoteSite{fakeRemoteSite},
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
@@ -500,7 +502,7 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnel.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:            clock,
 		AuthClient:       authClient,
@@ -655,7 +657,7 @@ func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuth
 // fakeRemoteListener Implements a `net.Listener` that return `net.Conn` from
 // the `FakeRemoteSite`.
 type fakeRemoteListener struct {
-	fakeRemote *reversetunnel.FakeRemoteSite
+	fakeRemote *reversetunnelclient.FakeRemoteSite
 }
 
 func (r *fakeRemoteListener) Accept() (net.Conn, error) {
@@ -736,4 +738,66 @@ func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 	)
 	require.NoError(t, err)
 	return appServer
+}
+
+func TestMakeAppRedirectURL(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		reqURL      string
+		expectedURL string
+	}{
+		{
+			name:        "OK - no path",
+			reqURL:      "https://grafana.localhost",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=",
+		},
+		{
+			name:        "OK - add root path",
+			reqURL:      "https://grafana.localhost/",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F",
+		},
+		{
+			name:        "OK - add multi path",
+			reqURL:      "https://grafana.localhost/foo/bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fbar",
+		},
+		{
+			name:        "OK - add paths with ampersands",
+			reqURL:      "https://grafana.localhost/foo/this&/that",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fthis%26%2Fthat",
+		},
+		{
+			name:        "OK - add only query",
+			reqURL:      "https://grafana.localhost?foo=bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar",
+		},
+		{
+			name:        "OK - add query with same keys used to store the original path and query",
+			reqURL:      "https://grafana.localhost?foo=bar&query=test1&path=test",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar%26query%3Dtest1%26path%3Dtest",
+		},
+		{
+			name:        "OK - adds query with root path",
+			reqURL:      "https://grafana.localhost/?foo=bar&baz=qux&fruit=apple",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F&query=foo%3Dbar%26baz%3Dqux%26fruit%3Dapple",
+		},
+		{
+			name:        "OK - real grafana query example (encoded spaces)",
+			reqURL:      "https://grafana.localhost/alerting/list?search=state:inactive%20type:alerting%20health:nodata",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata",
+		},
+		{
+			name:        "OK - query with non-encoded spaces",
+			reqURL:      "https://grafana.localhost/alerting /list?search=state:inactive type:alerting health:nodata",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
+			require.NoError(t, err)
+
+			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost")
+			require.Equal(t, test.expectedURL, urlStr)
+		})
+	}
 }

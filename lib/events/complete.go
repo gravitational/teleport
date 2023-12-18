@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
@@ -68,7 +70,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Component == "" {
-		cfg.Component = teleport.ComponentAuth
+		cfg.Component = teleport.ComponentProcess
 	}
 	if cfg.CheckPeriod == 0 {
 		cfg.CheckPeriod = AbandonedUploadPollingRate
@@ -140,12 +142,16 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
+	u.log.Infof("upload completer will run every %v", u.cfg.CheckPeriod.String())
 
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.CheckUploads(ctx); err != nil {
-				u.log.WithError(err).Warningf("Failed to check uploads.")
+			if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
+				u.log.Warn("Teleport does not have permission to list uploads. " +
+					"The upload completer will be unable to complete uploads of partial session recordings.")
+			} else if err != nil {
+				u.log.WithError(err).Warn("Failed to check uploads.")
 			}
 		case <-u.closeC:
 			return nil
@@ -172,30 +178,39 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	incompleteSessionUploads.Set(float64(len(uploads)))
 	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
+		log := u.log.WithField("upload", upload.ID).WithField("session", upload.SessionID)
+
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
 		case err == nil: // session is still in progress, continue to other uploads
-			u.log.Debugf("session %v has active tracker and is not ready to be uploaded", upload.SessionID)
+			log.Debug("session has active tracker and is not ready to be uploaded")
 			continue
 		case trace.IsNotFound(err): // upload abandoned, complete upload
 		default: // aka err != nil
-			return trace.Wrap(err)
+			log.Warn("could not get session tracker, skipping upload")
+			continue
 		}
+
+		log.Debug("Upload was abandoned, trying to complete")
 
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				u.log.WithError(err).Warnf("Missing parts for upload %v. Moving on to next upload.", upload.ID)
+				log.WithError(err).Warn("Missing parts, moving on to next upload")
 				incompleteSessionUploads.Dec()
 				continue
 			}
-			return trace.Wrap(err)
+			return trace.Wrap(err, "listing parts")
 		}
 
-		u.log.Debugf("Upload for session %v was abandoned, trying to complete.", upload.SessionID)
-		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); err != nil {
-			return trace.Wrap(err)
+		log.Debugf("upload has %d parts", len(parts))
+
+		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); trace.IsNotFound(err) {
+			log.WithError(err).Debug("Upload not found, moving on to next upload")
+			continue
+		} else if err != nil {
+			return trace.Wrap(err, "completing upload %v for session %v", upload.ID, upload.SessionID)
 		}
-		u.log.Debugf("Completed upload for session %v.", upload.SessionID)
+		log.Debug("Completed upload")
 		completed++
 		incompleteSessionUploads.Dec()
 
@@ -213,6 +228,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// If this is the case, there's no work left to do, and we can
 		// proceed to the next upload.
 		if uploadData.SessionID == "" {
+			log.Debug("No session ID in metadata skipping session end check")
 			continue
 		}
 
@@ -220,15 +236,14 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
-		upload := upload // capture range variable
 		go func() {
 			select {
 			case <-ctx.Done():
 				return
 			case <-u.cfg.Clock.After(2 * time.Minute):
-				u.log.Debugf("checking for session end event for session %v", upload.SessionID)
+				log.Debug("checking for session end event")
 				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
-					u.log.WithError(err).Warningf("failed to ensure session end event for session %v", upload.SessionID)
+					log.WithError(err).Warning("failed to ensure session end event")
 				}
 			}
 		}()

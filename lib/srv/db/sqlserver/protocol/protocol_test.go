@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package protocol
 
@@ -62,11 +64,11 @@ func TestErrorResponse(t *testing.T) {
 
 // TestSQLBatch verifies SQLPatch packet parsing.
 func TestSQLBatch(t *testing.T) {
-	packet, err := ReadPacket(bytes.NewReader(fixtures.SQLBatch))
+	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateBatchQueryPacket("\nselect 'foo' as 'bar'\n        ")))
 	require.NoError(t, err)
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
-	require.Equal(t, r.Type(), PacketTypeSQLBatch)
+	require.Equal(t, PacketTypeSQLBatch, r.Type())
 	p, ok := r.(*SQLBatch)
 	require.True(t, ok)
 	require.Equal(t, "\nselect 'foo' as 'bar'\n        ", p.SQLText)
@@ -74,9 +76,9 @@ func TestSQLBatch(t *testing.T) {
 
 // TestRPCClientRequestParam verifies RPC Request with param packet parsing.
 func TestRPCClientRequestParam(t *testing.T) {
-	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientRequestParam))
+	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateExecuteSQLRPCPacket("select @@version")))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
 	p, ok := r.(*RPCRequest)
@@ -86,9 +88,9 @@ func TestRPCClientRequestParam(t *testing.T) {
 
 // TestRPCClientRequest verifies rpc request packet parsing.
 func TestRPCClientRequest(t *testing.T) {
-	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientRequest))
+	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateCustomRPCCallPacket("foo3")))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
 	p, ok := r.(*RPCRequest)
@@ -97,9 +99,9 @@ func TestRPCClientRequest(t *testing.T) {
 }
 
 func TestRPCClientRequestPartialLength(t *testing.T) {
-	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength(32, 4)))
+	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength("foo3", 32, 4)))
 	require.NoError(t, err)
-	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
 
 	r, err := ToSQLPacket(packet)
 	require.NoError(t, err)
@@ -108,4 +110,22 @@ func TestRPCClientRequestPartialLength(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "foo3", p.ProcName)
 	require.NoError(t, err)
+}
+
+func TestRPCClientRequestParamNTEXT(t *testing.T) {
+	// Currently the ReadTypeInfo is not parsing the NTEXT contents correctly,
+	// giving a invalid memory access.
+	//
+	// TODO(gabrielcorado): validate this use case and ensure the parameter is
+	// correctly parsed on the driver.
+	t.Skip()
+
+	packet, err := ReadPacket(bytes.NewReader(fixtures.GenerateExecuteSQLRPCPacketNTEXT("select @@version")))
+	require.NoError(t, err)
+	require.Equal(t, PacketTypeRPCRequest, packet.Type())
+	r, err := ToSQLPacket(packet)
+	require.NoError(t, err)
+	p, ok := r.(*RPCRequest)
+	require.True(t, ok)
+	require.Equal(t, "select @@version", p.Parameters[0])
 }

@@ -1,22 +1,27 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthncli
 
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
@@ -26,6 +31,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/big"
 
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/fxamacker/cbor/v2"
@@ -36,12 +42,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // U2FRegister implements Register for U2F/CTAP1 devices.
 // The implementation is backed exclusively by Go code, making it useful in
 // scenarios where libfido2 is unavailable.
-func U2FRegister(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func U2FRegister(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	// Preliminary checks, more below.
 	switch {
 	case origin == "":
@@ -88,7 +95,7 @@ func U2FRegister(ctx context.Context, origin string, cc *wanlib.CredentialCreati
 	rpIDHash := sha256.Sum256([]byte(cc.Response.RelyingParty.ID))
 
 	var appIDHash []byte
-	if value, ok := cc.Response.Extensions[wanlib.AppIDExtension]; ok {
+	if value, ok := cc.Response.Extensions[wantypes.AppIDExtension]; ok {
 		appID := fmt.Sprint(value)
 		h := sha256.Sum256([]byte(appID))
 		appIDHash = h[:]
@@ -144,7 +151,7 @@ func U2FRegister(ctx context.Context, origin string, cc *wanlib.CredentialCreati
 
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+			Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 		},
 	}, nil
 }
@@ -179,20 +186,29 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	}
 	buf = buf[1:]
 
-	// public key
-	x, y := elliptic.Unmarshal(elliptic.P256(), buf[:pubKeyLen])
-	if x == nil {
-		return nil, trace.BadParameter("failed to parse public key")
+	// public key, "4||X||Y" form.
+	pubKeyBytes := buf[:pubKeyLen]
+	// Validate pubKey points.
+	if _, err := ecdh.P256().NewPublicKey(pubKeyBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshal public key")
 	}
-	buf = buf[pubKeyLen:]
+	// There's no API to pry away X and Y from ecdh.PublicKey, so we do it
+	// manually, but only after the key is validated.
+	const uncompressedForm = 4
+	if pubKeyBytes[0] != uncompressedForm {
+		return nil, trace.BadParameter("public key not in uncompressed form")
+	}
+	pubKeyBytes = pubKeyBytes[1:] // holds X||Y
+	l := len(pubKeyBytes) / 2     // holds the size of a coordinate (X or Y)
 	pubKey := &ecdsa.PublicKey{
 		Curve: elliptic.P256(),
-		X:     x,
-		Y:     y,
+		X:     new(big.Int).SetBytes(pubKeyBytes[:l]),
+		Y:     new(big.Int).SetBytes(pubKeyBytes[l:]),
 	}
+	buf = buf[pubKeyLen:]
 
 	// key handle
-	l := int(buf[0])
+	l = int(buf[0]) // holds the keyHandle length.
 	buf = buf[1:]
 	// Size checking resumed from now on.
 	if len(buf) < l {
@@ -223,7 +239,7 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	}, nil
 }
 
-func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationResponse) (*wanlib.CredentialCreationResponse, error) {
+func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationResponse) (*wantypes.CredentialCreationResponse, error) {
 	// Reference:
 	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#fig-u2f-compat-makeCredential
 
@@ -258,16 +274,16 @@ func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationR
 		return nil, trace.Wrap(err)
 	}
 
-	return &wanlib.CredentialCreationResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	return &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(resp.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: resp.KeyHandle,
 		},
-		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: ccdJSON,
 			},
 			AttestationObject: attestationObj,

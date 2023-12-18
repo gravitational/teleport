@@ -1,24 +1,27 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package awsoidc
 
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
@@ -30,6 +33,9 @@ import (
 var (
 	// filterEngine is the filter name for filtering Databses based on their engine.
 	filterEngine = "engine"
+
+	// filterDBClusterID is the filter name for filtering RDS Instances for a given RDS Cluster.
+	filterDBClusterID = "db-cluster-id"
 )
 
 const (
@@ -188,7 +194,16 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 			continue
 		}
 
-		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db)
+		// RDS Clusters do not return VPC and Subnets.
+		// To get this value, a member of the cluster is fetched and its Network Information is used to
+		// populate the RDS Cluster information.
+		// All the members have the same network information, so picking one at random should not matter.
+		clusterInstance, err := fetchSingleRDSDBInstance(ctx, clt, req, aws.ToString(db.DBClusterIdentifier))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -197,4 +212,23 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 	}
 
 	return ret, nil
+}
+
+func fetchSingleRDSDBInstance(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest, clusterID string) (*rdsTypes.DBInstance, error) {
+	describeDBInstanceInput := &rds.DescribeDBInstancesInput{
+		Filters: []rdsTypes.Filter{
+			{Name: &filterDBClusterID, Values: []string{clusterID}},
+		},
+	}
+
+	rdsDBs, err := clt.DescribeDBInstances(ctx, describeDBInstanceInput)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(rdsDBs.DBInstances) == 0 {
+		return nil, trace.BadParameter("database cluster %s has no instance", clusterID)
+	}
+
+	return &rdsDBs.DBInstances[0], nil
 }

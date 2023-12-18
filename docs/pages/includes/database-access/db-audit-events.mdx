@@ -1,0 +1,40 @@
+You can view database session activity in the audit log.
+After a session is uploaded, you can play back the audit data
+with the `tsh play` command.
+
+Database session ID will be in a UUID format (ex: `307b49d6-56c7-4d20-8cf0-5bc5348a7101`)
+See the audit log to get a database session ID with a key of `sid`.
+
+Example:
+```code
+$ tsh play --format json <Var name="database.session" />
+```
+
+```json
+    {
+        "cluster_name": "teleport.example.com",
+        "code": "TDB02I",
+        "db_name": "example",
+        "db_origin": "dynamic",
+        "db_protocol": "postgres",
+        "db_query": "select * from sample;",
+        "db_roles": [
+            "access"
+        ],
+        "db_service": "example",
+        "db_type": "rds",
+        "db_uri": "databases-1.us-east-1.rds.amazonaws.com:5432",
+        "db_user": "alice",
+        "ei": 2,
+        "event": "db.session.query",
+        "sid": "307b49d6-56c7-4d20-8cf0-5bc5348a7101",
+        "success": true,
+        "time": "2023-10-06T10:58:32.88Z",
+        "uid": "a649d925-9dac-44cc-bd04-4387c295580f",
+        "user": "alice"
+    }
+```
+
+The audit log is viewable in **Activity** under **Management** in the Web UI for users
+with permission to the `event` resources. Database sessions do not appear
+in the session recordings page.

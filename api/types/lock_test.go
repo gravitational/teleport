@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -70,4 +72,64 @@ func TestLockTargetMatch(t *testing.T) {
 	// Empty target should match no lock.
 	emptyTarget := LockTarget{}
 	require.False(t, emptyTarget.Match(lock))
+	// Test that we still support old locks with only Node field set and that
+	// it only applies to nodes.
+	// For Nodes, LockTarget Node and ServerID fields are both set at the same
+	// time.
+	targetNode := LockTarget{
+		ServerID: "node-uuid",
+		Node:     "node-uuid",
+	}
+	// Create a lock with only Node field set (old lock).
+	lockNode, err := NewLock("some-lock", LockSpecV2{
+		Target: LockTarget{
+			Node: "node-uuid",
+		},
+	},
+	)
+	require.NoError(t, err)
+	// Test that the old lock with only Node field set matches a target generated
+	// from a Node identity (Node and ServerID fields set)
+	require.True(t, targetNode.Match(lockNode))
+
+	// Old locks with Node field should not match new lock targets with ServerID field
+	// set but Node field unset.
+	targetServerID := LockTarget{
+		ServerID: "node-uuid",
+	}
+
+	require.False(t, targetServerID.Match(lockNode))
+
+	// Test if locks with ServerID apply to nodes and other locks with ServerID.
+	lockServerID, err := NewLock("some-lock", LockSpecV2{
+		Target: LockTarget{
+			ServerID: "node-uuid",
+		},
+	},
+	)
+	require.NoError(t, err)
+	// Test that a lock with ServerID field set matches a target generated from a
+	// Node identity (Node and ServerID fields set)
+	require.True(t, targetNode.Match(lockServerID))
+	// Test that a lock with ServerID field set matches any target with ServerID.
+	require.True(t, targetServerID.Match(lockServerID))
+}
+
+// TestLockTargetIsEmpty checks that the implementation of [LockTarget.IsEmpty]
+// is correct by filling one field at a time and expecting IsEmpty to return
+// false. Only the public fields that don't start with `XXX_` are checked (as
+// those are gogoproto-internal fields).
+func TestLockTargetIsEmpty(t *testing.T) {
+	require.True(t, (LockTarget{}).IsEmpty())
+
+	for i, field := range reflect.VisibleFields(reflect.TypeOf(LockTarget{})) {
+		if strings.HasPrefix(field.Name, "XXX_") {
+			continue
+		}
+
+		var lt LockTarget
+		// if we add non-string fields to LockTarget we need a type switch here
+		reflect.ValueOf(&lt).Elem().Field(i).SetString("nonempty")
+		require.False(t, lt.IsEmpty(), "field name: %v", field.Name)
+	}
 }

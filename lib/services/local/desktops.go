@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -38,7 +40,7 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 
 // GetWindowsDesktops returns all Windows desktops matching filter.
 func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	startKey := backend.Key(windowsDesktopsPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -47,7 +49,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 	var desktops []types.WindowsDesktop
 	for _, item := range result.Items {
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -66,7 +68,7 @@ func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter t
 
 // CreateWindowsDesktop creates a windows desktop resource.
 func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
-	if err := desktop.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(desktop); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalWindowsDesktop(desktop)
@@ -88,18 +90,20 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 
 // UpdateWindowsDesktop updates a windows desktop resource.
 func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
-	if err := desktop.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(desktop); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := desktop.GetRevision()
 	value, err := services.MarshalWindowsDesktop(desktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
+		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Value:    value,
+		Expires:  desktop.Expiry(),
+		ID:       desktop.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
@@ -110,18 +114,20 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 
 // UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
 func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
-	if err := desktop.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(desktop); err != nil {
 		return trace.Wrap(err)
 	}
+	rev := desktop.GetRevision()
 	value, err := services.MarshalWindowsDesktop(desktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-		ID:      desktop.GetResourceID(),
+		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Value:    value,
+		Expires:  desktop.Expiry(),
+		ID:       desktop.GetResourceID(),
+		Revision: rev,
 	}
 	_, err = s.Put(ctx, item)
 	if err != nil {
@@ -150,7 +156,7 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 
 // DeleteAllWindowsDesktops removes all windows desktop resources.
 func (s *WindowsDesktopService) DeleteAllWindowsDesktops(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopsPrefix, "")
+	startKey := backend.ExactKey(windowsDesktopsPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -166,7 +172,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 	}
 
 	rangeStart := backend.Key(windowsDesktopsPrefix, req.StartKey)
-	rangeEnd := backend.RangeEnd(backend.Key(windowsDesktopsPrefix, ""))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopsPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        types.KindWindowsDesktop,
 		Labels:              req.Labels,
@@ -184,7 +190,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktop(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -231,7 +237,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 	}
 
 	rangeStart := backend.Key(windowsDesktopServicesPrefix, req.StartKey)
-	rangeEnd := backend.RangeEnd(backend.Key(windowsDesktopServicesPrefix, ""))
+	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopServicesPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:        types.KindWindowsDesktopService,
 		Labels:              req.Labels,
@@ -249,7 +255,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 			}
 
 			desktop, err := services.UnmarshalWindowsDesktopService(item.Value,
-				services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+				services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 			if err != nil {
 				return false, trace.Wrap(err)
 			}

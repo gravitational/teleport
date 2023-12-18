@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
@@ -25,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,7 +42,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -148,7 +150,33 @@ var (
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent}
+	auditEmitEventSizes = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_emitted_event_sizes",
+			Help:      "Size of single events emitted",
+			Buckets:   prometheus.ExponentialBucketsRange(64, 2*1024*1024*1024 /*2GiB*/, 16),
+		})
+
+	// MetricStoredTrimmedEvents counts the number of events that were trimmed
+	// before being stored.
+	MetricStoredTrimmedEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_stored_trimmed_events",
+			Help:      "Number of events that were trimmed before being stored",
+		})
+
+	// MetricQueriedTrimmedEvents counts the number of events that were trimmed
+	// before being returned from a query.
+	MetricQueriedTrimmedEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_queried_trimmed_events",
+			Help:      "Number of events that were trimmed before being returned from a query",
+		})
+
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent, auditEmitEventSizes, MetricStoredTrimmedEvents, MetricQueriedTrimmedEvents}
 )
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -297,15 +325,15 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	if cfg.UID != nil && cfg.GID != nil {
-		err := os.Chown(cfg.DataDir, *cfg.UID, *cfg.GID)
+		err := os.Lchown(cfg.DataDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		err = os.Chown(sessionDir, *cfg.UID, *cfg.GID)
+		err = os.Lchown(sessionDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		err = os.Chown(al.playbackDir, *cfg.UID, *cfg.GID)
+		err = os.Lchown(al.playbackDir, *cfg.UID, *cfg.GID)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
@@ -855,6 +883,7 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 
 // EmitAuditEvent adds a new event to the local file log
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
 	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
@@ -897,27 +926,29 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
-	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
+func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	g := l.log.WithFields(log.Fields{"eventType": req.EventTypes, "limit": req.Limit})
+	g.Debugf("SearchEvents(%v, %v)", req.From, req.To)
+	limit := req.Limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
 		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
+	req.Limit = limit
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
+		return l.ExternalLog.SearchEvents(ctx, req)
 	}
-	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
+	return l.localLog.SearchEvents(ctx, req)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", req.From, req.To, req.Limit)
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+		return l.ExternalLog.SearchSessionEvents(ctx, req)
 	}
-	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -956,7 +987,9 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		if rmErr := os.Remove(tarballPath); rmErr != nil {
 			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
 		}
-
+		if errors.Is(err, fs.ErrNotExist) {
+			err = trace.NotFound("a recording for session %v was not found", sessionID)
+		}
 		e <- trace.Wrap(err)
 		return c, e
 	}
@@ -979,7 +1012,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())
-				break
+				return
 			}
 
 			event, err := protoReader.Read(ctx)
@@ -989,12 +1022,16 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				} else {
 					close(c)
 				}
-
-				break
+				return
 			}
 
 			if event.GetIndex() >= startIndex {
-				c <- event
+				select {
+				case c <- event:
+				case <-ctx.Done():
+					e <- trace.Wrap(ctx.Err())
+					return
+				}
 			}
 		}
 	}()

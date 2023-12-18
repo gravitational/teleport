@@ -4,15 +4,16 @@ db_service:
 
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.
-  #
-  # All database resources have a predefined "teleport.dev/origin" label with
-  # one of the following values:
-  # "dynamic": database resources created with "tctl create" command
-  # "cloud": database resources created by the discovery service
-  # "config": database resources defined in the "databases" array below
   resources:
+    # See "Database labels reference" (https://goteleport.com/docs/database-access/reference/labels/)
+    # to learn more on database labels.
   - labels:
       "*": "*"
+    # Optional AWS role that the Database Service will assume to access the
+    # databases.
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      external_id: "example-external-id"
 
   # Matchers for registering AWS-hosted databases.
   aws:
@@ -23,6 +24,7 @@ db_service:
     # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
     # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
     # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+    # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
   - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
@@ -68,7 +70,7 @@ db_service:
     # Free-form description of the database proxy instance.
     description: "Production database"
 
-    # Database protocol. Can be: "postgres", "mysql", "mongodb", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
+    # Database protocol. Can be: "postgres", "mysql", "mongodb", "oracle", "clickhouse", "clickhouse-http", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
     protocol: "postgres"
 
     # Database connection endpoint. Must be reachable from Database Service.
@@ -93,6 +95,14 @@ db_service:
       # The default MySQL server version reported by Teleport Proxy.
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
+
+    # Optional admin user configuration for Automatic User Provisioning.
+    admin_user:
+      # Name of the admin user.
+      name: "teleport-admin"
+      #  Optional default database the admin user logs into. See individual
+      #  guides for default value.
+      default_database: "teleport"
 
     # Optional AWS configuration for AWS hosted databases. AWS region- and
     # service-specific configurations can usually be auto-detected from the

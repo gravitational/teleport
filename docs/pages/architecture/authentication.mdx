@@ -77,10 +77,10 @@ to the public key with a certificate authority's signature.
 
 OpenSSH certificate contain metadata used to authenticate users and hosts:
 
-1. List of principals (identities) this certificate belongs to.
-2. Signature of the certificate authority who issued it.
-3. The expiration date, also known as "time-to-live" or simply TTL.
-4. Additional data, such as the node role, is stored as a certificate extension.
+- List of principals (identities) this certificate belongs to.
+- Signature of the certificate authority who issued it.
+- The expiration date, also known as "time-to-live" or simply TTL.
+- Additional data, such as the node role, is stored as a certificate extension.
 
 ### Making Time Work For You
 
@@ -143,7 +143,7 @@ services and rotates SSH and X.509 certificates.
 
 Teleport internal services - Auth, Proxy and Nodes use certificates to identify themselves
 within a cluster. To join proxies and nodes to the cluster and receive certificates, admins should use
-[short-lived tokens or cloud identity services](../management/join-services-to-your-cluster/join-token.mdx).
+[short-lived tokens or cloud identity services](../agents/join-services-to-your-cluster/join-token.mdx).
 
 Unlike users and services, internal services receive long-lived certificates.
 

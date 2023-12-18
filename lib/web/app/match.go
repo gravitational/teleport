@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package app
 
@@ -26,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -99,8 +101,13 @@ func MatchName(name string) Matcher {
 // MatchHealthy tries to establish a connection with the server using the
 // `dialAppServer` function. The app server is matched if the function call
 // doesn't return any error.
-func MatchHealthy(proxyClient reversetunnel.Tunnel, clusterName string) Matcher {
+func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Matcher {
 	return func(ctx context.Context, appServer types.AppServer) bool {
+		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
+		if redirectInsteadOfForward(appServer) {
+			return true
+		}
+
 		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
 		if err != nil {
 			return false
@@ -132,7 +139,7 @@ func MatchAll(matchers ...Matcher) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := Match(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {

@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -27,7 +31,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -86,11 +89,8 @@ func sendTelemetry(
 	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 
 	data := &prehogv1a.TbotStartEvent{
-		RunMode: prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
-		// Default to reporting the "token" join method to account for
-		// scenarios where initial join has onboarding configured but future
-		// starts renew using credentials.
-		JoinType: string(types.JoinMethodToken),
+		RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
+		JoinType: string(cfg.Onboarding.JoinMethod),
 		Version:  teleport.Version,
 	}
 	if cfg.Oneshot {
@@ -100,16 +100,13 @@ func sendTelemetry(
 		data.Helper = helper
 		data.HelperVersion = envGetter(helperVersionEnv)
 	}
-	if cfg.Onboarding != nil && cfg.Onboarding.JoinMethod != "" {
-		data.JoinType = string(cfg.Onboarding.JoinMethod)
-	}
-	for _, dest := range cfg.Destinations {
-		switch {
-		case dest.App != nil:
+	for _, output := range cfg.Outputs {
+		switch output.(type) {
+		case *config.ApplicationOutput:
 			data.DestinationsApplication++
-		case dest.Database != nil:
+		case *config.DatabaseOutput:
 			data.DestinationsDatabase++
-		case dest.KubernetesCluster != nil:
+		case *config.KubernetesOutput:
 			data.DestinationsKubernetes++
 		default:
 			data.DestinationsOther++

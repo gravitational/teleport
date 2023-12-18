@@ -1,5 +1,5 @@
 ---
-title: TCP Application Access (Preview)
+title: TCP Application Access
 description: How to configure Teleport for accessing plain TCP apps
 ---
 
@@ -41,7 +41,8 @@ $ docker run --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=<pass> -d postgre
 
 Teleport Application Service requires a valid auth token to join the cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 To generate one, run the following command on your Auth Service node:
 
 ```code
@@ -54,16 +55,18 @@ connect to cluster applications:
 ```code
 $ tctl users add --roles=access alice
 ```
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 To generate one, log into your Cloud tenant and run the following command:
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh
 $ tctl tokens add --type=app
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Save the generated token in `/tmp/token` on the node where Application Service
 will run.
@@ -146,3 +149,4 @@ $ psql postgres://postgres@localhost:55868/postgres
 ## Next steps
 
 - Learn about [access controls](../controls.mdx) for applications.
+

@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package teleport
 
@@ -93,6 +95,30 @@ const (
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
+
+	// MetricTotalInstances provides an instance count
+	MetricTotalInstances = "total_instances"
+
+	// MetricEnrolledInUpgrades provides total number of instances that advertise an upgrader.
+	MetricEnrolledInUpgrades = "enrolled_in_upgrades"
+
+	// MetricUpgraderCounts provides instance count per-upgrader.
+	MetricUpgraderCounts = "upgrader_counts"
+
+	// TagUpgrader is a metric tag for upgraders.
+	TagUpgrader = "upgrader"
+
+	// MetricsAccessRequestsCreated provides total number of created access requests.
+	MetricAccessRequestsCreated = "access_requests_created"
+	// TagRoles is a number of roles requested as a part of access request.
+	TagRoles = "roles"
+	// TagResources is a number of resources requested as a part of access request.
+	TagResources = "resources"
+
+	// UserCertificatesCreated provides total number of user certificates generated.
+	MetricUserCertificatesGenerated = "user_certificates_generated"
+	// TagPrivateKeyPolicy is a private key policy associated with a user's certificates.
+	TagPrivateKeyPolicy = "private_key_policy"
 )
 
 const (
@@ -207,12 +233,19 @@ const (
 	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServers = "registered_servers"
 
+	// MetricRegisteredServersByInstallMethods tracks the number of Teleport servers, and their installation method,
+	// that have successfully registered with the Teleport cluster and have not reached the end of their ttl
+	MetricRegisteredServersByInstallMethods = "registered_servers_by_install_methods"
+
 	// MetricReverseSSHTunnels defines the number of connected SSH reverse tunnels to the proxy
 	MetricReverseSSHTunnels = "reverse_tunnels_connected"
 
 	// MetricHostedPluginStatus tracks the current status
 	// (as defined by types.PluginStatus) for a plugin instance
 	MetricHostedPluginStatus = "hosted_plugin_status"
+
+	// MetricTeleportServices tracks which services are currently running in the current Teleport Process.
+	MetricTeleportServices = "services"
 
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
@@ -249,6 +282,17 @@ const (
 
 	// TagClient is a prometheus label to indicate what client the metric is tied to
 	TagClient = "client"
+
+	// TagInstallMethods is a prometheus label to indicate what installation methods
+	// were used for the agent.
+	// This value comes from UpstreamInventoryAgentMetadata (sourced in lib/inventory/metadata.fetchInstallMethods).
+	TagInstallMethods = "install_methods"
+
+	// TagServiceName is the prometheus label to indicate what services are running in the current proxy.
+	// Those services are monitored using the Supervisor.
+	// Only a subset of services are monitored. See [lib/service.metricsServicesRunningMap]
+	// Eg, discovery_service
+	TagServiceName = "service_name"
 )
 
 const (
@@ -277,4 +321,27 @@ const (
 	// MetricUsageEventsDropped is a count of events dropped due to the
 	// submission buffer reaching a length limit.
 	MetricUsageEventsDropped = "usage_events_dropped_total"
+)
+
+// athena audit log metrics
+const (
+	// MetricParquetlogConsumerBatchPorcessingDuration is a histogram of durations it
+	// took to process single batch of events.
+	MetricParquetlogConsumerBatchPorcessingDuration = "audit_parquetlog_batch_processing_seconds"
+	// MetricParquetlogConsumerS3FlushDuration is a histogram of durations it took to
+	// flush and close parquet files on s3.
+	MetricParquetlogConsumerS3FlushDuration = "audit_parquetlog_s3_flush_seconds"
+	// MetricParquetlogConsumerDeleteEventsDuration is a histogram of durations it
+	// took to delete events from SQS.
+	MetricParquetlogConsumerDeleteEventsDuration = "audit_parquetlog_delete_events_seconds"
+	// MetricParquetlogConsumerBatchSize is a histogram of sizes of single batch of events.
+	MetricParquetlogConsumerBatchSize = "audit_parquetlog_batch_size"
+	// MetricParquetlogConsumerBatchCount is a count of number of events in single batch.
+	MetricParquetlogConsumerBatchCount = "audit_parquetlog_batch_count"
+	// MetricParquetlogConsumerLastProcessedTimestamp is a timestamp of last finished consumer execution.
+	MetricParquetlogConsumerLastProcessedTimestamp = "audit_parquetlog_last_processed_timestamp"
+	// MetricParquetlogConsumerOldestProcessedMessage is age of oldest processed message.
+	MetricParquetlogConsumerOldestProcessedMessage = "audit_parquetlog_age_oldest_processed_message"
+	// MetricAthenaConsumerCollectFailed is a count of number of errors received from sqs collect.
+	MetricParquetlogConsumerCollectFailed = "audit_parquetlog_errors_from_collect_count"
 )

@@ -10,20 +10,24 @@ This page serves a reference on Web UI features and their usage.
 
 ## Joining an active session
 
-The Web UI allows you to list and join active SSH sessions via a web-based terminal.
+The Teleport Web UI allows you to list and join active SSH sessions using a web-based terminal.
 
-Any active SSH sessions that you are allowed to list will be listed on the "Active Sessions" page, which can be 
-accessed from the navigation bar on the left side. If you don't see the "Active Sessions" tab, it means that your user's role doesn't grant
-you `list` access for the `ssh_session` resource. Please refer to the [Teleport Access Controls Reference](../access-controls/reference.mdx)
-and make sure your role has all the necessary permissions.
+You can view the active SSH sessions that you are allowed to list by clicking **Active Sessions** in the navigation sidebar. 
+You can only see active sessions if you are assigned a role with `list` access for the `ssh_session` resource. 
+For more information about role permissions and access to resources, see [Teleport Access Controls 
+Reference](../access-controls/reference.mdx).
 
-Upon clicking on the "Join" button to join an active session, you must choose from one of 3 participant modes to join the session in: 
+From the active sessions list, click **Join** and select a participant mode to join the session: 
 
-- `observer`: Allows read-only access to the session. You can view output but cannot control the session in any way nor send any input.
-- `moderator`: Allows you to watch the session. You can view output and forcefully terminate or pause the session at any time, but can't send input.
-- `peer`: Allows you to collaborate in the session. You can view output and send input.
+- **As an Observer** with read-only access to the session. You can view output but cannot control the session in any way nor 
+  send any input.
+- **As a Moderator** with permission to watch, pause, or terminate the session. You can view output and forcefully terminate 
+  or pause the session at any time, but can't send input.
+- **As a Peer** to collaborate in the session. You can view output and send input.
 
 ![joining an active session from the Web UI](../../img/webui-active-session.png)
 
-If the launch button is missing, then you don't have permission to join in any participant mode. Please refer to the [`join_sessions` allow policy reference](../access-controls/guides/moderated-sessions.mdx#join_sessions) to learn how to grant roles access to participant modes.
+You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode. 
+For information about how to configure the `join_sessions` allow policy and participant modes for a role, see 
+[Configure an allow policy](../access-controls/guides/moderated-sessions.mdx#configure-an-allow-policy).
 

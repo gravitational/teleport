@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -28,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestWatcher verifies that database server properly detects and applies
@@ -133,7 +137,7 @@ func TestWatcher(t *testing.T) {
 // ResourceMatchers should be always evaluated for the dynamic registered
 // resources.
 func TestWatcherDynamicResource(t *testing.T) {
-	var db1, db2, db3, db4 *types.DatabaseV3
+	var db1, db2, db3, db4, db5 *types.DatabaseV3
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -144,18 +148,50 @@ func TestWatcherDynamicResource(t *testing.T) {
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: []types.Database{db0},
 		ResourceMatchers: []services.ResourceMatcher{
-			{Labels: types.Labels{
-				"group": []string{"a"},
-			}},
+			{
+				Labels: types.Labels{
+					"group": []string{"a"},
+				},
+			},
+			{
+				Labels: types.Labels{
+					"group": []string{"b"},
+				},
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+					ExternalID:    "external-id",
+				},
+			},
 		},
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
+		},
+		DiscoveryResourceChecker: &fakeDiscoveryResourceChecker{
+			byName: map[string]func(context.Context, types.Database) error{
+				"db-fail-check": func(context.Context, types.Database) error {
+					return trace.BadParameter("bad db")
+				},
+				"db5": func(_ context.Context, db types.Database) error {
+					// Validate AssumeRoleARN and ExternalID matches above
+					// services.ResourceMatcherAWS,
+					meta := db.GetAWS()
+					if meta.AssumeRoleARN != "arn:aws:iam::123456789012:role/DBAccess" ||
+						meta.ExternalID != "external-id" {
+						return trace.CompareFailed("AssumeRoleARN/ExternalID does not match")
+					}
+					return nil
+				},
+			},
 		},
 	})
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 
 	withRDSURL := func(v3 *types.DatabaseSpecV3) {
 		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
+		v3.AWS.AccountID = "123456789012"
+	}
+	withDiscoveryAssumeRoleARN := func(v3 *types.DatabaseSpecV3) {
+		v3.AWS.AssumeRoleARN = "arn:aws:iam::123456789012:role/DBDiscovery"
 	}
 
 	t.Run("dynamic resource - no match", func(t *testing.T) {
@@ -205,6 +241,35 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// The db4 service should be properly registered by the agent.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4})
 	})
+
+	t.Run("discovery resource - AssumeRoleARN", func(t *testing.T) {
+		// Created a discovery service created database resource that matches
+		// ResourceMatchers and has AssumeRoleARN set by the discovery service.
+		discoveredDB5, err := makeDiscoveryDatabase("db5", map[string]string{"group": "b"}, withRDSURL, withDiscoveryAssumeRoleARN)
+		require.NoError(t, err)
+		require.True(t, discoveredDB5.IsRDS())
+
+		err = testCtx.authServer.CreateDatabase(ctx, discoveredDB5)
+		require.NoError(t, err)
+
+		// Validate that AssumeRoleARN is overwritten by the one configured in
+		// the resource matcher.
+		db5 = discoveredDB5.Copy()
+		setStatusAWSAssumeRole(db5, "arn:aws:iam::123456789012:role/DBAccess", "external-id")
+
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+	})
+
+	t.Run("discovery resource - fail check", func(t *testing.T) {
+		// Created a discovery service created database resource that fails the
+		// fakeDiscoveryResourceChecker.
+		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
+		require.NoError(t, err)
+		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
+
+		// dbFailCheck should not be proxied.
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+	})
 }
 
 func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
@@ -229,6 +294,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
+	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
@@ -252,13 +318,13 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			}),
 			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
 		},
-		AzureMatchers: []services.AzureMatcher{{
+		AzureMatchers: []types.AzureMatcher{{
 			Subscriptions: []string{"sub"},
-			Types:         []string{services.AzureMatcherSQLServer},
+			Types:         []string{types.AzureMatcherSQLServer},
 			ResourceTags:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}},
-		AWSMatchers: []services.AWSMatcher{{
-			Types:   []string{services.AWSMatcherRDS, services.AWSMatcherRedshiftServerless},
+		AWSMatchers: []types.AWSMatcher{{
+			Types:   []string{types.AWSMatcherRDS, types.AWSMatcherRedshiftServerless},
 			Regions: []string{"us-east-1"},
 			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}},
@@ -277,7 +343,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 		sort.Sort(d)
 		require.Equal(t, len(d), len(databases))
 		require.Empty(t, cmp.Diff(databases, d,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):
@@ -334,12 +400,13 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 
 	server := &armsql.Server{
 		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
-		Name: to.Ptr(fmt.Sprintf("%s.database.windows.net", name)),
+		Name: to.Ptr(fmt.Sprintf("%s-database-windows-net", name)),
 		Properties: &armsql.ServerProperties{
 			FullyQualifiedDomainName: to.Ptr("localhost"),
 		},
 	}
 	database, err := services.NewDatabaseFromAzureSQLServer(server)
 	require.NoError(t, err)
+	discovery.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherSQLServer)
 	return server, database
 }

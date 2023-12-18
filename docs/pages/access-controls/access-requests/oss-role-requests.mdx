@@ -1,29 +1,28 @@
 ---
-title: Just-in-time Access Requests in OSS Teleport
-description: OSS Teleport allows users to request access to roles from the CLI.
-h1: Teleport Resource Access Requests
+title: Teleport Community Edition Role Access Requests
+description: Teleport Community Edition allows users to request access to roles from the CLI.
 ---
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
 
-Open-source Teleport users can get a preview of how Access Requests work by
-requesting a role via the Teleport CLI. Full Access Request functionality,
+Teleport Community Edition users can get a preview of how Access Requests work by
+requesting a role using the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests and an intuitive and searchable UI are
 available in Teleport Enterprise.
 
-## RBAC Setup
+## RBAC security setup
 
 Teleport's role-based access control (RBAC) allows you to configure what roles
 users can request access to. In this example, we will define two roles:
 
-1. `contractor`: users with this role can request elevated access to the `dba` role
-2. `dba`: this role grants access to databases
+- `contractor`: users with this role can request elevated access to the `dba` role
+- `dba`: this role grants access to databases
 
 There is no role for request approvers, because request approval rules can only
-be configured for Teleport Enterprise. In Open Source Teleport, approvals must
+be configured for Teleport Enterprise. In Teleport Community Edition, approvals must
 be performed by running `tctl` on the Auth Server.
 
-**Contractor Role**
+**Contractor role**
 
 Users with this role can request access to the `dba` role.
 
@@ -51,7 +50,7 @@ $ tctl users update --set-roles \
     $(tctl get users/alice --format=json | jq -r '.[].spec.roles | join(",")'),contractor alice
 ```
 
-**DBA Role**
+**DBA role**
 
 This role grants access to databases.
 
@@ -77,7 +76,7 @@ $ tctl create dba-role.yaml
 
 ## Requesting Access
 
-In OSS Teleport, requests are made from the `tsh` CLI. To create an access
+In Teleport Community Edition, requests are made from the `tsh` CLI. To create an access
 request, use the `tsh request create` command.
 
 ```code
@@ -121,7 +120,7 @@ $ tsh request ls
 
 ## Reviewing requests
 
-In OSS Teleport, Access Requests must be reviewed by a cluster administrator
+In Teleport Community Edition, Access Requests must be reviewed by a cluster administrator
 with the ability to run `tctl` on the Auth Server.
 
 Administrators can list requests with `tctl requests ls`, and view the details

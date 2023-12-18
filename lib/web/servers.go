@@ -1,17 +1,19 @@
-/**
- * Copyright 2021 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package web
@@ -24,13 +26,14 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
-func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -52,7 +55,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(page.Resources, accessChecker.Roles()),
+		Items:      ui.MakeKubeClusters(page.Resources, accessChecker),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -60,7 +63,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 
 // clusterKubePodsGet returns a list of Kubernetes Pods in a form the
 // UI can present.
-func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,7 +82,7 @@ func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p h
 }
 
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
-func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,7 +122,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 }
 
 // clusterDatabaseGet returns a list of db servers in a form the UI can present.
-func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("database name is required")
@@ -149,7 +152,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
-func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -173,7 +176,7 @@ func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Req
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
-func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -194,7 +197,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	uiDesktops, err := ui.MakeDesktops(page.Resources, accessChecker.Roles())
+	uiDesktops, err := ui.MakeDesktops(page.Resources, accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,7 +210,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 }
 
 // clusterDesktopServicesGet returns a list of desktop services in a form the UI can present.
-func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of desktop services.
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -233,7 +236,7 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 }
 
 // getDesktopHandle returns a desktop.
-func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -258,7 +261,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// windowsDesktops may contain the same desktop multiple times
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
-	uiDesktop, err := ui.MakeDesktop(windowsDesktops[0], accessChecker.Roles())
+	uiDesktop, err := ui.MakeDesktop(windowsDesktops[0], accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -273,7 +276,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 // Response body:
 //
 // {"active": bool}
-func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	trackers, err := h.auth.proxyClient.GetActiveSessionTrackersWithFilter(r.Context(), &types.SessionTrackerFilter{
 		Kind: string(types.WindowsDesktopSessionKind),
@@ -334,4 +337,102 @@ func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []s
 
 type desktopIsActive struct {
 	Active bool `json:"active"`
+}
+
+// createNodeRequest contains the required information to create a Node.
+type createNodeRequest struct {
+	Name     string          `json:"name,omitempty"`
+	SubKind  string          `json:"subKind,omitempty"`
+	Hostname string          `json:"hostname,omitempty"`
+	Addr     string          `json:"addr,omitempty"`
+	Labels   []ui.Label      `json:"labels,omitempty"`
+	AWSInfo  *ui.AWSMetadata `json:"aws,omitempty"`
+}
+
+func (r *createNodeRequest) checkAndSetDefaults() error {
+	if r.Name == "" {
+		return trace.BadParameter("missing node name")
+	}
+
+	// Nodes provided by the Teleport Agent are not meant to be created by the user.
+	// They connect to the cluster and heartbeat their information.
+	//
+	// Agentless Nodes with Teleport CA call the Teleport Proxy and upsert themselves,
+	// so they are also not meant to be added from web api.
+	if r.SubKind != types.SubKindOpenSSHEICENode {
+		return trace.BadParameter("invalid subkind %q, only %q is supported", r.SubKind, types.SubKindOpenSSHEICENode)
+	}
+
+	if r.Hostname == "" {
+		return trace.BadParameter("missing node hostname")
+	}
+
+	if r.Addr == "" {
+		return trace.BadParameter("missing node addr")
+	}
+
+	return nil
+}
+
+// handleNodeCreate creates a Teleport Node.
+func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+
+	var req *createNodeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	labels := make(map[string]string, len(req.Labels))
+	for _, label := range req.Labels {
+		labels[label.Name] = label.Value
+	}
+
+	server, err := types.NewNode(
+		req.Name,
+		req.SubKind,
+		types.ServerSpecV2{
+			Hostname: req.Hostname,
+			Addr:     req.Addr,
+			CloudMetadata: &types.CloudMetadata{
+				AWS: &types.AWSInfo{
+					AccountID:   req.AWSInfo.AccountID,
+					InstanceID:  req.AWSInfo.InstanceID,
+					Region:      req.AWSInfo.Region,
+					VPCID:       req.AWSInfo.VPCID,
+					Integration: req.AWSInfo.Integration,
+					SubnetID:    req.AWSInfo.SubnetID,
+				},
+			},
+		},
+		labels,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := clt.UpsertNode(r.Context(), server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiServer, err := ui.MakeServer(site.GetName(), server, accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiServer, nil
 }

@@ -29,6 +29,8 @@ import (
 // Lock configures locking out of a particular access vector.
 type Lock interface {
 	Resource
+	ResourceWithOrigin
+	ResourceWithLabels
 
 	// Target returns the lock's target.
 	Target() LockTarget
@@ -110,6 +112,16 @@ func (c *LockV2) GetResourceID() int64 {
 // SetResourceID sets resource ID.
 func (c *LockV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
+}
+
+// GetRevision returns the revision
+func (c *LockV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (c *LockV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // GetKind returns resource kind.
@@ -198,12 +210,53 @@ func (c *LockV2) CheckAndSetDefaults() error {
 	if c.Spec.Target.IsEmpty() {
 		return trace.BadParameter("at least one target field must be set")
 	}
+	// If the user specifies a server ID but not a node, copy the server ID to the node
+	// field. This is for backwards compatibility with previous versions of Teleport
+	// so that locking a node still works.
+	// TODO: DELETE IN 15.0.0
+	if c.Spec.Target.ServerID != "" && c.Spec.Target.Node == "" {
+		c.Spec.Target.Node = c.Spec.Target.ServerID
+	}
 	return nil
 }
 
-// IsEmpty returns true if none of the target's fields is set.
-func (t LockTarget) IsEmpty() bool {
-	return protoKnownFieldsEqual(&t, &LockTarget{})
+// Origin fetches the lock's origin, if any. Returns the empty string if no
+// origin is set.
+func (c *LockV2) Origin() string {
+	return c.Metadata.Labels[OriginLabel]
+}
+
+func (c *LockV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
+}
+
+// GetLabel fetches the given user label, with the same semantics
+// as a map read
+func (c *LockV2) GetLabel(key string) (value string, ok bool) {
+	value, ok = c.Metadata.Labels[key]
+	return
+}
+
+// GetAllLabels fetches all the user labels.
+func (c *LockV2) GetAllLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+// GetStaticLabels fetches all the user labels.
+func (c *LockV2) GetStaticLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+// SetStaticLabels sets the entire label set for the user.
+func (c *LockV2) SetStaticLabels(sl map[string]string) {
+	c.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (c *LockV2) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(c.Metadata.Labels), c.GetName())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // IntoMap returns the target attributes in the form of a map.
@@ -220,6 +273,19 @@ func (t *LockTarget) FromMap(m map[string]string) error {
 	return trace.Wrap(utils.ObjectToStruct(m, t))
 }
 
+// IsEmpty returns true if none of the target's fields is set.
+func (t LockTarget) IsEmpty() bool {
+	return t.User == "" &&
+		t.Role == "" &&
+		t.Login == "" &&
+		t.Node == "" &&
+		t.MFADevice == "" &&
+		t.WindowsDesktop == "" &&
+		t.AccessRequest == "" &&
+		t.Device == "" &&
+		t.ServerID == ""
+}
+
 // Match returns true if the lock's target is matched by this target.
 func (t LockTarget) Match(lock Lock) bool {
 	if t.IsEmpty() {
@@ -229,11 +295,17 @@ func (t LockTarget) Match(lock Lock) bool {
 	return (t.User == "" || lockTarget.User == t.User) &&
 		(t.Role == "" || lockTarget.Role == t.Role) &&
 		(t.Login == "" || lockTarget.Login == t.Login) &&
-		(t.Node == "" || lockTarget.Node == t.Node) &&
 		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
 		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
 		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
-		(t.Device == "" || lockTarget.Device == t.Device)
+		(t.Device == "" || lockTarget.Device == t.Device) &&
+		((t.Node == "" && t.ServerID == "") ||
+			// Node lock overrides ServerID lock because we want to keep backwards compatibility
+			// with previous versions of Teleport where a node lock only locked the ssh_service
+			// and not the other services running on that host.
+			// Newer versions of Teleport will lock all services based on the ServerID field.
+			(lockTarget.Node != "" && lockTarget.Node == t.Node) ||
+			(lockTarget.ServerID != "" && lockTarget.ServerID == t.ServerID))
 }
 
 // String returns string representation of the LockTarget.

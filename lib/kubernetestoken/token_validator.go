@@ -1,33 +1,42 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package kubernetestoken
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/mitchellh/mapstructure"
+	"golang.org/x/exp/slices"
+	"gopkg.in/square/go-jose.v2"
+	josejwt "gopkg.in/square/go-jose.v2/jwt"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/strings/slices"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
@@ -39,7 +48,40 @@ const (
 	kubernetesBoundTokenSupportVersion = "1.22.0"
 )
 
-type Validator struct {
+type ValidationResult struct {
+	// Raw contains the underlying information retrieved during the validation
+	// process. This lets us ensure all pertinent information is presented in
+	// audit logs.
+	Raw any `json:"raw"`
+	// Type indicates which form of validation was performed on the token.
+	Type types.KubernetesJoinType `json:"type"`
+	// Username is the Kubernetes username extracted from the identity.
+	// This will be prepended with `system:serviceaccount:` for service
+	// accounts.
+	Username string `json:"username"`
+}
+
+// JoinAuditAttributes returns a series of attributes that can be inserted into
+// audit events related to a specific join.
+func (c *ValidationResult) JoinAuditAttributes() (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &res,
+		Squash:  true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := d.Decode(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
+}
+
+// TokenReviewValidator validates a Kubernetes Service Account JWT using the
+// Kubernetes TokenRequest API endpoint.
+type TokenReviewValidator struct {
 	mu sync.Mutex
 	// client is protected by mu and should only be accessed via the getClient
 	// method.
@@ -47,7 +89,7 @@ type Validator struct {
 }
 
 // getClient allows the lazy initialisation of the Kubernetes client
-func (v *Validator) getClient() (kubernetes.Interface, error) {
+func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.client != nil {
@@ -68,7 +110,7 @@ func (v *Validator) getClient() (kubernetes.Interface, error) {
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
-func (v *Validator) Validate(ctx context.Context, token string) (*v1.UserInfo, error) {
+func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ValidationResult, error) {
 	client, err := v.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -122,7 +164,11 @@ func (v *Validator) Validate(ctx context.Context, token string) (*v1.UserInfo, e
 		)
 	}
 
-	return &reviewResult.Status.User, nil
+	return &ValidationResult{
+		Raw:      reviewResult.Status,
+		Type:     types.KubernetesJoinTypeInCluster,
+		Username: reviewResult.Status.User.Username,
+	}, nil
 }
 
 func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
@@ -137,4 +183,90 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	}
 
 	return kubeVersion.AtLeast(minKubeVersion), nil
+}
+
+type podSubClaim struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+type serviceAccountSubClaim struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+type kubernetesSubClaim struct {
+	Namespace      string                  `json:"namespace"`
+	ServiceAccount *serviceAccountSubClaim `json:"serviceaccount"`
+	Pod            *podSubClaim            `json:"pod"`
+}
+
+type serviceAccountClaims struct {
+	josejwt.Claims
+	Kubernetes *kubernetesSubClaim `json:"kubernetes.io"`
+}
+
+// ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
+// configured JWKS.
+func ValidateTokenWithJWKS(
+	now time.Time,
+	jwksData []byte,
+	clusterName string,
+	token string,
+) (*ValidationResult, error) {
+	jwt, err := josejwt.ParseSigned(token)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+
+	jwks := jose.JSONWebKeySet{}
+	if err := json.Unmarshal(jwksData, &jwks); err != nil {
+		return nil, trace.Wrap(err, "parsing provided jwks")
+	}
+
+	claims := serviceAccountClaims{}
+	if err := jwt.Claims(jwks, &claims); err != nil {
+		return nil, trace.Wrap(err, "validating jwt signature")
+	}
+
+	leeway := time.Second * 10
+	err = claims.ValidateWithLeeway(josejwt.Expected{
+		// We don't need to check the subject or other claims here.
+		// Anything related to matching the token against ProvisionToken
+		// allow rules is left to the discretion of `lib/auth`.
+		Audience: []string{
+			clusterName,
+		},
+		Time: now,
+	}, leeway)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating jwt claims")
+	}
+
+	// Ensure this is a pod-bound service account token
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+		return nil, trace.BadParameter("static_jwks joining requires the use of projected pod bound service account token")
+	}
+
+	// Ensure the token has a TTL, and that this TTL is low. This ensures that
+	// customers have correctly and securely configured the token and avoids
+	// bad practice becoming common.
+	// We recommend a configuration of 10 minutes (the kubernetes minimum), but
+	// allow up to a 30 minute TTL here.
+	if claims.Expiry == nil {
+		return nil, trace.BadParameter("static_jwks joining requires the use of a service account token with `exp`")
+	}
+	if claims.IssuedAt == nil {
+		return nil, trace.BadParameter("static_jwks joining requires the use of a service account token with `iat`")
+	}
+	maxAllowedTTL := time.Minute * 30
+	if claims.Expiry.Time().Sub(claims.IssuedAt.Time()) > maxAllowedTTL {
+		return nil, trace.BadParameter("static_jwks joining requires the use of a service account token with a TTL of less than %s", maxAllowedTTL)
+	}
+
+	return &ValidationResult{
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeStaticJWKS,
+		Username: claims.Subject,
+	}, nil
 }

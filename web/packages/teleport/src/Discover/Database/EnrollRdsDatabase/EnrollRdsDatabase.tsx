@@ -1,21 +1,23 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
-import { Box } from 'design';
+import { Box, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
@@ -30,14 +32,16 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { DatabaseEngine } from 'teleport/Discover/SelectResource';
+import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
 import { Database } from 'teleport/services/databases';
+import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
+import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 
 import { ActionButtons, Header } from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
 
-import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -93,12 +97,13 @@ export function EnrollRdsDatabase() {
   }
 
   function refreshDatabaseList() {
+    setSelectedDb(null);
     // When refreshing, start the table back at page 1.
     fetchDatabases({ ...tableData, startKey: '', items: [] });
   }
 
   async function fetchDatabases(data: TableData) {
-    const integrationName = (agentMeta as DbMeta).integrationName;
+    const integrationName = (agentMeta as DbMeta).integration.name;
 
     setTableData({ ...data, fetchStatus: 'loading' });
     setFetchDbAttempt({ status: 'processing' });
@@ -113,6 +118,13 @@ export function EnrollRdsDatabase() {
             nextToken: data.startKey,
           }
         );
+
+      // Abort if there were no rds dbs for the selected region.
+      if (fetchedRdsDbs.length <= 0) {
+        setFetchDbAttempt({ status: 'success' });
+        setTableData({ ...data, fetchStatus: 'disabled' });
+        return;
+      }
 
       // Check if fetched rds databases have a database
       // server for it, to prevent user from enrolling
@@ -183,10 +195,7 @@ export function EnrollRdsDatabase() {
         protocol: selectedDb.engine,
         uri: selectedDb.uri,
         labels: selectedDb.labels,
-        awsRds: {
-          accountId: selectedDb.accountId,
-          resourceId: selectedDb.resourceId,
-        },
+        awsRds: selectedDb,
       },
       // Corner case where if registering db fails a user can:
       //   1) change region, which will list new databases or
@@ -195,31 +204,48 @@ export function EnrollRdsDatabase() {
     );
   }
 
+  const hasIamPermError = isIamPermError(fetchDbAttempt);
+
   return (
     <Box maxWidth="800px">
       <Header>Enroll a RDS Database</Header>
-      {fetchDbAttempt.status === 'failed' && (
+      {fetchDbAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
       )}
+      <Text mt={4}>
+        Select the AWS Region you would like to see databases for:
+      </Text>
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
         onRefresh={refreshDatabaseList}
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
-        disableFetch={
-          fetchDbAttempt.status === 'processing' || tableData.items.length > 0
-        }
       />
-      <DatabaseList
-        items={tableData.items}
-        fetchStatus={tableData.fetchStatus}
-        selectedDatabase={selectedDb}
-        onSelectDatabase={setSelectedDb}
-        fetchNextPage={fetchNextPage}
-      />
+      {!hasIamPermError && tableData.currRegion && (
+        <DatabaseList
+          items={tableData.items}
+          fetchStatus={tableData.fetchStatus}
+          selectedDatabase={selectedDb}
+          onSelectDatabase={setSelectedDb}
+          fetchNextPage={fetchNextPage}
+        />
+      )}
+      {hasIamPermError && (
+        <Box mb={5}>
+          <ConfigureIamPerms
+            kind="rds"
+            region={tableData.currRegion}
+            integrationRoleArn={(agentMeta as DbMeta).integration.spec.roleArn}
+          />
+        </Box>
+      )}
       <ActionButtons
         onProceed={handleOnProceed}
-        disableProceed={fetchDbAttempt.status === 'processing' || !selectedDb}
+        disableProceed={
+          fetchDbAttempt.status === 'processing' ||
+          !selectedDb ||
+          hasIamPermError
+        }
       />
       {registerAttempt.status !== '' && (
         <CreateDatabaseDialog

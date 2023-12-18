@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package redis
 
@@ -25,17 +27,20 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/coreos/go-semver/semver"
-	"github.com/go-redis/redis/v9"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
+	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
@@ -98,11 +103,11 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	}
 
 	state := e.sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database,
-		e.sessionCtx.DatabaseUser,
-		e.sessionCtx.DatabaseName,
-	)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     e.sessionCtx.Database,
+		DatabaseUser: e.sessionCtx.DatabaseUser,
+		DatabaseName: e.sessionCtx.DatabaseName,
+	})
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
 		state,
@@ -167,6 +172,8 @@ func (e *Engine) sendToClient(vals interface{}) error {
 
 // HandleConnection is responsible for connecting to a Redis instance/cluster.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
+
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx)
 	if err != nil {
@@ -196,6 +203,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
 
 	if err := e.process(ctx, sessionCtx); err != nil {
 		return trace.Wrap(err)
@@ -239,7 +248,10 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		onConnect := e.createOnClientConnectFunc(ctx, sessionCtx, username, password)
+		onConnect, err := e.createOnClientConnectFunc(ctx, sessionCtx, username, password)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, onConnect)
 		if err != nil {
@@ -252,16 +264,16 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 
 // createOnClientConnectFunc creates a callback function that is called after a
 // successful client connection with the Redis server.
-func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *common.Session, username, password string) onClientConnectFunc {
+func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *common.Session, username, password string) (onClientConnectFunc, error) {
 	switch {
 	// If password is provided by client.
 	case password != "":
-		return authWithPasswordOnConnect(username, password)
+		return authWithPasswordOnConnect(username, password), nil
 
 	// Azure databases authenticate via access keys.
 	case sessionCtx.Database.IsAzure():
 		credFetchFn := azureAccessKeyFetchFunc(sessionCtx, e.Auth)
-		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
+		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	// If database user is one of managed users (AWS only).
 	//
@@ -271,18 +283,22 @@ func (e *Engine) createOnClientConnectFunc(ctx context.Context, sessionCtx *comm
 	// Redis is in cluster mode.
 	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
 		credFetchFn := managedUserCredFetchFunc(sessionCtx, e.Auth, e.Users)
-		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
+		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	// AWS ElastiCache has limited support for IAM authentication.
 	// See: https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
 	// So we must check that the database supports IAM auth and that the
 	// ElastiCache user has IAM auth enabled.
+	// Same applies for AWS MemoryDB.
 	case e.isAWSIAMAuthSupported(ctx, sessionCtx):
-		credFetchFn := elasticacheIAMTokenFetchFunc(sessionCtx, e.Auth)
-		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn)
+		credFetchFn, err := awsIAMTokenFetchFunc(sessionCtx, e.Auth)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	default:
-		return nil
+		return noopOnConnect, nil
 	}
 }
 
@@ -295,6 +311,9 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	defer func() {
 		// cache result to avoid API calls on each new instance connection.
 		e.awsIAMAuthSupported = &res
+		if res {
+			e.Log.Debugf("IAM Auth is enabled for user %q in database %q.", sessionCtx.DatabaseUser, sessionCtx.Database.GetName())
+		}
 	}()
 	// check if the db supports IAM auth. If we get an error, assume the db does
 	// support IAM auth. False positives just incur an extra API call.
@@ -304,9 +323,8 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	} else if !ok {
 		return false
 	}
-	awsMeta := sessionCtx.Database.GetAWS()
 	dbUser := sessionCtx.DatabaseUser
-	ok, err := checkUserIAMAuthIsEnabled(ctx, e.CloudClients, awsMeta, dbUser)
+	ok, err := checkUserIAMAuthIsEnabled(ctx, sessionCtx, e.CloudClients, dbUser)
 	if err != nil {
 		e.Log.WithError(err).Debugf("Assuming IAM auth is not enabled for user %s.",
 			dbUser)
@@ -315,28 +333,38 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	return ok
 }
 
-// checkDBSupportsIAMAuth returns whether the given database supports IAM auth.
-// AWS ElastiCache Redis supports IAM auth for redis version 7+.
+// checkDBSupportsIAMAuth returns whether the given database is an ElastiCache
+// or MemoryDB database that supports IAM auth.
+// AWS ElastiCache Redis/MemoryDB supports IAM auth for redis version 7+.
 func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
-	if !database.IsElastiCache() {
+	switch database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		return iam.CheckElastiCacheSupportsIAMAuth(database)
+	case types.DatabaseTypeMemoryDB:
+		return iam.CheckMemoryDBSupportsIAMAuth(database)
+	default:
 		return false, nil
 	}
-	version, ok := database.GetLabel("engine-version")
-	if !ok {
-		return false, trace.NotFound("database missing engine-version label")
-	}
-	v, err := semver.NewVersion(strings.TrimPrefix(version, "v"))
-	if err != nil {
-		return false, trace.Wrap(err, "failed to parse engine-version")
-	}
-	return v.Major >= 7, nil
 }
 
-// checkUserIAMAuthIsEnabled returns whether a given ElastiCache user has IAM auth
-// enabled.
-func checkUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
+// checkUserIAMAuthIsEnabled returns whether a given ElastiCache or MemoryDB
+// user has IAM auth enabled.
+func checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, clients cloud.Clients, username string) (bool, error) {
+	switch sessionCtx.Database.GetType() {
+	case types.DatabaseTypeElastiCache:
+		return checkElastiCacheUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+	case types.DatabaseTypeMemoryDB:
+		return checkMemoryDBUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+	default:
+		return false, nil
+	}
+}
+
+func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
 	client, err := clients.GetAWSElastiCacheClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta))
+		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -346,13 +374,33 @@ func checkUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMe
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
 	out, err := client.DescribeUsersWithContext(ctx, &input)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
 	authType := aws.StringValue(out.Users[0].Authentication.Type)
 	return elasticache.AuthenticationTypeIam == authType, nil
+}
+
+func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
+	client, err := clients.GetAWSMemoryDBClient(ctx, awsMeta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
+		cloud.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
+	out, err := client.DescribeUsersWithContext(ctx, &input)
+	if err != nil {
+		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
+	}
+	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
+		return false, nil
+	}
+	authType := aws.StringValue(out.Users[0].Authentication.Type)
+	return memorydb.AuthenticationTypeIam == authType, nil
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated
@@ -374,12 +422,16 @@ func (e *Engine) reconnect(username, password string) (redis.UniversalClient, er
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error {
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		msgFromClient.Inc()
 
 		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, cmd)
@@ -391,6 +443,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		msgFromServer.Inc()
 
 		// Send response back to the client.
 		if err := e.sendToClient(value); err != nil {
@@ -480,4 +534,20 @@ func isRedisError(err error) bool {
 func isTeleportErr(err error) bool {
 	_, ok := err.(trace.Error)
 	return ok
+}
+
+// driverLogger implements go-redis driver's internal logger using logrus and
+// logs everything at TRACE level.
+type driverLogger struct {
+	*logrus.Entry
+}
+
+func (l *driverLogger) Printf(_ context.Context, format string, v ...any) {
+	l.Entry.Tracef(format, v...)
+}
+
+func init() {
+	redis.SetLogger(&driverLogger{
+		Entry: logrus.WithField(trace.Component, "go-redis"),
+	})
 }

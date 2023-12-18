@@ -10,7 +10,7 @@ via ChatOps or anywhere else via our flexible Authorization Workflow API.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -18,9 +18,9 @@ via ChatOps or anywhere else via our flexible Authorization Workflow API.
 
 In this example, we will define three roles:
 
-1. `contractor`: users with this role can request elevated access to the `dba` role
-2. `dba`: this role grants access to databases
-3. `approver`: users with this role can approve requests for access to the `dba` role
+- `contractor`: users with this role can request elevated access to the `dba` role
+- `dba`: this role grants access to databases
+- `approver`: users with this role can approve requests for access to the `dba` role
 
 **Contractor Role**
 
@@ -74,7 +74,7 @@ spec:
 
 <Admonition type="warning" title="Requires Teleport Enterprise">
 Roles containing a `review_requests` rule can only be used in Teleport
-Enterprise. In OSS Teleport, Access Requests must be approved by an admin
+Enterprise. In Teleport Community Edition, Access Requests must be approved by an admin
 running `tctl` on the Auth Server.
 </Admonition>
 
@@ -153,68 +153,22 @@ to the original set of roles.
 
 ## Next Steps
 
-### Integrating with an external tool
+### Integrate with an external tool
 
 With Teleport's Access Request plugins, users can manage Access Requests from
 within your organization's existing messaging and project management solutions.
 
 (!docs/pages/includes/access-request-integrations.mdx!)
 
-### Advanced RBAC
+### Learn how to configure Access Requests
 
-Teleport roles support a number of advanced features for further configuring
-access requests. They are highlighted in the example role below.
+See the [Access Request Configuration](./access-request-configuration.mdx) guide
+for a detailed description of all the options you can configure to set up a
+just-in-time Access Request workflow for your organization.
 
-```yaml
-kind: role
-version: v5
-metadata:
-  name: employee
-spec:
-  allow:
-    request:
-      # The `roles` list can be a mixture of literal roles and
-      # wildcard matchers and/or regular expressions.
-      roles:
-        - 'common'   # the literal role named "common"
-        - 'dev-*'    # a glob - any role beginning with 'dev-'
-        - '^dev-.*$' # a regular expression (identical to the glob example above)
+### Set up Access Lists
 
-        # provides access to dev-alpha-prod, but not dev-beta-prod
-        - 'dev-{{regexp.not_match("beta")}}-prod'
+Access Lists enable you to assign privileges to groups of users for a fixed
+period of time. Learn more about Access Lists in the
+[documentation](../access-lists.mdx).
 
-      # The `claims_to_roles` mapping works the same as it does in
-      # the OIDC connector, with the added benefit that the roles being mapped to
-      # can also be matchers. the below mapping says that users with
-      # in the SSO provider's `admins` groups can request any role in the system.
-      claims_to_roles:
-        - claim: groups
-          value: admins
-          roles: ['*']
-
-      # Teleport can attach annotations to pending Access Requests. these
-      # annotations may be literals, or be variable interpolation expressions,
-      # effectively creating a means for propagating selected claims from an
-      # external identity provider to the plugin system.
-      annotations:
-        foo: ['bar']
-        groups: ['{{external.groups}}']
-  options:
-    # The `request_access` field can be set to 'always' or 'reason' to tell
-    # tsh or the web UI to always create an Access Request on login. If it is
-    # set to 'reason', the user will be required to indicate *why* they are
-    # generating the Access Request.
-    request_access: reason
-
-    # The `request_prompt` field can be used to customize the text that the
-    # user sees when they are be prompted to enter a reason for the request.
-    request_prompt: Please provide your ticket ID
-```
-
-### Using TTLs with Access Requests
-
-Users can also create Access Requests with the `tsh request create` command.
-`tsh request create` supports flags to control TTLs for the request and
-elevated access. See the [CLI
-Reference](../../reference/cli.mdx#tsh-request-create) for more
-details.

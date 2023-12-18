@@ -37,6 +37,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
@@ -191,12 +192,12 @@ func TestClient_DialCluster(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				require.NoError(t, conn.Close())
@@ -406,7 +407,7 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, 10)
 				n, err = conn.Read(out)
@@ -427,12 +428,12 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				n, err = conn.Read(out)
@@ -456,13 +457,13 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				// read data via ssh frames
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				// get the keys from our local keyring
@@ -478,7 +479,7 @@ func TestClient_DialHost(t *testing.T) {
 				out = make([]byte, len(keys[0].Blob))
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(keys[0].Blob), n)
+				require.Len(t, keys[0].Blob, n)
 				require.Equal(t, keys[0].Blob, out)
 
 				// close the stream
@@ -537,6 +538,8 @@ func newServer(t *testing.T, srv transportv1pb.TransportServiceServer) testPack 
 		}),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1000)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {

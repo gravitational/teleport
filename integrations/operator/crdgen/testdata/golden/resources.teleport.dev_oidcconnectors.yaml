@@ -87,6 +87,12 @@ spec:
               issuer_url:
                 description: IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
                 type: string
+              max_age:
+                description: MaxAge is the amount of time that user logins are valid
+                  for. If a user logs in, but then does not login again within this
+                  time period, they will be forced to re-authenticate.
+                format: duration
+                type: string
               prompt:
                 description: Prompt is an optional OIDC prompt. An empty string omits
                   prompt. If not specified, it defaults to select_account for backwards

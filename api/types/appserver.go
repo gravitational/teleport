@@ -47,6 +47,9 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
+
+	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
@@ -125,6 +128,16 @@ func (s *AppServerV3) SetResourceID(id int64) {
 	s.Metadata.ID = id
 }
 
+// GetRevision returns the revision
+func (s *AppServerV3) GetRevision() string {
+	return s.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (s *AppServerV3) SetRevision(rev string) {
+	s.Metadata.SetRevision(rev)
+}
+
 // GetMetadata returns the resource metadata.
 func (s *AppServerV3) GetMetadata() Metadata {
 	return s.Metadata
@@ -167,6 +180,9 @@ func (s *AppServerV3) SetRotation(r Rotation) {
 
 // GetApp returns the app this app server proxies.
 func (s *AppServerV3) GetApp() Application {
+	if s.Spec.App == nil {
+		return nil
+	}
 	return s.Spec.App
 }
 
@@ -290,6 +306,10 @@ func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return utils.CloneProtoMsg(s)
+}
+
+func (s *AppServerV3) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

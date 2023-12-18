@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -26,11 +28,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 )
 
 func TestLocks(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
+	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -39,29 +42,28 @@ func TestLocks(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: dynAddr.webAddr,
-			TunAddr: dynAddr.tunnelAddr,
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
 	}
 
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
 
 	t.Run("create", func(t *testing.T) {
 		err := runLockCommand(t, fileConfig, []string{"--user=bad@actor", "--message=Come see me"})
 		require.NoError(t, err)
 
-		var out []*types.LockV2
 		buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
 		require.NoError(t, err)
-		mustDecodeJSON(t, buf, &out)
+		out := mustDecodeJSON[[]*types.LockV2](t, buf)
 
 		expected, err := types.NewLock("test-lock", types.LockSpecV2{
 			Target: types.LockTarget{

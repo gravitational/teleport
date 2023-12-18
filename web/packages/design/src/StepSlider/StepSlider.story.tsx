@@ -1,33 +1,37 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
 
-import { Text, Card, ButtonPrimary, ButtonLink, Box } from 'design';
+import { Box, ButtonLink, ButtonPrimary, Text, Card } from 'design';
 
-import { StepSlider, StepComponentProps, NewFlow } from './StepSlider';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
 
 export default {
   title: 'Design/StepSlider',
 };
 
 const singleFlow = { default: [Body1, Body2] };
-export const SingleStaticFlow = () => {
+export const SingleFlowInPlaceSlider = () => {
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464}>
+    <Card my="5" mx="auto" width={464}>
       <Text typography="h3" pt={5} textAlign="center" color="text.main">
         Static Title
       </Text>
@@ -48,7 +52,7 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiCardFlow = () => {
+export const MultiFlowWheelSlider = () => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -61,21 +65,19 @@ export const MultiCardFlow = () => {
   }
 
   return (
-    <Card as="form" bg="levels.surface" mx="auto" width={464}>
-      <StepSlider<typeof multiflows>
-        flows={multiflows}
-        currFlow={flow}
-        onSwitchFlow={onSwitchFlow}
-        newFlow={newFlow}
-        changeFlow={onNewFlow}
-      />
-    </Card>
+    <StepSlider<typeof multiflows>
+      flows={multiflows}
+      currFlow={flow}
+      onSwitchFlow={onSwitchFlow}
+      newFlow={newFlow}
+      changeFlow={onNewFlow}
+    />
   );
 };
 
 function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   return (
-    <Box p="6" ref={refCallback} data-testid="multi-primary1">
+    <OnboardCard ref={refCallback} data-testid="multi-primary1">
       <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         First Step
       </Text>
@@ -104,13 +106,13 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
           Switch Secondary Flow
         </ButtonLink>
       </Box>
-    </Box>
+    </OnboardCard>
   );
 }
 
 function MainStep2({ next, prev, refCallback }: ViewProps) {
   return (
-    <Box p="6" ref={refCallback} data-testid="multi-primary2">
+    <OnboardCard ref={refCallback} data-testid="multi-primary2">
       <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Second Step
       </Text>
@@ -157,13 +159,13 @@ function MainStep2({ next, prev, refCallback }: ViewProps) {
           Go Back
         </ButtonLink>
       </Box>
-    </Box>
+    </OnboardCard>
   );
 }
 
 function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
   return (
-    <Box p="6" ref={refCallback} data-testid="multi-secondary1">
+    <OnboardCard ref={refCallback} data-testid="multi-secondary1">
       <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Some Other Flow Title
       </Text>
@@ -194,13 +196,13 @@ function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
           Switch Primary Flow
         </ButtonLink>
       </Box>
-    </Box>
+    </OnboardCard>
   );
 }
 
 function FinalStep({ prev, refCallback }: ViewProps) {
   return (
-    <Box p="6" ref={refCallback} data-testid="multi-final">
+    <OnboardCard ref={refCallback} data-testid="multi-final">
       <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Done Step
       </Text>
@@ -222,7 +224,7 @@ function FinalStep({ prev, refCallback }: ViewProps) {
           Go Back
         </ButtonLink>
       </Box>
-    </Box>
+    </OnboardCard>
   );
 }
 
@@ -233,7 +235,7 @@ function Body1({
   testProp,
 }: StepComponentProps & { testProp: string }) {
   return (
-    <Box p="6" ref={refCallback} data-testid="single-body1">
+    <Box p={6} ref={refCallback} data-testid="single-body1">
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -270,7 +272,7 @@ function Body2({
   testProp,
 }: StepComponentProps & { testProp: string }) {
   return (
-    <Box p="6" ref={refCallback} data-testid="single-body2">
+    <Box p={6} ref={refCallback} data-testid="single-body2">
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim

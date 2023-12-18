@@ -2,20 +2,22 @@
 // +build bpf,!386
 
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package restrictedsession
 
@@ -63,70 +65,68 @@ const (
 	testPort = 8888
 )
 
-var (
-	testRanges = []blockedRange{
-		{
-			ver:   4,
-			allow: "39.156.69.70/28",
-			deny:  "39.156.69.71",
-			probe: map[string]blockAction{
-				"39.156.69.64": allowed,
-				"39.156.69.79": allowed,
-				"39.156.69.71": denied,
-				"39.156.69.63": denied,
-				"39.156.69.80": denied,
-				"72.156.69.80": denied,
-			},
+var testRanges = []blockedRange{
+	{
+		ver:   4,
+		allow: "39.156.69.70/28",
+		deny:  "39.156.69.71",
+		probe: map[string]blockAction{
+			"39.156.69.64": allowed,
+			"39.156.69.79": allowed,
+			"39.156.69.71": denied,
+			"39.156.69.63": denied,
+			"39.156.69.80": denied,
+			"72.156.69.80": denied,
 		},
-		{
-			ver:   4,
-			allow: "77.88.55.88",
-			probe: map[string]blockAction{
-				"77.88.55.88": allowed,
-				"77.88.55.87": denied,
-				"77.88.55.86": denied,
-				"67.88.55.86": denied,
-			},
+	},
+	{
+		ver:   4,
+		allow: "77.88.55.88",
+		probe: map[string]blockAction{
+			"77.88.55.88": allowed,
+			"77.88.55.87": denied,
+			"77.88.55.86": denied,
+			"67.88.55.86": denied,
 		},
-		{
-			ver:   6,
-			allow: "39.156.68.48/28",
-			deny:  "39.156.68.48/31",
-			probe: map[string]blockAction{
-				"::ffff:39.156.68.48": denied,
-				"::ffff:39.156.68.49": denied,
-				"::ffff:39.156.68.50": allowed,
-				"::ffff:39.156.68.63": allowed,
-				"::ffff:39.156.68.47": denied,
-				"::ffff:39.156.68.64": denied,
-				"::ffff:72.156.68.80": denied,
-			},
+	},
+	{
+		ver:   6,
+		allow: "39.156.68.48/28",
+		deny:  "39.156.68.48/31",
+		probe: map[string]blockAction{
+			"::ffff:39.156.68.48": denied,
+			"::ffff:39.156.68.49": denied,
+			"::ffff:39.156.68.50": allowed,
+			"::ffff:39.156.68.63": allowed,
+			"::ffff:39.156.68.47": denied,
+			"::ffff:39.156.68.64": denied,
+			"::ffff:72.156.68.80": denied,
 		},
-		{
-			ver:   6,
-			allow: "fc80::/64",
-			deny:  "fc80::10/124",
-			probe: map[string]blockAction{
-				"fc80::":                    allowed,
-				"fc80::ffff:ffff:ffff:ffff": allowed,
-				"fc80::10":                  denied,
-				"fc80::1f":                  denied,
-				"fc7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff": denied,
-				"fc60:0:0:1::": denied,
-			},
+	},
+	{
+		ver:   6,
+		allow: "fc80::/64",
+		deny:  "fc80::10/124",
+		probe: map[string]blockAction{
+			"fc80::":                    allowed,
+			"fc80::ffff:ffff:ffff:ffff": allowed,
+			"fc80::10":                  denied,
+			"fc80::1f":                  denied,
+			"fc7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff": denied,
+			"fc60:0:0:1::": denied,
 		},
-		{
-			ver:   6,
-			allow: "2607:f8b0:4005:80a::200e",
-			probe: map[string]blockAction{
-				"2607:f8b0:4005:80a::200e": allowed,
-				"2607:f8b0:4005:80a::200d": denied,
-				"2607:f8b0:4005:80a::200f": denied,
-				"2607:f8b0:4005:80a::300f": denied,
-			},
+	},
+	{
+		ver:   6,
+		allow: "2607:f8b0:4005:80a::200e",
+		probe: map[string]blockAction{
+			"2607:f8b0:4005:80a::200e": allowed,
+			"2607:f8b0:4005:80a::200d": denied,
+			"2607:f8b0:4005:80a::200f": denied,
+			"2607:f8b0:4005:80a::300f": denied,
 		},
-	}
-)
+	},
+}
 
 type bpfContext struct {
 	cgroupDir        string
@@ -137,7 +137,7 @@ type bpfContext struct {
 	srcAddrs         map[int]string
 
 	// Audit events emitted by us
-	emitter             eventstest.MockEmitter
+	emitter             eventstest.MockRecorderEmitter
 	expectedAuditEvents []apievents.AuditEvent
 }
 
@@ -239,7 +239,8 @@ func (tt *bpfContext) Close(t *testing.T) {
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
 		require.NoError(t, err)
-		err = tt.enhancedRecorder.Close()
+		const restarting = false
+		err = tt.enhancedRecorder.Close(restarting)
 		require.NoError(t, err)
 	}
 

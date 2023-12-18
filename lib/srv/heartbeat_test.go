@@ -1,18 +1,20 @@
 /*
-Copyright 2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -83,11 +85,10 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 					Version: types.V3,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
-						Name:      "1",
+						Name:      "db-1",
 					},
 					Spec: types.DatabaseServerSpecV3{
-						Protocol: defaults.ProtocolPostgres,
-						URI:      "127.0.0.1:1234",
+						Database: mustCreateDatabase(t, "db-1", defaults.ProtocolPostgres, "127.0.0.1:1234"),
 						Hostname: "2",
 					},
 				}
@@ -211,6 +212,20 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	}
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 // TestHeartbeatAnnounce tests announce cycles used for proxies and auth servers
 func TestHeartbeatAnnounce(t *testing.T) {
 	t.Parallel()
@@ -257,35 +272,35 @@ func TestHeartbeatAnnounce(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateInit)
+			require.Equal(t, HeartbeatStateInit, hb.state)
 
 			// on the first run, heartbeat will move to announce state,
 			// will call announce right away
 			err = hb.fetch()
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateAnnounce)
+			require.Equal(t, HeartbeatStateAnnounce, hb.state)
 
 			err = hb.announce()
 			require.NoError(t, err)
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 1)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.AnnouncePeriod))
+			require.Equal(t, 1, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.AnnouncePeriod), hb.nextAnnounce)
 
 			// next call will not move to announce, because time is not up yet
 			err = hb.fetchAndAnnounce()
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
 
 			// advance time, and heartbeat will move to announce
 			clock.Advance(hb.AnnouncePeriod + time.Second)
 			err = hb.fetch()
 			require.NoError(t, err)
-			require.Equal(t, hb.state, HeartbeatStateAnnounce)
+			require.Equal(t, HeartbeatStateAnnounce, hb.state)
 			err = hb.announce()
 			require.NoError(t, err)
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 2)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.AnnouncePeriod))
+			require.Equal(t, 2, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.AnnouncePeriod), hb.nextAnnounce)
 
 			// in case of error, system will move to announce wait state,
 			// with next attempt scheduled on the next keep alive period
@@ -294,18 +309,18 @@ func TestHeartbeatAnnounce(t *testing.T) {
 			err = hb.fetchAndAnnounce()
 			require.Error(t, err)
 			require.True(t, trace.IsConnectionProblem(err))
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 3)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.KeepAlivePeriod))
+			require.Equal(t, 3, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.KeepAlivePeriod), hb.nextAnnounce)
 
 			// once announce is successful, next announce is set on schedule
 			announcer.err = nil
 			clock.Advance(hb.KeepAlivePeriod + time.Second)
 			err = hb.fetchAndAnnounce()
 			require.NoError(t, err)
-			require.Equal(t, announcer.upsertCalls[hb.Mode], 4)
-			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
-			require.Equal(t, hb.nextAnnounce, clock.Now().UTC().Add(hb.AnnouncePeriod))
+			require.Equal(t, 4, announcer.upsertCalls[hb.Mode])
+			require.Equal(t, HeartbeatStateAnnounceWait, hb.state)
+			require.Equal(t, clock.Now().UTC().Add(hb.AnnouncePeriod), hb.nextAnnounce)
 		})
 	}
 }
@@ -353,12 +368,12 @@ func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s types.Server) (*types.
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertProxy(s types.Server) error {
+func (f *fakeAnnouncer) UpsertProxy(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeProxy]++
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
+func (f *fakeAnnouncer) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeAuth]++
 	return f.err
 }

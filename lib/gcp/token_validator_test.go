@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package gcp
 
@@ -119,7 +121,7 @@ func (f *fakeIDP) issueToken(
 	issuer,
 	audience,
 	sub string,
-	claims ComputeEngine,
+	claims IDTokenClaims,
 	issuedAt time.Time,
 	expiry time.Time,
 ) string {
@@ -133,11 +135,7 @@ func (f *fakeIDP) issueToken(
 	}
 	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
-		Claims(IDTokenClaims{
-			Google: Google{
-				ComputeEngine: claims,
-			},
-		}).
+		Claims(claims).
 		CompactSerialize()
 	require.NoError(t, err)
 
@@ -149,17 +147,20 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	idp := newFakeIDP(t)
 	clock := clockwork.NewFakeClock()
 
-	sampleCE := ComputeEngine{
-		ProjectID:    "12345678",
-		Zone:         "z",
-		InstanceID:   "87654321",
-		InstanceName: "test-instance",
+	sampleCE := IDTokenClaims{
+		Google: Google{
+			ComputeEngine: ComputeEngine{
+				ProjectID:    "12345678",
+				Zone:         "z",
+				InstanceID:   "87654321",
+				InstanceName: "test-instance",
+			},
+		},
 	}
-
 	tests := []struct {
 		name        string
 		assertError require.ErrorAssertionFunc
-		want        ComputeEngine
+		want        IDTokenClaims
 		token       string
 	}{
 		{
@@ -175,6 +176,119 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				clock.Now().Add(5*time.Minute),
 			),
 			want: sampleCE,
+		},
+		{
+			name:        "success but without compute engine claims",
+			assertError: require.NoError,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"abcd1234",
+				IDTokenClaims{
+					Email: "tiago-1-sa-test2@project-id.iam.gserviceaccount.com",
+				},
+				clock.Now().Add(-5*time.Minute),
+				clock.Now().Add(5*time.Minute),
+			),
+			want: IDTokenClaims{
+				Email: "tiago-1-sa-test2@project-id.iam.gserviceaccount.com",
+				Google: Google{
+					ComputeEngine: ComputeEngine{
+						ProjectID: "project-id",
+					},
+				},
+			},
+		},
+		{
+			name: "default service account: @developer.gserviceaccount.com domain",
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.Contains(tt, err.Error(), "default compute engine service account")
+			},
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"abcd1234",
+				IDTokenClaims{
+					Email: "tiago-1-sa-test2@developer.gserviceaccount.com",
+				},
+				clock.Now().Add(-5*time.Minute),
+				clock.Now().Add(5*time.Minute),
+			),
+		},
+		{
+			name: "invalid service account email: gserviceaccount.com domain",
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err, i...)
+				require.Contains(tt, err.Error(), "invalid email claim")
+			},
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"abcd1234",
+				IDTokenClaims{
+					Email: "tiago-1-sa-test2@project-id.gserviceaccount.coma",
+				},
+				clock.Now().Add(-5*time.Minute),
+				clock.Now().Add(5*time.Minute),
+			),
+		},
+		{
+			name: "invalid service account email: gserviceaccount.coma domain",
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err, i...)
+				require.Contains(tt, err.Error(), "invalid email claim")
+			},
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"abcd1234",
+				IDTokenClaims{
+					Email: "tiago-1-sa-test2@project-id.iam.gserviceaccount.coma",
+				},
+				clock.Now().Add(-5*time.Minute),
+				clock.Now().Add(5*time.Minute),
+			),
+		},
+		{
+			name: "invalid service account email: google domain",
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err, i...)
+				require.Contains(tt, err.Error(), "invalid email claim")
+			},
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"abcd1234",
+				IDTokenClaims{
+					Email: "tiago-1-sa-test2@project-id.iam.google.com",
+				},
+				clock.Now().Add(-5*time.Minute),
+				clock.Now().Add(5*time.Minute),
+			),
+		},
+		{
+			name: "empty service account email",
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err, i...)
+				require.Contains(tt, err.Error(), "invalid email claim")
+			},
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"abcd1234",
+				IDTokenClaims{
+					Email: "",
+				},
+				clock.Now().Add(-5*time.Minute),
+				clock.Now().Add(5*time.Minute),
+			),
 		},
 		{
 			name:        "expired",
@@ -240,10 +354,11 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			})
 			claims, err := v.Validate(ctx, tc.token)
 			tc.assertError(t, err)
-			if err == nil {
-				require.NotNil(t, claims)
-				require.Equal(t, tc.want, claims.Google.ComputeEngine)
+			if err != nil {
+				return
 			}
+			require.NotNil(t, claims)
+			require.EqualValues(t, tc.want, *claims)
 		})
 	}
 }

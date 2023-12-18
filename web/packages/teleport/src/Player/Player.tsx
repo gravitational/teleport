@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
@@ -20,13 +22,10 @@ import styled from 'styled-components';
 import { Flex, Box } from 'design';
 
 import { Danger } from 'design/Alert';
-import ThemeProvider from 'design/ThemeProvider';
-import { darkTheme } from 'design/theme';
 
 import { useParams, useLocation } from 'teleport/components/Router';
 
 import session from 'teleport/services/websession';
-import { colors } from 'teleport/Console/colors';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
 
@@ -86,35 +85,31 @@ export default function Player() {
   }
 
   return (
-    // Force dark theme until we have light theme for player
-    <ThemeProvider theme={darkTheme}>
-      <StyledPlayer>
-        <Flex bg={colors.levels.surface} height="38px">
-          <Tabs flex="1 0">
-            <TabItem title="Session Player" />
-          </Tabs>
-          <ActionBar onLogout={onLogout} />
-        </Flex>
-        <Flex
-          bg={colors.bgTerminal}
-          flex="1"
-          style={{
-            overflow: 'auto',
-            position: 'relative',
-          }}
-        >
-          {recordingType === 'desktop' ? (
-            <DesktopPlayer
-              sid={sid}
-              clusterId={clusterId}
-              durationMs={durationMs}
-            />
-          ) : (
-            <SshPlayer sid={sid} clusterId={clusterId} />
-          )}
-        </Flex>
-      </StyledPlayer>
-    </ThemeProvider>
+    <StyledPlayer>
+      <Flex bg="levels.surface" height="38px">
+        <Tabs flex="1 0">
+          <TabItem title="Session Player" />
+        </Tabs>
+        <ActionBar onLogout={onLogout} />
+      </Flex>
+      <Flex
+        flex="1"
+        style={{
+          overflow: 'auto',
+          position: 'relative',
+        }}
+      >
+        {recordingType === 'desktop' ? (
+          <DesktopPlayer
+            sid={sid}
+            clusterId={clusterId}
+            durationMs={durationMs}
+          />
+        ) : (
+          <SshPlayer sid={sid} clusterId={clusterId} />
+        )}
+      </Flex>
+    </StyledPlayer>
   );
 }
 const StyledPlayer = styled.div`

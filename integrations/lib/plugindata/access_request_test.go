@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package plugindata
 
@@ -21,46 +25,59 @@ import (
 )
 
 var sampleAccessRequestData = AccessRequestData{
-	User:             "user-foo",
-	Roles:            []string{"role-foo", "role-bar"},
-	RequestReason:    "foo reason",
-	ReviewsCount:     3,
-	ResolutionTag:    ResolvedApproved,
-	ResolutionReason: "foo ok",
+	User:               "user-foo",
+	Roles:              []string{"role-foo", "role-bar"},
+	Resources:          []string{"cluster/node/foo", "cluster/node/bar"},
+	RequestReason:      "foo reason",
+	ReviewsCount:       3,
+	ResolutionTag:      ResolvedApproved,
+	ResolutionReason:   "foo ok",
+	SuggestedReviewers: []string{"foouser"},
 }
 
 func TestEncodeAccessRequestData(t *testing.T) {
-	dataMap := EncodeAccessRequestData(sampleAccessRequestData)
-	assert.Len(t, dataMap, 6)
+	dataMap, err := EncodeAccessRequestData(sampleAccessRequestData)
+	assert.NoError(t, err)
+	assert.Len(t, dataMap, 8)
 	assert.Equal(t, "user-foo", dataMap["user"])
 	assert.Equal(t, "role-foo,role-bar", dataMap["roles"])
+	assert.Equal(t, `["cluster/node/foo","cluster/node/bar"]`, dataMap["resources"])
 	assert.Equal(t, "foo reason", dataMap["request_reason"])
 	assert.Equal(t, "3", dataMap["reviews_count"])
 	assert.Equal(t, "APPROVED", dataMap["resolution"])
 	assert.Equal(t, "foo ok", dataMap["resolve_reason"])
+	assert.Equal(t, "[\"foouser\"]", dataMap["suggested_reviewers"])
 }
 
 func TestDecodeAccessRequestData(t *testing.T) {
-	pluginData := DecodeAccessRequestData(map[string]string{
-		"user":           "user-foo",
-		"roles":          "role-foo,role-bar",
-		"request_reason": "foo reason",
-		"reviews_count":  "3",
-		"resolution":     "APPROVED",
-		"resolve_reason": "foo ok",
+	pluginData, err := DecodeAccessRequestData(map[string]string{
+		"user":                "user-foo",
+		"roles":               "role-foo,role-bar",
+		"resources":           `["cluster/node/foo", "cluster/node/bar"]`,
+		"request_reason":      "foo reason",
+		"reviews_count":       "3",
+		"resolution":          "APPROVED",
+		"resolve_reason":      "foo ok",
+		"suggested_reviewers": "[\"foouser\"]",
 	})
+	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessRequestData, pluginData)
 }
 
 func TestEncodeEmptyAccessRequestData(t *testing.T) {
-	dataMap := EncodeAccessRequestData(AccessRequestData{})
-	assert.Len(t, dataMap, 6)
+	dataMap, err := EncodeAccessRequestData(AccessRequestData{})
+	assert.NoError(t, err)
+	assert.Len(t, dataMap, 7)
 	for key, value := range dataMap {
 		assert.Emptyf(t, value, "value at key %q must be empty", key)
 	}
 }
 
 func TestDecodeEmptyAccessRequestData(t *testing.T) {
-	assert.Empty(t, DecodeAccessRequestData(nil))
-	assert.Empty(t, DecodeAccessRequestData(make(map[string]string)))
+	decoded, err := DecodeAccessRequestData(nil)
+	assert.NoError(t, err)
+	assert.Empty(t, decoded)
+	decoded, err = DecodeAccessRequestData(make(map[string]string))
+	assert.NoError(t, err)
+	assert.Empty(t, decoded)
 }

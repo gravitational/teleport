@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -21,12 +23,17 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -35,6 +42,10 @@ type KubeCommand struct {
 
 	// format is the output format (text or yaml)
 	format string
+
+	searchKeywords string
+	predicateExpr  string
+	labels         string
 
 	// verbose sets whether full table output should be shown for labels
 	verbose bool
@@ -49,8 +60,11 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
 	c.kubeList = kube.Command("ls", "List all Kubernetes clusters registered with the cluster.")
+	c.kubeList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.kubeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.kubeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
+	c.kubeList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
+	c.kubeList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 }
 
 // TryRun attempts to run subcommands like "kube ls".
@@ -66,16 +80,29 @@ func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
-func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
-
-	kubes, err := client.GetKubernetesServers(ctx)
+func (c *KubeCommand) ListKube(ctx context.Context, clt auth.ClientI) error {
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &kubeServerCollection{servers: kubes, verbose: c.verbose}
+
+	kubes, err := client.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindKubeServer,
+		Labels:              labels,
+		PredicateExpression: c.predicateExpr,
+		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
+	})
+	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
+		return trace.Wrap(err)
+	}
+
+	coll := &kubeServerCollection{servers: kubes}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
@@ -97,6 +124,7 @@ helm repo update
 
 > helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
+  --set roles="{{.set_roles}}" \
   --set proxyAddr={{.auth_server}} \
   --set authToken={{.token}} \
   --create-namespace \

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package kubeserver
 
@@ -27,6 +29,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 var podList = corev1.PodList{
@@ -63,7 +67,7 @@ func newPod(name, namespace string) corev1.Pod {
 func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	items := []corev1.Pod{}
 
-	namespace := p.ByName("podNamespace")
+	namespace := p.ByName("namespace")
 	filter := func(pod corev1.Pod) bool {
 		return len(namespace) == 0 || namespace == pod.Namespace
 	}
@@ -85,8 +89,12 @@ func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p ht
 }
 
 func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("podNamespace")
-	name := p.ByName("podName")
+	if s.getPodError != nil {
+		s.writeResponseError(w, nil, s.getPodError)
+		return nil, nil
+	}
+	namespace := p.ByName("namespace")
+	name := p.ByName("name")
 	filter := func(pod corev1.Pod) bool {
 		return pod.Name == name && namespace == pod.Namespace
 	}
@@ -99,8 +107,8 @@ func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p http
 }
 
 func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("podNamespace")
-	name := p.ByName("podName")
+	namespace := p.ByName("namespace")
+	name := p.ByName("name")
 	deleteOpts, err := parseDeleteCollectionBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,7 +123,7 @@ func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p h
 	for _, pod := range podList.Items {
 		if filter(pod) {
 			s.mu.Lock()
-			s.deletedPods[reqID] = append(s.deletedPods[reqID], filepath.Join(namespace, name))
+			s.deletedResources[deletedResource{kind: types.KindKubePod, requestID: reqID}] = append(s.deletedResources[deletedResource{kind: types.KindKubePod, requestID: reqID}], filepath.Join(namespace, name))
 			s.mu.Unlock()
 			return pod, nil
 		}
@@ -125,8 +133,9 @@ func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p h
 
 func (s *KubeMockServer) DeletedPods(reqID string) []string {
 	s.mu.Lock()
-	deleted := make([]string, len(s.deletedPods[reqID]))
-	copy(deleted, s.deletedPods[reqID])
+	key := deletedResource{kind: types.KindKubePod, requestID: reqID}
+	deleted := make([]string, len(s.deletedResources[key]))
+	copy(deleted, s.deletedResources[key])
 	s.mu.Unlock()
 	sort.Strings(deleted)
 	return deleted

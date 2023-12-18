@@ -1,22 +1,24 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
-import { Close as CloseIcon } from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 import { space } from 'design/system';
 import { Flex, Text } from 'design';
 
@@ -33,7 +35,13 @@ export default function TabItem(props: Props) {
         </Text>
       </StyledTabButton>
       <StyledCloseButton title="Close" onClick={onClose}>
-        <CloseIcon />
+        <CloseIcon
+          size="small"
+          css={`
+            transition: none;
+            color: inherit;
+          `}
+        />
       </StyledCloseButton>
     </StyledTabItem>
   );
@@ -51,7 +59,7 @@ type Props = {
 function fromProps({ theme, active }) {
   let styles: Record<any, any> = {
     border: 'none',
-    borderRight: `1px solid ${theme.colors.bgTerminal}`,
+    borderRight: `1px solid ${theme.colors.levels.sunken}`,
     '&:hover, &:focus': {
       color: theme.colors.text.main,
       transition: 'color .3s',
@@ -61,7 +69,7 @@ function fromProps({ theme, active }) {
   if (active) {
     styles = {
       ...styles,
-      backgroundColor: theme.colors.bgTerminal,
+      backgroundColor: theme.colors.levels.sunken,
       color: theme.colors.text.main,
       fontWeight: 'bold',
       transition: 'none',
@@ -72,7 +80,7 @@ function fromProps({ theme, active }) {
 }
 
 const StyledTabItem = styled(Flex)`
-  max-width: 200px;
+  max-width: 450px;
   height: 100%;
   ${fromProps}
 `;
@@ -85,7 +93,6 @@ const StyledTabButton = styled.button`
   text-decoration: none;
   outline: none;
   margin: 0;
-  text-decoration: none;
   color: inherit;
   line-height: 32px;
   background-color: transparent;
@@ -97,6 +104,9 @@ const StyledTabButton = styled.button`
 `;
 
 const StyledCloseButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border-radius: 2px;
   border: none;
@@ -107,9 +117,12 @@ const StyledCloseButton = styled.button`
   padding: 0;
   margin: 0 8px 0 0;
   transition: all 0.3s;
+  color: ${props => props.theme.colors.text.main};
 
   &:hover {
+    color: ${props => props.theme.colors.text.primaryInverse};
     background: ${props => props.theme.colors.error.main};
   }
+
   ${space}
 `;

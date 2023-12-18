@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package server
 
@@ -27,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
@@ -80,12 +81,12 @@ func TestAzureWatcher(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		matcher services.AzureMatcher
+		matcher types.AzureMatcher
 		wantVMs []string
 	}{
 		{
 			name: "all vms",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -94,7 +95,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by resource group",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -103,7 +104,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by location",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -112,12 +113,21 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by tag",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
 			},
 			wantVMs: []string{"vm2", "vm4"},
+		},
+		{
+			name: "location wildcard",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"rg1", "rg2"},
+				Regions:        []string{types.Wildcard},
+				ResourceTags:   types.Labels{"*": []string{"*"}},
+			},
+			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
 		},
 	}
 
@@ -128,7 +138,9 @@ func TestAzureWatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
-			watcher, err := NewAzureWatcher(ctx, []services.AzureMatcher{tc.matcher}, &clients)
+			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
+				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients)
+			})
 			require.NoError(t, err)
 
 			go watcher.Run()
@@ -139,7 +151,7 @@ func TestAzureWatcher(t *testing.T) {
 			for len(vmIDs) < len(tc.wantVMs) {
 				select {
 				case results := <-watcher.InstancesC:
-					for _, vm := range results.AzureInstances.Instances {
+					for _, vm := range results.Azure.Instances {
 						vmIDs = append(vmIDs, *vm.ID)
 					}
 				case <-ctx.Done():

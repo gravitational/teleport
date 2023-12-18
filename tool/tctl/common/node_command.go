@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -25,7 +27,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -78,15 +80,15 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.config = config
 
 	// add node command
-	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	c.nodeAdd = nodes.Command("add", "Generate a node invitation token")
+	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster.")
+	c.nodeAdd = nodes.Command("add", "Generate a node invitation token.")
 	c.nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&c.roles)
 	c.nodeAdd.Flag("ttl", "Time to live for a generated token").Default(defaults.ProvisioningTokenTTL.String()).DurationVar(&c.ttl)
 	c.nodeAdd.Flag("token", "Override the default random generated token with a specified value").StringVar(&c.token)
 	c.nodeAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 	c.nodeAdd.Alias(AddNodeHelp)
 
-	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster")
+	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster.")
 	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
 	c.nodeList.Flag("format", "Output format, 'text', or 'yaml'").Default(teleport.Text).StringVar(&c.lsFormat)
 	c.nodeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
@@ -248,10 +250,10 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	coll := &serverCollection{servers: nodes, verbose: c.verbose}
+	coll := &serverCollection{servers: nodes}
 	switch c.lsFormat {
 	case teleport.Text:
-		if err := coll.writeText(os.Stdout); err != nil {
+		if err := coll.writeText(os.Stdout, c.verbose); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:

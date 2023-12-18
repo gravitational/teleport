@@ -14,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 13.0.0
+TELEPORT_VERSION ?= 14.2.3
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -117,11 +117,11 @@ check-vars:
 .PHONY: update-ami-ids-terraform
 update-ami-ids-terraform:
 	@echo -e "\nUpdating OSS Terraform image IDs"
-	go run main.go --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type oss
+	go run ./cmd/update-ami-id --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type oss
 	@echo -e "\nUpdating Enterprise Terraform image IDs"
-	go run main.go --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent
+	go run ./cmd/update-ami-id --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent
 	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
-	go run main.go --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent-fips
+	go run ./cmd/update-ami-id --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent-fips
 
 # you will need the Github 'gh' CLI installed and working to be able to use this target
 # https://github.com/cli/cli/releases/latest
@@ -136,4 +136,4 @@ create-update-pr: update-ami-ids-terraform
 	git checkout -b $(AUTO_BRANCH_NAME)
 	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"
 	git push --set-upstream origin $(AUTO_BRANCH_NAME)
-	gh pr create --fill --label automated --label terraform
+	gh pr create --fill --label=automated --label=terraform --label=no-changelog $(if $(AMI_PR_REVIEWER),--reviewer=$(AMI_PR_REVIEWER))

@@ -1,25 +1,26 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws"
@@ -64,10 +65,6 @@ type Kubernetes interface {
 
 // MarshalKubeServer marshals the KubeServer resource to JSON.
 func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]byte, error) {
-	if err := kubeServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -75,12 +72,11 @@ func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]by
 
 	switch server := kubeServer.(type) {
 	case *types.KubernetesServerV3:
-		if !cfg.PreserveResourceID {
-			copy := *server
-			copy.SetResourceID(0)
-			server = &copy
+		if err := server.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(server)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
 	default:
 		return nil, trace.BadParameter("unsupported kube server resource %T", server)
 	}
@@ -111,6 +107,9 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
@@ -121,10 +120,6 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 
 // MarshalKubeCluster marshals the KubeCluster resource to JSON.
 func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([]byte, error) {
-	if err := kubeCluster.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -132,12 +127,11 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 
 	switch cluster := kubeCluster.(type) {
 	case *types.KubernetesClusterV3:
-		if !cfg.PreserveResourceID {
-			copy := *cluster
-			copy.SetResourceID(0)
-			cluster = &copy
+		if err := cluster.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(cluster)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, cluster))
 	default:
 		return nil, trace.BadParameter("unsupported kube cluster resource %T", cluster)
 	}
@@ -168,6 +162,9 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
 		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
 		if !cfg.Expires.IsZero() {
 			s.SetExpiry(cfg.Expires)
 		}
@@ -176,32 +173,32 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 	return nil, trace.BadParameter("unsupported kube cluster resource version %q", h.Version)
 }
 
-const (
-	// labelTeleportKubeClusterName is the label key containing the kubernetes cluster name override.
-	labelTeleportKubeClusterName = types.TeleportNamespace + "/kubernetes-name"
-)
+// setAWSKubeName modifies the types.Metadata in place, overriding the first
+// part if the kube cluster override label for AWS is present, and setting the
+// kube cluster name.
+func setAWSKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setResourceName(types.AWSKubeClusterNameOverrideLabels, meta, firstNamePart, extraNameParts...)
+}
 
-// setKubeName modifies the types.Metadata argument in place, setting the kubernetes cluster name.
-// The name is calculated based on nameParts arguments which are joined by hyphens "-".
-// If the kube_cluster name override label is present (setKubeName), it will replace the *first* name part.
-func setKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	nameParts := append([]string{firstNamePart}, extraNameParts...)
+// setAzureKubeName modifies the types.Metadata in place, overriding the first
+// part if the AKS kube cluster override label is present, and setting the kube
+// cluster name.
+func setAzureKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setResourceName([]string{types.AzureKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
+}
 
-	// apply override
-	if override, found := meta.Labels[labelTeleportKubeClusterName]; found && override != "" {
-		nameParts[0] = override
-	}
-
-	meta.Name = strings.Join(nameParts, "-")
-
-	return meta
+// setGCPKubeName modifies the types.Metadata in place, overriding the first
+// part if the GKE kube cluster override label is present, and setting the kube
+// cluster name.
+func setGCPKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setResourceName([]string{types.GCPKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
 }
 
 // NewKubeClusterFromAzureAKS creates a kube_cluster resource from an AKSCluster.
 func NewKubeClusterFromAzureAKS(cluster *azure.AKSCluster) (types.KubeCluster, error) {
 	labels := labelsFromAzureKubeCluster(cluster)
 	return types.NewKubernetesClusterV3(
-		setKubeName(types.Metadata{
+		setAzureKubeName(types.Metadata{
 			Description: fmt.Sprintf("Azure AKS cluster %q in %v",
 				cluster.Name,
 				cluster.Location),
@@ -220,19 +217,18 @@ func NewKubeClusterFromAzureAKS(cluster *azure.AKSCluster) (types.KubeCluster, e
 // labelsFromAzureKubeCluster creates kube cluster labels.
 func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 	labels := azureTagsToLabels(cluster.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
-	labels[labelRegion] = cluster.Location
+	labels[types.DiscoveryLabelRegion] = cluster.Location
 
-	labels[labelResourceGroup] = cluster.GroupName
-	labels[labelSubscriptionID] = cluster.SubscriptionID
+	labels[types.DiscoveryLabelAzureResourceGroup] = cluster.GroupName
+	labels[types.DiscoveryLabelAzureSubscriptionID] = cluster.SubscriptionID
 	return labels
 }
 
 // NewKubeClusterFromGCPGKE creates a kube_cluster resource from an GKE cluster.
 func NewKubeClusterFromGCPGKE(cluster gcp.GKECluster) (types.KubeCluster, error) {
 	return types.NewKubernetesClusterV3(
-		setKubeName(types.Metadata{
+		setGCPKubeName(types.Metadata{
 			Description: getOrSetDefaultGCPDescription(cluster),
 			Labels:      labelsFromGCPKubeCluster(cluster),
 		}, cluster.Name),
@@ -258,12 +254,12 @@ func getOrSetDefaultGCPDescription(cluster gcp.GKECluster) string {
 
 // labelsFromGCPKubeCluster creates kube cluster labels.
 func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
-	labels := maps.Clone(cluster.Labels)
-	labels[types.OriginLabel] = types.OriginCloud
+	labels := make(map[string]string)
+	maps.Copy(labels, cluster.Labels)
 	labels[types.CloudLabel] = types.CloudGCP
-	labels[labelLocation] = cluster.Location
+	labels[types.DiscoveryLabelGCPLocation] = cluster.Location
 
-	labels[labelProjectID] = cluster.ProjectID
+	labels[types.DiscoveryLabelGCPProjectID] = cluster.ProjectID
 	return labels
 }
 
@@ -276,7 +272,7 @@ func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
 	labels := labelsFromAWSKubeCluster(cluster, parsedARN)
 
 	return types.NewKubernetesClusterV3(
-		setKubeName(types.Metadata{
+		setAWSKubeName(types.Metadata{
 			Description: fmt.Sprintf("AWS EKS cluster %q in %s",
 				aws.StringValue(cluster.Name),
 				parsedARN.Region),
@@ -294,11 +290,10 @@ func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
 // labelsFromAWSKubeCluster creates kube cluster labels.
 func labelsFromAWSKubeCluster(cluster *eks.Cluster, parsedARN arn.ARN) map[string]string {
 	labels := awsEKSTagsToLabels(cluster.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
-	labels[labelRegion] = parsedARN.Region
+	labels[types.DiscoveryLabelRegion] = parsedARN.Region
 
-	labels[labelAccountID] = parsedARN.AccountID
+	labels[types.DiscoveryLabelAccountID] = parsedARN.AccountID
 	return labels
 }
 
@@ -314,10 +309,3 @@ func awsEKSTagsToLabels(tags map[string]*string) map[string]string {
 	}
 	return labels
 }
-
-const (
-	// labelProjectID is the label key for GCP project ID.
-	labelProjectID = "project-id"
-	// labelLocation is the label key for GCP location.
-	labelLocation = "location"
-)

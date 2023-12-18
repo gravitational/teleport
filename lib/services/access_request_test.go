@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -30,6 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -37,6 +41,7 @@ import (
 
 // mockGetter mocks the UserAndRoleGetter interface.
 type mockGetter struct {
+	userStates  map[string]*userloginstate.UserLoginState
 	users       map[string]types.User
 	roles       map[string]types.Role
 	nodes       map[string]types.Server
@@ -50,23 +55,27 @@ type mockGetter struct {
 // user inserts a new user with the specified roles and returns the username.
 func (m *mockGetter) user(t *testing.T, roles ...string) string {
 	name := uuid.New().String()
-	user, err := types.NewUser(name)
+	uls, err := userloginstate.New(header.Metadata{
+		Name: name,
+	}, userloginstate.Spec{
+		Roles: roles,
+	})
 	require.NoError(t, err)
 
-	user.SetRoles(roles)
-	m.users[name] = user
+	m.userStates[name] = uls
 	return name
 }
 
-func (m *mockGetter) GetUser(name string, withSecrets bool) (types.User, error) {
-	if withSecrets {
-		return nil, trace.NotImplemented("mock getter does not store secrets")
-	}
-	user, ok := m.users[name]
+func (m *mockGetter) GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error) {
+	return nil, trace.NotImplemented("GetUserLoginStates is not implemented")
+}
+
+func (m *mockGetter) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	uls, ok := m.userStates[name]
 	if !ok {
-		return nil, trace.NotFound("no such user: %q", name)
+		return nil, trace.NotFound("no such user login state: %q", name)
 	}
-	return user, nil
+	return uls, nil
 }
 
 func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -75,6 +84,18 @@ func (m *mockGetter) GetRole(ctx context.Context, name string) (types.Role, erro
 		return nil, trace.NotFound("no such role: %q", name)
 	}
 	return role, nil
+}
+
+func (m *mockGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	if withSecrets {
+		return nil, trace.NotImplemented("")
+	}
+
+	user, ok := m.users[name]
+	if !ok {
+		return nil, trace.NotFound("no such user: %q", name)
+	}
+	return user, nil
 }
 
 func (m *mockGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
@@ -127,6 +148,8 @@ func (m *mockGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, e
 
 // TestReviewThresholds tests various review threshold scenarios
 func TestReviewThresholds(t *testing.T) {
+	ctx := context.Background()
+
 	// describes a collection of roles with various approval/review
 	// permissions.
 	roleDesc := map[string]types.RoleConditions{
@@ -241,15 +264,28 @@ func TestReviewThresholds(t *testing.T) {
 	}
 
 	// describes a collection of users with various roles
-	userDesc := map[string][]string{
+	ulsDesc := map[string][]string{
 		"alice": {"populist", "proletariat", "intelligentsia", "military"},
-		"bob":   {"general", "proletariat", "intelligentsia", "military"},
 		"carol": {"conqueror", "proletariat", "intelligentsia", "military"},
-		"dave":  {"populist", "general", "conqueror"},
 		"erika": {"populist", "idealist"},
 	}
 
+	userStates := make(map[string]*userloginstate.UserLoginState)
+	for name, roles := range ulsDesc {
+		uls, err := userloginstate.New(header.Metadata{
+			Name: name,
+		}, userloginstate.Spec{
+			Roles: roles,
+		})
+		require.NoError(t, err)
+		userStates[name] = uls
+	}
+
 	users := make(map[string]types.User)
+	userDesc := map[string][]string{
+		"bob":  {"general", "proletariat", "intelligentsia", "military"},
+		"dave": {"populist", "general", "conqueror"},
+	}
 
 	for name, roles := range userDesc {
 		user, err := types.NewUser(name)
@@ -260,13 +296,15 @@ func TestReviewThresholds(t *testing.T) {
 	}
 
 	g := &mockGetter{
-		roles: roles,
-		users: users,
+		roles:      roles,
+		userStates: userStates,
+		users:      users,
 	}
 
 	const (
 		approve = types.RequestState_APPROVED
 		deny    = types.RequestState_DENIED
+		promote = types.RequestState_PROMOTED
 	)
 
 	type review struct {
@@ -278,6 +316,8 @@ func TestReviewThresholds(t *testing.T) {
 		propose types.RequestState
 		// expect is the expected post-review state of the request (defaults to pending)
 		expect types.RequestState
+
+		errCheck require.ErrorAssertionFunc
 	}
 
 	tts := []struct {
@@ -314,10 +354,61 @@ func TestReviewThresholds(t *testing.T) {
 					propose: approve,
 					expect:  approve,
 				},
-				{ // adds second denial to all thresholds, no effect since a state-transition was already triggered.
+			},
+		},
+		{
+			desc:      "trying to deny an already approved request",
+			requestor: "alice", // permitted by role populist
+			reviews: []review{
+				{ // cannot review own requests
+					author:   "alice",
+					noReview: true,
+				},
+				{ // no matching allow directives
+					author:   g.user(t, "military"),
+					noReview: true,
+				},
+				{ // adds one approval to all thresholds
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
+				},
+				{ // adds one denial to all thresholds
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
+				},
+				{ // adds second approval to all thresholds, triggers "uprising".
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
 					expect:  approve,
+				},
+				{ // adds second denial but request was already approved.
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: deny,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already approved"), i...)
+					},
+				},
+			},
+		},
+		{
+			desc:      "trying to approve an already denied request",
+			requestor: "bob", // permitted by role general
+			reviews: []review{
+				{ // 1 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+				},
+				{ // 2 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+					expect:  deny,
+				},
+				{ // tries to approve but it was already denied
+					author:  g.user(t, "military"),
+					propose: approve,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already denied"), i...)
+					},
 				},
 			},
 		},
@@ -333,7 +424,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:  g.user(t, "proletariat"),
 					propose: approve,
 				},
-				{ // 1 of 2 required denials (does not triger threshold)
+				{ // 1 of 2 required denials (does not trigger a threshold)
 					author:  g.user(t, "proletariat"),
 					propose: deny,
 				},
@@ -368,7 +459,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:   g.user(t, "proletariat"),
 					noReview: true,
 				},
-				{ // 1 of 2 required denials for "coup" (does not triger threshold)
+				{ // 1 of 2 required denials for "coup" (does not trigger a threshold)
 					author:  g.user(t, "military"),
 					propose: deny,
 				},
@@ -524,59 +615,76 @@ func TestReviewThresholds(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc:      "promoted skips the threshold check",
+			requestor: "bob",
+			reviews: []review{
+				{ // status should be set to promoted despite the approval threshold not being met
+					author:  g.user(t, "intelligentsia"),
+					propose: promote,
+					expect:  promote,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tts {
-
-		if len(tt.roles) == 0 {
-			tt.roles = []string{"dictator"}
-		}
-
-		// create a request for the specified author
-		req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
-		require.NoError(t, err, "scenario=%q", tt.desc)
-
-		clock := clockwork.NewFakeClock()
-		identity := tlsca.Identity{
-			Expires: clock.Now().UTC().Add(8 * time.Hour),
-		}
-
-		// perform request validation (necessary in order to initialize internal
-		// request variables like annotations and thresholds).
-		validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
-		require.NoError(t, err, "scenario=%q", tt.desc)
-
-		require.NoError(t, validator.Validate(context.Background(), req, identity), "scenario=%q", tt.desc)
-
-	Inner:
-		for ri, rt := range tt.reviews {
-			if rt.expect.IsNone() {
-				rt.expect = types.RequestState_PENDING
+		t.Run(tt.desc, func(t *testing.T) {
+			if len(tt.roles) == 0 {
+				tt.roles = []string{"dictator"}
 			}
 
-			checker, err := NewReviewPermissionChecker(context.TODO(), g, rt.author)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+			// create a request for the specified author
+			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
+			require.NoError(t, err, "scenario=%q", tt.desc)
 
-			canReview, err := checker.CanReviewRequest(req)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
-
-			if rt.noReview {
-				require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
-				continue Inner
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			rev := types.AccessReview{
-				Author:        rt.author,
-				ProposedState: rt.propose,
+			// perform request validation (necessary in order to initialize internal
+			// request variables like annotations and thresholds).
+			validator, err := NewRequestValidator(ctx, clock, g, tt.requestor, ExpandVars(true))
+			require.NoError(t, err, "scenario=%q", tt.desc)
+
+			require.NoError(t, validator.Validate(ctx, req, identity), "scenario=%q", tt.desc)
+
+		Inner:
+			for ri, rt := range tt.reviews {
+				if rt.expect.IsNone() {
+					rt.expect = types.RequestState_PENDING
+				}
+
+				checker, err := NewReviewPermissionChecker(ctx, g, rt.author, nil)
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+
+				canReview, err := checker.CanReviewRequest(req)
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+
+				if rt.noReview {
+					require.False(t, canReview, "scenario=%q, rev=%d", tt.desc, ri)
+					continue Inner
+				}
+
+				rev := types.AccessReview{
+					Author:        rt.author,
+					ProposedState: rt.propose,
+				}
+
+				author, ok := userStates[rt.author]
+				require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
+
+				err = ApplyAccessReview(req, rev, author)
+				if rt.errCheck != nil {
+					rt.errCheck(t, err)
+					continue
+				}
+
+				require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
+				require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 			}
-
-			author, ok := users[rt.author]
-			require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
-
-			err = ApplyAccessReview(req, rev, author)
-			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
-			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
-		}
+		})
 	}
 }
 
@@ -1033,21 +1141,24 @@ func TestRolesForResourceRequest(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			user, err := types.NewUser("test-user")
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: tc.currentRoles,
+			})
 			require.NoError(t, err)
-			user.SetRoles(tc.currentRoles)
-			users := map[string]types.User{
-				user.GetName(): user,
+			userStates := map[string]*userloginstate.UserLoginState{
+				uls.GetName(): uls,
 			}
 
 			g := &mockGetter{
 				roles:       roles,
-				users:       users,
+				userStates:  userStates,
 				clusterName: "my-cluster",
 			}
 
 			req, err := types.NewAccessRequestWithResources(
-				"some-id", user.GetName(), tc.requestRoles, tc.requestResourceIDs)
+				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClock()
@@ -1055,7 +1166,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := NewRequestValidator(context.Background(), clock, g, user.GetName(), ExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), ExpandVars(true))
 			require.NoError(t, err)
 
 			err = validator.Validate(context.Background(), req, identity)
@@ -1076,6 +1187,7 @@ func TestPruneRequestRoles(t *testing.T) {
 
 	g := &mockGetter{
 		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
 		users:       make(map[string]types.User),
 		nodes:       make(map[string]types.Server),
 		kubeServers: make(map[string]types.KubeServer),
@@ -1095,6 +1207,7 @@ func TestPruneRequestRoles(t *testing.T) {
 					SearchAsRoles: []string{
 						"node-admins",
 						"node-access",
+						"node-team",
 						"kube-admins",
 						"db-admins",
 						"app-admins",
@@ -1120,6 +1233,14 @@ func TestPruneRequestRoles(t *testing.T) {
 					"owner": {"node-admins"},
 				},
 				Logins: []string{"{{internal.logins}}", "root"},
+			},
+		},
+		"node-team": {
+			// Grants root access to nodes owned by user's team via label
+			// expression.
+			Allow: types.RoleConditions{
+				NodeLabelsExpression: `contains(user.spec.traits["team"], labels["owner"])`,
+				Logins:               []string{"{{internal.logins}}", "root"},
 			},
 		},
 		"kube-admins": {
@@ -1161,9 +1282,10 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 
 	user := g.user(t, "response-team")
-	g.users[user].SetTraits(map[string][]string{
+	g.userStates[user].Spec.Traits = map[string][]string{
 		"logins": {"responder"},
-	})
+		"team":   {"response-team"},
+	}
 
 	nodeDesc := []struct {
 		name   string
@@ -1179,6 +1301,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			name: "admins-node-2",
 			labels: map[string]string{
 				"owner": "node-admins",
+			},
+		},
+		{
+			name: "responders-node",
+			labels: map[string]string{
+				"owner": "response-team",
 			},
 		},
 		{
@@ -1239,7 +1367,6 @@ func TestPruneRequestRoles(t *testing.T) {
 		desc               string
 		requestResourceIDs []types.ResourceID
 		loginHint          string
-		userTraits         map[string][]string
 		expectRoles        []string
 		expectError        bool
 	}{
@@ -1255,6 +1382,17 @@ func TestPruneRequestRoles(t *testing.T) {
 			// Without the login hint, all roles granting access will be
 			// requested.
 			expectRoles: []string{"node-admins", "node-access"},
+		},
+		{
+			desc: "label expression role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "responders-node",
+				},
+			},
+			expectRoles: []string{"node-team", "node-access"},
 		},
 		{
 			desc: "user login hint",
@@ -1404,7 +1542,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			},
 			// Request for foreign resource should request all available roles,
 			// we don't know which one is necessary
-			expectRoles: []string{"node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
+			expectRoles: []string{"node-access", "node-admins", "node-team", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
 		},
 	}
 	for _, tc := range testCases {
@@ -1501,9 +1639,12 @@ func TestRequestTTL(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Setup test user "foo" and "bar" and the mock auth server that
 			// will return users and roles.
-			user, err := types.NewUser("foo")
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "foo",
+			}, userloginstate.Spec{
+				Roles: []string{"bar"},
+			})
 			require.NoError(t, err)
-			user.SetRoles([]string{"bar"})
 
 			role, err := types.NewRole("bar", types.RoleSpecV6{
 				Options: types.RoleOptions{
@@ -1513,8 +1654,8 @@ func TestRequestTTL(t *testing.T) {
 			require.NoError(t, err)
 
 			getter := &mockGetter{
-				users: map[string]types.User{"foo": user},
-				roles: map[string]types.Role{"bar": role},
+				userStates: map[string]*userloginstate.UserLoginState{"foo": uls},
+				roles:      map[string]types.Role{"bar": role},
 			}
 
 			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", ExpandVars(true))
@@ -1578,7 +1719,6 @@ func TestSessionTTL(t *testing.T) {
 			// will return users and roles.
 			user, err := types.NewUser("foo")
 			require.NoError(t, err)
-			user.SetRoles([]string{"bar"})
 
 			role, err := types.NewRole("bar", types.RoleSpecV6{
 				Options: types.RoleOptions{
@@ -1606,6 +1746,118 @@ func TestSessionTTL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAutoRequest(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	empty, err := types.NewRole("empty", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	promptRole, err := types.NewRole("prompt", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestPrompt: "test prompt",
+		},
+	})
+	require.NoError(t, err)
+
+	optionalRole, err := types.NewRole("optional", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyOptional,
+		},
+	})
+	require.NoError(t, err)
+
+	reasonRole, err := types.NewRole("reason", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyReason,
+		},
+	})
+	require.NoError(t, err)
+
+	alwaysRole, err := types.NewRole("always", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyAlways,
+		},
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		roles     []types.Role
+		assertion func(t *testing.T, validator *RequestValidator)
+	}{
+		{
+			name: "no roles",
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with prompt",
+			roles: []types.Role{empty, optionalRole, promptRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
+			},
+		},
+		{
+			name:  "with auto request",
+			roles: []types.Role{alwaysRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with prompt and auto request",
+			roles: []types.Role{promptRole, alwaysRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
+			},
+		},
+		{
+			name:  "with reason and auto prompt",
+			roles: []types.Role{reasonRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.True(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		uls, err := userloginstate.New(header.Metadata{
+			Name: "foo",
+		}, userloginstate.Spec{})
+		require.NoError(t, err)
+
+		getter := &mockGetter{
+			userStates: make(map[string]*userloginstate.UserLoginState),
+			roles:      make(map[string]types.Role),
+		}
+
+		for _, r := range test.roles {
+			getter.roles[r.GetName()] = r
+			uls.Spec.Roles = append(uls.Spec.Roles, r.GetName())
+		}
+
+		getter.userStates[uls.GetName()] = uls
+
+		validator, err := NewRequestValidator(context.Background(), clock, getter, uls.GetName(), ExpandVars(true))
+		require.NoError(t, err)
+		test.assertion(t, &validator)
+	}
+
 }
 
 type mockClusterGetter struct {
@@ -1679,4 +1931,243 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestMaxDuration(t *testing.T) {
+	// describes a collection of roles and their conditions
+	roleDesc := roleTestSet{
+		"requestedRole": {
+			// ...
+		},
+		"requestedRole2": {
+			// ...
+		},
+		"setMaxTTLRole": {
+			options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(6 * time.Hour),
+			},
+		},
+		"defaultRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"requestedRole", "setMaxTTLRole"},
+				},
+			},
+		},
+		"defaultShortRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"requestedRole", "setMaxTTLRole"},
+				},
+			},
+		},
+		"maxDurationReqRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole", "setMaxTTLRole"},
+					MaxDuration: types.Duration(7 * day),
+				},
+			},
+		},
+		"shortMaxDurationReqRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole"},
+					MaxDuration: types.Duration(3 * day),
+				},
+			},
+		},
+		"shortMaxDurationReqRole2": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole2"},
+					MaxDuration: types.Duration(day),
+				},
+			},
+		},
+	}
+
+	// describes a collection of users with various roles
+	userDesc := map[string][]string{
+		"alice": {"shortMaxDurationReqRole"},
+		"bob":   {"defaultRole"},
+		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
+		"david": {"maxDurationReqRole"},
+	}
+
+	g := getMockGetter(t, roleDesc, userDesc)
+
+	tts := []struct {
+		// desc is a short description of the test scenario (should be unique)
+		desc string
+		// requestor is the name of the requesting user
+		requestor string
+		// the roles to be requested (defaults to "dictator")
+		roles []string
+		// maxDuration is the requested maxDuration duration
+		maxDuration time.Duration
+		// expectedAccessDuration is the expected access duration
+		expectedAccessDuration time.Duration
+		// expectedSessionTTL is the expected session TTL
+		expectedSessionTTL time.Duration
+		// DryRun is true if the request is a dry run
+		dryRun bool
+	}{
+		{
+			desc:                   "role maxDuration is respected",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            7 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "dry run allows for longer maxDuration then 7d",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            10 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+			dryRun:                 true,
+		},
+		{
+			desc:                   "maxDuration not set, default maxTTL (8h)",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration inside request is respected",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            5 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            2 * day,
+			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration can't exceed maxTTL by default",
+			requestor:              "bob",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            day,
+			expectedAccessDuration: 6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration is ignored if max_duration is not set in role",
+			requestor:              "bob",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            2 * time.Hour,
+			expectedAccessDuration: 6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
+			requestor:              "david",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            day,
+			expectedAccessDuration: day,
+			expectedSessionTTL:     6 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
+			requestor:              "david",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            2 * time.Hour,
+			expectedAccessDuration: 2 * time.Hour,
+			expectedSessionTTL:     2 * time.Hour,
+		},
+		{
+			desc:                   "only required roles are considered for maxDuration",
+			requestor:              "carol",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            5 * day,
+			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+		{
+			desc:                   "only required roles are considered for maxDuration #2",
+			requestor:              "carol",
+			roles:                  []string{"requestedRole2"},
+			maxDuration:            6 * day,
+			expectedAccessDuration: day,
+			expectedSessionTTL:     8 * time.Hour,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.NotEmpty(t, tt.roles, "at least one role must be specified")
+
+			// create a request for the specified author
+			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClock()
+			now := clock.Now().UTC()
+			identity := tlsca.Identity{
+				Expires: now.Add(8 * time.Hour),
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
+			require.NoError(t, err)
+
+			req.SetCreationTime(now)
+			req.SetMaxDuration(now.Add(tt.maxDuration))
+			req.SetDryRun(tt.dryRun)
+
+			require.NoError(t, validator.Validate(context.Background(), req, identity))
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
+			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
+		})
+	}
+}
+
+type roleTestSet map[string]struct {
+	condition types.RoleConditions
+	options   types.RoleOptions
+}
+
+func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]string) *mockGetter {
+	t.Helper()
+
+	roles := make(map[string]types.Role)
+
+	for name, desc := range roleDesc {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow:   desc.condition,
+			Options: desc.options,
+		})
+		require.NoError(t, err)
+
+		roles[name] = role
+	}
+
+	userStates := make(map[string]*userloginstate.UserLoginState)
+
+	for name, roles := range userDesc {
+		uls, err := userloginstate.New(header.Metadata{
+			Name: name,
+		}, userloginstate.Spec{
+			Roles: roles,
+		})
+		require.NoError(t, err)
+
+		userStates[name] = uls
+	}
+
+	g := &mockGetter{
+		roles:      roles,
+		userStates: userStates,
+	}
+	return g
 }

@@ -1,75 +1,146 @@
-SOAK_TEST_DURATION ?= 30m
-USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= public.ecr.aws/gravitational/teleport-ent:12.0.0
-NAMESPACE ?= loadtest
+# creates an eks cluster
+.PHONY: create-aws-cluster
+create-aws-cluster:
+	$(MAKE) -C cluster/aws create-cluster
 
-.PHONY: reserve-ips
-reserve-ips:
-	@make -C network apply
+# creates an gks cluster
+.PHONY: create-gcp-cluster
+create-gcp-cluster:
+	$(MAKE) -C cluster/gcp create-cluster
 
-# create gke cluster 
-.PHONY: create-cluster
-create-cluster:
-	@make -C ./cluster apply
-	@make -C ./cluster get-creds
+# deletes an eks cluster
+.PHONY: delete-aws-cluster
+delete-aws-cluster:
+	$(MAKE) -C cluster/aws destroy
 
-# delete gke cluster
-.PHONY: delete-cluster
-delete-cluster:
-	@make -C cluster destroy USE_CERT_MANAGER=$(USE_CERT_MANAGER)
+# deletes a gks cluster
+.PHONY: delete-gcp-cluster
+delete-gcp-cluster:
+	$(MAKE) -C cluster/gcp destroy
 
-# deploy teleport with etcd backend to loadtest namespace
-.PHONY: deploy-etcd-cluster
-deploy-etcd-cluster:
-	@make -C k8s apply BACKEND=etcd USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# cleans up all deployed resources in the cluster and
+# any resources created in the cloud provider
+.PHONY: destroy-deploy
+destroy-deploy:
+	$(MAKE) -C control-plane destroy
 
-# deploy teleport with firestore backend to loadtest namespace
-.PHONY: deploy-firestore-cluster
-deploy-firestore-cluster:
-	@make -C k8s apply BACKEND=firestore USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deploys teleport auth and proxy
+.PHONY: deploy-control-plane
+deploy-control-plane:
+	$(MAKE) -C control-plane deploy
 
-# deploy teleport with dynamo backend to loadtest namespace
-.PHONY: deploy-dynamo-cluster
-deploy-dynamo-cluster:
-	@make -C k8s apply BACKEND=dynamo USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deletes the teleport auth and proxy deployments
+.PHONY: delete-teleport
+delete-teleport:
+	$(MAKE) -C control-plane delete-teleport
 
-# delete the loadtest namespace
-.PHONY: delete-deploy
-delete-deploy:
-	@make -C k8s clean USE_CERT_MANAGER=$(USE_CERT_MANAGER)
+# deploys teleport auth and proxy to the cluster
+.PHONY: deploy-teleport
+deploy-teleport:
+	$(MAKE) -C control-plane deploy-teleport
 
-# run soak tests
-.PHONY: run-soak-tests
-run-soak-tests:
-	@make -C k8s run-soak-tests SOAK_TEST_DURATION=$(SOAK_TEST_DURATION) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 
-# run 500 node trusted cluster scaling test
-# This installs 500 trusted clusters, waits for a period of time and then
-# deletes all 500. When they are all removed from auth the process is repeated once more.
-# The test helps identify any potential memory leaks caused by remote clusters
-.PHONY: run-tc-scaling-test
-run-tc-scaling-test:
-	@make -C k8s run-tc-scaling-test TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deploys nodes and adds them to the teleport cluster
+.PHONY: deploy-nodes
+deploy-nodes: REPLICAS ?= 100
+deploy-nodes: NODES_PER_POD ?= 10
+deploy-nodes:
+	helm upgrade --install node-agents -n agents --create-namespace ./helm/node-agent/ --values ./helm/values/node-agents.yaml --set replicaCount=${REPLICAS} --set agentsPerPod=${NODES_PER_POD} --set proxyServer=${PROXY_SERVER} --set joinParams.token_name=${NODE_TOKEN}
 
-# run the 10k scaling test
-# This tests installs 10,000 IoT nodes and then removes all 10,000 nodes after a fixed period of time.
-# The process repeats once more and then the same is done for non-IoT nodes. The test helps identify any
-# potential memory leaks caused by large clusters for both non-IoT and IoT nodes.
-.PHONY: run-scaling-test
-run-scaling-test:
-	@make -C k8s run-scaling-test TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+# deletes all nodes
+.PHONY: delete-nodes
+delete-nodes:
+	helm delete -n agents node-agents
 
-# list pods in loadtest namespace
-.PHONY: pods
-pods:
-	@make -C k8s pods NAMESPACE=$(NAMESPACE)
+# creates a local teleport user
+.PHONY: create-user
+create-user: TELEPORT_USER ?= test
+create-user:
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add ${TELEPORT_USER} --roles=access,editor,auditor
 
-# get cluster credentials
-.PHONY: get-creds
-get-creds:
-	@make -C cluster get-creds
+# creates a token that can be used by nodes to join the teleport cluster
+.PHONY: create-token
+create-token: TYPE ?= node,db
+create-token:
+	kubectl --namespace teleport exec deploy/teleport-auth -- tctl tokens add --type=${TYPE} --ttl=8h
 
-# collect heap and goroutine profiles
-.PHONY: collect-profiles
-collect-profiles:
-	@make -C k8s collect-profiles PROFILE_LOCATION=$(shell pwd) NAMESPACE=$(NAMESPACE)
+# forwards the grafana web app to localhost:6060
+.PHONY: forward-grafana
+forward-grafana:
+	$(MAKE) -C control-plane forward-monitor
+
+# scales teleport auth pods up/down
+.PHONY: scale-auth
+scale-auth:
+	kubectl scale deployment/teleport-auth --replicas=$(REPLICAS) -n teleport
+
+.PHONY: create-rds-database
+create-rds-database:
+	$(MAKE) -C databases/rds apply
+
+.PHONY: deploy-database-agents
+deploy-database-agents: LOADTEST_TAG_VALUE ?= loadtest
+deploy-database-agents:
+ifndef TELEPORT_VERSION
+	@echo "TELEPORT_VERSION is required but not provided"
+	@exit 1
+endif
+ifndef DATABASE_ROLE_ARN
+	@echo "DATABASE_ROLE_ARN is required but not provided"
+	@exit 1
+endif
+
+	helm upgrade --install \
+		database-agents \
+		-n database-agents \
+		--create-namespace \
+		teleport/teleport-kube-agent \
+		--set teleportVersionOverride="${TELEPORT_VERSION}" \
+		--set highAvailability.replicaCount=${NODE_REPLICAS} \
+		--set roles=db \
+		--set proxyAddr=${PROXY_SERVER} \
+		--set authToken=${NODE_TOKEN} \
+		--set annotations.serviceAccount."eks\.amazonaws\.com/role-arn"=${DATABASE_ROLE_ARN} \
+		--set awsDatabases[0].types[0]=rdsproxy \
+		--set awsDatabases[0].regions[0]=us-east-1 \
+		--set awsDatabases[0].tags."loadtest"="${LOADTEST_TAG_VALUE}"
+
+	$(MAKE) -C control-plane enable-database-agents-monitoring
+
+# deploys pods with self-contained teleport clusters that can later be connected to the main cluster with "make join-tc"
+.PHONY: deploy-tc
+deploy-tc: REPLICAS ?= 500
+deploy-tc:
+	helm upgrade --install trusted-cluster -n tc --create-namespace ./helm/trusted-cluster --values ./helm/values/trusted-clusters.yaml --set proxy=${PROXY_SERVER} --set token=${TOKEN} --set replicaCount=${REPLICAS} --set root=${ROOT_CLUSTER}
+
+# joins all deployed leaf clusters to the root cluster
+.PHONY: join-tc
+join-tc:
+	kubectl get pod -n tc -o name --no-headers \
+    	| xargs -P 20 -n 1 -I {} kubectl -n tc exec {} -- tctl create -f /etc/teleport/tc.yaml
+
+# deletes trusted clusters
+.PHONY: delete-tc
+delete-tc:
+	helm delete -n tc trusted-cluster
+	tctl get rc | grep ' name:' | cut -d ':' -f2- | xargs -P 20 -n 1 -I {} tctl rm rc/{}
+
+# creates a bot used by the soak tests to authenticate with the cluster
+.PHONY: create-soaktest-bot
+create-soaktest-bot:
+	tctl bots add --roles=access --logins=root soaktest-bot
+
+# removes the soak test bot
+.PHONY: delete-soaktest-bot
+delete-soaktest-bot:
+	tctl bots rm soaktest-bot
+
+# deploys a job that runs a series of tsh bench ssh commands
+.PHONY: deploy-soaktest
+deploy-soaktest:
+	helm upgrade --install soaktest -n soaktest --create-namespace ./helm/soaktest --values ./helm/values/soaktest.yaml --set proxy=${PROXY_SERVER} --set token=${TOKEN} --set label=${LABEL} --set node=${NODE} --set duration=${DURATION}
+
+# terminates the soak test job
+.PHONY: delete-soaktest
+delete-soaktest:
+	helm delete -n soaktest soaktest

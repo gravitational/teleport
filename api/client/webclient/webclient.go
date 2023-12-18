@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -396,6 +397,8 @@ type AuthenticationSettings struct {
 	Github *GithubSettings `json:"github,omitempty"`
 	// PrivateKeyPolicy contains the cluster-wide private key policy.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
+	// PIVSlot specifies a specific PIV slot to use with hardware key support.
+	PIVSlot keys.PIVSlot `json:"piv_slot"`
 	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
 	// device authentication.
 	// Deprecated: Use DeviceTrust.Disabled instead.
@@ -409,6 +412,9 @@ type AuthenticationSettings struct {
 	HasMessageOfTheDay bool `json:"has_motd"`
 	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
 	LoadAllCAs bool `json:"load_all_cas,omitempty"`
+	// DefaultSessionTTL is the TTL requested for user certs if
+	// a TTL is not otherwise specified.
+	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
 }
 
 // LocalSettings holds settings for local authentication.

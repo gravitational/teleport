@@ -1,27 +1,35 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package servicecfg
 
 import (
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/dustin/go-humanize"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -30,8 +38,8 @@ type AuthConfig struct {
 	// Enabled turns auth role on or off for this process
 	Enabled bool
 
-	// EnableProxyProtocol enables proxy protocol support
-	EnableProxyProtocol bool
+	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
+	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
 	// ListenAddr is the listening address of the auth service
 	ListenAddr utils.NetAddr
@@ -105,6 +113,63 @@ type AuthConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// AssistAPIKey is the OpenAI API key.
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
+	AssistAPIKey string
+
+	// AccessMonitoring configures access monitoring.
+	AccessMonitoring *AccessMonitoringOptions
+}
+
+// AccessMonitoringOptions configures access monitoring.
+type AccessMonitoringOptions struct {
+	// EnabledString is the string representation of the Enabled field.
+	EnabledString string `yaml:"enabled"`
+	// Enabled is true if access monitoring is enabled.
+	Enabled bool `yaml:"-"`
+
+	// RoleARN is the ARN of the IAM role to assume when accessing Athena.
+	RoleARN string `yaml:"role_arn,omitempty"`
+	// RoleTags are the tags to use when assuming the IAM role.
+	RoleTags map[string]string `yaml:"role_tags,omitempty"`
+
+	// DataLimitString is the string representation of the DataLimit field.
+	DataLimitString string `yaml:"data_limit,omitempty"`
+	// DataLimit is the maximum amount of data that can be returned by a query.
+	DataLimit uint64 `yaml:"-"`
+
+	// Database is the name of the database to use.
+	Database string `yaml:"database,omitempty"`
+	// Table is the name of the table to use.
+	Table string `yaml:"table,omitempty"`
+	// Workgroup is the name of the Athena workgroup to use.
+	Workgroup string `yaml:"workgroup,omitempty"`
+	// QueryResults is the S3 bucket to use for query results.
+	QueryResults string `yaml:"query_results,omitempty"`
+	// ReportResults is the S3 bucket to use for report results.
+	ReportResults string `yaml:"report_results,omitempty"`
+}
+
+// IsAccessMonitoringEnabled returns true if access monitoring is enabled.
+func (a *AuthConfig) IsAccessMonitoringEnabled() bool {
+	return a.AccessMonitoring != nil && a.AccessMonitoring.Enabled
+}
+
+// CheckAndSetDefaults checks and sets default values for any missing fields.
+func (a *AccessMonitoringOptions) CheckAndSetDefaults() error {
+	var err error
+	if a.DataLimitString != "" {
+		if a.DataLimit, err = humanize.ParseBytes(a.DataLimitString); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if a.EnabledString != "" {
+		if a.Enabled, err = apiutils.ParseBool(a.EnabledString); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

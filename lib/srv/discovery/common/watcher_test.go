@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -60,9 +62,10 @@ func TestWatcher(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	watcher, err := NewWatcher(ctx, WatcherConfig{
-		Fetchers: []Fetcher{appFetcher, noAuthFetcher, dbFetcher},
-		Interval: time.Hour,
-		Clock:    clock,
+		FetchersFn: StaticFetchers([]Fetcher{appFetcher, noAuthFetcher, dbFetcher}),
+		Interval:   time.Hour,
+		Clock:      clock,
+		Origin:     types.OriginCloud,
 	})
 	require.NoError(t, err)
 	go watcher.Start()
@@ -74,6 +77,63 @@ func TestWatcher(t *testing.T) {
 	// Watcher should fetch again after interval.
 	clock.Advance(time.Hour + time.Minute)
 	assertFetchResources(t, watcher, wantResources)
+}
+
+func TestWatcherWithDynamicFetchers(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app1, err := types.NewAppV3(types.Metadata{Name: "app1"}, types.AppSpecV3{Cloud: types.CloudAWS})
+	require.NoError(t, err)
+	app2, err := types.NewAppV3(types.Metadata{Name: "app2"}, types.AppSpecV3{Cloud: types.CloudAWS})
+	require.NoError(t, err)
+
+	appFetcher := &mockFetcher{
+		resources:    types.ResourcesWithLabels{app1, app2},
+		resourceType: types.KindApp,
+		cloud:        types.CloudAWS,
+	}
+
+	noAuthFetcher := &mockFetcher{
+		noAuth:       true,
+		resourceType: types.KindKubeServer,
+		cloud:        types.CloudGCP,
+	}
+
+	// Start with two watchers.
+	fetchers := []Fetcher{appFetcher, noAuthFetcher}
+	fetchersFn := func() []Fetcher {
+		return fetchers
+	}
+
+	clock := clockwork.NewFakeClock()
+	watcher, err := NewWatcher(ctx, WatcherConfig{
+		FetchersFn: fetchersFn,
+		Interval:   time.Hour,
+		Clock:      clock,
+		Origin:     types.OriginCloud,
+	})
+	require.NoError(t, err)
+	go watcher.Start()
+
+	// Watcher should fetch once right away at watcher.Start.
+	assertFetchResources(t, watcher, types.ResourcesWithLabels{app1, app2})
+
+	// Add an extra fetcher during runtime.
+	db, err := types.NewDatabaseV3(types.Metadata{Name: "db"}, types.DatabaseSpecV3{Protocol: "mysql", URI: "db.mysql.database.azure.com:1234"})
+	require.NoError(t, err)
+	dbFetcher := &mockFetcher{
+		resources:    types.ResourcesWithLabels{db},
+		resourceType: types.KindDatabase,
+		cloud:        types.CloudAzure,
+	}
+	fetchers = append(fetchers, dbFetcher)
+
+	// During next iteration, the new fetcher must be used and a 3rd resource must appear.
+	clock.Advance(time.Hour + time.Minute)
+	assertFetchResources(t, watcher, types.ResourcesWithLabels{app1, app2, db})
 }
 
 func assertFetchResources(t *testing.T, watcher *Watcher, wantResources types.ResourcesWithLabels) {
@@ -101,6 +161,10 @@ func (m *mockFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error
 
 func (m *mockFetcher) ResourceType() string {
 	return m.resourceType
+}
+
+func (m *mockFetcher) FetcherType() string {
+	return "empty"
 }
 
 func (m *mockFetcher) Cloud() string {

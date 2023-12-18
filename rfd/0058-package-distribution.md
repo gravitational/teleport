@@ -40,7 +40,7 @@ While a specific solution is outside of the scope of this RFD, it is pertinent t
 To maintain backwards compatibility with our current solution we will host both the new and old repos in parallel. We will also remove the old repo from Teleport's documentation, replacing it with the new repo. This will prevent our customers from seeing a breaking change while migrating new users to the new repo.
 
 ### Research
-The current solution consists of using `reprepro` to build a new APT repo with only thet latest Teleport version. There is no channel support and while all previous releases of Teleport are stored in the APT S3 bucket, `reprepro` only lists the most recent release in the index. YUM repositories are created with the `createrepo` tool. This tool has the flexibility we require to support multiple channels, but the pipelines are not currently configured to do so.
+The current solution consists of using `reprepro` to build a new APT repo with only that latest Teleport version. There is no channel support and while all previous releases of Teleport are stored in the APT S3 bucket, `reprepro` only lists the most recent release in the index. YUM repositories are created with the `createrepo` tool. This tool has the flexibility we require to support multiple channels, but the pipelines are not currently configured to do so.
 
 Fixing the current solution without moving to a third-part hosting solution is broadly defined as replacing `reprepro` with `aptly`, and by updating the APT and RPM publishing tool's configuration in the Drone pipeline to support channels.
 

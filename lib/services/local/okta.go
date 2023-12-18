@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -28,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -91,11 +94,17 @@ func (o *OktaService) GetOktaImportRule(ctx context.Context, name string) (types
 
 // CreateOktaImportRule creates a new Okta import rule resource.
 func (o *OktaService) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	if err := validateOktaImportRuleRegexes(importRule); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return importRule, o.importRuleSvc.CreateResource(ctx, importRule)
 }
 
 // UpdateOktaImportRule updates an existing Okta import rule resource.
 func (o *OktaService) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	if err := validateOktaImportRuleRegexes(importRule); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return importRule, o.importRuleSvc.UpdateResource(ctx, importRule)
 }
 
@@ -107,6 +116,32 @@ func (o *OktaService) DeleteOktaImportRule(ctx context.Context, name string) err
 // DeleteAllOktaImportRules removes all Okta import rules.
 func (o *OktaService) DeleteAllOktaImportRules(ctx context.Context) error {
 	return o.importRuleSvc.DeleteAllResources(ctx)
+}
+
+// validateOktaImportRuleRegexes will validate all of the regexes present in an import rule.
+func validateOktaImportRuleRegexes(importRule types.OktaImportRule) error {
+	var errs []error
+	for _, mapping := range importRule.GetMappings() {
+		for _, match := range mapping.GetMatches() {
+			if ok, regexes := match.GetAppNameRegexes(); ok {
+				for _, regex := range regexes {
+					if _, err := utils.CompileExpression(regex); err != nil {
+						errs = append(errs, err)
+					}
+				}
+			}
+
+			if ok, regexes := match.GetGroupNameRegexes(); ok {
+				for _, regex := range regexes {
+					if _, err := utils.CompileExpression(regex); err != nil {
+						errs = append(errs, err)
+					}
+				}
+			}
+		}
+	}
+
+	return trace.Wrap(trace.NewAggregate(errs...), "error compiling regexes for Okta import rule %s", importRule.GetName())
 }
 
 // ListOktaAssignments returns a paginated list of all Okta assignment resources.

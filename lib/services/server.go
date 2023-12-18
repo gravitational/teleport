@@ -1,32 +1,39 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,6 +45,9 @@ const (
 	OnlyTimestampsDifferent = iota
 	// Different means that some fields are different
 	Different = iota
+
+	// defaultSSHPort is the default port for the OpenSSH Service.
+	defaultSSHPort = "22"
 )
 
 // CompareServers compares two provided servers.
@@ -113,9 +123,6 @@ func compareServers(a, b types.Server) int {
 		return Different
 	}
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
-		return Different
-	}
-	if !cmp.Equal(a.GetApps(), b.GetApps()) {
 		return Different
 	}
 
@@ -358,6 +365,9 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 	if cfg.ID != 0 {
 		s.SetResourceID(cfg.ID)
 	}
+	if cfg.Revision != "" {
+		s.SetRevision(cfg.Revision)
+	}
 	if !cfg.Expires.IsZero() {
 		s.SetExpiry(cfg.Expires)
 	}
@@ -373,10 +383,6 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 
 // MarshalServer marshals the Server resource to JSON.
 func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -384,14 +390,11 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 
 	switch server := server.(type) {
 	case *types.ServerV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *server
-			copy.SetResourceID(0)
-			server = &copy
+		if err := server.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(server)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
 	default:
 		return nil, trace.BadParameter("unrecognized server version %T", server)
 	}
@@ -407,8 +410,8 @@ func UnmarshalServers(bytes []byte) ([]types.Server, error) {
 	}
 
 	out := make([]types.Server, len(servers))
-	for i, v := range servers {
-		out[i] = types.Server(&v)
+	for i := range servers {
+		out[i] = types.Server(&servers[i])
 	}
 	return out, nil
 }
@@ -427,4 +430,46 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
 	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
+}
+
+// NewAWSNodeFromEC2Instance creates a Node resource from an EC2 Instance.
+// It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
+func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
+	labels := libaws.TagsToLabels(instance.Tags)
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	libaws.AddMetadataLabels(labels, awsCloudMetadata.AccountID, awsCloudMetadata.Region)
+
+	instanceID := aws.ToString(instance.InstanceId)
+	labels[types.AWSInstanceIDLabel] = instanceID
+
+	awsCloudMetadata.InstanceID = instanceID
+	awsCloudMetadata.VPCID = aws.ToString(instance.VpcId)
+	awsCloudMetadata.SubnetID = aws.ToString(instance.SubnetId)
+
+	if aws.ToString(instance.PrivateIpAddress) == "" {
+		return nil, trace.BadParameter("private ip address is required from ec2 instance")
+	}
+	// Address requires the Port.
+	// We use the default port for the OpenSSH daemon.
+	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), defaultSSHPort)
+
+	server, err := types.NewNode(
+		uuid.NewString(),
+		types.SubKindOpenSSHEICENode,
+		types.ServerSpecV2{
+			Hostname: aws.ToString(instance.PrivateDnsName),
+			Addr:     addr,
+			CloudMetadata: &types.CloudMetadata{
+				AWS: awsCloudMetadata,
+			},
+		},
+		labels,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server, nil
 }

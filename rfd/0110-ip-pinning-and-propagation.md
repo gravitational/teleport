@@ -1,6 +1,6 @@
 ---
 authors: Anton Miniailo (anton@goteleport.com)
-state: implmeneted (v12.2)
+state: implemented (v12.2)
 ---
 
 # RFD 0110 - TLS IP pinning and IP propagation.
@@ -376,7 +376,7 @@ MFA session certificates are supposed to be pinned to IP, but because of how it'
 As described in this [issue](https://github.com/gravitational/teleport-private/issues/156) - `lib/sshutils.Server` is vulnerable to a client spoofing its IP leveraging the Teleport-Proxy ProxyHelloSignature, since there's no protection from malicious actor providing spoofed information in there. Signed PROXY header can be used to pass client IP information to the SSH node in a secure way. After switching to new way of providing client IP, ProxyHelloSignature can be retired (though we'll also need to move propagation of tracing context out of it)
 ### Audit log changes
 
-Propagation of client IP information is not tied only to IP pinning, we generally want to have this information for audit, rate limiting, etc. We need to record correct client IP information during existing audit events and there's also need to have this information in more events, such as "Password reset", "Recovery code usage", "Changing MFA device configuration" as the described in [issue](https://github.com/gravitational/teleport/issues/12523). And for example audit event "App session start", as described in [issue](https://github.com/gravitational/teleport/issues/9536), where moving event emittion to auth server is problematic, since proxy obscures client ip from the auth server. With the proposed approach to pass correct observed client IP information through PROXYv2, this problem goes away.
+Propagation of client IP information is not tied only to IP pinning, we generally want to have this information for audit, rate limiting, etc. We need to record correct client IP information during existing audit events and there's also need to have this information in more events, such as "Password reset", "Recovery code usage", "Changing MFA device configuration" as the described in [issue](https://github.com/gravitational/teleport/issues/12523). And for example audit event "App session start", as described in [issue](https://github.com/gravitational/teleport/issues/9536), where moving event emission to auth server is problematic, since proxy obscures client ip from the auth server. With the proposed approach to pass correct observed client IP information through PROXYv2, this problem goes away.
 
 ## Summary
 Here are implementation steps of enabling of TLS IP pinning:

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package webauthn
 
@@ -31,7 +33,8 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by
@@ -50,8 +53,8 @@ type loginIdentity interface {
 // * Passwordless uses global variants
 // (services.Identity.Update/Get/DeleteGlobalWebauthnSessionData methods).
 type sessionIdentity interface {
-	Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error
-	Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error)
+	Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error
+	Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error)
 	Delete(ctx context.Context, user string, challenge string) error
 }
 
@@ -64,7 +67,7 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -134,7 +137,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if f.U2F != nil && f.U2F.AppID != "" {
 		// See https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
 		opts = append(opts, wan.WithAssertionExtensions(protocol.AuthenticationExtensions{
-			AppIDExtension: f.U2F.AppID,
+			wantypes.AppIDExtension: f.U2F.AppID,
 		}))
 	}
 
@@ -168,7 +171,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialAssertion)(assertion), nil
+	return wantypes.CredentialAssertionFromProtocol(assertion), nil
 }
 
 func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
@@ -182,7 +185,7 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
 	switch {
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
@@ -318,7 +321,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	return dev, user, nil
 }
 
-func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
+func parseCredentialResponse(resp *wantypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
 	// Do not pass extensions on to duo-labs/webauthn, they won't go past JSON
 	// unmarshal.
 	exts := resp.Extensions

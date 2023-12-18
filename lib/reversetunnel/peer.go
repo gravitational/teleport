@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -29,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -127,18 +130,18 @@ func (p *clusterPeers) GetLastConnected() time.Time {
 	return peer.GetLastConnected()
 }
 
-func (p *clusterPeers) DialAuthServer(DialParams) (net.Conn, error) {
+func (p *clusterPeers) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial to auth server, this proxy has not been discovered yet, try again later")
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (p *clusterPeers) Dial(params DialParams) (conn net.Conn, err error) {
+func (p *clusterPeers) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return p.DialTCP(params)
 }
 
-func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
+func (p *clusterPeers) DialTCP(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
 }
 
@@ -200,7 +203,7 @@ func (s *clusterPeer) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) 
 }
 
 func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
+	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) GetClient() (auth.ClientI, error) {
@@ -234,7 +237,7 @@ func (s *clusterPeer) GetLastConnected() time.Time {
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
-func (s *clusterPeer) Dial(params DialParams) (conn net.Conn, err error) {
+func (s *clusterPeer) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
 }
 

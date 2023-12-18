@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package multiplexer
 
@@ -118,7 +120,7 @@ func TestReadProxyLineV2(t *testing.T) {
 		require.Equal(t, "127.0.0.1:12345", pl.Source.String())
 		require.Equal(t, "127.0.0.2:42", pl.Destination.String())
 		require.NotNil(t, pl.TLVs)
-		require.Equal(t, 1, len(pl.TLVs))
+		require.Len(t, pl.TLVs, 1)
 		require.Equal(t, PP2TypeTeleport, pl.TLVs[0].Type)
 		require.Equal(t, []byte{0x01, 0x02, 0x03}, pl.TLVs[0].Value)
 
@@ -134,7 +136,7 @@ func TestReadProxyLineV2(t *testing.T) {
 		require.Equal(t, "127.0.0.1:12345", pl.Source.String())
 		require.Equal(t, "127.0.0.2:42", pl.Destination.String())
 		require.NotNil(t, pl.TLVs)
-		require.Equal(t, 1, len(pl.TLVs))
+		require.Len(t, pl.TLVs, 1)
 		require.Equal(t, PP2TypeTeleport, pl.TLVs[0].Type)
 		require.Equal(t, []byte{}, pl.TLVs[0].Value)
 
@@ -179,7 +181,7 @@ func TestProxyLine_Bytes(t *testing.T) {
 
 		b, err := pl.Bytes()
 		assert.NoError(t, err)
-		assert.Equal(t, 28, len(b))
+		assert.Len(t, b, 28)
 		assert.Equal(t, sampleProxyV2Line, b)
 
 		pl2, err := ReadProxyLineV2(bufio.NewReader(bytes.NewBuffer(b)))
@@ -187,7 +189,7 @@ func TestProxyLine_Bytes(t *testing.T) {
 		assert.Equal(t, TCP4, pl2.Protocol)
 		assert.Equal(t, "127.0.0.1:12345", pl2.Source.String())
 		assert.Equal(t, "127.0.0.2:42", pl2.Destination.String())
-		assert.Equal(t, 0, len(pl2.TLVs))
+		assert.Empty(t, pl2.TLVs)
 	})
 
 	t.Run("with TLV", func(t *testing.T) {
@@ -203,14 +205,14 @@ func TestProxyLine_Bytes(t *testing.T) {
 
 		b, err := pl.Bytes()
 		assert.NoError(t, err)
-		assert.Equal(t, 35, len(b))
+		assert.Len(t, b, 35)
 
 		pl2, err := ReadProxyLineV2(bufio.NewReader(bytes.NewBuffer(b)))
 		assert.NoError(t, err)
 		assert.Equal(t, TCP4, pl2.Protocol)
 		assert.Equal(t, "127.0.0.1:12345", pl2.Source.String())
 		assert.Equal(t, "127.0.0.2:42", pl2.Destination.String())
-		assert.Equal(t, 1, len(pl2.TLVs))
+		assert.Len(t, pl2.TLVs, 1)
 		assert.Equal(t, PP2TypeTeleport, pl2.TLVs[0].Type)
 		assert.Equal(t, []byte("0123"), pl2.TLVs[0].Value)
 	})
@@ -584,6 +586,16 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 			}
 		})
 	}
+}
+
+func FuzzReadProxyLineV1(f *testing.F) {
+	f.Add([]byte(sampleProxyV1Line))
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		require.NotPanics(t, func() {
+			_, _ = ReadProxyLine(bufio.NewReader(bytes.NewReader(b)))
+		})
+	})
 }
 
 func FuzzReadProxyLineV2(f *testing.F) {

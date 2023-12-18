@@ -36,10 +36,12 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	AssistService_CreateAssistantConversation_FullMethodName     = "/teleport.assist.v1.AssistService/CreateAssistantConversation"
 	AssistService_GetAssistantConversations_FullMethodName       = "/teleport.assist.v1.AssistService/GetAssistantConversations"
+	AssistService_DeleteAssistantConversation_FullMethodName     = "/teleport.assist.v1.AssistService/DeleteAssistantConversation"
 	AssistService_GetAssistantMessages_FullMethodName            = "/teleport.assist.v1.AssistService/GetAssistantMessages"
 	AssistService_CreateAssistantMessage_FullMethodName          = "/teleport.assist.v1.AssistService/CreateAssistantMessage"
 	AssistService_UpdateAssistantConversationInfo_FullMethodName = "/teleport.assist.v1.AssistService/UpdateAssistantConversationInfo"
 	AssistService_IsAssistEnabled_FullMethodName                 = "/teleport.assist.v1.AssistService/IsAssistEnabled"
+	AssistService_SearchUnifiedResources_FullMethodName          = "/teleport.assist.v1.AssistService/SearchUnifiedResources"
 )
 
 // AssistServiceClient is the client API for AssistService service.
@@ -50,6 +52,8 @@ type AssistServiceClient interface {
 	CreateAssistantConversation(ctx context.Context, in *CreateAssistantConversationRequest, opts ...grpc.CallOption) (*CreateAssistantConversationResponse, error)
 	// GetAssistantConversations returns all conversations for the connected user.
 	GetAssistantConversations(ctx context.Context, in *GetAssistantConversationsRequest, opts ...grpc.CallOption) (*GetAssistantConversationsResponse, error)
+	// DeleteAssistantConversation deletes the conversation and all messages associated with it.
+	DeleteAssistantConversation(ctx context.Context, in *DeleteAssistantConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAssistantMessages returns all messages associated with the given conversation ID.
 	GetAssistantMessages(ctx context.Context, in *GetAssistantMessagesRequest, opts ...grpc.CallOption) (*GetAssistantMessagesResponse, error)
 	// CreateAssistantMessage creates a new message in the given conversation.
@@ -58,6 +62,8 @@ type AssistServiceClient interface {
 	UpdateAssistantConversationInfo(ctx context.Context, in *UpdateAssistantConversationInfoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 	IsAssistEnabled(ctx context.Context, in *IsAssistEnabledRequest, opts ...grpc.CallOption) (*IsAssistEnabledResponse, error)
+	// SearchUnifiedResources returns a similarity-ordered list of resources from the unified resource cache.
+	SearchUnifiedResources(ctx context.Context, in *SearchUnifiedResourcesRequest, opts ...grpc.CallOption) (*SearchUnifiedResourcesResponse, error)
 }
 
 type assistServiceClient struct {
@@ -80,6 +86,15 @@ func (c *assistServiceClient) CreateAssistantConversation(ctx context.Context, i
 func (c *assistServiceClient) GetAssistantConversations(ctx context.Context, in *GetAssistantConversationsRequest, opts ...grpc.CallOption) (*GetAssistantConversationsResponse, error) {
 	out := new(GetAssistantConversationsResponse)
 	err := c.cc.Invoke(ctx, AssistService_GetAssistantConversations_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *assistServiceClient) DeleteAssistantConversation(ctx context.Context, in *DeleteAssistantConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AssistService_DeleteAssistantConversation_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +137,15 @@ func (c *assistServiceClient) IsAssistEnabled(ctx context.Context, in *IsAssistE
 	return out, nil
 }
 
+func (c *assistServiceClient) SearchUnifiedResources(ctx context.Context, in *SearchUnifiedResourcesRequest, opts ...grpc.CallOption) (*SearchUnifiedResourcesResponse, error) {
+	out := new(SearchUnifiedResourcesResponse)
+	err := c.cc.Invoke(ctx, AssistService_SearchUnifiedResources_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AssistServiceServer is the server API for AssistService service.
 // All implementations must embed UnimplementedAssistServiceServer
 // for forward compatibility
@@ -130,6 +154,8 @@ type AssistServiceServer interface {
 	CreateAssistantConversation(context.Context, *CreateAssistantConversationRequest) (*CreateAssistantConversationResponse, error)
 	// GetAssistantConversations returns all conversations for the connected user.
 	GetAssistantConversations(context.Context, *GetAssistantConversationsRequest) (*GetAssistantConversationsResponse, error)
+	// DeleteAssistantConversation deletes the conversation and all messages associated with it.
+	DeleteAssistantConversation(context.Context, *DeleteAssistantConversationRequest) (*emptypb.Empty, error)
 	// GetAssistantMessages returns all messages associated with the given conversation ID.
 	GetAssistantMessages(context.Context, *GetAssistantMessagesRequest) (*GetAssistantMessagesResponse, error)
 	// CreateAssistantMessage creates a new message in the given conversation.
@@ -138,6 +164,8 @@ type AssistServiceServer interface {
 	UpdateAssistantConversationInfo(context.Context, *UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error)
 	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 	IsAssistEnabled(context.Context, *IsAssistEnabledRequest) (*IsAssistEnabledResponse, error)
+	// SearchUnifiedResources returns a similarity-ordered list of resources from the unified resource cache.
+	SearchUnifiedResources(context.Context, *SearchUnifiedResourcesRequest) (*SearchUnifiedResourcesResponse, error)
 	mustEmbedUnimplementedAssistServiceServer()
 }
 
@@ -151,6 +179,9 @@ func (UnimplementedAssistServiceServer) CreateAssistantConversation(context.Cont
 func (UnimplementedAssistServiceServer) GetAssistantConversations(context.Context, *GetAssistantConversationsRequest) (*GetAssistantConversationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantConversations not implemented")
 }
+func (UnimplementedAssistServiceServer) DeleteAssistantConversation(context.Context, *DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAssistantConversation not implemented")
+}
 func (UnimplementedAssistServiceServer) GetAssistantMessages(context.Context, *GetAssistantMessagesRequest) (*GetAssistantMessagesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantMessages not implemented")
 }
@@ -162,6 +193,9 @@ func (UnimplementedAssistServiceServer) UpdateAssistantConversationInfo(context.
 }
 func (UnimplementedAssistServiceServer) IsAssistEnabled(context.Context, *IsAssistEnabledRequest) (*IsAssistEnabledResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsAssistEnabled not implemented")
+}
+func (UnimplementedAssistServiceServer) SearchUnifiedResources(context.Context, *SearchUnifiedResourcesRequest) (*SearchUnifiedResourcesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SearchUnifiedResources not implemented")
 }
 func (UnimplementedAssistServiceServer) mustEmbedUnimplementedAssistServiceServer() {}
 
@@ -208,6 +242,24 @@ func _AssistService_GetAssistantConversations_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AssistServiceServer).GetAssistantConversations(ctx, req.(*GetAssistantConversationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AssistService_DeleteAssistantConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAssistantConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistServiceServer).DeleteAssistantConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistService_DeleteAssistantConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistServiceServer).DeleteAssistantConversation(ctx, req.(*DeleteAssistantConversationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -284,6 +336,24 @@ func _AssistService_IsAssistEnabled_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AssistService_SearchUnifiedResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchUnifiedResourcesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistServiceServer).SearchUnifiedResources(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistService_SearchUnifiedResources_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistServiceServer).SearchUnifiedResources(ctx, req.(*SearchUnifiedResourcesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AssistService_ServiceDesc is the grpc.ServiceDesc for AssistService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -300,6 +370,10 @@ var AssistService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AssistService_GetAssistantConversations_Handler,
 		},
 		{
+			MethodName: "DeleteAssistantConversation",
+			Handler:    _AssistService_DeleteAssistantConversation_Handler,
+		},
+		{
 			MethodName: "GetAssistantMessages",
 			Handler:    _AssistService_GetAssistantMessages_Handler,
 		},
@@ -314,6 +388,103 @@ var AssistService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsAssistEnabled",
 			Handler:    _AssistService_IsAssistEnabled_Handler,
+		},
+		{
+			MethodName: "SearchUnifiedResources",
+			Handler:    _AssistService_SearchUnifiedResources_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "teleport/assist/v1/assist.proto",
+}
+
+const (
+	AssistEmbeddingService_GetAssistantEmbeddings_FullMethodName = "/teleport.assist.v1.AssistEmbeddingService/GetAssistantEmbeddings"
+)
+
+// AssistEmbeddingServiceClient is the client API for AssistEmbeddingService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AssistEmbeddingServiceClient interface {
+	// AssistantGetEmbeddings returns the embeddings for the given query.
+	GetAssistantEmbeddings(ctx context.Context, in *GetAssistantEmbeddingsRequest, opts ...grpc.CallOption) (*GetAssistantEmbeddingsResponse, error)
+}
+
+type assistEmbeddingServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAssistEmbeddingServiceClient(cc grpc.ClientConnInterface) AssistEmbeddingServiceClient {
+	return &assistEmbeddingServiceClient{cc}
+}
+
+func (c *assistEmbeddingServiceClient) GetAssistantEmbeddings(ctx context.Context, in *GetAssistantEmbeddingsRequest, opts ...grpc.CallOption) (*GetAssistantEmbeddingsResponse, error) {
+	out := new(GetAssistantEmbeddingsResponse)
+	err := c.cc.Invoke(ctx, AssistEmbeddingService_GetAssistantEmbeddings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AssistEmbeddingServiceServer is the server API for AssistEmbeddingService service.
+// All implementations must embed UnimplementedAssistEmbeddingServiceServer
+// for forward compatibility
+type AssistEmbeddingServiceServer interface {
+	// AssistantGetEmbeddings returns the embeddings for the given query.
+	GetAssistantEmbeddings(context.Context, *GetAssistantEmbeddingsRequest) (*GetAssistantEmbeddingsResponse, error)
+	mustEmbedUnimplementedAssistEmbeddingServiceServer()
+}
+
+// UnimplementedAssistEmbeddingServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedAssistEmbeddingServiceServer struct {
+}
+
+func (UnimplementedAssistEmbeddingServiceServer) GetAssistantEmbeddings(context.Context, *GetAssistantEmbeddingsRequest) (*GetAssistantEmbeddingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantEmbeddings not implemented")
+}
+func (UnimplementedAssistEmbeddingServiceServer) mustEmbedUnimplementedAssistEmbeddingServiceServer() {
+}
+
+// UnsafeAssistEmbeddingServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AssistEmbeddingServiceServer will
+// result in compilation errors.
+type UnsafeAssistEmbeddingServiceServer interface {
+	mustEmbedUnimplementedAssistEmbeddingServiceServer()
+}
+
+func RegisterAssistEmbeddingServiceServer(s grpc.ServiceRegistrar, srv AssistEmbeddingServiceServer) {
+	s.RegisterService(&AssistEmbeddingService_ServiceDesc, srv)
+}
+
+func _AssistEmbeddingService_GetAssistantEmbeddings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAssistantEmbeddingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistEmbeddingServiceServer).GetAssistantEmbeddings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistEmbeddingService_GetAssistantEmbeddings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistEmbeddingServiceServer).GetAssistantEmbeddings(ctx, req.(*GetAssistantEmbeddingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AssistEmbeddingService_ServiceDesc is the grpc.ServiceDesc for AssistEmbeddingService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AssistEmbeddingService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "teleport.assist.v1.AssistEmbeddingService",
+	HandlerType: (*AssistEmbeddingServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetAssistantEmbeddings",
+			Handler:    _AssistEmbeddingService_GetAssistantEmbeddings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

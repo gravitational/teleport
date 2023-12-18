@@ -1,0 +1,9 @@
+clusterName: test-standalone-cluster
+chartMode: standalone
+persistence:
+  enabled: true
+  storageClassName: ebs-ssd
+acme: true
+acmeEmail: test@email.com
+labels:
+  env: standalone

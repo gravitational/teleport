@@ -1,35 +1,41 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -182,6 +188,75 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	})
 }
 
+func TestDatabaseServerAutoDisconnect(t *testing.T) {
+	const (
+		user   = "bob"
+		role   = "admin"
+		dbName = "postgres"
+		dbUser = user
+	)
+
+	ctx := context.Background()
+	allowDbUsers := []string{types.Wildcard}
+	allowDbNames := []string{types.Wildcard}
+
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+
+	go testCtx.startHandlingConnections()
+	t.Cleanup(func() {
+		require.NoError(t, testCtx.Close())
+	})
+
+	const clientIdleTimeout = time.Second * 30
+
+	// create user/role with client idle timeout
+	testCtx.createUserAndRole(ctx, t, user, role, allowDbUsers, allowDbNames, withClientIdleTimeout(clientIdleTimeout))
+
+	// connect
+	pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
+	require.NoError(t, err)
+
+	// immediate query should work
+	_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+	require.NoError(t, err)
+
+	// advance clock several times, perform query.
+	// the activity should update the idle activity timer.
+	for i := 0; i < 10; i++ {
+		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
+		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+		require.NoErrorf(t, err, "failed on iteration %v", i+1)
+	}
+
+	// advance clock by full idle timeout (plus a safety margin, to allow for reads in flight to be finished), expect the client to be disconnected automatically.
+	advanceInSteps(testCtx.clock, clientIdleTimeout+time.Second*5)
+	waitForEvent(t, testCtx, events.ClientDisconnectCode)
+
+	// expect failure after timeout.
+	_, err = pgConn.Exec(ctx, "select 1").ReadAll()
+	require.Error(t, err)
+
+	require.NoError(t, pgConn.Close(ctx))
+}
+
+// advanceInSteps makes the clockwork.FakeClock behave closer to the real clock, smoothing the transition for large advances in time.
+// This works around a class of issues in the production code which expects that clock is smooth, not choppy.
+// Most testing code should NOT need to use this function.
+//
+// In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
+func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
+	step := total / 100
+	if step <= 0 {
+		step = 1
+	}
+
+	end := clock.Now().Add(total)
+	for clock.Now().Before(end) {
+		clock.Advance(step)
+		time.Sleep(time.Millisecond * 1)
+	}
+}
+
 func TestHeartbeatEvents(t *testing.T) {
 	ctx := context.Background()
 
@@ -283,7 +358,7 @@ func TestShutdown(t *testing.T) {
 			})
 
 			// Validate that the server is proxying db0 after start.
-			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
 			// Validate heartbeat is present after start.
 			server.ForceHeartbeat()
@@ -314,4 +389,155 @@ func TestShutdown(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTrackActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
+
+	numActiveConnections := 5
+	closeFuncs := []func() error{}
+
+	// Create a few connections, increasing the active connections. Keep track
+	// of the closer functions, so we can close them later.
+	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(i + 1)
+		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+		require.NoError(t, err)
+		closeFuncs = append(closeFuncs, func() error { return conn.Close(ctx) })
+		// We're also adding them to the test cleanup to ensure connections are
+		// closed even when the test fails.
+		t.Cleanup(func() { conn.Close(ctx) })
+
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
+
+	// For each connection we close, the active connections should drop too.
+	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(numActiveConnections - (i + 1))
+		require.NoError(t, closeFuncs[i]())
+
+		// Decreasing the active connection counter is one of the last things to
+		// happen when closing a connection. We might need to give it sometime
+		// to properly close the connection.
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
+}
+
+// TestShutdownWithActiveConnections given that a running database server with
+// one active connection constantly sending queries, when the server is
+// gracefully shut down, it should keep running until the client closes the
+// connection.
+func TestShutdownWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server, connErrCh, cancelConn := databaseServerWithActiveConnection(t, ctx)
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(ctx, time.Second*5)
+	defer cancelShutdown()
+	shutdownErrCh := make(chan error)
+	go func() {
+		shutdownErrCh <- server.Shutdown(shutdownCtx)
+	}()
+
+	// Shutdown doesn't return immediately. We must wait for a short period to
+	// ensure it hasn't been completed.
+	require.Never(t, func() bool {
+		select {
+		case <-shutdownErrCh:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 100*time.Millisecond, "unexpected server shutdown")
+
+	select {
+	case err := <-connErrCh:
+		require.Fail(t, "unexpected connection close", err)
+	default:
+	}
+
+	cancelConn()
+	require.NoError(t, <-connErrCh, "unexpected connection close error")
+	require.NoError(t, <-shutdownErrCh, "unexpected server shutdown error")
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
+}
+
+// TestShutdownWithActiveConnections given that a running database server with
+// one active connection constantly sending queries, when the server is
+// killed/stopped, it should drop connections and cleanup resources.
+func TestCloseWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
+
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		select {
+		case err := <-connErrCh:
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		default:
+		}
+	}, time.Second, 100*time.Millisecond)
+	require.NoError(t, server.Wait(), "unexpected server Wait error")
+}
+
+// serverWithActiveConnection starts a server with one active connection that
+// will actively make queries.
+func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Server, chan error, context.CancelFunc) {
+	t.Helper()
+
+	databaseName := "postgres"
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres(databaseName))
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"*"}, []string{"*"})
+
+	connCtx, cancelConn := context.WithCancel(ctx)
+	t.Cleanup(cancelConn)
+	connErrCh := make(chan error)
+
+	conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+	require.NoError(t, err, "failed to establish connection")
+
+	// Immediately sends a query. This ensures the connection is healthy and
+	// active.
+	_, err = conn.Exec(ctx, "select 1").ReadAll()
+	if err != nil {
+		conn.Close(ctx)
+		require.Fail(t, "failed to send initial query")
+	}
+
+	require.Equal(t, int32(1), testCtx.server.activeConnections.Load(), "expected one active connection, but got none")
+
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		defer conn.Close(ctx)
+
+		for {
+			select {
+			case <-ticker.C:
+				_, err := conn.Exec(ctx, "select 1").ReadAll()
+				if err != nil {
+					connErrCh <- err
+					return
+				}
+			case <-connCtx.Done():
+				connErrCh <- nil
+				return
+			}
+		}
+	}()
+
+	return testCtx.server, connErrCh, cancelConn
 }

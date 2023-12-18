@@ -20,20 +20,23 @@ should be split into two stages:
    ECR.
 3. Then you can open another PR which starts using the new build box image.
 
-# DynamoDB static binary docker build 
+# DynamoDB static binary docker build
 
 The static binary will be built along with all nodejs assets inside the container.
 From the root directory of the source checkout run:
+
 ```
 docker build -f build.assets/Dockerfile.dynamodb -t teleportbuilder .
 ```
 
 Then you can upload the result to an S3 bucket for release.
+
 ```
 docker run -it -e AWS_ACL=public-read -e S3_BUCKET=my-teleport-releases -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY teleportbuilder
 ```
 
-Or simply copy the binary out of the image using a volume (it will be copied to current directory/build/teleport.
+Or simply copy the binary out of the image using a volume (it will be copied to current directory/build/teleport).
+
 ```
 docker run -v $(pwd)/build:/builds -it teleportbuilder cp /gopath/src/github.com/gravitational/teleport/teleport.tgz /builds
 ```
@@ -41,11 +44,13 @@ docker run -v $(pwd)/build:/builds -it teleportbuilder cp /gopath/src/github.com
 # OS package repo migrations
 
 An OS package repo migration is semi-manually publishing specific releases to the new APT and YUM repos. This is required in several situations:
-* A customer requests that we add an older version to the repos
-* We add another OS package repo (for example APK)
-* A OS package promotion fails (for example https://drone.platform.teleport.sh/gravitational/teleport/14666/1/3), requires a PR to fix, and we don't want to cut another minor version
+
+- A customer requests that we add an older version to the repos
+- We add another OS package repo (for example APK)
+- A OS package promotion fails (for example https://drone.platform.teleport.sh/gravitational/teleport/14666/1/3), requires a PR to fix, and we don't want to cut another minor version
 
 Multiple migrations can be performed at once. To run a migration do the following:
+
 1. Clone https://github.com/gravitational/teleport.git.
 2. Change to the directory the repo was cloned to.
 3. Create a new branch from master.

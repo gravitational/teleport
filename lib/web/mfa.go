@@ -1,17 +1,19 @@
-/**
- * Copyright 2021 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package web
@@ -24,10 +26,10 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -78,7 +80,7 @@ type addMFADeviceRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
-	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
+	WebauthnRegisterResponse *wantypes.CredentialCreationResponse `json:"webauthnRegisterResponse"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 	// It mimics the proto.DeviceUsage enum.
 	// Defaults to MFA.
@@ -110,7 +112,7 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		}}
 	case req.WebauthnRegisterResponse != nil:
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthn.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			Webauthn: wantypes.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
 		}}
 	default:
 		return nil, trace.BadParameter("missing new mfa credentials")
@@ -141,7 +143,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
@@ -153,7 +155,7 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal), nil
 }
 
 type createRegisterChallengeRequest struct {
@@ -196,7 +198,17 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		return nil, trace.Wrap(err)
 	}
 
-	return client.MakeRegisterChallenge(chal), nil
+	resp := &client.MFARegisterChallenge{}
+	switch chal.GetRequest().(type) {
+	case *proto.MFARegisterChallenge_TOTP:
+		resp.TOTP = &client.TOTPRegisterChallenge{
+			QRCode: chal.GetTOTP().GetQRCode(),
+		}
+	case *proto.MFARegisterChallenge_Webauthn:
+		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
+	}
+
+	return resp, nil
 }
 
 func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
@@ -347,7 +359,7 @@ type isMfaRequiredResponse struct {
 	Required bool `json:"required"`
 }
 
-func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var httpReq *isMFARequiredRequest
 	if err := httplib.ReadJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
@@ -369,4 +381,15 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+}
+
+// makeAuthenticateChallenge converts proto to JSON format.
+func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *client.MFAAuthenticateChallenge {
+	chal := &client.MFAAuthenticateChallenge{
+		TOTPChallenge: protoChal.GetTOTP() != nil,
+	}
+	if protoChal.GetWebauthnChallenge() != nil {
+		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+	return chal
 }

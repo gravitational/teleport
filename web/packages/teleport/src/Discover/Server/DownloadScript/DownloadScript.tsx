@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { Suspense, useEffect, useState } from 'react';
@@ -43,7 +45,7 @@ import { AgentStepProps } from '../../types';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   Mark,
   ResourceKind,
   TextIcon,
@@ -56,11 +58,11 @@ const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 export default function Container(props: AgentStepProps) {
   return (
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Server)}
+      onRetry={() => clearCachedJoinTokenResult([ResourceKind.Server])}
       fallbackFn={fbProps => (
         <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
             Encountered Error: {fbProps.error.message}
           </TextIcon>
         </Template>
@@ -85,7 +87,7 @@ export default function Container(props: AgentStepProps) {
 
 export function DownloadScript(props: AgentStepProps) {
   // Fetches join token.
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Server);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Server]);
   // Starts resource querying interval.
   const { result, active } = usePingTeleport<Node>(joinToken);
 
@@ -125,8 +127,8 @@ export function DownloadScript(props: AgentStepProps) {
         </Text>
 
         <Text mb={3}>
-          - The Teleport SSH Service could not join this Teleport cluster. Check
-          the logs for errors by running <Mark>journalctl -fu teleport</Mark>.
+          - The Teleport Service could not join this Teleport cluster. Check the
+          logs for errors by running <Mark>journalctl -fu teleport</Mark>.
         </Text>
 
         <Text>
@@ -146,7 +148,7 @@ export function DownloadScript(props: AgentStepProps) {
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Restore size="medium" mr={2} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Teleport instance.
@@ -156,11 +158,9 @@ export function DownloadScript(props: AgentStepProps) {
 
   return (
     <>
-      <HeaderWithBackBtn onPrev={props.prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service.
+        Install and configure the Teleport Service.
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
@@ -170,7 +170,11 @@ export function DownloadScript(props: AgentStepProps) {
         />
       </CommandBox>
       {hint}
-      <ActionButtons onProceed={handleNextStep} disableProceed={!result} />
+      <ActionButtons
+        onProceed={handleNextStep}
+        disableProceed={!result}
+        onPrev={props.prevStep}
+      />
     </>
   );
 }
@@ -186,16 +190,18 @@ const Template = ({
 }) => {
   return (
     <>
-      <HeaderWithBackBtn onPrev={prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service.
+        Install and configure the Teleport Service.
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
       <CommandBox>{children}</CommandBox>
-      <ActionButtons onProceed={nextStep} disableProceed={true} />
+      <ActionButtons
+        onProceed={nextStep}
+        disableProceed={true}
+        onPrev={prevStep}
+      />
     </>
   );
 };

@@ -1,36 +1,48 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { unique } from 'teleterm/ui/utils/uid';
-import { DocumentUri, ServerUri, paths, routing } from 'teleterm/ui/uri';
+import * as uri from 'teleterm/ui/uri';
+import {
+  DocumentUri,
+  ServerUri,
+  paths,
+  routing,
+  RootClusterUri,
+  KubeUri,
+} from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
-  CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
-  CreateNewTerminalOpts,
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentCluster,
+  DocumentConnectMyComputer,
   DocumentGateway,
+  DocumentGatewayKube,
+  DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
+  DocumentClusterQueryParams,
 } from './types';
 
 export class DocumentsService {
@@ -67,7 +79,10 @@ export class DocumentsService {
     };
   }
 
-  createClusterDocument(opts: CreateClusterDocumentOpts): DocumentCluster {
+  createClusterDocument(opts: {
+    clusterUri: uri.ClusterUri;
+    queryParams?: DocumentClusterQueryParams;
+  }): DocumentCluster {
     const uri = routing.getDocUri({ docId: unique() });
     const clusterName = routing.parseClusterName(opts.clusterUri);
     return {
@@ -75,9 +90,14 @@ export class DocumentsService {
       clusterUri: opts.clusterUri,
       title: clusterName,
       kind: 'doc.cluster',
+      queryParams: opts.queryParams || getDefaultDocumentClusterQueryParams(),
     };
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
   createTshKubeDocument(
     options: CreateTshKubeDocumentOptions
   ): DocumentTshKube {
@@ -153,11 +173,84 @@ export class DocumentsService {
     };
   }
 
-  openNewTerminal(opts: CreateNewTerminalOpts) {
+  createGatewayCliDocument({
+    title,
+    targetUri,
+    targetUser,
+    targetName,
+    targetProtocol,
+  }: Pick<
+    DocumentGatewayCliClient,
+    'title' | 'targetUri' | 'targetUser' | 'targetName' | 'targetProtocol'
+  >): DocumentGatewayCliClient {
+    const clusterUri = routing.ensureClusterUri(targetUri);
+    const { rootClusterId, leafClusterId } =
+      routing.parseClusterUri(clusterUri).params;
+
+    return {
+      kind: 'doc.gateway_cli_client',
+      uri: routing.getDocUri({ docId: unique() }),
+      title,
+      status: 'connecting',
+      rootClusterId,
+      leafClusterId,
+      targetUri,
+      targetUser,
+      targetName,
+      targetProtocol,
+    };
+  }
+
+  createGatewayKubeDocument({
+    targetUri,
+    origin,
+  }: {
+    targetUri: KubeUri;
+    origin: DocumentOrigin;
+  }): DocumentGatewayKube {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      title: `${params.kubeId}`,
+      origin,
+    };
+  }
+
+  openConnectMyComputerDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): void {
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer');
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const doc: DocumentConnectMyComputer = {
+      uri: routing.getDocUri({ docId: unique() }),
+      kind: 'doc.connect_my_computer' as const,
+      title: 'Connect My Computer',
+      rootClusterUri: opts.rootClusterUri,
+      status: '',
+    };
+    this.add(doc);
+    this.open(doc.uri);
+  }
+
+  openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
 
       if (activeDocument && activeDocument.kind == 'doc.terminal_shell') {
+        // Copy activeDocument to use the same cwd in the new doc.
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),
@@ -183,6 +276,10 @@ export class DocumentsService {
 
   getDocument(uri: string) {
     return this.getState().documents.find(i => i.uri === uri);
+  }
+
+  findFirstOfKind(documentKind: Document['kind']): Document | undefined {
+    return this.getState().documents.find(d => d.kind === documentKind);
   }
 
   getActive() {
@@ -234,7 +331,10 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, { exact: true, path: uri });
+    return !!routing.parseUri(location, {
+      exact: true,
+      path: uri,
+    });
   }
 
   add(doc: Document, position?: number) {
@@ -247,11 +347,35 @@ export class DocumentsService {
     });
   }
 
-  update(uri: string, partialDoc: Partial<Document>) {
+  /**
+   * Updates the document by URI.
+   * @param uri - document URI.
+   * @param updated - a new document object or an update function.
+   */
+  update(
+    uri: DocumentUri,
+    updated: Partial<Document> | ((draft: Document) => void)
+  ) {
     this.setState(draft => {
       const toUpdate = draft.documents.find(doc => doc.uri === uri);
-      Object.assign(toUpdate, partialDoc);
+      if (typeof updated === 'function') {
+        updated(toUpdate);
+      } else {
+        Object.assign(toUpdate, updated);
+      }
     });
+  }
+
+  replace(uri: DocumentUri, document: Document): void {
+    const documentToCloseIndex = this.getDocuments().findIndex(
+      doc => doc.uri === uri
+    );
+    const documentToClose = this.getDocuments().at(documentToCloseIndex);
+    if (documentToClose) {
+      this.close(documentToClose.uri);
+    }
+    this.add(document, documentToClose ? documentToCloseIndex : undefined);
+    this.open(document.uri);
   }
 
   filter(uri: string) {
@@ -310,4 +434,13 @@ export class DocumentsService {
       draft.documents.splice(newIndex, 0, doc);
     });
   }
+}
+
+export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {
+  return {
+    resourceKinds: [],
+    search: '',
+    sort: { fieldName: 'name', dir: 'ASC' },
+    advancedSearchEnabled: false,
+  };
 }

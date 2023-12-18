@@ -1,6 +1,0 @@
-ARG BUILDBOX_VERSION
-FROM public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
-
-RUN apt-get -y update && \
-    apt-get -y install gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu && \
-    apt-get -y autoclean && apt-get -y clean

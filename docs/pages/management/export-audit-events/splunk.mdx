@@ -16,7 +16,9 @@ visualization and alerting.
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
 
 - Splunk Cloud Platform or Splunk Enterprise v9.0.1 or above.
 
@@ -69,61 +71,23 @@ We'll re-purpose the files generated for Fluentd in our Universal Forwarder conf
 
 ### Enable impersonation of the Teleport Event Handler plugin user
 
-In order for the Teleport Event Handler plugin to forward events from your
-Teleport cluster, it needs signed credentials from the cluster's certificate
-authority.
-
-The `teleport-event-handler` user cannot request this itself, and requires
-another user to **impersonate** this account in order to request credentials. We
-will show you how to enable impersonation for your Teleport user so you can
-retrieve credentials for the Teleport Event Handler.
-
-Create a role that enables your user to impersonate the `teleport-event-handler`
-user. First, paste the following YAML document into a file called
-`teleport-event-handler-impersonator.yaml`:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: teleport-event-handler-impersonator
-spec:
-  options:
-    # max_session_ttl defines the TTL (time to live) of SSH certificates
-    # issued to the users with this role.
-    max_session_ttl: 10h
-
-  # This section declares a list of resource/verb combinations that are
-  # allowed for the users of this role. By default nothing is allowed.
-  allow:
-    impersonate:
-      users: ["teleport-event-handler"]
-      roles: ["teleport-event-handler"]
-```
-
-Next, create the role:
-
-```code
-$ tctl create -f teleport-event-handler-impersonator.yaml
-```
-
-(!docs/pages/includes/add-role-to-user.mdx role="teleport-event-handler-impersonator"!)
-
-Log out of your Teleport cluster and log in again to assume the new role.
+(!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
 
 ### Export the plugin identity
 
-(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
+Give the plugin access to a Teleport identity file. We recommend using Machine
+ID for this in order to produce short-lived identity files that are less
+dangerous if exfiltrated, though in demo deployments, you can generate
+longer-lived identity files with `tctl`:
 
-Move the credentials you generated to the host where you are running the
-Teleport Event Handler plugin.
-
-<Notice type="warning">
-
-Once the Teleport Event Handler's certificate expires, you will need to renew it
-by running the `tctl auth sign` command again.
-
-</Notice>
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler" secret="teleport-event-handler-identity"!)
+</TabItem>
+</Tabs>
 
 ## Step 2/4. Configure the Universal Forwarder
 
@@ -333,28 +297,12 @@ and forward them to Splunk, you will ensure that the Teleport Event Handler
 plugin is configured to authenticate to the Universal Forwarder and your
 Teleport cluster, then run the Teleport Event Handler.
 
-### Complete the Teleport Event Handler configuration
+### Configure the Teleport Event Handler
 
-Earlier, we generated a file called `teleport-event-handler.toml` to configure
-the Teleport Event Handler plugin. This file includes settings similar to the
-following:
+In this section, you will configure the Teleport Event Handler for your
+environment.
 
-```toml
-storage = "./storage"
-timeout = "10s"
-batch = 20
-namespace = "default"
-
-[forward.fluentd]
-ca = "/home/ca.crt"
-cert = "/home/client.crt"
-key = "/home/client.key"
-url = "https://localhost:9061/test.log"
-
-[teleport]
-addr = "example.teleport.com:443"
-identity = "identity"
-```
+(!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
 
 Update the configuration file as follows.
 
@@ -390,6 +338,8 @@ Next, edit the `teleport` section of the configuration as follows:
 
 (!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
+(!docs/pages/includes/plugins/machine-id-exporter-config.mdx!)
+
 Ensure that the Teleport Event Handler can read the identity file:
 
 ```code
@@ -398,60 +348,7 @@ $ chmod +r auth.pem
 
 ### Start the Teleport Event Handler
 
-Start the Teleport Teleport Event Handler as a daemon. To do so, create a
-systemd service definition at the path
-`/usr/lib/systemd/system/teleport-event-handler.service` with the following
-content:
-
-```ini
-[Unit]
-Description=Teleport Event Handler
-After=network.target
-
-[Service]
-Type=simple
-Restart=on-failure
-ExecStart=/usr/local/bin/teleport-event-handler start --config=/etc/teleport-event-handler.toml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/teleport-event-handler.pid
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start the plugin:
-
-```code
-$ sudo systemctl enable teleport-event-handler
-$ sudo systemctl start teleport-event-handler
-```
-
-<Details title="Choose when to start exporting events">
-
-You can configure when you would like the Teleport Event Handler to begin
-exporting events when you run the `start` command. This example will start
-exporting from May 5th, 2021:
-
-```code
-$ teleport-event-handler start --config teleport-event-handler.toml --start-time "2021-05-05T00:00:00Z"
-```
-
-You can only determine the start time once, when first running the Teleport
-Event Handler. If you want to change the time frame later, remove the plugin
-state directory that you specified in the `storage` field of the handler's
-configuration file.
-
-</Details>
-
-Once the Teleport Event Handler starts, you will see notifications about scanned
-and forwarded events:
-
-```code
-$ sudo journalctl -u teleport-event-handler
-DEBU   Event sent id:f19cf375-4da6-4338-bfdc-e38334c60fd1 index:0 ts:2022-09-21
-18:51:04.849 +0000 UTC type:cert.create event-handler/app.go:140
-...
-```
+(!docs/pages/includes/start-event-handler.mdx!)
 
 ## Step 4/4. Visualize your audit logs in Splunk
 

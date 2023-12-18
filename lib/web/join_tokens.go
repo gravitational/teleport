@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -50,9 +52,6 @@ import (
 )
 
 const (
-	teleportOSSPackageName = "teleport"
-	teleportEntPackageName = "teleport-ent"
-
 	stableCloudChannelRepo = "stable/cloud"
 )
 
@@ -71,20 +70,23 @@ type nodeJoinToken struct {
 // scriptSettings is used to hold values which are passed into the function that
 // generates the join script.
 type scriptSettings struct {
-	token                  string
-	appInstallMode         bool
-	appName                string
-	appURI                 string
-	joinMethod             string
-	databaseInstallMode    bool
-	stableCloudChannelRepo bool
-	installUpdater         bool
+	token               string
+	appInstallMode      bool
+	appName             string
+	appURI              string
+	joinMethod          string
+	databaseInstallMode bool
+	installUpdater      bool
+
+	// automaticUpgradesVersion is the target automatic upgrades version.
+	// The version must be valid semver, with the leading 'v'. e.g. v15.0.0-dev
+	// Required when installUpdater is true.
+	automaticUpgradesVersion string
 }
 
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
 func automaticUpgrades(features proto.Features) bool {
-	// TODO(marco): remove BuildType check when teleport-updater (oss) package is available in apt/yum repos.
-	return features.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
+	return features.AutomaticUpgrades && features.Cloud
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -206,17 +208,38 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
-func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+// getAutoUpgrades checks if automaticUpgrades are enabled and returns the
+// version that should be used according to auto upgrades default channel.
+func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
+	var autoUpgradesVersion string
+	var err error
+	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	if autoUpgrades {
+		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			log.WithError(err).Info("Failed to get auto upgrades version.")
+			return false, "", trace.Wrap(err)
+		}
+	}
+	return autoUpgrades, autoUpgradesVersion, nil
 
-	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
+}
+
+func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
 
 	settings := scriptSettings{
-		token:                  params.ByName("token"),
-		appInstallMode:         false,
-		joinMethod:             r.URL.Query().Get("method"),
-		stableCloudChannelRepo: useStableCloudChannelRepo,
-		installUpdater:         automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		appInstallMode:           false,
+		joinMethod:               r.URL.Query().Get("method"),
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -236,7 +259,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
@@ -253,15 +276,19 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
-	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
 
 	settings := scriptSettings{
-		token:                  params.ByName("token"),
-		appInstallMode:         true,
-		appName:                name,
-		appURI:                 uri,
-		stableCloudChannelRepo: useStableCloudChannelRepo,
-		installUpdater:         automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		appInstallMode:           true,
+		appName:                  name,
+		appURI:                   uri,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -281,15 +308,19 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 
-	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
 
 	settings := scriptSettings{
-		token:                  params.ByName("token"),
-		databaseInstallMode:    true,
-		stableCloudChannelRepo: useStableCloudChannelRepo,
-		installUpdater:         automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		databaseInstallMode:      true,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -311,14 +342,9 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
 	switch types.JoinMethod(settings.joinMethod) {
 	case types.JoinMethodUnspecified, types.JoinMethodToken:
-		decodedToken, err := hex.DecodeString(settings.token)
-		if err != nil {
+		if err := validateJoinToken(settings.token); err != nil {
 			return "", trace.Wrap(err)
 		}
-		if len(decodedToken) != auth.TokenLenBytes {
-			return "", trace.BadParameter("invalid token %q", decodedToken)
-		}
-
 	case types.JoinMethodIAM:
 	default:
 		return "", trace.BadParameter("join method %q is not supported via script", settings.joinMethod)
@@ -390,15 +416,27 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 	}
 
-	packageName := teleportOSSPackageName
+	packageName := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		packageName = teleportEntPackageName
+		packageName = types.PackageNameEnt
 	}
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
 	repoChannel := ""
-	if settings.stableCloudChannelRepo {
+
+	// The install script will install the updater (teleport-ent-updater) for Cloud customers enrolled in Automatic Upgrades.
+	// The repo channel used must be `stable/cloud` which has the available packages for the Cloud Customer's agents.
+	// It pins the teleport version to the one specified by the default version channel
+	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
+	if settings.installUpdater {
+		if settings.automaticUpgradesVersion == "" {
+			return "", trace.Wrap(err, "automatic upgrades version must be set when installUpdater is true")
+		}
+
 		repoChannel = stableCloudChannelRepo
+		// automaticUpgradesVersion has vX.Y.Z format, however the script
+		// expects the version to not include the `v` so we strip it
+		version = strings.TrimPrefix(settings.automaticUpgradesVersion, "v")
 	}
 
 	// This section relies on Go's default zero values to make sure that the settings
@@ -431,6 +469,19 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	return buf.String(), nil
+}
+
+// validateJoinToken validate a join token.
+func validateJoinToken(token string) error {
+	decodedToken, err := hex.DecodeString(token)
+	if err != nil {
+		return trace.BadParameter("invalid token %q", token)
+	}
+	if len(decodedToken) != auth.TokenLenBytes {
+		return trace.BadParameter("invalid token %q", decodedToken)
+	}
+
+	return nil
 }
 
 // generateIAMTokenName makes a deterministic name for a iam join token

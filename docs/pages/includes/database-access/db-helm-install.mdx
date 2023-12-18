@@ -1,5 +1,6 @@
 {{ dbName="test" }}
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 
@@ -18,8 +19,8 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem label="Cloud-Hosted"scope={["cloud","team"]}>
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 
@@ -38,4 +39,15 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --version (=cloud.version=)
 ```
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
+
+Make sure that the Teleport agent pod is running. You should see one
+`teleport-kube-agent` pod with a single ready container:
+
+```code
+$ kubectl -n teleport-agent get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
+```
+

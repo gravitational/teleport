@@ -1,25 +1,26 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aws
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 
@@ -29,6 +30,8 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Policy represents an AWS IAM policy.
@@ -72,7 +75,17 @@ type Statement struct {
 	// Actions is a list of actions.
 	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources SliceOrString `json:"Resource"`
+	Resources SliceOrString `json:"Resource,omitempty"`
+	// Principals is a list of principals.
+	Principals map[string]SliceOrString `json:"Principal,omitempty"`
+	// Conditions is a list of conditions that must be satisfied for the action to be allowed.
+	// Example:
+	// Condition:
+	//    StringEquals:
+	//        "proxy.example.com:aud": "discover.teleport"
+	Conditions map[string]map[string]SliceOrString `json:"Condition,omitempty"`
+	// StatementID is an optional identifier for the statement.
+	StatementID string `json:"Sid,omitempty"`
 }
 
 // ensureResource ensures that the statement contains the specified resource.
@@ -318,7 +331,7 @@ func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
+	policyARN := awsutils.PolicyARN(p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)

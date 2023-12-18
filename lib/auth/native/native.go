@@ -1,26 +1,31 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package native
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -43,6 +48,15 @@ var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
 
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func IsBoringBinary() bool {
+	// Check the package name for one of the boring primitives, if the package
+	// path is from BoringCrypto, we know this binary was compiled against the
+	// dev.boringcrypto branch of Go.
+	hash := sha256.New()
+	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
 	priv, err := GeneratePrivateKey()
@@ -50,6 +64,25 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
+}
+
+// GenerateEICEKey generates a key that can be send to an Amazon EC2 instance using the ec2instanceconnect.SendSSHPublicKey method.
+func GenerateEICEKey() (publicKey any, privateKey any, err error) {
+	if IsBoringBinary() {
+		privKey, err := GeneratePrivateKey()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return privKey.Public(), privKey, nil
+	}
+
+	pubKey, privKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return pubKey, privKey, nil
 }
 
 // GeneratePrivateKey generates a new RSA private key.

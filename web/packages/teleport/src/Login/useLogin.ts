@@ -1,23 +1,24 @@
 /**
- * Copyright 2021-2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
-import { isPrivateKeyRequiredError } from 'shared/utils/errorType';
 
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
@@ -25,19 +26,23 @@ import auth, { UserCredentials } from 'teleport/services/auth';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
-  // privateKeyPolicyEnabled can be enabled through cluster wide config,
-  // or through a role setting.
-  // Cluster wide config takes precedence and the user will not
-  // see a login form which prevents login attempts.
-  // Role setting requires the user to try a successful
-  // attempt at logging in to determine if private key policy was enabled.
-  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(
-    cfg.getPrivateKeyPolicy() != 'none'
-  );
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
+  const motd = cfg.getMotd();
+  const [showMotd, setShowMotd] = useState<boolean>(() => {
+    const redirectUri = history.getRedirectParam();
+
+    if (redirectUri?.includes('headless')) {
+      return false;
+    }
+    return !!cfg.getMotd();
+  });
+
+  function acknowledgeMotd() {
+    setShowMotd(false);
+  }
 
   function onLogin(email, password, token) {
     attemptActions.start();
@@ -45,10 +50,6 @@ export default function useLogin() {
       .login(email, password, token)
       .then(onSuccess)
       .catch(err => {
-        if (isPrivateKeyRequiredError(err)) {
-          setPrivateKeyPolicyEnabled(true);
-          return;
-        }
         attemptActions.error(err);
       });
   }
@@ -59,10 +60,6 @@ export default function useLogin() {
       .loginWithWebauthn(creds)
       .then(onSuccess)
       .catch(err => {
-        if (isPrivateKeyRequiredError(err)) {
-          setPrivateKeyPolicyEnabled(true);
-          return;
-        }
         attemptActions.error(err);
       });
   }
@@ -86,7 +83,9 @@ export default function useLogin() {
     clearAttempt: attemptActions.clear,
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     primaryAuthType: cfg.getPrimaryAuthType(),
-    privateKeyPolicyEnabled,
+    motd,
+    showMotd,
+    acknowledgeMotd,
   };
 }
 

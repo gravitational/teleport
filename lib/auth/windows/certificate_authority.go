@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package windows
 
@@ -65,11 +69,15 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 		DomainName: c.cfg.ClusterName,
 	}, false)
 	if err != nil {
-		return trace.Wrap(err, "fetching Teleport CA: %v", err)
+		return trace.Wrap(err, "fetching Teleport CA")
 	}
+
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	c.cfg.Log.Debugf("Teleport CA has %d trusted keypairs", len(keypairs))
+
 	// LDAP stores certs and CRLs in binary DER format, so remove the outer PEM
 	// wrapper.
-	caPEM := ca.GetTrustedTLSKeyPairs()[0].Cert
+	caPEM := keypairs[0].Cert
 	caBlock, _ := pem.Decode(caPEM)
 	if caBlock == nil {
 		return trace.BadParameter("failed to decode CA PEM block")
@@ -78,7 +86,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 
 	crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, types.UserCA)
 	if err != nil {
-		return trace.Wrap(err, "generating CRL: %v", err)
+		return trace.Wrap(err, "generating CRL")
 	}
 
 	// To make the CA trusted, we need 3 things:
@@ -89,10 +97,10 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	//
 	// Below we do #2 and #3.
 	if err := c.updateCAInNTAuthStore(ctx, caDER); err != nil {
-		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
+		return trace.Wrap(err, "updating NTAuth store over LDAP")
 	}
 	if err := c.updateCRL(ctx, crlDER, caType); err != nil {
-		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
+		return trace.Wrap(err, "updating CRL over LDAP")
 	}
 	return nil
 }
@@ -123,7 +131,7 @@ func (c *CertificateStoreClient) updateCAInNTAuthStore(ctx context.Context, caDE
 	ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + c.cfg.LDAPConfig.DomainDN()
 	entries, err := c.cfg.LC.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
 	if err != nil {
-		return trace.Wrap(err, "fetching existing CAs: %v", err)
+		return trace.Wrap(err, "fetching existing CAs")
 	}
 	if len(entries) != 1 {
 		return trace.BadParameter("expected exactly 1 NTAuthCertificates CA store at %q, but found %d", ntAuthDN, len(entries))
@@ -151,7 +159,7 @@ func (c *CertificateStoreClient) updateCAInNTAuthStore(ctx context.Context, caDE
 	if err := c.cfg.LC.Update(ntAuthDN, map[string][]string{
 		"cACertificate": updatedCAs,
 	}); err != nil {
-		return trace.Wrap(err, "updating CA entry: %v", err)
+		return trace.Wrap(err, "updating CA entry")
 	}
 	c.cfg.Log.Info("Added Teleport CA to NTAuthStore via LDAP")
 	return nil
@@ -176,7 +184,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {
-		return trace.Wrap(err, "creating CRL container: %v", err)
+		return trace.Wrap(err, "creating CRL container")
 	}
 
 	// Create the CRL object itself.

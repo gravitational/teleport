@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
@@ -25,7 +27,6 @@ import {
 import { FileTransferContainer } from './FileTransferContainer';
 
 interface FileTransferProps {
-  backgroundColor?: string;
   transferHandlers: TransferHandlers;
   // errorText is any general error that isn't related to a specific transfer
   errorText?: string;
@@ -85,7 +86,6 @@ export function FileTransfer(props: FileTransferProps) {
         <FileTransferDialog
           errorText={props.errorText}
           openedDialog={openedDialog}
-          backgroundColor={props.backgroundColor}
           transferHandlers={props.transferHandlers}
           onCloseDialog={handleCloseDialog}
         />
@@ -95,10 +95,7 @@ export function FileTransfer(props: FileTransferProps) {
 }
 
 export function FileTransferDialog(
-  props: Pick<
-    FileTransferProps,
-    'transferHandlers' | 'backgroundColor' | 'errorText'
-  > & {
+  props: Pick<FileTransferProps, 'transferHandlers' | 'errorText'> & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
   }
@@ -135,7 +132,6 @@ export function FileTransferDialog(
       openedDialog={props.openedDialog}
       files={filesStore.files}
       onCancel={filesStore.cancel}
-      backgroundColor={props.backgroundColor}
       onClose={handleClose}
       onAddUpload={handleAddUpload}
       onAddDownload={handleAddDownload}

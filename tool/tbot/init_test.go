@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -112,7 +114,7 @@ func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
 
 // testConfigFromString parses a YAML config file from a string.
 func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
-	cfg, err := config.ReadConfig(strings.NewReader(yaml))
+	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
 	require.NoError(t, err)
 
 	return cfg
@@ -120,9 +122,8 @@ func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
 
 // validateFileDestinations ensures all files in a destination exist on disk as
 // expected, and returns the destination.
-func validateFileDestination(t *testing.T, dest *config.DestinationConfig) *config.DestinationDirectory {
-	destImpl, err := dest.GetDestination()
-	require.NoError(t, err)
+func validateFileDestination(t *testing.T, output config.Output) *config.DestinationDirectory {
+	destImpl := output.GetDestination()
 
 	destDir, ok := destImpl.(*config.DestinationDirectory)
 	require.True(t, ok)
@@ -152,7 +153,7 @@ func TestInit(t *testing.T) {
 	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
-	_ = validateFileDestination(t, cfg.Destinations[0])
+	_ = validateFileDestination(t, cfg.Outputs[0])
 }
 
 // TestInitMaybeACLs tests defaults with ACLs possibly enabled, by supplying
@@ -166,9 +167,6 @@ func TestInitMaybeACLs(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	hasACLSupport, err := botfs.HasACLSupport()
-	require.NoError(t, err)
-
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
@@ -177,7 +175,7 @@ func TestInitMaybeACLs(t *testing.T) {
 
 	// Determine if we expect init to use ACLs.
 	expectACLs := false
-	if hasACLSupport {
+	if botfs.HasACLSupport() {
 		if err := testACL(t.TempDir(), currentUser, opts); err == nil {
 			expectACLs = true
 		}
@@ -202,7 +200,7 @@ func TestInitMaybeACLs(t *testing.T) {
 	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
-	destDir := validateFileDestination(t, cfg.Destinations[0])
+	destDir := validateFileDestination(t, cfg.Outputs[0])
 
 	// If we expect ACLs, verify them.
 	if expectACLs {
@@ -215,19 +213,20 @@ func TestInitMaybeACLs(t *testing.T) {
 // testInitSymlinksTemplate is a config template with a configurable symlinks
 // mode and ACLs disabled.
 const testInitSymlinksTemplate = `
+version: v2
 auth_server: example.com
-destinations:
-  - directory:
-      path: %s
-      acls: off
-      symlinks: %s
+outputs:
+- type: identity
+  destination:
+    type: directory
+    path: %s
+    acls: off
+    symlinks: %s
 `
 
 // TestInitSymlink tests tbot init with a symlink in the path.
 func TestInitSymlink(t *testing.T) {
-	secureWriteSupported, err := botfs.HasSecureWriteSupport()
-	require.NoError(t, err)
-	if !secureWriteSupported {
+	if !botfs.HasSecureWriteSupport() {
 		t.Skip("Secure write not supported on this system.")
 	}
 
@@ -246,7 +245,7 @@ func TestInitSymlink(t *testing.T) {
 	require.NoError(t, onInit(cfg, &config.CLIConf{}))
 
 	// Make sure everything was created.
-	_ = validateFileDestination(t, cfg.Destinations[0])
+	_ = validateFileDestination(t, cfg.Outputs[0])
 }
 
 // TestInitSymlinksInsecure should work on all platforms.

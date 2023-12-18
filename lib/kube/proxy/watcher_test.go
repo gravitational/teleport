@@ -1,24 +1,28 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
 import (
 	"context"
+	"maps"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,7 +73,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -86,7 +90,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0, kube1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -103,7 +107,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0, kube1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -120,7 +124,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0, kube1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -136,7 +140,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0, kube1, kube2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -144,7 +148,7 @@ func TestWatcher(t *testing.T) {
 
 	// Update kube2 expiry so it gets re-registered.
 	kube2.SetExpiry(time.Now().Add(1 * time.Hour))
-	kube2.SetKubeconfig(newKubeConfig(t, "random", "https://api.cluster.com"))
+	kube2.SetKubeconfig(newKubeConfig(t, "random", kubeMock.URL))
 	err = testCtx.AuthServer.UpdateKubernetesCluster(ctx, kube2)
 	require.NoError(t, err)
 
@@ -153,10 +157,10 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0, kube1, kube2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 		// make sure credentials were updated as well.
-		require.Equal(t, "api.cluster.com:443", testCtx.KubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
+		require.Equal(t, strings.TrimPrefix(kubeMock.URL, "https://"), testCtx.KubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
@@ -171,7 +175,7 @@ func TestWatcher(t *testing.T) {
 	case a := <-reconcileCh:
 		sort.Sort(a)
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0, kube2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -185,7 +189,7 @@ func TestWatcher(t *testing.T) {
 	select {
 	case a := <-reconcileCh:
 		require.Empty(t, cmp.Diff(types.KubeClusters{kube0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
@@ -202,9 +206,7 @@ func makeKubeCluster(t *testing.T, name string, url string, labels map[string]st
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, additionalLabels)
 	return types.NewKubernetesClusterV3(types.Metadata{
 		Name:   name,
 		Labels: labels,

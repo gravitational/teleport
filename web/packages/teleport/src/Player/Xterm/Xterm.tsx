@@ -1,21 +1,24 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 import React, { useEffect, useRef } from 'react';
 
-import { getPlatform } from 'design/theme/utils';
+import { getPlatformType } from 'design/platform';
 import { useTheme } from 'styled-components';
 
 import Terminal from 'teleport/lib/term/terminal';
@@ -26,14 +29,17 @@ import StyledXterm from 'teleport/Console/StyledXterm';
 export default function Xterm({ tty }: { tty: Tty }) {
   const refContainer = useRef<HTMLElement>();
   const theme = useTheme();
+  const terminalPlayer = useRef<TerminalPlayer>();
 
   useEffect(() => {
     const term = new TerminalPlayer(tty, {
       el: refContainer.current,
       fontFamily: theme.fonts.mono,
-      fontSize: getPlatform().isMac ? 12 : 14,
+      fontSize: getPlatformType().isMac ? 12 : 14,
+      theme: theme.colors.terminal,
     });
 
+    terminalPlayer.current = term;
     term.open();
     term.term.focus();
 
@@ -56,7 +62,13 @@ export default function Xterm({ tty }: { tty: Tty }) {
     }
 
     return cleanup;
+    // do not re-initialize xterm when theme changes, use specialized handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tty]);
+
+  useEffect(() => {
+    terminalPlayer.current?.updateTheme(theme.colors.terminal);
+  }, [theme]);
 
   return <StyledXterm ref={refContainer} />;
 }

@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`callback error message 1`] = `
-.c3 {
+.c4 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,7 +20,7 @@ exports[`callback error message 1`] = `
   color: #000000;
 }
 
-.c3 a {
+.c4 a {
   color: #FFFFFF;
 }
 
@@ -34,11 +34,15 @@ exports[`callback error message 1`] = `
   width: 540px;
   color: #FFFFFF;
   background-color: #344179;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
 }
 
 .c2 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c3 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -49,7 +53,7 @@ exports[`callback error message 1`] = `
   text-align: center;
 }
 
-.c4 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -70,7 +74,7 @@ exports[`callback error message 1`] = `
   max-height: 120px;
 }
 
-.c5 {
+.c6 {
   color: #009EFF;
 }
 
@@ -80,27 +84,27 @@ exports[`callback error message 1`] = `
     src="file_stub"
   />
   <div
-    class="c1"
+    class="c1 c2"
     color="text.main"
     width="540px"
   >
     <div
-      class="c2"
+      class="c3"
     >
       Login Unsuccessful
     </div>
     <div
-      class="c3"
+      class="c4"
       kind="danger"
     >
       custom message
     </div>
      
     <div
-      class="c4"
+      class="c5"
     >
       <a
-        class="c5"
+        class="c6"
         href="/web/login"
       >
         Please attempt to log in again.
@@ -111,7 +115,7 @@ exports[`callback error message 1`] = `
 `;
 
 exports[`default error message 1`] = `
-.c3 {
+.c4 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -130,7 +134,7 @@ exports[`default error message 1`] = `
   color: #000000;
 }
 
-.c3 a {
+.c4 a {
   color: #FFFFFF;
 }
 
@@ -144,11 +148,15 @@ exports[`default error message 1`] = `
   width: 540px;
   color: #FFFFFF;
   background-color: #344179;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
 }
 
 .c2 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c3 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -159,7 +167,7 @@ exports[`default error message 1`] = `
   text-align: center;
 }
 
-.c4 {
+.c5 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -180,7 +188,7 @@ exports[`default error message 1`] = `
   max-height: 120px;
 }
 
-.c5 {
+.c6 {
   color: #009EFF;
 }
 
@@ -190,27 +198,27 @@ exports[`default error message 1`] = `
     src="file_stub"
   />
   <div
-    class="c1"
+    class="c1 c2"
     color="text.main"
     width="540px"
   >
     <div
-      class="c2"
+      class="c3"
     >
       Login Unsuccessful
     </div>
     <div
-      class="c3"
+      class="c4"
       kind="danger"
     >
       unable to login, please check Teleport's log for details
     </div>
      
     <div
-      class="c4"
+      class="c5"
     >
       <a
-        class="c5"
+        class="c6"
         href="/web/login"
       >
         Please attempt to log in again.

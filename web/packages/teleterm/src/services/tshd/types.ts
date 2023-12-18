@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
@@ -21,6 +23,7 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import { NodeSubKind } from 'shared/services';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
 import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
@@ -29,6 +32,7 @@ import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
 import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
+  HeadlessAuthenticationState,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
@@ -36,18 +40,43 @@ import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_p
 
 import * as uri from 'teleterm/ui/uri';
 
+// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
+// to alias it first to do the reexport.
+// https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import UserType = apiCluster.LoggedInUser.UserType;
+export { UserType };
+
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
 }
 
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
+  subKind: NodeSubKind;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
+  // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
+  gatewayCliCommand: GatewayCLICommand;
 }
+
+/**
+ * GatewayCLICommand follows the API of os.exec.Cmd from Go.
+ * https://pkg.go.dev/os/exec#Cmd
+ *
+ * @property {string} path - The absolute path to the CLI client of a gateway if the client is
+ * in PATH. Otherwise, the name of the program we were trying to find.
+ * @property {string[]} argsList - A list containing the name of the program as the first element
+ * and the actual args as the other elements.
+ * @property {string[]} envList – A list of env vars that need to be set for the command
+ * invocation. The elements of the list are in the format of NAME=value.
+ * @property {string} preview - A string showing how the invocation of the command would look like
+ * if the user was to invoke it manually from the terminal. Should not be actually used to execute
+ * anything in the shell.
+ */
+export type GatewayCLICommand = apiGateway.GatewayCLICommand.AsObject;
 
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
@@ -108,11 +137,27 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * `leafClusterId` is equal to the `name` property of the cluster.
    */
   uri: uri.ClusterUri;
+  /**
+   * loggedInUser is present if the user has logged in to the cluster at least once. This
+   * includes a situation in which the cert has expired. If the cluster was added to the app but the
+   * user is yet to log in, loggedInUser is not present.
+   */
   loggedInUser?: LoggedInUser;
 }
 
+/**
+ * LoggedInUser describes loggedInUser field available on root clusters.
+ *
+ * loggedInUser is present if the user has logged in to the cluster at least once. This
+ * includes a situation in which the cert has expired. If the cluster was added to the app but the
+ * user is yet to log in, loggedInUser is not present.
+ */
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
   assumedRequests?: Record<string, AssumedRequest>;
+  /**
+   * acl is available only after the cluster details are fetched, as acl is not stored on disk.
+   */
+  acl?: apiCluster.ACL.AsObject;
 };
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
@@ -211,6 +256,44 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
+
+  createConnectMyComputerRole: (
+    rootClusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: (
+    clusterUri: uri.RootClusterUri,
+    token: string
+  ) => Promise<void>;
+  waitForConnectMyComputerNodeJoin: (
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: TshAbortSignal
+  ) => Promise<WaitForConnectMyComputerNodeJoinResponse>;
+  deleteConnectMyComputerNode: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<void>;
+  getConnectMyComputerNodeName: (uri: uri.RootClusterUri) => Promise<string>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
+
+  listUnifiedResources: (
+    params: apiService.ListUnifiedResourcesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<ListUnifiedResourcesResponse>;
+
+  getUserPreferences: (
+    params: apiService.GetUserPreferencesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<UserPreferences>;
+  updateUserPreferences: (
+    params: apiService.UpdateUserPreferencesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<UserPreferences>;
 };
 
 export type TshAbortController = {
@@ -219,6 +302,7 @@ export type TshAbortController = {
 };
 
 export type TshAbortSignal = {
+  readonly aborted: boolean;
   addEventListener(cb: (...args: any[]) => void): void;
   removeEventListener(cb: (...args: any[]) => void): void;
 };
@@ -243,7 +327,7 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
   port?: string;
   user: string;
   subresource_name?: string;
@@ -298,5 +382,38 @@ export { FileTransferDirection };
 
 export type Label = apiLabel.Label.AsObject;
 
+export type CreateConnectMyComputerRoleResponse =
+  apiService.CreateConnectMyComputerRoleResponse.AsObject;
+export type CreateConnectMyComputerNodeTokenResponse =
+  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
+export type WaitForConnectMyComputerNodeJoinResponse =
+  apiService.WaitForConnectMyComputerNodeJoinResponse.AsObject & {
+    server: Server;
+  };
+
+export type ListUnifiedResourcesRequest =
+  apiService.ListUnifiedResourcesRequest.AsObject;
+export type ListUnifiedResourcesResponse = {
+  resources: UnifiedResourceResponse[];
+  nextKey: string;
+};
+export type UnifiedResourceResponse =
+  | { kind: 'server'; resource: Server }
+  | {
+      kind: 'database';
+      resource: Database;
+    }
+  | { kind: 'kube'; resource: Kube };
+
+export type UserPreferences = apiService.UserPreferences.AsObject;
+
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
+
+export type UpdateHeadlessAuthenticationStateParams = {
+  rootClusterUri: uri.RootClusterUri;
+  headlessAuthenticationId: string;
+  state: apiService.HeadlessAuthenticationState;
+};
+
+export { HeadlessAuthenticationState };

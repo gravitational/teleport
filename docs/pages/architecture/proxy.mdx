@@ -4,14 +4,18 @@ description: Architecture of Teleport's identity-aware proxy service
 h1: Teleport Identity-Aware Proxy Service
 ---
 
-Teleport Proxy is a identity aware proxy, with a web UI. Here are Proxy's key features:
+The Teleport Proxy Service is an identity-aware proxy with a web UI. The Teleport Proxy Service 
+provides the following key features:
 
-- Users can authenticate with a Single-Sign-On or local credentials to access SSH and Windows Desktops via Proxy's web UI.
-- Proxy is identity aware - it makes sure that only authenticated clients can connect to target resources.
-It intercepts traffic for multiple protocols - SSH, Kubernetes, HTTPS, databases.
-It records commands, API calls and queries and streams them to the audit log.
-- Proxy provides networking and connectivity features. Nodes and proxies behind firewalls can connect
-to proxies using reverse tunnels. System administrators can use TLS routing feature to compress all ports for all protocols to one TLS port using TLS routing feature.
+- Enables users to authenticate with a single sign-on identity provider or local credentials to access 
+  SSH and Windows desktops using the Teleport web UI.
+- Intercepts traffic for multiple protocols, including SSH, Kubernetes, HTTPS, 
+  and databases, and ensures that only authenticated clients can connect to target resources.
+- Records commands, API calls, and queries and streams them to the audit log.
+- Provides networking and connectivity so that servers and proxies behind firewalls can connect
+  using reverse tunnels.
+- Enables system administrators to use TLS routing feature to compress all ports for all protocols 
+  to one TLS port using TLS routing feature.
 
 ![Proxy service](../../img/architecture/proxy.png)
 
@@ -26,7 +30,7 @@ you can run both services as a one binary and process.
 In Web UI, Teleport Proxy implements WSS - secure web sockets - to proxy a
 target resource, for example SSH server or Desktop:
 
-![Teleport Proxy Web](../../img/architecture/proxy-web-to-resource@1.2x.svg)
+![Teleport Proxy Web](../../img/architecture/proxy-web-to-resource@1.2x.png)
 
 <Admonition
   type="note"
@@ -39,7 +43,7 @@ target resource, for example SSH server or Desktop:
 
 In IAP mode, users initiate the SSO or login flow to sign public keys on their client machines:
 
-![Teleport Proxy IAP](../../img/architecture/proxy-iap-to-resource@1.2x.svg)
+![Teleport Proxy IAP](../../img/architecture/proxy-iap-to-resource@1.2x.png)
 
 <Admonition
   type="note"
@@ -57,7 +61,7 @@ Proxies will forward client's connections to target resources via those tunnels.
 
 In the example below, Alice connects to kubernetes cluster behind firewall via two tunnels:
 
-![Teleport Proxy Tunnel](../../img/architecture/proxy-tunnel@1.2x.svg)
+![Teleport Proxy Tunnel](../../img/architecture/proxy-tunnel@1.2x.png)
 
 <Notice type="tip">
 All modes above are turned on by default in Proxies. No special configuration is necessary, unless you

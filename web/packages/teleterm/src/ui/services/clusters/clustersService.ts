@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { useStore } from 'shared/libs/stores';
@@ -26,6 +28,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
+  Gateway,
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
@@ -148,10 +151,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
    * errors up.
    */
-  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
+  async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
-      // syncClusterInfo never fails with a retryable error since it reads data from disk.
-      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),
     ]);
@@ -327,6 +328,22 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
     await this.removeClusterKubeConfigs(clusterUri);
+    await this.removeClusterGateways(clusterUri);
+  }
+
+  // TODO(ravicious): Create a single RPC for this rather than sending a separate request for each
+  // gateway.
+  private async removeClusterGateways(clusterUri: uri.RootClusterUri) {
+    for (const [, gateway] of this.state.gateways) {
+      if (routing.belongsToProfile(clusterUri, gateway.targetUri)) {
+        try {
+          await this.removeGateway(gateway.uri);
+        } catch {
+          // Ignore errors as removeGateway already creates a notification for each error.
+          // Any gateways that we failed to remove will be forcibly closed on tshd exit.
+        }
+      }
+    }
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
@@ -361,6 +378,13 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         description: error.message,
       });
       throw error;
+    }
+  }
+
+  async removeKubeGateway(kubeUri: uri.KubeUri) {
+    const gateway = this.findGatewayByConnectionParams(kubeUri, '');
+    if (gateway) {
+      await this.removeGateway(gateway.uri);
     }
   }
 
@@ -407,6 +431,25 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   findGateway(gatewayUri: uri.GatewayUri) {
     return this.state.gateways.get(gatewayUri);
+  }
+
+  findGatewayByConnectionParams(
+    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUser: string
+  ) {
+    let found: Gateway;
+
+    for (const [, gateway] of this.state.gateways) {
+      if (
+        gateway.targetUri === targetUri &&
+        gateway.targetUser === targetUser
+      ) {
+        found = gateway;
+        break;
+      }
+    }
+
+    return found;
   }
 
   /**

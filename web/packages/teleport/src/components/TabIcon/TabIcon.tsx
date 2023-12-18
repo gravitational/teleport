@@ -1,25 +1,26 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
 import styled from 'styled-components';
 import { Text } from 'design';
-import Icons from 'design/Icon';
 
-export default function TabIcon(props: Props) {
+export default function TabIcon({ Icon, ...props }: Props) {
   return (
     <StyledTab
       ml="4"
@@ -28,7 +29,7 @@ export default function TabIcon(props: Props) {
       active={props.active}
       onClick={props.onClick}
     >
-      <Icons as={props.Icon} mr="2" />
+      <Icon size="medium" />
       {props.title}
     </StyledTab>
   );
@@ -38,7 +39,7 @@ type Props = {
   active: boolean;
   onClick(): void;
   title: string;
-  Icon(): JSX.Element;
+  Icon: (any) => JSX.Element;
 };
 
 const StyledTab = styled(Text)`
@@ -47,6 +48,10 @@ const StyledTab = styled(Text)`
   padding: 4px 8px;
   cursor: pointer;
   border-bottom: 4px solid transparent;
+
+  svg {
+    margin-right: 8px;
+  }
 
   ${({ active, theme }) =>
     active &&

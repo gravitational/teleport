@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of Error Cards 1`] = `
-.c2 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,7 +20,7 @@ exports[`rendering of Error Cards 1`] = `
   color: #000000;
 }
 
-.c2 a {
+.c3 a {
   color: #FFFFFF;
 }
 
@@ -34,11 +34,15 @@ exports[`rendering of Error Cards 1`] = `
   width: 540px;
   color: #FFFFFF;
   background-color: #344179;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
 }
 
 .c1 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -50,17 +54,17 @@ exports[`rendering of Error Cards 1`] = `
 }
 
 <div
-  class="c0"
+  class="c0 c1"
   color="text.main"
   width="540px"
 >
   <div
-    class="c1"
+    class="c2"
   >
     404 Not Found
   </div>
   <div
-    class="c2"
+    class="c3"
     kind="danger"
   >
     some error message

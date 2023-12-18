@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { makeEvent } from 'teleport/services/audit';
 
@@ -266,9 +268,57 @@ export const events = [
     user: 'unimplemented',
   },
   {
+    code: 'T8002I',
+    event: 'github.updated',
+    name: 'new_github_connector',
+    time: '2020-06-05T19:28:28Z',
+    uid: '26f12a67-d593-40df-b3d3-965faee60143',
+    user: 'unimplemented',
+  },
+  {
     code: 'T8100I',
     event: 'oidc.created',
     name: 'new_oidc_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8101I',
+    event: 'oidc.deleted',
+    name: 'new_oidc_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8102I',
+    event: 'oidc.updated',
+    name: 'new_oidc_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8200I',
+    event: 'saml.created',
+    name: 'new_saml_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8201I',
+    event: 'saml.deleted',
+    name: 'new_saml_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8202I',
+    event: 'saml.updated',
+    name: 'new_saml_connector',
     time: '2020-06-05T19:29:14Z',
     uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
     user: 'unimplemented',
@@ -1707,6 +1757,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP00I',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -1727,6 +1778,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP01I',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -1745,6 +1797,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP00W',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -2422,6 +2475,58 @@ export const events = [
     uid: '6fa08495-170a-4de9-884f-9931fbdb5982',
   },
   {
+    'addr.remote': '1.1.1.1:42',
+    code: 'T1012I',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headless',
+    ei: 0,
+    success: false,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef4',
+    user: 'admin@example.com',
+  },
+  {
+    'addr.remote': '2.2.2.2:42',
+    code: 'T1013I',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headless',
+    ei: 0,
+    success: true,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef5',
+    user: 'admin@example.com',
+    message: 'Headless login was requested from the address 1.1.1.1:42',
+  },
+  {
+    'addr.remote': '2.2.2.2:42',
+    code: 'T1013W',
+    error: 'user(name="fsdfsdf") not found',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headless',
+    ei: 0,
+    success: true,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef5',
+    user: 'admin@example.com',
+    message: 'Headless login was requested from the address 1.1.1.1:42',
+  },
+  {
+    'addr.remote': '2.2.2.2:42',
+    code: 'T1014W',
+    cluster_name: 'root.cluster',
+    event: 'user.login',
+    method: 'headdless',
+    ei: 0,
+    success: false,
+    time: '2019-04-22T00:49:03Z',
+    uid: '173d6b6e-d613-44be-8ff6-f9f893791ef6',
+    user: 'admin@example.com',
+    message: 'Headless login was requested from the address 1.1.1.1:42',
+  },
+  {
     code: 'TUW01I',
     time: '2022-04-13T20:00:04.000Z',
     user: 'alice@example.com',
@@ -2995,6 +3100,179 @@ export const events = [
     source: 'source',
     user: 'mike',
   },
+  {
+    code: 'TAL001I',
+    event: 'access_list.create',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL001E',
+    event: 'access_list.create',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL002I',
+    event: 'access_list.update',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL002E',
+    event: 'access_list.update',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL003I',
+    event: 'access_list.delete',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL003E',
+    event: 'access_list.delete',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL004I',
+    event: 'access_list.review',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL004E',
+    event: 'access_list.review',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL005I',
+    event: 'access_list.member.add',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    members: [
+      {
+        member_name: 'user',
+      },
+    ],
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL005E',
+    event: 'access_list.member.add',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    members: [
+      {
+        member_name: 'user',
+      },
+    ],
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL006I',
+    event: 'access_list.member.update',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    members: [
+      {
+        member_name: 'user',
+      },
+    ],
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL006E',
+    event: 'access_list.member.update',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    members: [
+      {
+        member_name: 'user',
+      },
+    ],
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL007I',
+    event: 'access_list.member.delete',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    members: [
+      {
+        member_name: 'user',
+      },
+    ],
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL007E',
+    event: 'access_list.member.delete',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    members: [
+      {
+        member_name: 'carrot',
+      },
+      {
+        member_name: 'apple',
+      },
+      {
+        member_name: 'banana',
+      },
+    ],
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL008I',
+    event: 'access_list.member.delete_all_members',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TAL008E',
+    event: 'access_list.member.delete_all_members',
+    time: '2023-05-08T19:21:36.144Z',
+    access_list_name: 'access-list',
+    updated_by: 'mike',
+  },
+  {
+    cluster_name: 'root.com',
+    code: 'SRE001I',
+    data_scanned_in_bytes: 4045,
+    days: 90,
+    event: 'secreports.audit.query.run',
+    query: 'select * FROM cert_create',
+    success: true,
+    time: '2023-10-09T10:09:10.473Z',
+    total_execution_time_in_millis: 1440,
+    uid: 'dc29d36c-c5b6-4ffc-9aa7-2d9ba18a3953',
+    user: 'marek',
+  },
+  {
+    cluster_name: 'root.com',
+    code: 'SRE002I',
+    data_scanned_in_bytes: 13258,
+    event: 'secreports.report.run',
+    name: 'privilege_access_report_90_days',
+    success: true,
+    time: '2023-10-09T09:10:03.633Z',
+    total_execution_time_in_millis: 14082,
+    uid: 'f44871b9-7247-467b-a760-8159d3f47bac',
+    user: 'system',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
@@ -3058,5 +3336,39 @@ export const eventsSample = [
     data: '{"some": "json"}',
     time: '2019-04-22T19:39:26.676Z',
   },
+  {
+    cluster_name: 'dev',
+    code: 'T9000I',
+    ei: 0,
+    event: 'role.created',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'editor',
+    time: '2023-10-26T16:08:43.426Z',
+    uid: '897e4a84-df4f-4eee-b10e-7d080c128b77',
+    user: 'system',
+  },
+  {
+    cluster_name: 'dev',
+    code: 'T9002I',
+    ei: 0,
+    event: 'role.updated',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'editor',
+    time: '2023-10-26T22:09:23.29Z',
+    uid: '715e10a6-23df-4a92-ba44-b51cb6e9650c',
+    user: 'larry',
+  },
+  {
+    cluster_name: 'dev',
+    code: 'T9001I',
+    ei: 0,
+    event: 'role.deleted',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'editor',
+    time: '2023-10-26T22:10:50.076Z',
+    uid: '0cb8a020-46ee-4938-833a-69bc03a7a831',
+    user: 'moe',
+  },
+
   // Do not add new events to this array, add it to `events` list.
 ].map(makeEvent);

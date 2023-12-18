@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -35,11 +37,10 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
-	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -58,7 +59,8 @@ func (f *Forwarder) transportForRequest(sess *clusterSession) (http.RoundTripper
 		// If all servers support impersonation, use a new transport for each
 		// request. This will ensure that the client certificate is valid for the
 		// server that the request is being sent to.
-		return f.transportForRequestWithImpersonation(sess)
+		transport, _, err := f.transportForRequestWithImpersonation(sess)
+		return transport, trace.Wrap(err)
 	}
 	// Otherwise, use a single transport per request.
 	return f.transportForRequestWithoutImpersonation(sess)
@@ -116,14 +118,14 @@ func (f *Forwarder) transportForRequestWithoutImpersonation(sess *clusterSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	transport := newTransport(sess.DialWithContext, tlsConfig)
+	transport := newTransport(sess.DialWithContext(), tlsConfig)
 	if !sess.upgradeToHTTP2 {
-		return tracehttp.NewTransport(transport), nil
+		return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
 	}
 	if err := http2.ConfigureTransport(transport); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return tracehttp.NewTransport(transport), nil
+	return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
 }
 
 // transportForRequestWithImpersonation returns a transport that supports
@@ -131,7 +133,7 @@ func (f *Forwarder) transportForRequestWithoutImpersonation(sess *clusterSession
 // requests to the cluster in order to improve performance.
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
-func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, error) {
+func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
 	// transportCacheTTL is the TTL for the transport cache.
 	const transportCacheTTL = 5 * time.Hour
 	// If the cluster is remote, the key is the teleport cluster name.
@@ -144,36 +146,44 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 	cachedI, ok := f.cachedTransport.Get(key)
 	f.cachedTransportMu.Unlock()
 	if ok {
-		if cached, ok := cachedI.(*httpTransport); ok {
-			return cached.transport, nil
+		if cached, ok := cachedI.(cachedTransportEntry); ok {
+			return cached.transport, cached.tlsConfig.Clone(), nil
 		}
 	}
 
-	var httpTransport *httpTransport
-	var err error
+	var (
+		httpTransport http.RoundTripper
+		err           error
+		tlsConfig     *tls.Config
+	)
 	if sess.teleportCluster.isRemote {
 		// If the cluster is remote, create a new transport for the remote cluster.
-		httpTransport, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
+		httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
 	} else if sess.kubeAPICreds != nil {
 		// If agent is running in agent mode, get the transport from the configured cluster
 		// credentials.
-		return sess.kubeAPICreds.getTransport(), nil
+		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
 	} else if f.cfg.ReverseTunnelSrv != nil {
 		// If agent is running in proxy mode, create a new transport for the local cluster.
-		httpTransport, err = f.newLocalClusterTransport(sess.kubeClusterName)
+		httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)
 	} else {
-		return nil, trace.BadParameter("no reverse tunnel server or credentials provided")
+		return nil, nil, trace.BadParameter("no reverse tunnel server or credentials provided")
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Cache the transport.
 	f.cachedTransportMu.Lock()
-	f.cachedTransport.Set(key, httpTransport, transportCacheTTL)
+	f.cachedTransport.Set(key,
+		cachedTransportEntry{
+			transport: httpTransport,
+			tlsConfig: tlsConfig,
+		},
+		transportCacheTTL)
 	f.cachedTransportMu.Unlock()
 
-	return httpTransport.transport, nil
+	return httpTransport, tlsConfig.Clone(), nil
 }
 
 // transportCacheKey returns a key used to cache transports.
@@ -310,27 +320,28 @@ func validClientCreds(clock clockwork.Clock, c *tls.Config) bool {
 // that can be used to dial Kubernetes Proxy in a remote Teleport cluster.
 // The transport is configured to use a connection pool and to close idle
 // connections after a timeout.
-func (f *Forwarder) newRemoteClusterTransport(clusterName string) (*httpTransport, error) {
+func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTripper, *tls.Config, error) {
 	// Tunnel is nil for a teleport process with "kubernetes_service" but
 	// not "proxy_service".
 	if f.cfg.ReverseTunnelSrv == nil {
-		return nil, trace.BadParameter("this Teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
+		return nil, nil, trace.BadParameter("this Teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
 	}
 	// Dialer that will be used to dial the remote cluster via the reverse tunnel.
 	dialFn := f.remoteClusterDialer(clusterName)
 	tlsConfig, err := f.getTLSConfigForLeafCluster(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	// Create a new HTTP/2 transport that will be used to dial the remote cluster.
 	h2Transport, err := newH2Transport(tlsConfig, dialFn)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return &httpTransport{
-		transport: tracehttp.NewTransport(auth.NewImpersonatorRoundTripper(h2Transport)),
-	}, nil
+	return instrumentedRoundtripper(
+		f.cfg.KubeServiceType,
+		auth.NewImpersonatorRoundTripper(h2Transport),
+	), tlsConfig.Clone(), nil
 }
 
 // getTLSConfigForLeafCluster returns a TLS config with the Proxy certificate
@@ -383,7 +394,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			return nil, trace.Wrap(err)
 		}
 
-		return targetCluster.DialTCP(reversetunnel.DialParams{
+		return targetCluster.DialTCP(reversetunnelclient.DialParams{
 			// Send a sentinel value to the remote cluster because this connection
 			// will be used to forward multiple requests to the remote cluster from
 			// different users.
@@ -394,7 +405,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 			// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalKubernetes},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
 			ConnType: types.KubeTunnel,
 		})
 	}
@@ -402,24 +413,29 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 
 // newLocalClusterTransport returns a new [http.Transport] (https://golang.org/pkg/net/http/#Transport)
 // that can be used to dial Kubernetes Service in a local Teleport cluster.
-func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (*httpTransport, error) {
+func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.RoundTripper, *tls.Config, error) {
 	dialFn := f.localClusterDialer(kubeClusterName)
 	// Create a new HTTP/2 transport that will be used to dial the remote cluster.
 	h2Transport, err := newH2Transport(f.cfg.ConnTLSConfig, dialFn)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return &httpTransport{
-		transport: tracehttp.NewTransport(auth.NewImpersonatorRoundTripper(h2Transport)),
-	}, nil
+	return instrumentedRoundtripper(
+		f.cfg.KubeServiceType,
+		auth.NewImpersonatorRoundTripper(h2Transport),
+	), f.cfg.ConnTLSConfig.Clone(), nil
 }
 
 // localClusterDialer returns a dialer that can be used to dial Kubernetes Service
 // in a local Teleport cluster using the reverse tunnel.
 // The endpoints are fetched from the cached auth client and are shuffled
 // to avoid hotspots.
-func (f *Forwarder) localClusterDialer(kubeClusterName string) dialContextFunc {
+func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDialerOption) dialContextFunc {
+	opt := contextDialerOptions{}
+	for _, o := range opts {
+		o(&opt)
+	}
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
 		_, span := f.cfg.tracer.Start(
 			ctx,
@@ -459,14 +475,14 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string) dialContextFunc {
 		// Validate that the requested kube cluster is registered.
 		for _, s := range kubeServers {
 			kubeCluster := s.GetCluster()
-			if kubeCluster.GetName() != kubeClusterName {
+			if kubeCluster.GetName() != kubeClusterName || !opt.matches(s.GetHostID()) {
 				continue
 			}
 			// serverID is a unique identifier of the server in the cluster.
 			// It is a combination of the server's hostname and the cluster name.
 			// <host_id>.<cluster_name>
 			serverID := fmt.Sprintf("%s.%s", s.GetHostID(), f.cfg.ClusterName)
-			conn, err := localCluster.DialTCP(reversetunnel.DialParams{
+			conn, err := localCluster.DialTCP(reversetunnelclient.DialParams{
 				// Send a sentinel value to the remote cluster because this connection
 				// will be used to forward multiple requests to the remote cluster from
 				// different users.
@@ -525,7 +541,8 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 	// if the next hop supports impersonation, we can use the TLS config
 	// of the proxy to connect to it.
 	if f.allServersSupportImpersonation(sess) {
-		return f.cfg.ConnTLSConfig.Clone(), true, nil
+		_, tlsConfig, err := f.transportForRequestWithImpersonation(sess)
+		return tlsConfig, err == nil, trace.Wrap(err)
 	}
 
 	// If the next hop does not support impersonation, we need to get a
@@ -548,7 +565,7 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 // to the first available kubernetes service.
 // If the next hop is a local cluster, it returns a dialer that directly dials
 // to the next hop.
-func (f *Forwarder) getContextDialerFunc(s *clusterSession) dialContextFunc {
+func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDialerOption) dialContextFunc {
 	if s.kubeAPICreds != nil {
 		// If this is a kubernetes service, we need to connect to the kubernetes
 		// API server using a direct dialer.
@@ -560,8 +577,34 @@ func (f *Forwarder) getContextDialerFunc(s *clusterSession) dialContextFunc {
 	} else if f.cfg.ReverseTunnelSrv != nil {
 		// If this is a local cluster, we need to connect to the remote proxy
 		// and then forward the connection to the local cluster.
-		return f.localClusterDialer(s.kubeClusterName)
+		return f.localClusterDialer(s.kubeClusterName, opts...)
 	}
 
 	return new(net.Dialer).DialContext
+}
+
+// contextDialerOptions is a set of options that can be used to filter
+// the hosts that the dialer connects to.
+type contextDialerOptions struct {
+	hostID string
+}
+
+// matches returns true if the host matches the hostID of the dialer options or
+// if the dialer hostID is empty.
+func (c *contextDialerOptions) matches(hostID string) bool {
+	return c.hostID == "" || c.hostID == hostID
+}
+
+// contextDialerOption is a functional option for the contextDialerOptions.
+type contextDialerOption func(*contextDialerOptions)
+
+// withTargetHostID is a functional option that sets the hostID of the dialer.
+// If the hostID is empty, the dialer will connect to the first available host.
+// If the hostID is not empty, the dialer will connect to the host with the
+// specified hostID. If that host is not available, the dialer will return an
+// error.
+func withTargetHostID(hostID string) contextDialerOption {
+	return func(o *contextDialerOptions) {
+		o.hostID = hostID
+	}
 }

@@ -1,29 +1,30 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
 import (
+	"context"
 	"io"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -58,8 +59,8 @@ func (w *WriterLog) Close() error {
 //
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
-func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
-	return nil, "", trace.NotImplemented("not implemented")
+func (w *WriterLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
+	return nil, "", trace.NotImplemented(writerCannotRead)
 }
 
 // SearchSessionEvents is a flexible way to find session events.
@@ -68,6 +69,8 @@ func (w *WriterLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eve
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
-	return nil, "", trace.NotImplemented("not implemented")
+func (w *WriterLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
+	return nil, "", trace.NotImplemented(writerCannotRead)
 }
+
+const writerCannotRead = "the primary audit log does not support reading; please check the Auth Server's audit_events_uri configuration"

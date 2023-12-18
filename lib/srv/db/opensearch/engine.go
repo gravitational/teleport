@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package opensearch
 
@@ -26,6 +30,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -55,9 +60,8 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// GetSigningCredsFn allows to set the function responsible for obtaining STS credentials.
-	// Used in tests to set static AWS credentials and skip API call.
-	GetSigningCredsFn libaws.GetSigningCredentialsFunc
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter libaws.CredentialsGetter
 }
 
 // InitializeConnection initializes the engine with the client connection.
@@ -125,23 +129,26 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target OpenSearch server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
-	err := e.checkAccess(ctx)
+	observe := common.GetConnectionSetupTimeObserver(e.sessionCtx.Database)
 
-	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
+	err := e.checkAccess(ctx)
 	if err != nil {
+		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
 	}
-	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
 	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
+		Clock:             e.Clock,
+		Session:           awsSession,
+		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,14 +163,23 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		return trace.Wrap(err)
 	}
 
+	e.Audit.OnSessionStart(e.Context, e.sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
+
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	observe()
+
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, tr, signer, req); err != nil {
+		if err := e.process(ctx, tr, signer, req, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -171,7 +187,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request) error {
+func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
+	msgFromClient.Inc()
+
 	reqCopy, payload, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -194,6 +212,8 @@ func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws
 		return trace.Wrap(err)
 	}
 	responseStatusCode = uint32(resp.StatusCode)
+
+	msgFromServer.Inc()
 
 	return trace.Wrap(e.sendResponse(resp))
 }
@@ -336,26 +356,25 @@ func (e *Engine) sendResponse(serverResponse *http.Response) error {
 // checkAccess does authorization check for OpenSearch connection about
 // to be established.
 func (e *Engine) checkAccess(ctx context.Context) error {
+	if e.sessionCtx.Identity.RouteToDatabase.Username == "" {
+		return trace.BadParameter("database username required for OpenSearch")
+	}
+
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	state := e.sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database,
-		e.sessionCtx.DatabaseUser,
-		e.sessionCtx.DatabaseName,
-	)
+	dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     e.sessionCtx.Database,
+		DatabaseUser: e.sessionCtx.DatabaseUser,
+		DatabaseName: e.sessionCtx.DatabaseName,
+	})
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
 		state,
 		dbRoleMatchers...,
 	)
-
-	if e.sessionCtx.Identity.RouteToDatabase.Username == "" {
-		return trace.BadParameter("database username required for OpenSearch")
-	}
-
 	return trace.Wrap(err)
 }

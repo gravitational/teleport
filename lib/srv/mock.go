@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -61,6 +63,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
@@ -68,7 +72,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			ServerConn: &ssh.ServerConn{Conn: sshConn},
 		},
 		env:                    make(map[string]string),
-		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
+		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
@@ -92,6 +96,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	require.NoError(t, err)
 
 	scx.contr, scx.contw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.readyr, scx.readyw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.killShellr, scx.killShellw, err = os.Pipe()
@@ -138,15 +145,15 @@ func newMockServer(t *testing.T) *mockServer {
 	require.NoError(t, err)
 
 	return &mockServer{
-		auth:        authServer,
-		datadir:     t.TempDir(),
-		MockEmitter: &eventstest.MockEmitter{},
-		clock:       clock,
+		auth:                authServer,
+		datadir:             t.TempDir(),
+		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+		clock:               clock,
 	}
 }
 
 type mockServer struct {
-	*eventstest.MockEmitter
+	*eventstest.MockRecorderEmitter
 	datadir   string
 	auth      *auth.Server
 	component string
@@ -246,7 +253,6 @@ func (m *mockServer) UseTunnel() bool {
 // GetBPF returns the BPF service used for enhanced session recording.
 func (m *mockServer) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
-
 }
 
 // GetRestrictedSessionManager returns the manager for restricting user activity
@@ -259,9 +265,9 @@ func (m *mockServer) Context() context.Context {
 	return context.Background()
 }
 
-// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
-	return "test", "test"
+// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
+	return "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -278,6 +284,11 @@ func (m *mockServer) GetCreateHostUser() bool {
 // GetHostUsers
 func (m *mockServer) GetHostUsers() HostUsers {
 	return nil
+}
+
+// GetHostSudoers
+func (m *mockServer) GetHostSudoers() HostSudoers {
+	return &HostSudoersNotImplemented{}
 }
 
 // Implementation of ssh.Conn interface.

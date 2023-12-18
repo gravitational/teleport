@@ -1,0 +1,27 @@
+To specify the database roles a user should be assigned within the database,
+use the `db_roles` role option:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: auto-db-users
+spec:
+  options:
+    # create_db_user_mode enables automatic user provisioning for matching databases
+    create_db_user_mode: keep
+  allow:
+    db_labels:
+      "*": "*"
+    db_names:
+    - "*"
+    # db_roles is a list of roles the database user will be assigned
+    db_roles:
+    - reader
+    - "{{internal.db_roles}}"
+    - "{{external.db_roles}}"
+```
+
+(!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)
+
+(!docs/pages/includes/database-access/auto-user-provisioning/modes.mdx!)

@@ -1,20 +1,22 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
+import React, { forwardRef } from 'react';
 import styled from 'styled-components';
 import Button from 'design/Button';
 import { darken, lighten } from 'design/theme/utils/colorManipulator';
@@ -22,12 +24,12 @@ import * as Icons from 'design/Icon';
 
 import { AuthProviderType } from 'shared/services';
 
-const ButtonSso = (props: Props) => {
+const ButtonSso = forwardRef<HTMLInputElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
   const { color, Icon } = getSSOIcon(ssoType);
 
   return (
-    <StyledButton color={color} block {...rest}>
+    <StyledButton color={color} block {...rest} ref={ref}>
       {Boolean(Icon) && (
         <IconBox>
           <Icon data-testid="icon" color="white" />
@@ -36,7 +38,7 @@ const ButtonSso = (props: Props) => {
       {title}
     </StyledButton>
   );
-};
+});
 
 type Props = {
   ssoType: SSOType;
@@ -58,14 +60,14 @@ function getSSOIcon(type: SSOType) {
     case 'microsoft':
       return { color: '#2672ec', Icon: Icons.Windows, type };
     case 'github':
-      return { color: '#444444', Icon: Icons.Github, type };
+      return { color: '#444444', Icon: Icons.GitHub, type };
     case 'bitbucket':
-      return { color: '#205081', Icon: Icons.BitBucket, type };
+      return { color: '#205081', Icon: Icons.Key, /*temporary icon */ type };
     case 'google':
       return { color: '#dd4b39', Icon: Icons.Google, type };
     default:
       // provide default icon for unknown social providers
-      return { color: '#f7931e', Icon: Icons.OpenID };
+      return { color: '#f7931e', Icon: Icons.Key /*temporary icon */ };
   }
 }
 
@@ -114,8 +116,7 @@ const StyledButton = styled(Button)`
   position: relative;
   box-sizing: border-box;
 
-  ${Icons.default} {
-    font-size: 20px;
+  svg {
     opacity: 0.87;
   }
 `;

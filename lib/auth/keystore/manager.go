@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package keystore
 
@@ -153,9 +155,31 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 			return nil, trace.Wrap(err)
 		}
 		sshSigner, err := ssh.NewSignerFromSigner(signer)
-		return sshSigner, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// SHA-512 to match NewSSHKeyPair.
+		return toRSASHA512Signer(sshSigner), trace.Wrap(err)
 	}
 	return nil, trace.NotFound("no usable SSH key pairs found")
+}
+
+// toRSASHA512Signer forces an ssh.MultiAlgorithmSigner into using
+// "rsa-sha2-sha512" (instead of its SHA256 default).
+func toRSASHA512Signer(signer ssh.Signer) ssh.Signer {
+	ss, ok := signer.(ssh.MultiAlgorithmSigner)
+	if !ok {
+		return signer
+	}
+	return rsaSHA512Signer{MultiAlgorithmSigner: ss}
+}
+
+type rsaSHA512Signer struct {
+	ssh.MultiAlgorithmSigner
+}
+
+func (s rsaSHA512Signer) Algorithms() []string {
+	return []string{ssh.KeyAlgoRSASHA512}
 }
 
 // GetTLSCertAndSigner selects a usable TLS keypair from the given CA

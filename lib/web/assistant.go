@@ -1,20 +1,20 @@
 /*
-
- Copyright 2023 Gravitational, Inc.
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -33,10 +33,25 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/lib/ai/model/tools"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+)
+
+const (
+	// actionSSHGenerateCommand is a name of the action for generating SSH commands.
+	actionSSHGenerateCommand = "ssh-cmdgen"
+	// actionSSHExplainCommand is a name of the action for explaining terminal output in SSH session.
+	actionSSHExplainCommand = "ssh-explain"
+	// actionGenerateAuditQuery is the name of the action for generating audit queries.
+	actionGenerateAuditQuery = "audit-query"
+	// We can not know how many tokens we will consume in advance.
+	// Try to consume a small amount of tokens first.
+	lookaheadTokens = 100
 )
 
 // createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
@@ -71,6 +86,31 @@ func (h *Handler) createAssistantConversation(_ http.ResponseWriter, r *http.Req
 	return &createdAssistantConversationResponse{
 		ID: resp.Id,
 	}, nil
+}
+
+// deleteAssistantConversation is a handler for DELETE /webapi/assistant/conversations/:conversation_id.
+func (h *Handler) deleteAssistantConversation(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationID := p.ByName("conversation_id")
+
+	if err := authClient.DeleteAssistantConversation(r.Context(), &assistpb.DeleteAssistantConversationRequest{
+		ConversationId: conversationID,
+		Username:       sctx.GetUser(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
 
 // assistantMessage is an assistant message that is sent to the client.
@@ -220,12 +260,12 @@ func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	return OK(), nil
 }
 
-// generateAssistantTitleRequest is a request for POST /webapi/assistant/conversations/:conversation_id/generate_title.
+// generateAssistantTitleRequest is a request for POST /webapi/assistant/title/summary.
 type generateAssistantTitleRequest struct {
 	Message string `json:"message"`
 }
 
-// generateAssistantTitle is a handler for POST /webapi/assistant/conversations/:conversation_id/generate_title.
+// generateAssistantTitle is a handler for POST /webapi/assistant/title/summary.
 func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	_ httprouter.Params, sctx *SessionContext,
 ) (any, error) {
@@ -243,7 +283,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := assist.NewAssist(r.Context(), h.cfg.ProxyClient,
+	client, err := assist.NewClient(r.Context(), h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -258,11 +298,41 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		Title: titleSummary,
 	}
 
+	// We only want to emmit
+	if modules.GetModules().Features().Cloud {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			class, err := client.ClassifyMessage(ctx, req.Message, assist.MessageClasses)
+			if err != nil {
+				return
+			}
+			h.log.Debugf("message classified as '%s'", class)
+			// TODO(shaka): emit event here to report the message class
+			usageEventReq := &proto.SubmitUsageEventRequest{
+				Event: &usageeventsv1.UsageEventOneOf{
+					Event: &usageeventsv1.UsageEventOneOf_AssistNewConversation{
+						AssistNewConversation: &usageeventsv1.AssistNewConversationEvent{
+							Category: class,
+						},
+					},
+				},
+			}
+			if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+				h.log.WithError(err).Warn("Failed to emit usage event")
+			}
+		}()
+
+	}
+
 	return conversationInfo, nil
 }
 
+// assistant is a handler for GET /webapi/sites/:site/assistant.
+// This handler covers the main chat conversation as well as the
+// SSH completition (SSH command generation and output explanation).
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
-	sctx *SessionContext, site reversetunnel.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (any, error) {
 	if err := runAssistant(h, w, r, sctx, site); err != nil {
 		h.log.Warn(trace.DebugReport(err))
@@ -270,6 +340,70 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	}
 
 	return nil, nil
+}
+
+// reserveTokens preemptively reserves tokens in the ratelimiter.
+func (h *Handler) reserveTokens(usedTokens *tokens.TokenCount) (int, int) {
+	promptTokens, completionTokens := usedTokens.CountAll()
+
+	// Once we know how many tokens were consumed for prompt+completion,
+	// consume the remaining tokens from the rate limiter bucket.
+	extraTokens := promptTokens + completionTokens - lookaheadTokens
+	if extraTokens < 0 {
+		extraTokens = 0
+	}
+	h.assistantLimiter.ReserveN(time.Now(), extraTokens)
+	return promptTokens, completionTokens
+}
+
+// reportTokenUsage sends a token usage event for a conversation.
+func (h *Handler) reportConversationTokenUsage(authClient auth.ClientI, usedTokens *tokens.TokenCount, conversationID string) {
+	// Create a new context to not be bounded by the request timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	promptTokens, completionTokens := h.reserveTokens(usedTokens)
+	usageEventReq := &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
+				AssistCompletion: &usageeventsv1.AssistCompletionEvent{
+					ConversationId:   conversationID,
+					TotalTokens:      int64(promptTokens + completionTokens),
+					PromptTokens:     int64(promptTokens),
+					CompletionTokens: int64(completionTokens),
+				},
+			},
+		},
+	}
+
+	if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
+	}
+}
+
+// reportTokenUsage sends a token usage event for an action.
+func (h *Handler) reportActionTokenUsage(authClient auth.ClientI, usedTokens *tokens.TokenCount, action string) {
+	// Create a new context to not be bounded by the request timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	promptTokens, completionTokens := h.reserveTokens(usedTokens)
+	usageEventReq := &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistAction{
+				AssistAction: &usageeventsv1.AssistAction{
+					Action:           action,
+					TotalTokens:      int64(promptTokens + completionTokens),
+					PromptTokens:     int64(promptTokens),
+					CompletionTokens: int64(completionTokens),
+				},
+			},
+		},
+	}
+
+	if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
+	}
 }
 
 func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
@@ -286,12 +420,13 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
-	sctx *SessionContext, site reversetunnel.RemoteSite,
-) error {
+	sctx *SessionContext, site reversetunnelclient.RemoteSite,
+) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
-	if conversationID == "" {
-		return trace.BadParameter("conversation ID is required")
+	actionParam := r.URL.Query().Get("action")
+	if conversationID == "" && actionParam == "" {
+		return trace.BadParameter("conversation ID or action is required")
 	}
 
 	authClient, err := sctx.GetClient()
@@ -303,12 +438,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
-	identity, err := createIdentityContext(sctx.GetUser(), sctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), sctx, sctx.GetUser(), h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,12 +476,35 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil
 	}
-	defer ws.Close()
+	defer func() {
+		closureReason := websocket.CloseNormalClosure
+		closureMsg := ""
+		if err != nil {
+			h.log.WithError(err).Error("Error in the Assistant loop")
+			_ = ws.WriteJSON(&assistantMessage{
+				Type:        assist.MessageKindError,
+				Payload:     "An error has occurred. Please try again later.",
+				CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
+			})
+			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
+			closureReason = websocket.CloseInternalServerErr
+			closureMsg = err.Error()
+		}
+		// Send the close message to the client and close the connection
+		if err := ws.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(closureReason, closureMsg),
+			time.Now().Add(time.Second),
+		); err != nil {
+			h.log.Warnf("Failed to write close message: %v", err)
+		}
+		if err := ws.Close(); err != nil {
+			h.log.Warnf("Failed to close websocket: %v", err)
+		}
+	}()
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
-		ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
-		return nil
+		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
 	})
 
 	ws.SetCloseHandler(func(code int, text string) error {
@@ -361,31 +514,163 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
-	assistClient, err := assist.NewAssist(ctx, h.cfg.ProxyClient,
+	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser())
+	switch r.URL.Query().Get("action") {
+	case actionSSHGenerateCommand:
+		err = h.assistGenSSHCommandLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
+	case actionSSHExplainCommand:
+		err = h.assistSSHExplainOutputLoop(ctx, assistClient, authClient, ws)
+	case actionGenerateAuditQuery:
+		err = h.assistGenAuditQueryLoop(ctx, assistClient, authClient, ws, sctx.GetUser())
+	default:
+		err = h.assistChatLoop(ctx, assistClient, authClient, conversationID, sctx, ws)
+	}
+
+	return trace.Wrap(err)
+}
+
+// assistGenAuditQueryLoop reads the user's input and generates an audit query.
+func (h *Handler) assistGenAuditQueryLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn, username string) error {
+	for {
+		_, payload, err := ws.ReadMessage()
+		if err != nil {
+			if wsIsClosed(err) {
+				break
+			}
+			return trace.Wrap(err)
+		}
+
+		onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+			return onMessageFn(ws, kind, payload, createdTime)
+		}
+
+		toolCtx := &tools.ToolContext{User: username}
+
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+			return trace.Wrap(err)
+		}
+
+		tokenCount, err := assistClient.RunTool(ctx, onMessage, tools.AuditQueryGenerationToolName, string(payload), toolCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		go h.reportActionTokenUsage(authClient, tokenCount, tools.AuditQueryGenerationToolName)
+	}
+	return nil
+}
+
+// assistSSHExplainOutputLoop reads the user's input and generates a command summary.
+func (h *Handler) assistSSHExplainOutputLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn) error {
+	_, payload, err := ws.ReadMessage()
+	if err != nil {
+		if wsIsClosed(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	modelMessages := []*assistpb.AssistantMessage{
+		{
+			Type:    string(assist.MessageKindUserMessage),
+			Payload: string(payload),
+		},
+	}
+
+	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		return onMessageFn(ws, kind, payload, createdTime)
+	}
+
+	if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+		return trace.Wrap(err)
+	}
+
+	summary, tokenCount, err := assistClient.GenerateCommandSummary(ctx, modelMessages, map[string][]byte{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// onMessageFn is called when a message is received from the OpenAI API.
-	onMessageFn := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
-		msg := &assistantMessage{
-			Type:        kind,
-			Payload:     string(payload),
-			CreatedTime: createdTime.Format(time.RFC3339),
+	if err := onMessageFn(ws, assist.MessageKindAssistantMessage, []byte(summary), h.clock.Now().UTC()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	go h.reportActionTokenUsage(authClient, tokenCount, "SSH Explain")
+	return nil
+}
+
+// assistSSHCommandLoop reads the user's input and generates a Linux command.
+func (h *Handler) assistGenSSHCommandLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI, ws *websocket.Conn, username string) error {
+	chat, err := assistClient.NewLightweightChat(username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		return trace.Wrap(onMessageFn(ws, kind, payload, createdTime))
+	}
+
+	for {
+		_, payload, err := ws.ReadMessage()
+		if err != nil {
+			if wsIsClosed(err) {
+				break
+			}
+			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(ws.WriteJSON(msg))
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
+			return trace.Wrap(err)
+		}
+
+		tokenCount, err := chat.ProcessComplete(ctx, func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+			return onMessageFn(ws, kind, payload, createdTime)
+		}, string(payload))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tool := tools.CommandExecutionTool{}
+		go h.reportActionTokenUsage(authClient, tokenCount, tool.Name())
+	}
+	return nil
+}
+
+// assistChatLoop is the main chat loop for the assistant.
+// It reads the user's input from provided WS and generates a response.
+func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assist, authClient auth.ClientI,
+	conversationID string, sctx *SessionContext, ws *websocket.Conn,
+) error {
+	ac, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	toolContext := &tools.ToolContext{
+		AssistEmbeddingServiceClient: authClient.EmbeddingClient(),
+		AccessRequestClient:          authClient,
+		AccessChecker:                ac,
+		NodeWatcher:                  h.nodeWatcher,
+		ClusterName:                  sctx.cfg.Parent.clusterName,
+		User:                         sctx.GetUser(),
+	}
+
+	chat, err := assistClient.NewChat(ctx, authClient, toolContext, conversationID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	onMessage := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		return trace.Wrap(onMessageFn(ws, kind, payload, createdTime))
 	}
 
 	if chat.IsNewConversation() {
 		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessageFn); err != nil {
+		if _, err := chat.ProcessComplete(ctx, onMessage, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -393,8 +678,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
-			if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure,
-				websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+			if wsIsClosed(err) {
 				break
 			}
 			return trace.Wrap(err)
@@ -405,53 +689,61 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			return trace.Wrap(err)
 		}
 
-		// We can not know how many tokens we will consume in advance.
-		// Try to consume a small amount of tokens first.
-		const lookaheadTokens = 100
-		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
-			err := onMessageFn(assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			continue
+		if wsIncoming.Type == assist.MessageKindAccessRequestCreated {
+			chat.RecordMesssage(ctx, wsIncoming.Type, wsIncoming.Payload)
 		}
 
-		//TODO(jakule): Should we sanitize the payload?
-		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
+		if err := h.preliminaryRateLimitGuard(onMessage); err != nil {
 			return trace.Wrap(err)
 		}
 
-		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn)
+		//TODO(jakule): Should we sanitize the payload?
+		usedTokens, err := chat.ProcessComplete(ctx, onMessage, wsIncoming.Payload)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		// Once we know how many tokens were consumed for prompt+completion,
-		// consume the remaining tokens from the rate limiter bucket.
-		extraTokens := usedTokens.Prompt + usedTokens.Completion - lookaheadTokens
-		if extraTokens < 0 {
-			extraTokens = 0
-		}
-		h.assistantLimiter.ReserveN(time.Now(), extraTokens)
-
-		usageEventReq := &proto.SubmitUsageEventRequest{
-			Event: &usageeventsv1.UsageEventOneOf{
-				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
-					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
-						ConversationId:   conversationID,
-						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Completion),
-						PromptTokens:     int64(usedTokens.Prompt),
-						CompletionTokens: int64(usedTokens.Completion),
-					},
-				},
-			},
-		}
-		if err := authClient.SubmitUsageEvent(r.Context(), usageEventReq); err != nil {
-			h.log.WithError(err).Warn("Failed to emit usage event")
-		}
+		// Token usage reporting is asynchronous as we might still be streaming
+		// a message, and we don't want to block everything.
+		go h.reportConversationTokenUsage(authClient, usedTokens, conversationID)
 	}
 
-	h.log.Debugf("end assistant conversation loop")
+	h.log.Debug("end assistant conversation loop")
+	return nil
+}
+
+// preliminaryRateLimitGuard checks that some small amount of tokens are still available and the ratelimit is not exceeded.
+// This is done because the changed quantity within the limiter is not known until after a request is processed.
+func (h *Handler) preliminaryRateLimitGuard(onMessageFn func(kind assist.MessageType, payload []byte, createdTime time.Time) error) error {
+	const errorMsg = "You have reached the rate limit. Please try again later."
+
+	if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
+		err := onMessageFn(assist.MessageKindError, []byte(errorMsg), h.clock.Now().UTC())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.LimitExceeded(errorMsg)
+	}
 
 	return nil
+}
+
+// wsIsClosed returns true if the error is caused by a closed websocket.
+func wsIsClosed(err error) bool {
+	return err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway, websocket.CloseNormalClosure)
+}
+
+// onMessageFn is a helper function used to send an assist message to the frontend.
+// It deals with serializing the kind and payload into a wire and sending it over with the correct
+// websocket frame type.
+func onMessageFn(ws *websocket.Conn, kind assist.MessageType, payload []byte, createdTime time.Time) error {
+	msg := &assistantMessage{
+		Type:        kind,
+		Payload:     string(payload),
+		CreatedTime: createdTime.Format(time.RFC3339),
+	}
+
+	return trace.Wrap(ws.WriteJSON(msg))
 }

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package alpnproxy
 
@@ -36,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -161,6 +164,14 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	}
+	return trace.Wrap(l.start(ctx))
+}
+
+// start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
+func (l *LocalProxy) start(ctx context.Context) error {
 	if l.cfg.Middleware != nil {
 		err := l.cfg.Middleware.OnStart(ctx, l)
 		if err != nil {
@@ -238,7 +249,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 func (l *LocalProxy) Close() error {
 	l.cancel()
 	if l.cfg.Listener != nil {
-		if err := l.cfg.Listener.Close(); err != nil {
+		if err := l.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			return trace.Wrap(err)
 		}
 	}
@@ -305,27 +316,42 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	l.cfg.Log.Info("Starting HTTP access proxy")
 	defer l.cfg.Log.Info("HTTP access proxy stopped")
 	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
-	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
-			return
-		}
 
-		// Requests from forward proxy have original hostnames instead of
-		// localhost. Set appropriate header to keep this information.
-		if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
-			req.Header.Set("X-Forwarded-Host", req.Host)
-		}
+	server := &http.Server{
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
+				return
+			}
 
-		proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
-		if err != nil {
-			l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
-			trace.WriteError(rw, trace.Wrap(err))
-			return
-		}
+			// Requests from forward proxy have original hostnames instead of
+			// localhost. Set appropriate header to keep this information.
+			if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
+				req.Header.Set("X-Forwarded-Host", req.Host)
+			} else { // ensure that there is no client provided X-Forwarded-Host
+				req.Header.Del("X-Forwarded-Host")
+			}
 
-		proxy.ServeHTTP(rw, req)
-	}))
-	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+			if err != nil {
+				l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
+				trace.WriteError(rw, trace.Wrap(err))
+				return
+			}
+
+			proxy.ServeHTTP(rw, req)
+		}),
+	}
+
+	// Shut down the server when the context is done
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(context.Background())
+	}()
+
+	// Use the custom server to listen and serve
+	err := server.Serve(l.cfg.Listener)
+	if err != nil && err != http.ErrServerClosed && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil

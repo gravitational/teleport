@@ -111,6 +111,16 @@ func (r *PluginDataV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
+// GetRevision returns the revision
+func (r *PluginDataV3) GetRevision() string {
+	return r.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision
+func (r *PluginDataV3) SetRevision(rev string) {
+	r.Metadata.SetRevision(rev)
+}
+
 func (r *PluginDataV3) String() string {
 	return fmt.Sprintf("PluginData(kind=%s,resource=%s,entries=%d)", r.GetSubKind(), r.GetName(), len(r.Spec.Entries))
 }

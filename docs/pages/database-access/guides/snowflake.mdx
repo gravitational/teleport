@@ -3,28 +3,17 @@ title: Database Access with Snowflake
 description: How to configure Teleport database access with Snowflake.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="10.0"
->
-  Database access for Snowflake is available starting from Teleport `10.0`.
-</Details>
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Snowflake" dbConfigure="Snowflake database with key pair authentication" dbName="Snowflake" !)
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Assign Teleport's public key to a Snowflake user.
-- Connect to Snowflake through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
   ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
   ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -34,7 +23,7 @@ This guide will help you to:
 
 - `snowsql` installed and added to your system's `PATH` environment variable.
 
-- A host where you will run the Teleport Database Service. Teleport version 10.0 or newer must be installed.
+- A host where you will run the Teleport Database Service.
 
   See [Installation](../../installation.mdx) for details.
 
@@ -51,7 +40,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="https://abc12345.snowflakecomputing.com" !)
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -59,7 +48,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="https://abc12345.snowflakecomputing.com" !)
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
 </TabItem>
 </Tabs>
 
@@ -80,7 +69,6 @@ $ tctl auth sign --format=snowflake --out=server
 The command will create a `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
 generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
 
-(!docs/pages/includes/database-access/rotation-note.mdx!)
 
 ## Step 4/5. Add the public key to your Snowflake user
 
@@ -118,7 +106,7 @@ Log in to your Teleport cluster and see the available databases:
     # example-snowflake Example Snowflake ❄ env=dev
     ```
   </TabItem>
-  <TabItem scope={["cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
     ```code
     $ tsh login --proxy=mytenant.teleport.sh --user=alice
     $ tsh db ls
@@ -130,13 +118,6 @@ Log in to your Teleport cluster and see the available databases:
 </Tabs>
 
 To retrieve credentials for a database and connect to it:
-
-```code
-$ tsh db connect example-snowflake
-```
-
-You can optionally specify the database user and the database name to use by
-default when connecting to the database instance:
 
 ```code
 $ tsh db connect --db-user=alice --db-name=SNOWFLAKE_SAMPLE_DATA example-snowflake
@@ -157,3 +138,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

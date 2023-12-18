@@ -1,0 +1,42 @@
+As with all Teleport users, the Teleport Auth Service authenticates the
+`access-plugin` user by issuing short-lived TLS credentials. In this case, we
+will need to request the credentials manually by *impersonating* the
+`access-plugin` role and user.
+
+If you are running a self-hosted Teleport Enterprise deployment and are using
+`tctl` from the Auth Service host, you will already have impersonation
+privileges.
+
+To grant your user impersonation privileges for `access-plugin`, define a role
+called `access-plugin-impersonator` by pasting the following YAML document into
+a file called `access-plugin-impersonator.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: access-plugin-impersonator
+spec:
+  allow:
+    impersonate:
+      roles:
+      - access-plugin
+      users:
+      - access-plugin
+```
+
+Create the `access-plugin-impersonator` role: 
+
+```code
+$ tctl create -f access-plugin-impersonator.yaml
+```
+
+If you are providing identity files to the plugin with Machine ID, assign the
+`access-plugin` role to the Machine ID bot user. Otherwise, assign this role to
+the user you plan to use to generate credentials for the `access-plugin` role
+and user:
+
+(!docs/pages/includes/add-role-to-user.mdx role="access-plugin-impersonator"!)
+
+You will now be able to generate signed certificates for the `access-plugin`
+role and user.

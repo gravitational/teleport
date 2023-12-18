@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -21,13 +23,17 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -91,6 +97,22 @@ type joinAttributeSourcer interface {
 	JoinAuditAttributes() (map[string]interface{}, error)
 }
 
+func setRemoteAddrFromContext(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+	var addr string
+	if clientIP, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		addr = clientIP.String()
+	} else if p, ok := peer.FromContext(ctx); ok {
+		addr = p.Addr.String()
+	}
+	ip, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.RemoteAddr = ip
+
+	return nil
+}
+
 // RegisterUsingToken returns credentials for a new node to join the Teleport
 // cluster using a previously issued token.
 //
@@ -138,13 +160,23 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		}
 		joinAttributeSrc = claims
 	case types.JoinMethodKubernetes:
-		if err := a.checkKubernetesJoinRequest(ctx, req); err != nil {
+		claims, err := a.checkKubernetesJoinRequest(ctx, req)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		joinAttributeSrc = claims
 	case types.JoinMethodGCP:
-		if err := a.checkGCPJoinRequest(ctx, req); err != nil {
+		claims, err := a.checkGCPJoinRequest(ctx, req)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		joinAttributeSrc = claims
+	case types.JoinMethodSpacelift:
+		claims, err := a.checkSpaceliftJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -180,39 +212,33 @@ func (a *Server) generateCertsBot(
 	// botResourceName must be set, enforced in CheckAndSetDefaults
 	botName := provisionToken.GetBotName()
 	joinMethod := provisionToken.GetJoinMethod()
-	// Append `bot-` to the bot name to derive its username.
-	botResourceName := BotResourceName(botName)
+
+	// Check this is a join method for bots we support.
+	if !slices.Contains(supportedBotJoinMethods, joinMethod) {
+		return nil, trace.BadParameter(
+			"unsupported join method %q for bot", joinMethod,
+		)
+	}
+
+	// Most join methods produce non-renewable certificates and join must be
+	// called again to fetch fresh certificates with a longer lifetime. These
+	// join methods do not delete the token after use.
+	renewable := false
+	shouldDeleteToken := false
+	if joinMethod == types.JoinMethodToken {
+		// The token join method is special and produces renewable certificates
+		// but the token is deleted after use.
+		shouldDeleteToken = true
+		renewable = true
+	}
 
 	expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
 	if req.Expires != nil {
 		expires = *req.Expires
 	}
 
-	// Repeatable join methods (e.g IAM) should not produce renewable
-	// certificates. Ephemeral join methods (e.g Token) should produce
-	// renewable certificates, but the token should be deleted after use.
-	var renewable bool
-	var shouldDeleteToken bool
-	switch joinMethod {
-	case types.JoinMethodToken:
-		shouldDeleteToken = true
-		renewable = true
-	case types.JoinMethodIAM,
-		types.JoinMethodGitHub,
-		types.JoinMethodGitLab,
-		types.JoinMethodCircleCI,
-		types.JoinMethodKubernetes,
-		types.JoinMethodAzure,
-		types.JoinMethodGCP:
-		shouldDeleteToken = false
-		renewable = false
-	default:
-		return nil, trace.BadParameter(
-			"unsupported join method %q for bot", joinMethod,
-		)
-	}
 	certs, err := a.generateInitialBotCerts(
-		ctx, botResourceName, req.PublicSSHKey, expires, renewable,
+		ctx, BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +263,7 @@ func (a *Server) generateCertsBot(
 		Status: apievents.Status{
 			Success: true,
 		},
-		BotName:   provisionToken.GetBotName(),
+		BotName:   botName,
 		Method:    string(joinMethod),
 		TokenName: provisionToken.GetSafeName(),
 	}
@@ -298,7 +324,11 @@ func (a *Server) generateCerts(
 	}
 
 	// Emit audit event
-	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
+	if req.Role == types.RoleInstance {
+		log.Infof("Instance %q [%v] has joined the cluster. role=%s, systemRoles=%+v", req.NodeName, req.HostID, req.Role, systemRoles)
+	} else {
+		log.Infof("Instance %q [%v] has joined the cluster. role=%s", req.NodeName, req.HostID, req.Role)
+	}
 	joinEvent := &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
 			Type: events.InstanceJoinEvent,
@@ -307,11 +337,12 @@ func (a *Server) generateCerts(
 		Status: apievents.Status{
 			Success: true,
 		},
-		NodeName:  req.NodeName,
-		Role:      string(req.Role),
-		Method:    string(provisionToken.GetJoinMethod()),
-		TokenName: provisionToken.GetSafeName(),
-		HostID:    req.HostID,
+		NodeName:     req.NodeName,
+		Role:         string(req.Role),
+		Method:       string(provisionToken.GetJoinMethod()),
+		TokenName:    provisionToken.GetSafeName(),
+		TokenExpires: provisionToken.Expiry(),
+		HostID:       req.HostID,
 	}
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()

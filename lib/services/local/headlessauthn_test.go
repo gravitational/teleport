@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local_test
 
@@ -21,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -30,123 +31,52 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// TestIdentityService_HeadlessAuthenticationBackend tests headless authentication
-// backend methods for functionality and validation.
+// TestIdentityService_HeadlessAuthenticationBackend tests headless authentication backend methods.
 func TestIdentityService_HeadlessAuthenticationBackend(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	ctx := context.Background()
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
-	expires := time.Now().Add(time.Minute)
-
-	expectBadParameter := func(tt require.TestingT, err error, i ...interface{}) {
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got: %v", err)
-	}
-
-	tests := []struct {
-		name              string
-		ha                *types.HeadlessAuthentication
-		createStubErr     require.ErrorAssertionFunc
-		compareAndSwapErr require.ErrorAssertionFunc
-	}{
-		{
-			name: "OK headless authentication",
-			ha: &types.HeadlessAuthentication{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Name:    pubUUID,
-						Expires: &expires,
-					},
-				},
-				User:      "user",
-				PublicKey: []byte(sshPubKey),
+	expires := identity.Clock().Now().Add(time.Minute)
+	headlessAuthn := &types.HeadlessAuthentication{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name:    pubUUID,
+				Expires: &expires,
 			},
-		}, {
-			name: "NOK name missing",
-			ha: &types.HeadlessAuthentication{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Expires: &expires,
-					},
-				},
-				User:      "user",
-				PublicKey: []byte(sshPubKey),
-			},
-			createStubErr: expectBadParameter,
-		}, {
-			name: "NOK expires missing",
-			ha: &types.HeadlessAuthentication{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Name: pubUUID,
-					},
-				},
-				User:      "user",
-				PublicKey: []byte(sshPubKey),
-			},
-			compareAndSwapErr: expectBadParameter,
-		}, {
-			name: "NOK username missing",
-			ha: &types.HeadlessAuthentication{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Name:    pubUUID,
-						Expires: &expires,
-					},
-				},
-				PublicKey: []byte(sshPubKey),
-			},
-			compareAndSwapErr: expectBadParameter,
-		}, {
-			name: "NOK name not derived from public key",
-			ha: &types.HeadlessAuthentication{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Name:    uuid.NewString(),
-						Expires: &expires,
-					},
-				},
-				User:      "user",
-				PublicKey: []byte(sshPubKey),
-			},
-			compareAndSwapErr: expectBadParameter,
 		},
+		User:      "user",
+		PublicKey: []byte(sshPubKey),
+		State:     types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			stub, err := identity.CreateHeadlessAuthenticationStub(ctx, test.ha.Metadata.Name)
-			if test.createStubErr != nil {
-				test.createStubErr(t, err)
-				return
-			}
-			require.NoError(t, err, "CreateHeadlessAuthenticationStub returned non-nil error")
+	// Create a headless authentication with minimal fields set (stub)
+	stub, err := types.NewHeadlessAuthentication(headlessAuthn.User, headlessAuthn.Metadata.Name, headlessAuthn.Expiry())
+	require.NoError(t, err)
+	err = identity.UpsertHeadlessAuthentication(ctx, stub)
+	require.NoError(t, err, "UpsertHeadlessAuthentication returned non-nil error")
 
-			t.Cleanup(func() {
-				err = identity.DeleteHeadlessAuthentication(ctx, test.ha.Metadata.Name)
-				require.NoError(t, err)
+	swapped, err := identity.CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
+	require.NoError(t, err, "CompareAndSwapHeadlessAuthentication returned non-nil error")
 
-				_, err = identity.GetHeadlessAuthentication(ctx, test.ha.Metadata.Name)
-				require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
-			})
+	// Compare and swap should fail if the new headless authn fails validation.
+	_, err = identity.CompareAndSwapHeadlessAuthentication(ctx, swapped, stub)
+	require.True(t, trace.IsBadParameter(err), "CompareAndSwapHeadlessAuthentication expected bad parameter error but got: %v", err)
 
-			swapped, err := identity.CompareAndSwapHeadlessAuthentication(ctx, stub, test.ha)
-			if test.compareAndSwapErr != nil {
-				test.compareAndSwapErr(t, err)
-				return
-			}
-			require.NoError(t, err, "CompareAndSwapHeadlessAuthentication returned non-nil error")
+	retrieved, err := identity.GetHeadlessAuthentication(ctx, headlessAuthn.User, headlessAuthn.Metadata.Name)
+	require.NoError(t, err, "GetHeadlessAuthentication returned non-nil error")
+	require.Equal(t, swapped, retrieved)
 
-			retrieved, err := identity.GetHeadlessAuthentication(ctx, test.ha.Metadata.Name)
-			require.NoError(t, err, "GetHeadlessAuthentication returned non-nil error")
-			require.Equal(t, swapped, retrieved)
+	retrievedList, err := identity.GetHeadlessAuthentications(ctx)
+	require.NoError(t, err, "GetHeadlessAuthentications returned non-nil error")
+	require.Equal(t, []*types.HeadlessAuthentication{swapped}, retrievedList)
 
-			retrievedList, err := identity.GetHeadlessAuthentications(ctx)
-			require.NoError(t, err, "GetHeadlessAuthentications returned non-nil error")
-			require.Equal(t, []*types.HeadlessAuthentication{swapped}, retrievedList)
-		})
-	}
+	err = identity.DeleteHeadlessAuthentication(ctx, headlessAuthn.User, headlessAuthn.Metadata.Name)
+	require.NoError(t, err)
+
+	_, err = identity.GetHeadlessAuthentication(ctx, headlessAuthn.User, headlessAuthn.Metadata.Name)
+	require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
 }
 
 // sshPubKey is a randomly-generated public key used for login tests.

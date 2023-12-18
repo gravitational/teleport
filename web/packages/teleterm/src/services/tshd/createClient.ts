@@ -1,21 +1,29 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import { UserPreferences } from 'gen-proto-js/teleport/userpreferences/v1/userpreferences_pb';
+import {
+  ClusterUserPreferences,
+  PinnedResourcesUserPreferences,
+} from 'gen-proto-js/teleport/userpreferences/v1/cluster_preferences_pb';
+import { UnifiedResourcePreferences } from 'gen-proto-js/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
 import {
   AccessRequest,
@@ -30,11 +38,14 @@ import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
 import { mapUsageEvent } from './mapUsageEvent';
-import { ReportUsageEventRequest } from './types';
+import {
+  ReportUsageEventRequest,
+  UpdateHeadlessAuthenticationStateParams,
+} from './types';
 
 export default function createClient(
   addr: string,
-  credentials: ChannelCredentials
+  credentials: grpc.ChannelCredentials
 ) {
   const logger = new Logger('tshd');
   const tshd = middleware(new TerminalServiceClient(addr, credentials), [
@@ -434,7 +445,7 @@ export default function createClient(
 
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.loginPasswordless();
-          const stream = callRef.current as ClientDuplexStream<
+          const stream = callRef.current as grpc.ClientDuplexStream<
             api.LoginPasswordlessRequest,
             api.LoginPasswordlessResponse
           >;
@@ -648,7 +659,283 @@ export default function createClient(
         });
       });
     },
+
+    createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
+      const req =
+        new api.CreateConnectMyComputerRoleRequest().setRootClusterUri(
+          rootClusterUri
+        );
+
+      return new Promise<types.CreateConnectMyComputerRoleResponse>(
+        (resolve, reject) => {
+          tshd.createConnectMyComputerRole(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.toObject());
+            }
+          });
+        }
+      );
+    },
+
+    createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
+      return new Promise<types.CreateConnectMyComputerNodeTokenResponse>(
+        (resolve, reject) => {
+          tshd.createConnectMyComputerNodeToken(
+            new api.CreateConnectMyComputerNodeTokenRequest().setRootClusterUri(
+              uri
+            ),
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(response.toObject());
+              }
+            }
+          );
+        }
+      );
+    },
+
+    deleteConnectMyComputerToken(uri: uri.RootClusterUri, token: string) {
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteConnectMyComputerToken(
+          new api.DeleteConnectMyComputerTokenRequest()
+            .setRootClusterUri(uri)
+            .setToken(token),
+          err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+    },
+
+    waitForConnectMyComputerNodeJoin(
+      uri: uri.RootClusterUri,
+      abortSignal: types.TshAbortSignal
+    ) {
+      const req =
+        new api.WaitForConnectMyComputerNodeJoinRequest().setRootClusterUri(
+          uri
+        );
+
+      return withAbort(
+        abortSignal,
+        callRef =>
+          new Promise<types.WaitForConnectMyComputerNodeJoinResponse>(
+            (resolve, reject) => {
+              callRef.current = tshd.waitForConnectMyComputerNodeJoin(
+                req,
+                (err, response) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    resolve(
+                      response.toObject() as types.WaitForConnectMyComputerNodeJoinResponse
+                    );
+                  }
+                }
+              );
+            }
+          )
+      );
+    },
+
+    deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteConnectMyComputerNode(
+          new api.DeleteConnectMyComputerNodeRequest().setRootClusterUri(uri),
+          err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+    },
+
+    getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
+      return new Promise<string>((resolve, reject) => {
+        tshd.getConnectMyComputerNodeName(
+          new api.GetConnectMyComputerNodeNameRequest().setRootClusterUri(uri),
+          (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.getName() as uri.ServerUri);
+            }
+          }
+        );
+      });
+    },
+
+    updateHeadlessAuthenticationState(
+      params: UpdateHeadlessAuthenticationStateParams,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.UpdateHeadlessAuthenticationStateRequest()
+          .setRootClusterUri(params.rootClusterUri)
+          .setHeadlessAuthenticationId(params.headlessAuthenticationId)
+          .setState(params.state);
+
+        return new Promise<void>((resolve, reject) => {
+          callRef.current = tshd.updateHeadlessAuthenticationState(req, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      });
+    },
+
+    listUnifiedResources(
+      params: types.ListUnifiedResourcesRequest,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.ListUnifiedResourcesRequest()
+          .setClusterUri(params.clusterUri)
+          .setLimit(params.limit)
+          .setKindsList(params.kindsList)
+          .setStartKey(params.startKey)
+          .setSearch(params.search)
+          .setQuery(params.query)
+          .setPinnedOnly(params.pinnedOnly)
+          .setSearchAsRoles(params.searchAsRoles);
+        if (params.sortBy) {
+          req.setSortBy(
+            new api.SortBy()
+              .setField(params.sortBy.field)
+              .setIsDesc(params.sortBy.isDesc)
+          );
+        }
+
+        return new Promise<types.ListUnifiedResourcesResponse>(
+          (resolve, reject) => {
+            callRef.current = tshd.listUnifiedResources(req, (err, res) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve({
+                  nextKey: res.getNextKey(),
+                  resources: res
+                    .getResourcesList()
+                    .map(p => {
+                      switch (p.getResourceCase()) {
+                        case api.PaginatedResource.ResourceCase.SERVER:
+                          return {
+                            kind: 'server' as const,
+                            resource: p.getServer().toObject() as types.Server,
+                          };
+                        case api.PaginatedResource.ResourceCase.DATABASE:
+                          return {
+                            kind: 'database' as const,
+                            resource: p
+                              .getDatabase()
+                              .toObject() as types.Database,
+                          };
+                        case api.PaginatedResource.ResourceCase.KUBE:
+                          return {
+                            kind: 'kube' as const,
+                            resource: p.getKube().toObject() as types.Kube,
+                          };
+                        default:
+                          logger.info(
+                            `Ignoring unsupported resource ${JSON.stringify(
+                              p.toObject()
+                            )}.`
+                          );
+                      }
+                    })
+                    .filter(Boolean),
+                });
+              }
+            });
+          }
+        );
+      });
+    },
+    getUserPreferences(
+      params: api.GetUserPreferencesRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<api.UserPreferences.AsObject> {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.GetUserPreferencesRequest().setClusterUri(
+          params.clusterUri
+        );
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.getUserPreferences(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              const res = response.toObject();
+              resolve(res.userPreferences);
+            }
+          });
+        });
+      });
+    },
+    updateUserPreferences(
+      params: api.UpdateUserPreferencesRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<api.UserPreferences.AsObject> {
+      const userPreferences = new UserPreferences();
+      if (params.userPreferences.clusterPreferences) {
+        userPreferences.setClusterPreferences(
+          new ClusterUserPreferences().setPinnedResources(
+            new PinnedResourcesUserPreferences().setResourceIdsList(
+              params.userPreferences.clusterPreferences.pinnedResources
+                .resourceIdsList
+            )
+          )
+        );
+      }
+
+      if (params.userPreferences.unifiedResourcePreferences) {
+        userPreferences.setUnifiedResourcePreferences(
+          new UnifiedResourcePreferences()
+            .setDefaultTab(
+              params.userPreferences.unifiedResourcePreferences.defaultTab
+            )
+            .setViewMode(
+              params.userPreferences.unifiedResourcePreferences.viewMode
+            )
+            .setLabelsViewMode(
+              params.userPreferences.unifiedResourcePreferences.labelsViewMode
+            )
+        );
+      }
+
+      return withAbort(abortSignal, callRef => {
+        const req = new api.UpdateUserPreferencesRequest()
+          .setClusterUri(params.clusterUri)
+          .setUserPreferences(userPreferences);
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.updateUserPreferences(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              const res = response.toObject();
+              resolve(res.userPreferences);
+            }
+          });
+        });
+      });
+    },
   };
+
   return client;
 }
 

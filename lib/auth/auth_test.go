@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -27,7 +29,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	mathrand "math/rand"
 	"os"
 	"sort"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -49,7 +51,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -75,7 +81,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	mockEmitter *eventstest.MockRecorderEmitter
 }
 
 func newTestPack(
@@ -96,7 +102,7 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &eventstest.MockEmitter{}
+	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
@@ -230,7 +236,7 @@ func TestSessions(t *testing.T) {
 	out, err := s.a.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 	ws.SetPriv(nil)
-	require.Equal(t, ws, out)
+	require.Empty(t, cmp.Diff(ws, out, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.a.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
 		User:      user,
@@ -278,7 +284,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	role.SetKubeUsers(types.Allow, []string{user})
 	role.SetKubeGroups(types.Allow, []string{"system:masters"})
 
-	err = s.a.UpsertRole(ctx, role)
+	role, err = s.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
 	kg := testauthority.New()
@@ -296,14 +302,14 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster: s.clusterName.GetClusterName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	// Verify the public key and principals in SSH cert.
 	inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey(pub)
 	require.NoError(t, err)
 	gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
 	require.NoError(t, err)
-	require.Equal(t, gotSSHCert.Key, inSSHPub)
-	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user, teleport.SSHSessionJoinPrincipal})
+	require.Equal(t, inSSHPub, gotSSHCert.Key)
+	require.Equal(t, []string{user, teleport.SSHSessionJoinPrincipal}, gotSSHCert.ValidPrincipals)
 	// Verify the public key and Subject in TLS cert.
 	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
 	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
@@ -355,7 +361,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
@@ -401,7 +407,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
@@ -418,7 +424,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		KubernetesCluster: "",
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
@@ -435,7 +441,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -449,7 +455,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		KubernetesCluster: "root-kube-cluster",
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
@@ -466,7 +472,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
@@ -483,7 +489,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		KubernetesCluster: "",
 	})
 	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
+	require.Equal(t, user, resp.Username)
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
@@ -500,7 +506,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
+	require.Equal(t, wantID, *gotID)
 
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -555,7 +561,7 @@ func TestUserLock(t *testing.T) {
 		require.Error(t, err)
 	}
 
-	user, err := s.a.GetUser(username, false)
+	user, err := s.a.GetUser(ctx, username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
@@ -569,96 +575,26 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry time.Duration) {
-	t.Helper()
-	actualTTL := time.Until(token.Expiry())
-	diff := actualTTL - expectExpiry
-	require.True(
-		t,
-		diff <= time.Minute && diff >= (-1*time.Minute),
-		"Token TTL should be within one minute of the desired TTL",
-	)
-}
-
-func TestTokensCRUD(t *testing.T) {
+func TestAuth_SetStaticTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 	ctx := context.Background()
 
-	t.Run("GenerateToken: default TTL", func(t *testing.T) {
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-		})
-		require.NoError(t, err)
-		require.Len(t, tokenName, 2*TokenLenBytes)
-
-		// Ensure GetTokens returns token
-		tokens, err := s.a.GetTokens(ctx)
-		require.NoError(t, err)
-		require.Len(t, tokens, 1)
-		require.Equal(t, tokens[0].GetName(), tokenName)
-
-		tokenResource, err := s.a.ValidateToken(ctx, tokenName)
-		require.NoError(t, err)
-		roles := tokenResource.GetRoles()
-		require.True(t, roles.Include(types.RoleNode))
-		require.False(t, roles.Include(types.RoleProxy))
-		// Check that GenerateToken applies a default TTL
-		requireTokenExpiry(t, tokenResource, defaults.ProvisioningTokenTTL)
+	roles := types.SystemRoles{types.RoleProxy}
+	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Token:   "static-token-value",
+			Roles:   roles,
+			Expires: time.Unix(0, 0).UTC(),
+		}},
 	})
-
-	t.Run("GenerateToken: defined TTL", func(t *testing.T) {
-		// generate persistent token with defined TTL
-		desiredTTL := 6 * time.Hour
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-			TTL:   proto.Duration(desiredTTL),
-		})
-		require.NoError(t, err)
-		token, err := s.a.GetToken(ctx, tokenName)
-		require.NoError(t, err)
-		requireTokenExpiry(t, token, desiredTTL)
-		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
-	})
-
-	t.Run("GenerateToken: defined token name", func(t *testing.T) {
-		customToken := "custom-token"
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-			Token: customToken,
-		})
-		require.NoError(t, err)
-		require.Equal(t, tokenName, customToken)
-		token, err := s.a.ValidateToken(ctx, tokenName)
-		require.NoError(t, err)
-		roles := token.GetRoles()
-		require.True(t, roles.Include(types.RoleNode))
-		require.False(t, roles.Include(types.RoleProxy))
-		err = s.a.DeleteToken(ctx, customToken)
-		require.NoError(t, err)
-	})
-
-	// TODO(strideynet): In Teleport 14.0.0 when GenerateToken is removed
-	// break this SetStaticTokens test out into its own test as the rest of
-	// this test is removed.
-	t.Run("SetStaticTokens", func(t *testing.T) {
-		// lets use static tokens now
-		roles := types.SystemRoles{types.RoleProxy}
-		st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-			StaticTokens: []types.ProvisionTokenV1{{
-				Token:   "static-token-value",
-				Roles:   roles,
-				Expires: time.Unix(0, 0).UTC(),
-			}},
-		})
-		require.NoError(t, err)
-		err = s.a.SetStaticTokens(st)
-		require.NoError(t, err)
-		token, err := s.a.ValidateToken(ctx, "static-token-value")
-		require.NoError(t, err)
-		fetchesRoles := token.GetRoles()
-		require.Equal(t, fetchesRoles, roles)
-	})
+	require.NoError(t, err)
+	err = s.a.SetStaticTokens(st)
+	require.NoError(t, err)
+	token, err := s.a.ValidateToken(ctx, "static-token-value")
+	require.NoError(t, err)
+	fetchesRoles := token.GetRoles()
+	require.Equal(t, fetchesRoles, roles)
 }
 
 type tokenCreatorAndDeleter interface {
@@ -760,27 +696,6 @@ func TestLocalControlStream(t *testing.T) {
 	}
 }
 
-func TestGenerateTokenEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	ctx := context.Background()
-	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-	s.mockEmitter.Reset()
-
-	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{
-		types.RoleNode,
-		types.RoleTrustedCluster,
-		types.RoleAuth,
-	}})
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-}
-
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -790,7 +705,7 @@ func TestUpdateConfig(t *testing.T) {
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
 	require.NoError(t, err)
-	require.Equal(t, st.GetStaticTokens(), []types.ProvisionToken{})
+	require.Empty(t, st.GetStaticTokens())
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
@@ -862,37 +777,37 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
 	})
-	err = s.a.CreateUser(ctx, user)
+	user, err = s.a.CreateUser(ctx, user)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserCreateEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, "some-auth-user")
+	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, "some-auth-user", s.mockEmitter.LastEvent().(*apievents.UserCreate).User)
 	s.mockEmitter.Reset()
 
 	// test create user with existing user
-	err = s.a.CreateUser(ctx, user)
+	_, err = s.a.CreateUser(ctx, user)
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test createdBy gets set to default
 	user2, err := types.NewUser("some-other-user")
 	require.NoError(t, err)
-	err = s.a.CreateUser(ctx, user2)
+	_, err = s.a.CreateUser(ctx, user2)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
+	require.Equal(t, teleport.UserSystem, s.mockEmitter.LastEvent().(*apievents.UserCreate).User)
 	s.mockEmitter.Reset()
 
 	// test update on non-existent user
 	user3, err := types.NewUser("non-existent-user")
 	require.NoError(t, err)
-	err = s.a.UpdateUser(ctx, user3)
+	_, err = s.a.UpdateUser(ctx, user3)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, s.mockEmitter.LastEvent())
 
 	// test update user
-	err = s.a.UpdateUser(ctx, user)
+	_, err = s.a.UpdateUser(ctx, user)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.UserUpdatedEvent)
-	require.Equal(t, s.mockEmitter.LastEvent().(*apievents.UserCreate).User, teleport.UserSystem)
+	require.Equal(t, events.UserUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, teleport.UserSystem, s.mockEmitter.LastEvent().(*apievents.UserUpdate).User)
 }
 
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
@@ -926,7 +841,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterCreateEvent)
+	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test create event for switch case: when tc exists but enabled is true
@@ -934,13 +849,13 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterCreateEvent)
+	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test delete event
 	err = s.a.DeleteTrustedCluster(ctx, "test")
 	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterDeleteEvent)
+	require.Equal(t, events.TrustedClusterDeleteEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
@@ -948,35 +863,45 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test github create event
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
+		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "octocats",
 				Team:         "dummy",
-				Logins:       []string{"dummy"},
+				Roles:        []string{"dummy"},
 			},
 		},
 	})
+	// test github create event
 	require.NoError(t, err)
-	err = s.a.upsertGithubConnector(ctx, github)
+	github, err = s.a.createGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test github update event
-	err = s.a.upsertGithubConnector(ctx, github)
+	github.SetDisplay("llama")
+	github, err = s.a.updateGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.GithubConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, events.GithubConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	s.mockEmitter.Reset()
+
+	// test github upsert event
+	github.SetDisplay("alpaca")
+	upserted, err := s.a.upsertGithubConnector(ctx, github)
+	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test github delete event
 	err = s.a.deleteGithubConnector(ctx, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorDeletedEvent)
+	require.Equal(t, events.GithubConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
@@ -984,7 +909,6 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	s := newAuthSuite(t)
 
 	ctx := context.Background()
-	// test oidc create event
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
 		ClientID: "a",
 		ClaimsToRoles: []types.ClaimMapping{
@@ -997,24 +921,36 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+
+	// test oidc create event
+	oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test oidc update event
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+	oidc.SetDisplay("llama")
+	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, events.OIDCConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	s.mockEmitter.Reset()
+
+	// test oidc upsert event
+	oidc.SetDisplay("alpaca")
+	upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
+	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
+	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test oidc delete event
 	err = s.a.DeleteOIDCConnector(ctx, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorDeletedEvent)
+	require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
@@ -1041,10 +977,9 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	// SAML connector validation requires the roles in mappings exist.
 	role, err := types.NewRole("dummy", types.RoleSpecV6{})
 	require.NoError(t, err)
-	err = s.a.CreateRole(ctx, role)
+	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	// test saml create
 	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "a",
 		Issuer:                   "b",
@@ -1060,32 +995,42 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	// test saml create
+	saml, err = s.a.CreateSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test saml update event
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	saml.SetDisplay("llama")
+	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
+	require.NoError(t, err)
+	require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
+	require.Equal(t, events.SAMLConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+	s.mockEmitter.Reset()
+
+	// test saml upsert event
+	saml.SetDisplay("alapaca")
+	_, err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
+	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
 
 	// test saml delete event
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
+	require.Equal(t, events.SAMLConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &eventstest.MockEmitter{}
+	mockE := &eventstest.MockRecorderEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
-	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+	expectedLoginFailure := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOLoginFailureCode,
@@ -1096,11 +1041,12 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			Error:       "some error",
 			UserMessage: "some error",
 		},
-	})
+	}
+	require.Equal(t, expectedLoginFailure, mockE.LastEvent())
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), true)
 
-	require.Equal(t, mockE.LastEvent(), &apievents.UserLogin{
+	expectedTestFailure := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: events.UserSSOTestFlowLoginFailureCode,
@@ -1111,7 +1057,8 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 			Error:       "some error",
 			UserMessage: "some error",
 		},
-	})
+	}
+	require.Equal(t, expectedTestFailure, mockE.LastEvent())
 }
 
 func TestServer_AugmentContextUserCertificates(t *testing.T) {
@@ -1249,8 +1196,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			newSSHCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err, "ParseCertificate failed")
 			test.assertSSHCert(t, newSSHCert)
-			assert.True(t,
-				uint64(validAfter.Unix()) < newSSHCert.ValidAfter,
+			assert.Less(t, uint64(validAfter.Unix()), newSSHCert.ValidAfter,
 				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
 			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
 		})
@@ -1734,7 +1680,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 
-	err = s.a.UpsertRole(ctx, pinnedRole)
+	_, err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
 	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
@@ -1862,10 +1808,10 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	options := role.GetOptions()
 	options.CertExtensions = []*types.CertExtension{&extension}
 	role.SetOptions(options)
-	err = p.a.UpsertRole(ctx, role)
+	_, err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
@@ -1951,7 +1897,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	const mfaID = "test-mfa-id"
@@ -2023,7 +1969,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
-	target := types.LockTarget{Node: hostID}
+	target := types.LockTarget{ServerID: hostID}
 	lockWatch, err := p.a.lockWatcher.Subscribe(ctx, target)
 	require.NoError(t, err)
 	defer lockWatch.Close()
@@ -2044,9 +1990,110 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
-	// Locks targeting nodes should not apply to other system roles.
+	// Locks targeting server IDs should apply to other system roles.
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
+	require.Error(t, err)
+}
+
+func TestGenerateUserCertWithUserLoginState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+	userState, err := p.a.GetUserOrLoginState(ctx, user.GetName())
+	require.NoError(t, err)
+	accessInfo := services.AccessInfoFromUserState(userState)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+
+	// Generate cert with no user login state.
+	certReq := certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: pub,
+		traits:    accessChecker.Traits(),
+	}
+	resp, err := p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	sshCert, err := sshutils.ParseCertificate(resp.SSH)
+	require.NoError(t, err)
+
+	roles, err := services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
+	require.NoError(t, err)
+	require.Equal(t, []string{role.GetName()}, roles)
+
+	traits := wrappers.Traits{}
+	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
+	require.NoError(t, err)
+	require.Empty(t, traits)
+
+	uls, err := userloginstate.New(
+		header.Metadata{
+			Name: user.GetName(),
+		},
+		userloginstate.Spec{
+			Roles: []string{
+				role.GetName(), // We'll try to grant a duplicate role, which should be deduplicated.
+				"uls-role1",
+				"uls-role2",
+			},
+			Traits: trait.Traits{
+				"uls-trait1": []string{"value1", "value2"},
+				"uls-trait2": []string{"value3", "value4"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = p.a.UpsertUserLoginState(ctx, uls)
+	require.NoError(t, err)
+
+	ulsRole1, err := types.NewRole("uls-role1", types.RoleSpecV6{})
+	require.NoError(t, err)
+	ulsRole2, err := types.NewRole("uls-role2", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	_, err = p.a.UpsertRole(ctx, ulsRole1)
+	require.NoError(t, err)
+	_, err = p.a.UpsertRole(ctx, ulsRole2)
+	require.NoError(t, err)
+
+	userState, err = p.a.GetUserOrLoginState(ctx, user.GetName())
+	require.NoError(t, err)
+	accessInfo = services.AccessInfoFromUserState(userState)
+	accessChecker, err = services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+
+	certReq = certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: pub,
+		traits:    accessChecker.Traits(),
+	}
+
+	resp, err = p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	sshCert, err = sshutils.ParseCertificate(resp.SSH)
+	require.NoError(t, err)
+
+	roles, err = services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
+	require.NoError(t, err)
+	require.Equal(t, []string{role.GetName(), "uls-role1", "uls-role2"}, roles)
+
+	traits = wrappers.Traits{}
+	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
+	require.NoError(t, err)
+	require.Equal(t, map[string][]string{
+		"uls-trait1": {"value1", "value2"},
+		"uls-trait2": {"value3", "value4"},
+	}, map[string][]string(traits))
 }
 
 func TestNewWebSession(t *testing.T) {
@@ -2094,18 +2141,18 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	authServer.emitter = mockEmitter
 
 	ctx := context.Background()
 
-	username := "llama@goteleport.com"
+	const username = "llama@goteleport.com"
 	_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOn,
+		SecondFactor: constants.SecondFactorOptional, // "optional" lets all user devices be deleted.
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -2114,56 +2161,101 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	clt, err := testServer.NewClient(TestUser(username))
+	userClient, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err)
 
-	// Insert dummy devices.
-	webDev1, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
-	require.NoError(t, err)
-	_, err = RegisterTestDevice(ctx, clt, "web-2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, webDev1)
-	require.NoError(t, err)
-	totpDev1, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(testServer.Clock()))
-	require.NoError(t, err)
-	_, err = RegisterTestDevice(ctx, clt, "otp-2", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(testServer.Clock()))
-	require.NoError(t, err)
+	// webDev1 is used as the authenticator for various checks.
+	webDev1, err := RegisterTestDevice(ctx, userClient, "web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice(web1)")
+
+	// Insert devices for deletion.
+	deviceOpts := []TestDeviceOpt{WithTestDeviceClock(testServer.Clock())}
+	registerDevice := func(t *testing.T, deviceName string, deviceType proto.DeviceType) *TestDevice {
+		t.Helper()
+		testDev, err := RegisterTestDevice(
+			ctx, userClient, deviceName, deviceType, webDev1 /* authenticator */, deviceOpts...)
+		require.NoError(t, err, "RegisterTestDevice(%v)", deviceName)
+		return testDev
+	}
+	deleteWeb1 := registerDevice(t, "delete-web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN)
+	deleteWeb2 := registerDevice(t, "delete-web2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN)
+	deleteTOTP1 := registerDevice(t, "delete-totp1", proto.DeviceType_DEVICE_TYPE_TOTP)
+	deleteTOTP2 := registerDevice(t, "delete-totp2", proto.DeviceType_DEVICE_TYPE_TOTP)
+
+	deleteReqUsingToken := func(tokenReq CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+			token, err := authServer.newUserToken(tokenReq)
+			require.NoError(t, err, "newUserToken")
+
+			_, err = authServer.CreateUserToken(ctx, token)
+			require.NoError(t, err, "CreateUserToken")
+
+			return &proto.DeleteMFADeviceSyncRequest{
+				TokenID: token.GetName(),
+			}
+		}
+	}
+
+	deleteReqUsingChallenge := func(authenticator *TestDevice) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
+			authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+			})
+			require.NoError(t, err, "CreateAuthenticateChallenge")
+
+			authnSolved, err := authenticator.SolveAuthn(authnChal)
+			require.NoError(t, err, "SolveAuthn")
+
+			return &proto.DeleteMFADeviceSyncRequest{
+				ExistingMFAResponse: authnSolved,
+			}
+		}
+	}
 
 	tests := []struct {
-		name           string
-		tokenReq       CreateUserTokenRequest
-		deviceToDelete string
+		name            string
+		createDeleteReq func(t *testing.T) *proto.DeleteMFADeviceSyncRequest
+		deviceToDelete  string
 	}{
 		{
 			name: "recovery approved token",
-			tokenReq: CreateUserTokenRequest{
+			createDeleteReq: deleteReqUsingToken(CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
-			},
-			deviceToDelete: webDev1.MFA.GetName(),
+			}),
+			deviceToDelete: deleteWeb1.MFA.GetName(),
 		},
 		{
 			name: "privilege token",
-			tokenReq: CreateUserTokenRequest{
+			createDeleteReq: deleteReqUsingToken(CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypePrivilege,
-			},
-			deviceToDelete: totpDev1.MFA.GetName(),
+			}),
+			deviceToDelete: deleteTOTP1.MFA.GetName(),
+		},
+		{
+			name:            "Webauthn using challenge",
+			createDeleteReq: deleteReqUsingChallenge(webDev1),
+			deviceToDelete:  deleteWeb2.MFA.GetName(),
+		},
+		{
+			name:            "TOTP using challenge",
+			createDeleteReq: deleteReqUsingChallenge(webDev1),
+			deviceToDelete:  deleteTOTP2.MFA.GetName(),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := authServer.newUserToken(test.tokenReq)
-			require.NoError(t, err)
-			_, err = authServer.CreateUserToken(ctx, token)
-			require.NoError(t, err)
+			deleteReq := test.createDeleteReq(t)
+			deleteReq.DeviceName = test.deviceToDelete
 
 			// Delete the device.
 			mockEmitter.Reset()
-			err = authServer.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    token.GetName(),
-				DeviceName: test.deviceToDelete,
-			})
+			err = userClient.DeleteMFADeviceSync(ctx, deleteReq)
 			require.NoError(t, err, "DeleteMFADeviceSync failed")
 
 			// Verify device deletion.
@@ -2189,83 +2281,123 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
 	ctx := context.Background()
 
-	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	const username = "llama@goteleport.com"
+	_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
+	const origin = "localhost"
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
 		Webauthn: &types.Webauthn{
-			RPID: "localhost",
+			RPID: origin,
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	clt, err := srv.NewClient(TestUser(username))
+	userClient, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err)
 
 	// Insert a device.
 	const devName = "otp"
-	_, err = RegisterTestDevice(ctx, clt, devName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
+	_, err = RegisterTestDevice(
+		ctx, userClient, devName, proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
 	require.NoError(t, err)
 
+	createReq := func(name string) *proto.DeleteMFADeviceSyncRequest {
+		return &proto.DeleteMFADeviceSyncRequest{
+			DeviceName: name,
+		}
+	}
+
 	tests := []struct {
-		name          string
-		deviceName    string
-		tokenRequest  *CreateUserTokenRequest
-		assertErrType func(error) bool
+		name         string
+		tokenRequest *CreateUserTokenRequest
+		deleteReq    *proto.DeleteMFADeviceSyncRequest
+		wantErr      string
+		assertErr    func(error) bool
 	}{
 		{
-			name:          "token not found",
-			deviceName:    devName,
-			assertErrType: trace.IsAccessDenied,
+			name: "token not found",
+			deleteReq: &proto.DeleteMFADeviceSyncRequest{
+				TokenID:    "unknown-token-id",
+				DeviceName: devName,
+			},
+			wantErr:   "invalid token",
+			assertErr: trace.IsAccessDenied,
 		},
 		{
-			name:       "invalid token type",
-			deviceName: devName,
+			name: "invalid token type",
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: "unknown-token-type",
 			},
-			assertErrType: trace.IsAccessDenied,
+			deleteReq: createReq(devName),
+			wantErr:   "invalid token",
+			assertErr: trace.IsAccessDenied,
 		},
 		{
-			name:       "device not found",
-			deviceName: "does-not-exist",
+			name: "device not found",
 			tokenRequest: &CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
 			},
-			assertErrType: trace.IsNotFound,
+			deleteReq: &proto.DeleteMFADeviceSyncRequest{
+				DeviceName: "does-not-exist",
+			},
+			wantErr:   "does not exist",
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "neither token nor challenge provided",
+			deleteReq: createReq(devName),
+			wantErr:   "either a privilege token or",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name: "invalid challenge",
+			deleteReq: &proto.DeleteMFADeviceSyncRequest{
+				DeviceName: devName,
+				ExistingMFAResponse: &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{
+							Code: "not an OTP code",
+						},
+					},
+				},
+			},
+			wantErr:   "invalid totp token",
+			assertErr: trace.IsAccessDenied,
 		},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deleteReq := test.deleteReq
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tokenID := "test-token-not-found"
-
-			if tc.tokenRequest != nil {
-				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
+			if test.tokenRequest != nil {
+				token, err := authServer.newUserToken(*test.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().CreateUserToken(context.Background(), token)
+				_, err = authServer.CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
 
-				tokenID = token.GetName()
+				deleteReq.TokenID = token.GetName()
 			}
 
-			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    tokenID,
-				DeviceName: tc.deviceName,
-			})
-			require.True(t, tc.assertErrType(err))
+			err := userClient.DeleteMFADeviceSync(ctx, deleteReq)
+			assert.ErrorContains(t, err, test.wantErr, "DeleteMFADeviceSync error mismatch")
+			assert.True(t,
+				test.assertErr(err),
+				"DeleteMFADeviceSync error type assertion failed, got err=%q (%T)", err, trace.Unwrap(err))
 		})
 	}
 }
@@ -2274,143 +2406,126 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 // device when second factor is required.
 func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
 	ctx := context.Background()
 
-	webConfig := &types.Webauthn{
-		RPID: "localhost",
+	// Create a user with TOTP and Webauthn.
+	userCreds, err := createUserWithSecondFactors(testServer)
+	require.NoError(t, err, "createUserWithSecondFactors")
+
+	userClient, err := testServer.NewClient(TestUser(userCreds.username))
+	require.NoError(t, err, "NewClient")
+	totpDev := userCreds.totpDev
+	webDev := userCreds.webDev
+
+	// Reuse Webauthn config from createUserWithSecondFactors.
+	authPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err, "GetAuthPreference")
+	webConfig, _ := authPref.GetWebauthn()
+
+	// Define various test helpers.
+
+	setSecondFactor := func(t *testing.T, sf constants.SecondFactorType) {
+		authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: sf,
+			Webauthn:     webConfig,
+		})
+		require.NoError(t, err, "NewAuthPreference")
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPreference),
+			"SetAuthPreference")
 	}
 
-	newTOTPForUser := func(user string) *types.MFADevice {
-		clt, err := srv.NewClient(TestUser(user))
-		require.NoError(t, err)
-		dev, err := RegisterTestDevice(ctx, clt, "otp", proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(srv.Clock()))
-		require.NoError(t, err)
-		return dev.MFA
-	}
-
-	tests := []struct {
-		name              string
-		wantErr           bool
-		setAuthPreference func()
-		createDevice      func(user string) *types.MFADevice
-	}{
-		{
-			name: "with second factor optional",
-			setAuthPreference: func() {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
-					Webauthn:     webConfig,
-				})
-				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
+	deleteSync := func(userClient *Client, testDev *TestDevice) error {
+		// Issue and solve authn challenge.
+		authnChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
 			},
-			createDevice: newTOTPForUser,
-		},
-		{
-			name:    "with second factor otp",
-			wantErr: true,
-			setAuthPreference: func() {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOTP,
-				})
-				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			createDevice: newTOTPForUser,
-		},
-		{
-			name:    "with second factor webauthn",
-			wantErr: true,
-			setAuthPreference: func() {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorWebauthn,
-					Webauthn:     webConfig,
-				})
-				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			createDevice: func(user string) *types.MFADevice {
-				clt, err := srv.NewClient(TestUser(user))
-				require.NoError(t, err)
-				dev, err := RegisterTestDevice(ctx, clt, "web", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
-				require.NoError(t, err)
-				return dev.MFA
-			},
-		},
-		{
-			name:    "with second factor on",
-			wantErr: true,
-			setAuthPreference: func() {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOn,
-					Webauthn:     webConfig,
-				})
-				require.NoError(t, err)
-				err = srv.Auth().SetAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			createDevice: newTOTPForUser,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Create a user with no MFA device.
-			username := fmt.Sprintf("llama%v@goteleport.com", mathrand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
-			require.NoError(t, err)
+		})
+		if err != nil {
+			return err
+		}
+		authnSolved, err := testDev.SolveAuthn(authnChal)
+		if err != nil {
+			return err
+		}
 
-			// Set auth preference.
-			tc.setAuthPreference()
-
-			// Insert a MFA device.
-			dev := tc.createDevice(username)
-
-			// Acquire an approved token.
-			token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
-				Name: username,
-				TTL:  5 * time.Minute,
-				Type: UserTokenTypeRecoveryApproved,
-			})
-			require.NoError(t, err)
-			_, err = srv.Auth().CreateUserToken(context.Background(), token)
-			require.NoError(t, err)
-
-			// Delete the device.
-			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
-				TokenID:    token.GetName(),
-				DeviceName: dev.GetName(),
-			})
-
-			switch {
-			case tc.wantErr:
-				require.Error(t, err)
-				// Check it hasn't been deleted.
-				res, err := srv.Auth().GetMFADevices(ctx, &proto.GetMFADevicesRequest{
-					TokenID: token.GetName(),
-				})
-				require.NoError(t, err)
-				require.Len(t, res.GetDevices(), 1)
-			default:
-				require.NoError(t, err)
-			}
+		return userClient.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+			DeviceName:          testDev.MFA.GetName(),
+			ExistingMFAResponse: authnSolved,
 		})
 	}
+
+	deleteStream := func(userClient *Client, testDev *TestDevice) error {
+		return deleteMFADeviceStream(ctx, userClient, testDev)
+	}
+
+	makeTest := func(sf constants.SecondFactorType, deviceToDelete *TestDevice) func(t *testing.T) {
+		return func(t *testing.T) {
+			t.Helper()
+
+			setSecondFactor(t, sf)
+
+			// Attempt synchronous deletion.
+			const wantErr = "cannot delete the last"
+			assert.ErrorContains(t,
+				deleteSync(userClient, deviceToDelete),
+				wantErr)
+
+			// Attempt streaming deletion.
+			assert.ErrorContains(t,
+				deleteStream(userClient, deviceToDelete),
+				wantErr)
+
+			devicesResp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+			require.NoError(t, err, "GetMFADevices")
+			devName := deviceToDelete.MFA.GetName()
+			for _, dev := range devicesResp.Devices {
+				if dev.GetName() == devName {
+					return // Success, device not deleted.
+				}
+			}
+			t.Errorf("Device %q wrongly deleted", devName)
+		}
+	}
+
+	// First attempt deletions on specific modes like TOTP and Webauthn.
+	// These shouldn't work because we only have one of each device.
+	t.Run("second factor otp", makeTest(constants.SecondFactorOTP, totpDev))
+	t.Run("second factor webauthn", makeTest(constants.SecondFactorWebauthn, webDev))
+
+	// Make sure only one device is left, then attempt deletion with
+	// second_factor=on.
+	setSecondFactor(t, constants.SecondFactorOptional)
+	require.NoError(t,
+		deleteSync(userClient, webDev),
+		"Second-to-last device deletion failed",
+	)
+	t.Run("second factor on, otp device", makeTest(constants.SecondFactorOn, totpDev))
+
+	// Same as above, but now delete the last Webauthn device.
+	webDev, err = RegisterTestDevice(ctx, userClient, "web1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev /* authenticator */)
+	require.NoError(t, err, "RegisterTestDevice")
+	require.NoError(t,
+		deleteSync(userClient, totpDev),
+		"Second-to-last device deletion failed",
+	)
+	t.Run("second factor on, otp device", makeTest(constants.SecondFactorOn, webDev))
 }
 
 func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	authServer.SetEmitter(mockEmitter)
+	clock := authServer.GetClock()
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
-	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -2420,33 +2535,86 @@ func TestAddMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	u, err := createUserWithSecondFactors(srv)
+	u, err := createUserWithSecondFactors(testServer)
 	require.NoError(t, err)
 
-	clt, err := srv.NewClient(TestUser(u.username))
+	userClient, err := testServer.NewClient(TestUser(u.username))
 	require.NoError(t, err)
+
+	solveChallengeWithToken := func(
+		t *testing.T,
+		tokenType string,
+		deviceType proto.DeviceType,
+		deviceUsage proto.DeviceUsage,
+	) (token string, testDev *TestDevice, registerSolved *proto.MFARegisterResponse) {
+		privilegeToken, err := authServer.createPrivilegeToken(ctx, u.username, tokenType)
+		require.NoError(t, err, "createPrivilegeToken")
+		token = privilegeToken.GetName()
+
+		registerChal, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:     token,
+			DeviceType:  deviceType,
+			DeviceUsage: deviceUsage,
+		})
+		require.NoError(t, err, "CreateRegisterChallenge")
+
+		testDev, registerSolved, err = NewTestDeviceFromChallenge(registerChal, WithTestDeviceClock(clock))
+		require.NoError(t, err, "NewTestDeviceFromChallenge")
+		return token, testDev, registerSolved
+	}
+
+	solveChallengeWithUser := func(
+		t *testing.T,
+		deviceType proto.DeviceType,
+		deviceUsage proto.DeviceUsage,
+	) (*TestDevice, *proto.MFARegisterResponse) {
+		// Create and solve a registration challenge.
+		authChal, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+		})
+		require.NoError(t, err, "CreateAuthenticateChallenge")
+
+		authSolved, err := u.webDev.SolveAuthn(authChal)
+		require.NoError(t, err, "SolveAuthn")
+
+		registerChal, err := userClient.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			ExistingMFAResponse: authSolved,
+			DeviceType:          deviceType,
+			DeviceUsage:         deviceUsage,
+		})
+		require.NoError(t, err, "CreateRegisterChallenge")
+
+		testDev, registerSolved, err := NewTestDeviceFromChallenge(
+			registerChal,
+			WithTestDeviceClock(clock),
+		)
+		require.NoError(t, err, "NewTestDeviceFromChallenge")
+		return testDev, registerSolved
+	}
 
 	tests := []struct {
 		name       string
 		deviceName string
 		wantErr    bool
-		getReq     func(string) *proto.AddMFADeviceSyncRequest
+		getReq     func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest
 	}{
 		{
 			name:    "invalid token type",
 			wantErr: true,
-			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
+			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
 				// Obtain a non privilege token.
-				token, err := srv.Auth().newUserToken(CreateUserTokenRequest{
+				token, err := authServer.newUserToken(CreateUserTokenRequest{
 					Name: u.username,
 					TTL:  5 * time.Minute,
 					Type: UserTokenTypeResetPassword,
 				})
 				require.NoError(t, err)
-				_, err = srv.Auth().CreateUserToken(ctx, token)
+				_, err = authServer.CreateUserToken(ctx, token)
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
@@ -2458,42 +2626,28 @@ func TestAddMFADeviceSync(t *testing.T) {
 		{
 			name:       "TOTP device with privilege token",
 			deviceName: "new-totp",
-			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
-				// Obtain a privilege token.
-				privelegeToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilege)
-				require.NoError(t, err)
-
-				// Create token secrets.
-				res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-					TokenID:    privelegeToken.GetName(),
-					DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
-				})
-				require.NoError(t, err)
-
-				_, totpRegRes, err := NewTestDeviceFromChallenge(res, WithTestDeviceClock(srv.Auth().clock))
-				require.NoError(t, err)
+			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
+				token, _, registerSolved := solveChallengeWithToken(
+					t, UserTokenTypePrivilege, proto.DeviceType_DEVICE_TYPE_TOTP, proto.DeviceUsage_DEVICE_USAGE_MFA)
 
 				return &proto.AddMFADeviceSyncRequest{
-					TokenID:        privelegeToken.GetName(),
+					TokenID:        token,
 					NewDeviceName:  deviceName,
-					NewMFAResponse: totpRegRes,
+					NewMFAResponse: registerSolved,
 				}
 			},
 		},
 		{
 			name:       "Webauthn device with privilege exception token",
 			deviceName: "new-webauthn",
-			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
-				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
-				require.NoError(t, err)
-
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
+				token, _, registerSolved := solveChallengeWithToken(
+					t, UserTokenTypePrivilegeException, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, proto.DeviceUsage_DEVICE_USAGE_MFA)
 
 				return &proto.AddMFADeviceSyncRequest{
-					TokenID:        privExToken.GetName(),
+					TokenID:        token,
 					NewDeviceName:  deviceName,
-					NewMFAResponse: webauthnRes,
+					NewMFAResponse: registerSolved,
 				}
 			},
 		},
@@ -2501,25 +2655,55 @@ func TestAddMFADeviceSync(t *testing.T) {
 			name:       "invalid device name length",
 			deviceName: strings.Repeat("A", mfaDeviceNameMaxLen+1),
 			wantErr:    true,
-			getReq: func(deviceName string) *proto.AddMFADeviceSyncRequest {
-				privExToken, err := srv.Auth().createPrivilegeToken(ctx, u.username, UserTokenTypePrivilegeException)
-				require.NoError(t, err)
-
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), privExToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
-				require.NoError(t, err)
+			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
+				token, _, registerSolved := solveChallengeWithToken(
+					t, UserTokenTypePrivilegeException, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, proto.DeviceUsage_DEVICE_USAGE_MFA)
 
 				return &proto.AddMFADeviceSyncRequest{
-					TokenID:        privExToken.GetName(),
+					TokenID:        token,
 					NewDeviceName:  deviceName,
-					NewMFAResponse: webauthnRes,
+					NewMFAResponse: registerSolved,
+				}
+			},
+		},
+		{
+			name:       "WebAuthn with context user",
+			deviceName: "context-webauthn1",
+			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
+				_, registerSolved := solveChallengeWithUser(
+					t,
+					proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					proto.DeviceUsage_DEVICE_USAGE_MFA)
+
+				return &proto.AddMFADeviceSyncRequest{
+					ContextUser:    &proto.ContextUser{},
+					NewDeviceName:  deviceName,
+					NewMFAResponse: registerSolved,
+					DeviceUsage:    proto.DeviceUsage_DEVICE_USAGE_MFA,
+				}
+			},
+		},
+		{
+			name:       "TOTP with context user",
+			deviceName: "context-totp1",
+			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
+				_, registerSolved := solveChallengeWithUser(
+					t,
+					proto.DeviceType_DEVICE_TYPE_TOTP,
+					proto.DeviceUsage_DEVICE_USAGE_MFA)
+
+				return &proto.AddMFADeviceSyncRequest{
+					ContextUser:    &proto.ContextUser{},
+					NewDeviceName:  deviceName,
+					NewMFAResponse: registerSolved,
+					DeviceUsage:    proto.DeviceUsage_DEVICE_USAGE_MFA,
 				}
 			},
 		},
 	}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := clt.AddMFADeviceSync(ctx, tc.getReq(tc.deviceName))
+			res, err := userClient.AddMFADeviceSync(ctx, tc.getReq(t, tc.deviceName))
 			switch {
 			case tc.wantErr:
 				expectedErr := trace.IsAccessDenied(err) || trace.IsBadParameter(err)
@@ -2535,7 +2719,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 				require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
 
 				// Check it's been added.
-				res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+				res, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 				require.NoError(t, err)
 
 				found := false
@@ -2549,6 +2733,242 @@ func TestAddMFADeviceSync(t *testing.T) {
 			}
 		})
 	}
+}
+
+// DELETE IN 16. Kept so we don't lose coverage on AddMFADevice (codingllama)
+func TestAddMFADevice(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	clock := testServer.Auth().GetClock()
+
+	ctx := context.Background()
+
+	// Start with disabled second factor, makes it easy to set the user's
+	// password.
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff, // for initial user creation
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err, "NewAuthPreference")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPreference),
+		"SetAuthPreference")
+
+	// Create user and set password.
+	const username = "TestAddMFADevice"
+	const password = "supersecretpassword!!1!"
+	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
+	require.NoError(t, err, "CreateUserAndRole")
+
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err, "CreateResetPasswordToken")
+
+	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte(password),
+	})
+	require.NoError(t, err, "ChangeUserAuthentication")
+
+	// Enable second factor.
+	authPreference.SetSecondFactor(constants.SecondFactorOptional)
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPreference),
+		"SetAuthPreference")
+
+	// User client used from now on.
+	userClient, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient")
+
+	tests := []struct {
+		name        string
+		deviceName  string
+		deviceType  proto.DeviceType
+		deviceUsage proto.DeviceUsage
+		devOpts     []TestDeviceOpt
+	}{
+		{
+			name:        "totp",
+			deviceName:  "totp",
+			deviceType:  proto.DeviceType_DEVICE_TYPE_TOTP,
+			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+			devOpts:     []TestDeviceOpt{WithTestDeviceClock(clock)},
+		},
+		{
+			name:        "webauthn",
+			deviceName:  "webauthn",
+			deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+		},
+		{
+			name:        "passwordless",
+			deviceName:  "passwordless",
+			deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			deviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			devOpts:     []TestDeviceOpt{WithPasswordless()},
+		},
+	}
+
+	var existingDev *TestDevice
+	for _, test := range tests {
+		//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		t.Run(test.name, func(t *testing.T) {
+			stream, err := userClient.AddMFADevice(ctx)
+			require.NoError(t, err, "AddMFADevice")
+
+			// Init.
+			require.NoError(t,
+				stream.Send(&proto.AddMFADeviceRequest{
+					Request: &proto.AddMFADeviceRequest_Init{
+						Init: &proto.AddMFADeviceRequestInit{
+							DeviceName:  test.deviceName,
+							DeviceType:  test.deviceType,
+							DeviceUsage: test.deviceUsage,
+						},
+					},
+				}), "Send")
+			resp, err := stream.Recv()
+			require.NoError(t, err, "Recv: init")
+
+			// Solve existing device challenge.
+			// Reply with an empty solution if it's the first device.
+			authnChal := resp.GetExistingMFAChallenge()
+
+			var authnSolved *proto.MFAAuthenticateResponse
+			if hasChallenge := authnChal.GetTOTP() != nil || authnChal.GetWebauthnChallenge() != nil; hasChallenge {
+				// Sanity check.
+				require.NotNil(t, existingDev, "Got an existing challenge, but existingDev is nil")
+
+				authnSolved, err = existingDev.SolveAuthn(authnChal)
+				require.NoError(t, err, "SolveAuthn")
+			} else {
+				authnSolved = &proto.MFAAuthenticateResponse{} // empty reply
+			}
+
+			require.NoError(t,
+				stream.Send(&proto.AddMFADeviceRequest{
+					Request: &proto.AddMFADeviceRequest_ExistingMFAResponse{
+						ExistingMFAResponse: authnSolved,
+					},
+				}), "Send")
+			resp, err = stream.Recv()
+			require.NoError(t, err, "Recv: existing challenge response")
+
+			// Solve new device challenge.
+			registerChal := resp.GetNewMFARegisterChallenge()
+			require.NotNil(t, registerChal, "Got response of type %T, want MFARegisterChallenge", resp.Response)
+
+			newDev, registerSolved, err := NewTestDeviceFromChallenge(registerChal, test.devOpts...)
+			require.NoError(t, err, "NewTestDeviceFromChallenge")
+
+			require.NoError(t,
+				stream.Send(&proto.AddMFADeviceRequest{
+					Request: &proto.AddMFADeviceRequest_NewMFARegisterResponse{
+						NewMFARegisterResponse: registerSolved,
+					},
+				}), "Send")
+			resp, err = stream.Recv()
+			require.NoError(t, err, "Recv: register challenge response")
+			assert.NotNil(t, resp.GetAck().GetDevice(), "Got nil Ack or Ack.Device, want non-nil")
+
+			if existingDev == nil {
+				// Use registered device to solve future existing challenges.
+				existingDev = newDev
+			}
+		})
+	}
+}
+
+// DELETE IN 16. Kept so we don't lose coverage on DeleteMFADevice (codingllama)
+func TestDeleteMFADevice(t *testing.T) {
+	t.Parallel()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	// Create a user with TOTP and Webauthn.
+	userCreds, err := createUserWithSecondFactors(testServer)
+	require.NoError(t, err, "createUserWithSecondFactors")
+
+	userClient, err := testServer.NewClient(TestUser(userCreds.username))
+	require.NoError(t, err, "NewClient")
+	totpDev := userCreds.totpDev
+	webDev := userCreds.webDev
+
+	// Reuse Webauthn config from createUserWithSecondFactors.
+	authPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err, "GetAuthPreference")
+	webConfig, _ := authPref.GetWebauthn()
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional, // optional allows deletion of all devices.
+		Webauthn:     webConfig,
+	})
+	require.NoError(t, err, "NewAuthPreference")
+	require.NoError(t,
+		authServer.SetAuthPreference(ctx, authPreference),
+		"SetAuthPreference")
+
+	for _, testDev := range []*TestDevice{totpDev, webDev} {
+		devName := testDev.MFA.GetName()
+		t.Run(devName, func(t *testing.T) {
+			assert.NoError(t,
+				deleteMFADeviceStream(ctx, userClient, testDev),
+				"Streaming device removal failed")
+		})
+	}
+}
+
+//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+func deleteMFADeviceStream(ctx context.Context, userClient *Client, testDev *TestDevice) error {
+	stream, err := userClient.DeleteMFADevice(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Init.
+	if err := stream.Send(&proto.DeleteMFADeviceRequest{
+		Request: &proto.DeleteMFADeviceRequest_Init{
+			Init: &proto.DeleteMFADeviceRequestInit{
+				DeviceName: testDev.MFA.GetName(),
+			},
+		},
+	}); err != nil {
+		return err
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// Solve authn challenge.
+	authnSolved, err := testDev.SolveAuthn(resp.GetMFAChallenge())
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&proto.DeleteMFADeviceRequest{
+		Request: &proto.DeleteMFADeviceRequest_MFAResponse{
+			MFAResponse: authnSolved,
+		},
+	}); err != nil {
+		return err
+	}
+	resp, err = stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// Verify Ack.
+	if resp.GetAck() == nil {
+		return fmt.Errorf("got %T, want deletion Ack", resp.GetResponse())
+	}
+	return nil
 }
 
 func TestGetMFADevices_WithToken(t *testing.T) {
@@ -2860,7 +3280,7 @@ func TestGetLicense(t *testing.T) {
 
 	// GetLicense should return error if license is not set
 	_, err := s.a.GetLicense(context.Background())
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	// GetLicense should return cert and key pem concatenated, when license is set
 	l := license.License{
@@ -2870,7 +3290,7 @@ func TestGetLicense(t *testing.T) {
 	s.a.SetLicense(&l)
 
 	actual, err := s.a.GetLicense(context.Background())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
 }
 

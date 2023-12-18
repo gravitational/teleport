@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package resources
 
@@ -22,61 +24,43 @@ import (
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 // oidcConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile oidc_connectors
 type oidcConnectorClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport oidc_connector of a given name
 func (r oidcConnectorClient) Get(ctx context.Context, name string) (types.OIDCConnector, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	oidc, err := teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
+	oidc, err := r.teleportClient.GetOIDCConnector(ctx, name, false /* with secrets*/)
 	return oidc, trace.Wrap(err)
 }
 
 // Create creates a Teleport oidc_connector
 func (r oidcConnectorClient) Create(ctx context.Context, oidc types.OIDCConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
+	_, err := r.teleportClient.CreateOIDCConnector(ctx, oidc)
+	return trace.Wrap(err)
 }
 
 // Update updates a Teleport oidc_connector
 func (r oidcConnectorClient) Update(ctx context.Context, oidc types.OIDCConnector) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.UpsertOIDCConnector(ctx, oidc))
+	_, err := r.teleportClient.UpsertOIDCConnector(ctx, oidc)
+	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport oidc_connector
 func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.DeleteOIDCConnector(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteOIDCConnector(ctx, name))
 }
 
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
-func NewOIDCConnectorReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
+func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
 	oidcClient := &oidcConnectorClient{
-		TeleportClientAccessor: accessor,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](

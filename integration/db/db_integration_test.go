@@ -1,18 +1,20 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -666,7 +668,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := rootAuthServer.GetRole(context.Background(), rootRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-
 		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
@@ -688,7 +689,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 			role, err := leafAuthServer.GetRole(context.Background(), leafRole.GetName())
 			assert.NoError(t, err)
 			return time.Duration(role.GetOptions().ClientIdleTimeout) == idleTimeout
-
 		}, time.Second, time.Millisecond*100, "role idle timeout propagation filed")
 
 		client := mkMySQLLeafDBClient(t)
@@ -795,14 +795,23 @@ func init() {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a root cluster.
 func (p *DatabasePack) testHARootCluster(t *testing.T) {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: p.Root.PostgresService.Name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      p.Root.postgresAddr,
+		},
+	)
+	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Root.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Root.postgresAddr,
+		Database: database,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.
@@ -849,14 +858,23 @@ func (p *DatabasePack) testHARootCluster(t *testing.T) {
 // database agent when multiple agents are serving the same database and one
 // of them is down in a leaf cluster.
 func (p *DatabasePack) testHALeafCluster(t *testing.T) {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: p.Leaf.PostgresService.Name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      p.Leaf.postgresAddr,
+		},
+	)
+	require.NoError(t, err)
 	// Insert a database server entry not backed by an actual running agent
 	// to simulate a scenario when an agent is down but the resource hasn't
 	// expired from the backend yet.
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: p.Leaf.PostgresService.Name,
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Leaf.postgresAddr,
+		Database: database,
 		// To make sure unhealthy server is always picked in tests first, make
 		// sure its host ID always compares as "smaller" as the tests sort
 		// agents.
@@ -1024,6 +1042,6 @@ func setRoleIdleTimeout(t *testing.T, authServer *auth.Server, role types.Role, 
 	opts := role.GetOptions()
 	opts.ClientIdleTimeout = types.Duration(idleTimout)
 	role.SetOptions(opts)
-	err := authServer.UpsertRole(context.Background(), role)
+	_, err := authServer.UpsertRole(context.Background(), role)
 	require.NoError(t, err)
 }

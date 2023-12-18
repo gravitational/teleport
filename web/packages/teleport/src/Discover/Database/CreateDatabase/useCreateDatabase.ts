@@ -1,18 +1,21 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -23,15 +26,17 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { IamPolicyStatus } from 'teleport/services/databases';
 
-import { matchLabels } from '../util';
+import { matchLabels } from '../common';
 
 import type {
   CreateDatabaseRequest,
   Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
-import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
 
 export const WAITING_TIMEOUT = 30000; // 30 seconds
@@ -66,6 +71,8 @@ export function useCreateDatabase() {
   //    - timed out due to failure to query (this would most likely be some kind of
   //      backend error or network failure)
   const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
+
+  const isAws = resourceSpec.dbMeta.location === DatabaseLocation.Aws;
 
   const dbPollingResult = usePoll<DatabaseResource>(
     signal => fetchDatabaseServer(signal),
@@ -115,11 +122,17 @@ export function useCreateDatabase() {
       resourceName: createdDb.name,
       agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
+      serviceDeployedMethod:
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
+          ? 'skipped'
+          : undefined, // User has to deploy a service (can be auto or manual)
     });
 
     setAttempt({ status: 'success' });
   }, [dbPollingResult]);
 
+  // fetchDatabaseServer is the callback that is run every interval by the poller.
+  // The poller will stop polling once a result returns (a dbServer).
   function fetchDatabaseServer(signal: AbortSignal) {
     const request = {
       search: createdDb.name,
@@ -129,8 +142,21 @@ export function useCreateDatabase() {
       .fetchDatabases(clusterId, request, signal)
       .then(res => {
         if (res.agents.length) {
-          return res.agents[0];
+          const dbServer = res.agents[0];
+          if (
+            !isAws || // If not AWS, then we return the first thing we get back.
+            // If AWS and aws.iamPolicyStatus is undefined or non-pending,
+            // return the dbServer.
+            dbServer.aws?.iamPolicyStatus !== IamPolicyStatus.Pending
+          ) {
+            return dbServer;
+          }
         }
+        // Returning nothing here will continue the polling.
+        // Either no result came back back yet or
+        // a result did come back but we are waiting for a specific
+        // marker to appear in the result. Specifically for AWS dbs,
+        // we wait for a non-pending flag to appear.
         return null;
       });
   }
@@ -195,6 +221,7 @@ export function useCreateDatabase() {
           ...(agentMeta as DbMeta),
           resourceName: db.name,
           agentMatcherLabels: db.labels,
+          selectedAwsRdsDb: db.awsRds,
         });
         setAttempt({ status: 'success' });
         return;
@@ -221,7 +248,7 @@ export function useCreateDatabase() {
     const preErrMsg = 'failed to register database: ';
     const nonAwsMsg = `use a different name and try again`;
     const awsMsg = `change (or define) the value of the \
-    tag "teleport.dev/database_name" on the RDS instance and try again`;
+    tag "TeleportDatabaseName" on the RDS instance and try again`;
 
     try {
       await ctx.databaseService.fetchDatabase(clusterId, dbName);
@@ -269,8 +296,10 @@ export function useCreateDatabase() {
 
     return (
       createdDb.uri !== db.uri ||
-      createdDb.awsRds?.accountId !== db.awsRds?.accountId ||
-      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId
+      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId ||
+      createdDb.awsRds?.vpcId !== db.awsRds?.vpcId ||
+      createdDb.awsRds?.subnets !== db.awsRds?.subnets ||
+      createdDb.awsRds?.accountId !== db.awsRds?.accountId
     );
   }
 
@@ -282,6 +311,21 @@ export function useCreateDatabase() {
     const message = getErrMessage(err);
     setAttempt({ status: 'failed', statusText: `${preErrMsg}${message}` });
     emitErrorEvent(`${preErrMsg}${message}`);
+  }
+
+  function handleNextStep() {
+    if (dbPollingResult) {
+      if (
+        isAws &&
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
+      ) {
+        // Skips the deploy db service step AND setting up IAM policy step.
+        return nextStep(3);
+      }
+      // Skips the deploy database service step.
+      return nextStep(2);
+    }
+    nextStep(); // Goes to deploy database service step.
   }
 
   const access = ctx.storeUser.getDatabaseAccess();
@@ -297,16 +341,14 @@ export function useCreateDatabase() {
     dbLocation: resourceSpec.dbMeta.location,
     isDbCreateErr,
     prevStep,
-    // If there was a result from database polling, then
-    // allow user to skip the next step.
-    nextStep: dbPollingResult ? () => nextStep(2) : () => nextStep(),
+    nextStep: handleNextStep,
   };
 }
 
 export type State = ReturnType<typeof useCreateDatabase>;
 
 export function findActiveDatabaseSvc(
-  newDbLabels: AgentLabel[],
+  newDbLabels: ResourceLabel[],
   dbServices: DatabaseService[]
 ) {
   if (!dbServices.length) {

@@ -1,33 +1,31 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package sshutils contains the implementations of the base SSH
 // server used throughout Teleport.
 package sshutils
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,14 +39,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
@@ -107,8 +102,6 @@ type Server struct {
 	// clock is used to control time.
 	clock clockwork.Clock
 
-	caGetter CertAuthorityGetter
-
 	clusterName string
 
 	// ingressReporter reports new and active connections.
@@ -127,14 +120,6 @@ const (
 	// SSH version string
 	// https://tools.ietf.org/html/rfc4253
 	MaxVersionStringBytes = 255
-
-	// TrueClientAddrVar environment variable is used by the web UI to pass
-	// the remote IP (user's IP) from the browser/HTTP session into an SSH session
-	TrueClientAddrVar = "TELEPORT_CLIENT_ADDR"
-
-	// caGetterTimeout is the timeout on getting host cert authority, that is used in
-	// signed PROXY headers verification.
-	caGetterTimeout = 5 * time.Second
 )
 
 // ServerOption is a functional argument for server
@@ -193,14 +178,6 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 func SetClock(clock clockwork.Clock) ServerOption {
 	return func(s *Server) error {
 		s.clock = clock
-		return nil
-	}
-}
-
-// SetCAGetter sets the cert authority getter
-func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
-	return func(s *Server) error {
-		s.caGetter = caGetter
 		return nil
 	}
 }
@@ -466,6 +443,23 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 	return atomic.AddInt32(&s.userConns, delta)
 }
 
+// TrackUserConnection tracks a user connection that should prevent
+// the server from being terminated if active. The returned function
+// should be called when the connection is terminated.
+func (s *Server) TrackUserConnection() (release func()) {
+	s.trackUserConnections(1)
+
+	return sync.OnceFunc(func() {
+		s.trackUserConnections(-1)
+	})
+}
+
+// ActiveConnections returns the number of connections that are
+// being served.
+func (s *Server) ActiveConnections() int32 {
+	return atomic.LoadInt32(&s.userConns)
+}
+
 // HandleConnection is called every time an SSH server accepts a new
 // connection from a client.
 //
@@ -480,17 +474,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	// apply idle read/write timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn,
-		defaults.DefaultIdleConnectionDuration,
-		s.component)
+		defaults.DefaultIdleConnectionDuration)
 	// Wrap connection with a tracker used to monitor how much data was
 	// transmitted and received over the connection.
 	wconn := utils.NewTrackingConn(conn)
 
-	// create a new SSH server which handles the handshake (and pass the custom
-	// payload structure which will be populated only when/if this connection
-	// comes from another Teleport proxy):
-	wrappedConn := wrapConnection(wconn, s.caGetter, s.clusterName, s.clock, s.log)
-	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(wconn, &s.cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
@@ -499,7 +488,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				WithField("remote_addr", conn.RemoteAddr()).
 				Warn("Error occurred in handshake for new SSH conn")
 		}
-		conn.SetDeadline(time.Time{})
+		conn.Close()
 		return
 	}
 
@@ -507,7 +496,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		s.ingressReporter.ConnectionAuthenticated(s.ingressService, conn)
 		defer s.ingressReporter.AuthenticatedConnectionClosed(s.ingressService, conn)
 	}
-	ctx := tracing.WithPropagationContext(context.Background(), wrappedConn.traceContext)
 
 	certType := "unknown"
 	if sconn.Permissions != nil {
@@ -545,7 +533,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(ctx, wconn, sconn, SetConnectionContextClock(s.clock))
+	ctx, ccx := NewConnectionContext(context.Background(), wconn, sconn, SetConnectionContextClock(s.clock))
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
@@ -775,133 +763,4 @@ type (
 type ClusterDetails struct {
 	RecordingProxy bool
 	FIPSEnabled    bool
-}
-
-// connectionWrapper allows the SSH server to perform custom handshake which
-// lets teleport proxy servers to relay a true remote client IP address
-// to the SSH server.
-//
-// (otherwise connection.RemoteAddr (client IP) will always point to a proxy IP
-// instead of a true client IP)
-type connectionWrapper struct {
-	net.Conn
-	logger logrus.FieldLogger
-
-	// upstreamReader reads from the underlying (wrapped) connection
-	upstreamReader io.Reader
-
-	// clientAddr points to the true client address (client is behind
-	// a proxy). Keeping this address is the entire point of the
-	// connection wrapper.
-	clientAddr net.Addr
-
-	// traceContext is the tracing context that was passed across the
-	// connection, used to correlate spans.
-	traceContext tracing.PropagationContext
-
-	caGetter    CertAuthorityGetter
-	clusterName string
-	clock       clockwork.Clock
-}
-
-// RemoteAddr returns the behind-the-proxy client address
-func (c *connectionWrapper) RemoteAddr() net.Addr {
-	return c.clientAddr
-}
-
-// Read implements io.Read() part of net.Connection which allows us
-// peek at the beginning of SSH handshake (that's why we're wrapping the connection)
-// DELETE IN 14.0: we need to keep it for compatibility purposes, but in 14.0 we can remove this
-// connection wrapper and instead use multiplexer listener for SSH node.
-func (c *connectionWrapper) Read(b []byte) (int, error) {
-	// handshake already took place, forward upstream:
-	if c.upstreamReader != nil {
-		return c.upstreamReader.Read(b)
-	}
-	// inspect the client's hello message and see if it's a teleport
-	// proxy connecting?
-	buff := make([]byte, MaxVersionStringBytes)
-	n, err := c.Conn.Read(buff)
-	if err != nil {
-		// EOF happens quite often, don't pollute the logs with it
-		if !trace.IsEOF(err) {
-			c.logger.Error(err)
-		}
-		return n, err
-	}
-	// chop off extra unused bytes at the end of the buffer:
-	buff = buff[:n]
-	skip := 0
-
-	// are we reading from a Teleport proxy?
-	if bytes.HasPrefix(buff, []byte(constants.ProxyHelloSignature)) {
-		// the JSON payload ends with a binary zero:
-		payloadBoundary := bytes.IndexByte(buff, 0x00)
-		if payloadBoundary > 0 {
-			var hp sshutils.HandshakePayload
-			payload := buff[len(constants.ProxyHelloSignature):payloadBoundary]
-			if err = json.Unmarshal(payload, &hp); err != nil {
-				c.logger.Error(err)
-			} else {
-				c.traceContext = hp.TracingContext
-			}
-			skip = payloadBoundary + 1
-		}
-	}
-	if bytes.HasPrefix(buff, multiplexer.ProxyV2Prefix) {
-		reader := bufio.NewReader(io.MultiReader(bytes.NewBuffer(buff), c.Conn))
-
-		proxyLine, err := multiplexer.ReadProxyLineV2(reader)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		if c.caGetter != nil && proxyLine != nil && proxyLine.IsSigned() {
-			ctx, cancel := context.WithTimeout(context.Background(), caGetterTimeout)
-			defer cancel()
-
-			err = proxyLine.VerifySignature(ctx, c.caGetter, c.clusterName, c.clock)
-			// NOTE(anton): Temporarily using string comparison here to not create circular references.
-			// Will be refactored after #21835 is resolved.
-			if err != nil {
-				if strings.Contains(err.Error(), "could not get specified host CA to verify signed PROXY header") {
-					c.logger.WithFields(logrus.Fields{
-						"src_addr": c.Conn.RemoteAddr(),
-						"dst_addr": c.Conn.LocalAddr(),
-					}).Warn("Could not verify PROXY signature for connection - could not get host CA")
-				} else if strings.Contains(err.Error(), "signing certificate is not signed by local cluster CA") {
-					c.logger.WithFields(logrus.Fields{
-						"src_addr": c.Conn.RemoteAddr(),
-						"dst_addr": c.Conn.LocalAddr(),
-					}).Warn("Could not verify PROXY signature for connection - signed by non local cluster")
-				} else {
-					return 0, trace.Wrap(err)
-				}
-			}
-			if proxyLine.IsVerified {
-				c.clientAddr = &proxyLine.Source
-			}
-		}
-
-		c.upstreamReader = reader
-	}
-
-	if c.upstreamReader == nil {
-		c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[skip:]), c.Conn)
-	}
-	return c.upstreamReader.Read(b)
-}
-
-type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-
-// wrapConnection takes a network connection, wraps it into connectionWrapper
-// object (which overrides Read method) and returns the wrapper.
-func wrapConnection(conn net.Conn, caGetter CertAuthorityGetter, localClusterName string, clock clockwork.Clock, logger logrus.FieldLogger) *connectionWrapper {
-	return &connectionWrapper{
-		Conn:        conn,
-		clientAddr:  conn.RemoteAddr(),
-		caGetter:    caGetter,
-		clusterName: localClusterName,
-		clock:       clock,
-		logger:      logger,
-	}
 }

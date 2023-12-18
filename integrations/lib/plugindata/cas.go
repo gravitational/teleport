@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package plugindata
 
@@ -101,10 +105,10 @@ func (c *CompareAndSwap[T]) Create(
 // Update tries to perform compare-and-swap update of a plugin data assuming that it exist
 //
 // modifyT will receive existing plugin data and should return a modified version of the data.
-
+//
 // If existing plugin data does not match expected data, then a trace.CompareFailed error should
 // be returned to backoff and try again.
-
+//
 // To abort the update, modifyT should return an error other, than trace.CompareFailed, which
 // will be propagated back to the caller of `Update`.
 func (c *CompareAndSwap[T]) Update(
@@ -131,6 +135,7 @@ func (c *CompareAndSwap[T]) Update(
 		if trace.IsCompareFailed(err) {
 			failedAttempts = append(failedAttempts, trace.Wrap(err))
 			backoffErr := backoff.Do(ctx)
+			// backoffErr is not nil when the context has expired and we must return
 			if backoffErr != nil {
 				failedAttempts = append(failedAttempts, trace.Wrap(backoffErr))
 				return emptyData, trace.NewAggregate(failedAttempts...)
@@ -152,6 +157,7 @@ func (c *CompareAndSwap[T]) Update(
 		// A conflict happened, we register the failed attempt and wait before retrying
 		failedAttempts = append(failedAttempts, trace.Wrap(err))
 		backoffErr := backoff.Do(ctx)
+		// backoffErr is not nil when the context has expired and we must return
 		if backoffErr != nil {
 			failedAttempts = append(failedAttempts, trace.Wrap(backoffErr))
 			return emptyData, trace.NewAggregate(failedAttempts...)

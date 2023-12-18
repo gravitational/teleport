@@ -1,35 +1,77 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
 } from 'styled-components';
 
-import { GlobalStyle } from './globals';
-import theme from './theme';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-export const ThemeProvider: React.FC = props => (
-  <StyledThemeProvider theme={theme}>
-    <StyleSheetManager disableVendorPrefixes>
-      <React.Fragment>
-        <GlobalStyle />
-        {props.children}
-      </React.Fragment>
-    </StyleSheetManager>
-  </StyledThemeProvider>
-);
+import { GlobalStyle } from './globals';
+import { darkTheme, lightTheme } from './theme';
+
+export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
+  // Listening to Electron's nativeTheme.on('updated') is a workaround.
+  // The renderer should be able to get the current theme via "prefers-color-scheme" media query.
+  // Unfortunately, it does not work correctly on Ubuntu where the query from above always returns the old value
+  // (for example, when the app was launched in a dark mode, it always returns 'dark'
+  // ignoring that the system theme is now 'light').
+  // Related Electron issue: https://github.com/electron/electron/issues/21427#issuecomment-589796481,
+  // Related Chromium issue: https://bugs.chromium.org/p/chromium/issues/detail?id=998903
+  //
+  // Additional issue is that nativeTheme does not return correct values at all on Fedora:
+  // https://github.com/electron/electron/issues/33635#issuecomment-1502215450
+  const ctx = useAppContext();
+  const [activeTheme, setActiveTheme] = useState(() =>
+    ctx.mainProcessClient.shouldUseDarkColors() ? darkTheme : lightTheme
+  );
+
+  useEffect(() => {
+    const { cleanup } = ctx.mainProcessClient.subscribeToNativeThemeUpdate(
+      ({ shouldUseDarkColors }) => {
+        setActiveTheme(shouldUseDarkColors ? darkTheme : lightTheme);
+      }
+    );
+
+    return cleanup;
+  }, [ctx.mainProcessClient]);
+
+  return (
+    <StaticThemeProvider theme={activeTheme}>
+      {props.children}
+    </StaticThemeProvider>
+  );
+};
+
+/** Uses a theme from a prop. Useful in storybook. */
+export const StaticThemeProvider = (
+  props: React.PropsWithChildren<{ theme?: unknown }>
+) => {
+  return (
+    <StyledThemeProvider theme={props.theme}>
+      <StyleSheetManager disableVendorPrefixes>
+        <React.Fragment>
+          <GlobalStyle />
+          {props.children}
+        </React.Fragment>
+      </StyleSheetManager>
+    </StyledThemeProvider>
+  );
+};

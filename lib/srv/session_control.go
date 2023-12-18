@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -24,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -39,13 +44,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-var (
-	userSessionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times a user exceeded their max concurrent ssh connections",
-		},
-	)
+var userSessionLimitHitCount = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricUserMaxConcurrentSessionsHit,
+		Help: "Number of times a user exceeded their max concurrent ssh connections",
+	},
 )
 
 func init() {
@@ -140,6 +143,53 @@ func NewSessionController(cfg SessionControllerConfig) (*SessionController, erro
 	return &SessionController{cfg: cfg}, nil
 }
 
+// WebSessionContext contains information associated with a session
+// established via the web ui.
+type WebSessionContext interface {
+	GetUserAccessChecker() (services.AccessChecker, error)
+	GetSSHCertificate() (*ssh.Certificate, error)
+	GetUser() string
+}
+
+// WebSessionController is a wrapper around [SessionController] which can be
+// used to create an [IdentityContext] and apply session controls for a web session.
+// This allows `lib/web` to not depend on `lib/srv`.
+func WebSessionController(controller *SessionController) func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+	return func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+		accessChecker, err := sctx.GetUserAccessChecker()
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		sshCert, err := sctx.GetSSHCertificate()
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		accessRequestIDs, err := ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		identity := IdentityContext{
+			AccessChecker:  accessChecker,
+			TeleportUser:   sctx.GetUser(),
+			Login:          login,
+			Certificate:    sshCert,
+			UnmappedRoles:  unmappedRoles,
+			ActiveRequests: accessRequestIDs,
+			Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
+		}
+		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
+		return ctx, trace.Wrap(err)
+	}
+}
+
 // AcquireSessionContext attempts to create a context for the session. If the session is
 // not allowed due to session control an error is returned. The returned
 // context is scoped to the session and will be canceled in the event the semaphore lock
@@ -171,10 +221,13 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's ssh certificate.
-	identityPolicy := identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
-	requiredPolicy := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
-		return ctx, trace.Wrap(err)
+	identityPolicy := keys.PrivateKeyPolicy(identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy])
+	requiredPolicy, err := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !requiredPolicy.IsSatisfiedBy(identityPolicy) {
+		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
 	}
 
 	// Don't apply the following checks in non-node contexts.

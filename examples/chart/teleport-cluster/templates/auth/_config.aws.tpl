@@ -13,6 +13,7 @@
     continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
     {{- if .Values.aws.dynamoAutoScaling }}
     auto_scaling: true
+    billing_mode: provisioned
     read_min_capacity: {{ required "aws.readMinCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.readMinCapacity }}
     read_max_capacity: {{ required "aws.readMaxCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.readMaxCapacity }}
     read_target_value: {{ required "aws.readTargetValue is required when aws.dynamoAutoScaling is true" .Values.aws.readTargetValue }}

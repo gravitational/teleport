@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2022 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -118,6 +118,83 @@ func TestMatchSearch(t *testing.T) {
 	}
 }
 
+func TestUnifiedNameCompare(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		resourceA func(*testing.T) ResourceWithLabels
+		resourceB func(*testing.T) ResourceWithLabels
+		isDesc    bool
+		expect    bool
+	}{
+		{
+			name: "sort by same kind",
+			resourceA: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("node-cloud", KindNode, ServerSpecV2{
+					Hostname: "node-cloud",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			resourceB: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("node-strawberry", KindNode, ServerSpecV2{
+					Hostname: "node-strawberry",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			isDesc: true,
+			expect: false,
+		},
+		{
+			name: "sort by different kind",
+			resourceA: func(t *testing.T) ResourceWithLabels {
+				server := newAppServer(t, "app-cloud")
+				return server
+			},
+			resourceB: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("node-strawberry", KindNode, ServerSpecV2{
+					Hostname: "node-strawberry",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			isDesc: true,
+			expect: false,
+		},
+		{
+			name: "sort with different cases",
+			resourceA: func(t *testing.T) ResourceWithLabels {
+				server := newAppServer(t, "app-cloud")
+				return server
+			},
+			resourceB: func(t *testing.T) ResourceWithLabels {
+				server, err := NewServer("Node-strawberry", KindNode, ServerSpecV2{
+					Hostname: "node-strawberry",
+				})
+				require.NoError(t, err)
+				return server
+			},
+			isDesc: true,
+			expect: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		resourceA := tc.resourceA(t)
+		resourceB := tc.resourceB(t)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := unifiedNameCompare(resourceA, resourceB, tc.isDesc)
+			if actual != tc.expect {
+				t.Errorf("Expected %v, but got %v for %+v and %+v with isDesc=%v", tc.expect, actual, resourceA, resourceB, tc.isDesc)
+			}
+		})
+	}
+}
+
 func TestMatchSearch_ResourceSpecific(t *testing.T) {
 	t.Parallel()
 
@@ -128,12 +205,12 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		// searchNotDefined refers to resources where the searcheable field values are not defined.
 		searchNotDefined   bool
 		matchingSearchVals []string
-		newResource        func() ResourceWithLabels
+		newResource        func(*testing.T) ResourceWithLabels
 	}{
 		{
 			name:               "node",
 			matchingSearchVals: []string{"foo", "bar", "prod", "os"},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				server, err := NewServerWithLabels("_", KindNode, ServerSpecV2{
 					Hostname: "foo",
 					Addr:     "bar",
@@ -146,7 +223,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:               "node using tunnel",
 			matchingSearchVals: []string{"tunnel"},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				server, err := NewServer("_", KindNode, ServerSpecV2{
 					UseTunnel: true,
 				})
@@ -158,7 +235,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:               "windows desktop",
 			matchingSearchVals: []string{"foo", "bar", "env", "prod", "os"},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				desktop, err := NewWindowsDesktopV3("foo", labels, WindowsDesktopSpecV3{
 					Addr: "bar",
 				})
@@ -170,7 +247,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:               "application",
 			matchingSearchVals: []string{"foo", "bar", "baz", "mac"},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				app, err := NewAppV3(Metadata{
 					Name:        "foo",
 					Description: "bar",
@@ -187,7 +264,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:               "kube cluster",
 			matchingSearchVals: []string{"foo", "prod", "env"},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				kc, err := NewKubernetesClusterV3FromLegacyCluster("_", &KubernetesCluster{
 					Name:         "foo",
 					StaticLabels: labels,
@@ -200,7 +277,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:               "database",
 			matchingSearchVals: []string{"foo", "bar", "baz", "prod", DatabaseTypeRedshift},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				db, err := NewDatabaseV3(Metadata{
 					Name:        "foo",
 					Description: "bar",
@@ -222,9 +299,9 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:               "database with gcp keywords",
 			matchingSearchVals: []string{"cloud", "cloud sql"},
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				db, err := NewDatabaseV3(Metadata{
-					Name:   "_",
+					Name:   "foo",
 					Labels: labels,
 				}, DatabaseSpecV3{
 					Protocol: "_",
@@ -242,9 +319,9 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:             "app server",
 			searchNotDefined: true,
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				appServer, err := NewAppServerV3(Metadata{
-					Name: "_",
+					Name: "foo",
 				}, AppServerSpecV3{
 					HostID: "_",
 					App:    &AppV3{Metadata: Metadata{Name: "_"}, Spec: AppSpecV3{URI: "_"}},
@@ -257,12 +334,27 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:             "db server",
 			searchNotDefined: true,
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
+				db, err := NewDatabaseV3(Metadata{
+					Name:        "foo",
+					Description: "bar",
+					Labels:      labels,
+				}, DatabaseSpecV3{
+					Protocol: "baz",
+					URI:      "_",
+					AWS: AWS{
+						Redshift: Redshift{
+							ClusterID: "_",
+						},
+					},
+				})
+				require.NoError(t, err)
 				dbServer, err := NewDatabaseServerV3(Metadata{
-					Name: "_",
+					Name: "foo",
 				}, DatabaseServerSpecV3{
 					HostID:   "_",
 					Hostname: "_",
+					Database: db,
 				})
 				require.NoError(t, err)
 
@@ -272,10 +364,10 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:             "kube server",
 			searchNotDefined: true,
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				kubeServer, err := NewKubernetesServerV3(
 					Metadata{
-						Name: "_",
+						Name: "foo",
 					}, KubernetesServerSpecV3{
 						HostID:   "_",
 						Hostname: "_",
@@ -293,7 +385,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		{
 			name:             "desktop service",
 			searchNotDefined: true,
-			newResource: func() ResourceWithLabels {
+			newResource: func(t *testing.T) ResourceWithLabels {
 				desktopService, err := NewWindowsDesktopServiceV3(Metadata{
 					Name: "foo",
 				}, WindowsDesktopServiceSpecV3{
@@ -312,7 +404,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			resource := tc.newResource()
+			resource := tc.newResource(t)
 
 			// Nil search values, should always return true
 			match := resource.MatchSearch(nil)
@@ -382,7 +474,7 @@ func TestResourcesWithLabels_ToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.r.ToMap(), tt.want)
+			require.Equal(t, tt.want, tt.r.ToMap())
 		})
 	}
 }
@@ -407,5 +499,90 @@ func TestValidLabelKey(t *testing.T) {
 	} {
 		isValid := IsValidLabelKey(tc.label)
 		require.Equal(t, tc.valid, isValid)
+	}
+}
+
+func TestFriendlyName(t *testing.T) {
+	newApp := func(t *testing.T, name, description string, labels map[string]string) Application {
+		app, err := NewAppV3(Metadata{
+			Name:        name,
+			Description: description,
+			Labels:      labels,
+		}, AppSpecV3{
+			URI: "https://some-uri.com",
+		})
+		require.NoError(t, err)
+
+		return app
+	}
+
+	newGroup := func(t *testing.T, name, description string, labels map[string]string) UserGroup {
+		group, err := NewUserGroup(Metadata{
+			Name:        name,
+			Description: description,
+			Labels:      labels,
+		}, UserGroupSpecV1{})
+		require.NoError(t, err)
+
+		return group
+	}
+
+	node, err := NewServer("node", KindNode, ServerSpecV2{
+		Hostname: "friendly hostname",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		resource ResourceWithLabels
+		expected string
+	}{
+		{
+			name:     "no friendly name",
+			resource: newApp(t, "no friendly", "no friendly", map[string]string{}),
+			expected: "",
+		},
+		{
+			name: "friendly app name (uses description)",
+			resource: newApp(t, "friendly", "friendly name", map[string]string{
+				OriginLabel: OriginOkta,
+			}),
+			expected: "friendly name",
+		},
+		{
+			name: "friendly app name (uses label)",
+			resource: newApp(t, "friendly", "friendly name", map[string]string{
+				OriginLabel:      OriginOkta,
+				OktaAppNameLabel: "label friendly name",
+			}),
+			expected: "label friendly name",
+		},
+		{
+			name: "friendly group name (uses description)",
+			resource: newGroup(t, "friendly", "friendly name", map[string]string{
+				OriginLabel: OriginOkta,
+			}),
+			expected: "friendly name",
+		},
+		{
+			name: "friendly group name (uses label)",
+			resource: newGroup(t, "friendly", "friendly name", map[string]string{
+				OriginLabel:        OriginOkta,
+				OktaGroupNameLabel: "label friendly name",
+			}),
+			expected: "label friendly name",
+		},
+		{
+			name:     "friendly node name",
+			resource: node,
+			expected: "friendly hostname",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, FriendlyName(test.resource))
+		})
 	}
 }

@@ -1,26 +1,30 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
 import (
+	"context"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/time/rate"
 
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
@@ -74,22 +78,18 @@ func NewSearchEventLimiter(cfg SearchEventsLimiterConfig) (*SearchEventsLimiter,
 	}, nil
 }
 
-func (s *SearchEventsLimiter) SearchEvents(fromUTC, toUTC time.Time, namespace string,
-	eventTypes []string, limit int, order types.EventOrder, startKey string,
-) ([]apievents.AuditEvent, string, error) {
+func (s *SearchEventsLimiter) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if !s.limiter.Allow() {
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
-	out, keyset, err := s.AuditLogger.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	out, keyset, err := s.AuditLogger.SearchEvents(ctx, req)
 	return out, keyset, trace.Wrap(err)
 }
 
-func (s *SearchEventsLimiter) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
-	order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string,
-) ([]apievents.AuditEvent, string, error) {
+func (s *SearchEventsLimiter) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if !s.limiter.Allow() {
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
-	out, keyset, err := s.AuditLogger.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	out, keyset, err := s.AuditLogger.SearchSessionEvents(ctx, req)
 	return out, keyset, trace.Wrap(err)
 }

@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -30,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -42,8 +46,8 @@ import (
 var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
-func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	user, err := s.changeUserAuthentication(ctx, req)
+func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
+	user, err := a.changeUserAuthentication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,18 +56,18 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	_, emailErr := mail.ParseAddress(user.GetName())
 	hasEmail := emailErr == nil
 	hasMFA := req.GetNewMFARegisterResponse() != nil
-	recoveryAllowed := s.isAccountRecoveryAllowed(ctx) == nil
+	recoveryAllowed := a.isAccountRecoveryAllowed(ctx) == nil
 	createRecoveryCodes := hasEmail && hasMFA && recoveryAllowed
 
 	var newRecovery *proto.RecoveryCodes
 	if createRecoveryCodes {
-		newRecovery, err = s.generateAndUpsertRecoveryCodes(ctx, user.GetName())
+		newRecovery, err = a.generateAndUpsertRecoveryCodes(ctx, user.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	webSession, err := s.createUserWebSession(ctx, user, req.LoginIP)
+	webSession, err := a.createUserWebSession(ctx, user, req.LoginIP)
 	if err != nil {
 		if keys.IsPrivateKeyPolicyError(err) {
 			// Do not return an error, otherwise
@@ -93,8 +97,8 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 // ResetPassword securely generates a new random password and assigns it to user.
 // This method is used to invalidate existing user password during password
 // reset process.
-func (s *Server) ResetPassword(username string) (string, error) {
-	user, err := s.GetUser(username, false)
+func (a *Server) ResetPassword(ctx context.Context, username string) (string, error) {
+	user, err := a.GetUser(ctx, username, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -104,7 +108,7 @@ func (s *Server) ResetPassword(username string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	err = s.UpsertPassword(user.GetName(), []byte(password))
+	err = a.UpsertPassword(user.GetName(), []byte(password))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -113,7 +117,7 @@ func (s *Server) ResetPassword(username string) (string, error) {
 }
 
 // ChangePassword updates users password based on the old password.
-func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
+func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	// validate new password
 	if err := services.VerifyPassword(req.NewPassword); err != nil {
 		return trace.Wrap(err)
@@ -123,7 +127,7 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 	user := req.User
 	authReq := AuthenticateUserRequest{
 		Username: user,
-		Webauthn: wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
 	if len(req.OldPassword) > 0 {
 		authReq.Pass = &PassCreds{
@@ -136,15 +140,15 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Token:    req.SecondFactorToken,
 		}
 	}
-	if _, _, err := s.authenticateUser(ctx, authReq); err != nil {
+	if _, _, err := a.authenticateUser(ctx, authReq); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.UpsertPassword(user, req.NewPassword); err != nil {
+	if err := a.UpsertPassword(user, req.NewPassword); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserPasswordChange{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.UserPasswordChange{
 		Metadata: apievents.Metadata{
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
@@ -158,7 +162,7 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 
 // checkPasswordWOToken checks just password without checking OTP tokens
 // used in case of SSH authentication, when token has been validated.
-func (s *Server) checkPasswordWOToken(user string, password []byte) error {
+func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 	const errMsg = "invalid username or password"
 
 	err := services.VerifyPassword(password)
@@ -166,7 +170,7 @@ func (s *Server) checkPasswordWOToken(user string, password []byte) error {
 		return trace.BadParameter(errMsg)
 	}
 
-	hash, err := s.GetPasswordHash(user)
+	hash, err := a.GetPasswordHash(user)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -196,13 +200,13 @@ type checkPasswordResult struct {
 }
 
 // checkPassword checks the password and OTP token. Called by tsh or lib/web/*.
-func (s *Server) checkPassword(user string, password []byte, otpToken string) (*checkPasswordResult, error) {
-	err := s.checkPasswordWOToken(user, password)
+func (a *Server) checkPassword(user string, password []byte, otpToken string) (*checkPasswordResult, error) {
+	err := a.checkPasswordWOToken(user, password)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	mfaDev, err := s.checkOTP(user, otpToken)
+	mfaDev, err := a.checkOTP(user, otpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,9 +214,9 @@ func (s *Server) checkPassword(user string, password []byte, otpToken string) (*
 }
 
 // checkOTP checks if the OTP token is valid.
-func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
+func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
 	// get the previously used token to mitigate token replay attacks
-	usedToken, err := s.GetUsedTOTPToken(user)
+	usedToken, err := a.GetUsedTOTPToken(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,7 +226,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 	}
 
 	ctx := context.TODO()
-	devs, err := s.Services.GetMFADevices(ctx, user, true)
+	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -233,7 +237,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			continue
 		}
 
-		if err := s.checkTOTP(ctx, user, otpToken, dev); err != nil {
+		if err := a.checkTOTP(ctx, user, otpToken, dev); err != nil {
 			log.WithError(err).Errorf("Using TOTP device %q", dev.GetName())
 			continue
 		}
@@ -243,13 +247,13 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 }
 
 // checkTOTP checks if the TOTP token is valid.
-func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *types.MFADevice) error {
+func (a *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *types.MFADevice) error {
 	if dev.GetTotp() == nil {
 		return trace.BadParameter("checkTOTP called with non-TOTP MFADevice %T", dev.Device)
 	}
 	// we use totp.ValidateCustom over totp.Validate so we can use
 	// a fake clock in tests to get reliable results
-	valid, err := totp.ValidateCustom(otpToken, dev.GetTotp().Key, s.clock.Now(), totp.ValidateOpts{
+	valid, err := totp.ValidateCustom(otpToken, dev.GetTotp().Key, a.clock.Now(), totp.ValidateOpts{
 		Period:    teleport.TOTPValidityPeriod,
 		Skew:      teleport.TOTPSkew,
 		Digits:    otp.DigitsSix,
@@ -262,21 +266,21 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 		return trace.AccessDenied("invalid one time token, please check if the token has expired and try again")
 	}
 	// if we have a valid token, update the previously used token
-	if err := s.UpsertUsedTOTPToken(user, otpToken); err != nil {
+	if err := a.UpsertUsedTOTPToken(user, otpToken); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Update LastUsed timestamp on the device.
-	dev.LastUsed = s.clock.Now()
-	if err := s.UpsertMFADevice(ctx, user, dev); err != nil {
+	dev.LastUsed = a.clock.Now()
+	if err := a.UpsertMFADevice(ctx, user, dev); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
+func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
 	// Get cluster configuration and check if local auth is allowed.
-	authPref, err := s.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,16 +301,16 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	}
 
 	// Check if token exists.
-	token, err := s.getResetPasswordToken(ctx, req.TokenID)
+	token, err := a.getResetPasswordToken(ctx, req.TokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if token.Expiry().Before(s.clock.Now().UTC()) {
+	if token.Expiry().Before(a.clock.Now().UTC()) {
 		return nil, trace.BadParameter("expired token")
 	}
 
-	err = s.changeUserSecondFactor(ctx, req, token)
+	err = a.changeUserSecondFactor(ctx, req, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,18 +318,18 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = s.deleteUserTokens(ctx, username)
+	err = a.deleteUserTokens(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if !reqPasswordless {
-		if err := s.UpsertPassword(username, req.GetNewPassword()); err != nil {
+		if err := a.UpsertPassword(username, req.GetNewPassword()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	user, err := s.GetUser(username, false)
+	user, err := a.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,9 +337,9 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	return user, nil
 }
 
-func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUserAuthenticationRequest, token types.UserToken) error {
+func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUserAuthenticationRequest, token types.UserToken) error {
 	username := token.GetUser()
-	cap, err := s.GetAuthPreference(ctx)
+	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -378,7 +382,7 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 	}
 
-	_, err = s.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
+	_, err = a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      token.GetUser(),
 		newDeviceName: deviceName,
 		tokenID:       token.GetName(),

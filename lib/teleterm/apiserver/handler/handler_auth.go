@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package handler
 
@@ -24,7 +28,7 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -38,18 +42,20 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		if err := cluster.LocalLogin(ctx, params.Local.User, params.Local.Password, params.Local.Token); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &api.EmptyResponse{}, nil
 	case *api.LoginRequest_Sso:
 		if err := cluster.SSOLogin(ctx, params.Sso.ProviderType, params.Sso.ProviderName); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &api.EmptyResponse{}, nil
 	default:
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
+	// Don't wait for the headless watcher to initialize as this could slow down logins.
+	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri, false /* waitInit */); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.EmptyResponse{}, nil
 }
 
 // LoginPasswordless logs in a user to a cluster passwordlessly.
@@ -65,13 +71,18 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.BadParameter("cluster URI is required")
 	}
 
-	cluster, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
+	cluster, _, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Don't wait for the headless watcher to initialize as this could slow down logins.
+	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -89,7 +100,7 @@ func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.Empt
 
 // GetAuthSettings returns cluster auth preferences
 func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsRequest) (*api.AuthSettings, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

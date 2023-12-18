@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -38,7 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -47,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
+	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -152,6 +155,8 @@ type RegisterParams struct {
 	// certificates that are returned by registering should expire at.
 	// It should not be specified for non-bot registrations.
 	Expires *time.Time
+	// Insecure trusts the certificates from the Auth Server or Proxy during registration without verification.
+	Insecure bool
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -203,40 +208,46 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 	}
 
 	// add EC2 Identity Document to params if required for given join method
-	if params.JoinMethod == types.JoinMethodEC2 {
-		if !utils.IsEC2NodeID(params.ID.HostUUID) {
+	switch params.JoinMethod {
+	case types.JoinMethodEC2:
+		if !aws.IsEC2NodeID(params.ID.HostUUID) {
 			return nil, trace.BadParameter(
 				`Host ID %q is not valid when using the EC2 join method, `+
 					`try removing the "host_uuid" file in your teleport data dir `+
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = utils.GetRawEC2IdentityDocument(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if params.JoinMethod == types.JoinMethodGitHub {
+	case types.JoinMethodGitHub:
 		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if params.JoinMethod == types.JoinMethodGitLab {
+	case types.JoinMethodGitLab:
 		params.IDToken, err = gitlab.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if params.JoinMethod == types.JoinMethodCircleCI {
+	case types.JoinMethodCircleCI:
 		params.IDToken, err = circleci.GetIDToken(os.Getenv)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if params.JoinMethod == types.JoinMethodKubernetes {
+	case types.JoinMethodKubernetes:
 		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, os.ReadFile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if params.JoinMethod == types.JoinMethodGCP {
+	case types.JoinMethodGCP:
 		params.IDToken, err = gcp.GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodSpacelift:
+		params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -307,10 +318,11 @@ func proxyServerIsAuth(server utils.NetAddr) bool {
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	var certs *proto.Certs
+
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure:
 		// IAM and Azure join methods require gRPC client
-		conn, err := proxyJoinServiceConn(params, lib.IsInsecureDevMode())
+		conn, err := proxyJoinServiceConn(params, params.Insecure)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -332,7 +344,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		var err error
 		certs, err = params.GetHostCredentials(context.Background(),
 			getHostAddresses(params)[0],
-			lib.IsInsecureDevMode(),
+			params.Insecure,
 			types.RegisterUsingTokenRequest{
 				Token:                token,
 				HostID:               params.ID.HostUUID,
@@ -366,13 +378,22 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	var client *Client
 	var err error
 
-	// Build a client to the Auth Server. If a CA pin is specified require the
-	// Auth Server is validated. Otherwise attempt to use the CA file on disk
-	// but if it's not available connect without validating the Auth Server CA.
+	// Build a client for the Auth Server with different certificate validation
+	// depending on the configured values for Insecure, CAPins and CAPath.
 	switch {
+	case params.Insecure:
+		log.Warnf("Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
+		client, err = insecureRegisterClient(params)
 	case len(params.CAPins) != 0:
+		// CAPins takes precedence over CAPath
 		client, err = pinRegisterClient(params)
+	case params.CAPath != "":
+		client, err = caPathRegisterClient(params)
 	default:
+		// We fall back to insecure mode here - this is a little odd but is
+		// necessary to preserve the behavior of registration. At a later date,
+		// we may consider making this an error asking the user to provide
+		// Insecure, CAPins or CAPath.
 		client, err = insecureRegisterClient(params)
 	}
 	if err != nil {
@@ -433,7 +454,7 @@ func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientCon
 	// skip verify as the Proxy server will present its host cert which is not
 	// fully verifiable at this point since the client does not have the host
 	// CAs yet before completing registration.
-	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(getHostAddresses(params)[0], insecure)
+	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(context.TODO(), getHostAddresses(params)[0], insecure)
 	if alpnConnUpgrade && !insecure {
 		tlsConfig.InsecureSkipVerify = true
 		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)
@@ -480,31 +501,15 @@ func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) err
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureRegisterClient(params RegisterParams) (*Client, error) {
+	log.Warnf("Joining cluster without validating the identity of the Auth " +
+		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
+		"attacker can gain privileged network access. To remedy this, use the CA pin " +
+		"value provided when join token was generated to validate the identity of " +
+		"the Auth Server or point to a valid Certificate via the CA Path option.")
+
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
-
-	cert, err := readCA(params.CAPath)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// If no CA was found, then create a insecure connection to the Auth Server,
-	// otherwise use the CA on disk to validate the Auth Server.
-	if trace.IsNotFound(err) {
-		tlsConfig.InsecureSkipVerify = true
-
-		log.Warnf("Joining cluster without validating the identity of the Auth " +
-			"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
-			"attacker can gain privileged network access. To remedy this, use the CA pin " +
-			"value provided when join token was generated to validate the identity of " +
-			"the Auth Server.")
-	} else {
-		certPool := x509.NewCertPool()
-		certPool.AddCert(cert)
-		tlsConfig.RootCAs = certPool
-
-		log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
-	}
+	tlsConfig.InsecureSkipVerify = true
 
 	client, err := NewClient(client.Config{
 		Addrs: getHostAddresses(params),
@@ -608,6 +613,44 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	}
 
 	return authClient, nil
+}
+
+func caPathRegisterClient(params RegisterParams) (*Client, error) {
+	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Clock.Now
+
+	cert, err := readCA(params.CAPath)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If we're unable to read the file at CAPath, we fall back to insecure
+	// registration. This preserves the existing behavior. At a later date,
+	// we may wish to consider changing this to return an error - but this is a
+	// breaking change.
+	if trace.IsNotFound(err) {
+		log.Warnf("Falling back to insecurely joining because a missing or empty CA Path was provided.")
+		return insecureRegisterClient(params)
+	}
+
+	certPool := x509.NewCertPool()
+	certPool.AddCert(cert)
+	tlsConfig.RootCAs = certPool
+
+	log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
+
+	client, err := NewClient(client.Config{
+		Addrs: getHostAddresses(params),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		CircuitBreakerConfig: params.CircuitBreakerConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client, nil
 }
 
 type joinServiceClient interface {
@@ -714,9 +757,6 @@ type ReRegisterParams struct {
 	Rotation types.Rotation
 	// SystemRoles is a set of additional system roles held by the instance.
 	SystemRoles []types.SystemRole
-	// Used by older instances to requisition a multi-role cert by individually
-	// proving which system roles are held.
-	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -730,16 +770,15 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:                        params.ID.HostID(),
-			NodeName:                      params.ID.NodeName,
-			Role:                          params.ID.Role,
-			AdditionalPrincipals:          params.AdditionalPrincipals,
-			DNSNames:                      params.DNSNames,
-			PublicTLSKey:                  params.PublicTLSKey,
-			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      rotation,
-			SystemRoles:                   params.SystemRoles,
-			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
+			HostID:               params.ID.HostID(),
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             rotation,
+			SystemRoles:          params.SystemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

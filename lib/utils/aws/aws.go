@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aws
 
@@ -367,16 +369,16 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 		return username, nil
 	}
 	resource := username
-	if !strings.HasPrefix(resource, "role/") {
+	if !IsPartialRoleARN(resource) {
 		resource = fmt.Sprintf("role/%s", username)
 	}
-	roleARN := &arn.ARN{
+	roleARN := arn.ARN{
 		Partition: partition,
 		Service:   iam.ServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}
-	if err := checkRoleARN(roleARN); err != nil {
+	if err := apiawsutils.CheckRoleARN(roleARN.String()); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return roleARN.String(), nil
@@ -434,4 +436,48 @@ func CheckARNPartitionAndAccount(ARN *arn.ARN, wantPartition, wantAccountID stri
 		return trace.BadParameter("expected AWS account ID %q but got %q", wantAccountID, ARN.AccountID)
 	}
 	return nil
+}
+
+// IsRoleARN returns true if the provided string is a AWS role ARN.
+func IsRoleARN(roleARN string) bool {
+	if _, err := ParseRoleARN(roleARN); err == nil {
+		return true
+	}
+
+	return IsPartialRoleARN(roleARN)
+}
+
+// IsPartialRoleARN returns true if the provided role ARN only contains the
+// resource name.
+func IsPartialRoleARN(roleARN string) bool {
+	return strings.HasPrefix(roleARN, "role/")
+}
+
+// IsUserARN returns true if the provided string is a AWS user ARN.
+func IsUserARN(userARN string) bool {
+	resourceName := userARN
+	if parsed, err := arn.Parse(userARN); err == nil {
+		resourceName = parsed.Resource
+	}
+
+	return strings.HasPrefix(resourceName, "user/")
+}
+
+// PolicyARN returns the ARN representation of an AWS IAM Policy.
+func PolicyARN(partition, accountID, policy string) string {
+	return iamResourceARN(partition, accountID, "policy", policy)
+}
+
+// RoleARN returns the ARN representation of an AWS IAM Role.
+func RoleARN(partition, accountID, role string) string {
+	return iamResourceARN(partition, accountID, "role", role)
+}
+
+func iamResourceARN(partition, accountID, resourceType, resourceName string) string {
+	return arn.ARN{
+		Partition: partition,
+		Service:   "iam",
+		AccountID: accountID,
+		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
+	}.String()
 }

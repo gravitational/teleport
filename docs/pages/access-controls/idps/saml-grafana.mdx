@@ -3,7 +3,7 @@ title: Use Teleport's SAML Provider to authenticate with Grafana
 description: Configure Grafana to use identities provided by Teleport.
 ---
 
-Grafana is an open-source observability platform. Their enterprise version supports
+Grafana is an open source observability platform. Their enterprise version supports
 SAML authentication. This guide will help you configure Teleport as a SAML provider,
 and Grafana to accept the identities it provides.
 
@@ -15,7 +15,7 @@ not just those running behind the Teleport App Service.
 - An instance of Grafana Enterprise, with edit access to `grafana.ini`.
   - A trusted certificate authority to create TLS certificates/keys for the SAML connection.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -28,7 +28,7 @@ create a role called `sp-manager.yaml` with the following contents:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: sp-manager
 spec:
@@ -41,7 +41,7 @@ spec:
 Create it with `tctl`:
 
 ```code
-$ tctl create sp-manager.yaml 
+$ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
 
@@ -66,6 +66,8 @@ From the Grafana host, edit `grafana.ini` by adding a `[auth.saml]` section:
 [auth.saml]
 enabled = true
 auto_login = false
+allow_idp_initiated = true
+relay_state = ""
 private_key_path = '/path/to/certs/grafana-host-key.pem'
 certificate_path = '/path/to/certs/grafana-host.pem'
 idp_metadata = 'PEVudGl0eURl.....'
@@ -75,14 +77,16 @@ assertion_attribute_email = uid
 assertion_attribute_groups = eduPersonAffiliation
 ```
 
-| Key                | Value                                                          |
-|--------------------|----------------------------------------------------------------|
-| `enabled`          | Set to `true` to enable SAML authentication.                   |
-| `auto_login`       | When set to `true`, enables auto-login using SAML.             |
-| `private_key_path` | Path to the TLS key used to identify Grafana.                  |
-| `certificate_path` | Path to the TLS certificate used to identify Grafana.          |
-| `idp_metadata`     | The base64-encoded contents of the Teleport metadata XML file. |
-| `assertion_*`      | Various Grafana user fields to be mapped to SAML assertions.   |
+| Key                   | Value                                                                                 |
+|-----------------------|---------------------------------------------------------------------------------------|
+| `enabled`             | Set to `true` to enable SAML authentication.                                          |
+| `auto_login`          | When set to `true`, enables auto-login using SAML.                                    |
+| `allow_idp_initiated` | Set to `true` to allow IdP-initiated login.                                           |
+| `relay_state`         | Relay state for IdP-initiated login. Must be set to `""` to work with Teleport's IdP. |
+| `private_key_path`    | Path to the TLS key used to identify Grafana.                                         |
+| `certificate_path`    | Path to the TLS certificate used to identify Grafana.                                 |
+| `idp_metadata`        | The base64-encoded contents of the Teleport metadata XML file.                        |
+| `assertion_*`         | Various Grafana user fields to be mapped to SAML assertions.                          |
 
 For more information on editing `grafana.ini` for SAML, you can review their [Configure
 SAML authentication in Grafana](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/saml/)

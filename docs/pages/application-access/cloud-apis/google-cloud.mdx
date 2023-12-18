@@ -18,7 +18,7 @@ interact with Google Cloud APIs.
 
 The Teleport Application Service connects to the Teleport Proxy Service over a
 reverse tunnel, so you can run the Application Service in a private network and
-prevent unauthorized access to your organization's Google Cloud service accounts. 
+prevent unauthorized access to your organization's Google Cloud service accounts.
 
 ## Prerequisites
 
@@ -27,10 +27,10 @@ prevent unauthorized access to your organization's Google Cloud service accounts
 - A Google Cloud account with permissions to create IAM roles and service
   accounts, as well as create IAM role bindings for service accounts and
   projects.
-  
+
 - The `gcloud` CLI tool. Follow the [Google Cloud documentation
   page](https://cloud.google.com/sdk/docs/install-sdk) to install and
-  authenticate to `gcloud`. 
+  authenticate to `gcloud`.
 
   <Notice type="tip">
 
@@ -160,13 +160,13 @@ $ gcloud iam service-accounts add-iam-policy-binding \
  teleport-vm-viewer@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
  --member=serviceAccount:teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
   --role="roles/iam.serviceAccountTokenCreator"
-```  
+```
 
 ## Step 2/4. Deploy the Teleport Application Service
 
 At this point, you have created a controlling service account and enabled this
 service account to impersonate the service accounts you would like Teleport
-users to access. 
+users to access.
 
 In this step, you will attach the controlling service account to a Google
 Compute Engine VM, then run the Teleport Application Service.
@@ -191,7 +191,7 @@ $ gcloud compute instances create teleport-app-service \
    --service-account=teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
    --scopes=cloud-platform \
    --zone=<Var name="google-cloud-zone" /> \
-   --image=https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2210-kinetic-arm64-v20230113
+   --image=https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/debian-11-bullseye-v20231212
 ```
 
 You must use the `service-account` and `scopes` flags as we list them here,
@@ -235,32 +235,7 @@ $ gcloud compute instances start <Var name="vm-name" /> --zone <Var name="google
 </TabItem>
 </Tabs>
 
-### Get a join token
-
-Establish trust between your Teleport cluster and your new Application Service
-instance by creating a join token:
-
-```code
-$ tctl nodes add --roles=app
-The invite token: (=presets.tokens.first=)
-This token will expire in 30 minutes.
-Run this on the new node to join the cluster:
-> teleport start \
-   --roles=app \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-Please note:
-  - This invitation token will expire in 30 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
-```
-
-On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token:
-
-```code
-$ echo <Var name="join-token" /> | sudo tee /tmp/token
-```
+(!docs/pages/includes/application-access/app-service-join-token.mdx!)
 
 ### Install the Teleport Application Service
 
@@ -299,7 +274,7 @@ and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
 `mytenant.teleport.sh:443`.
 
 The `app_service` field configures the Teleport Application Service. Each item
-within `app_service.apps` is an application configuration. 
+within `app_service.apps` is an application configuration.
 
 In the example above, we have enabled Google Cloud CLI access by registering an
 application called `google-cloud-cli` with the `cloud` field set to `GCP`. The
@@ -346,7 +321,7 @@ Create a file called `google-cloud-cli-access.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: google-cloud-cli-access
 spec:
@@ -389,11 +364,11 @@ In your identity provider, define a custom SAML attribute or OIDC claim called
 must be a list of Google Cloud service account URIs, using the following format:
 
 ```text
-/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
+<service_account_name>@<project_id>.iam.gserviceaccount.com
 ```
 
 For example, you can set a user's `gcp_service_accounts` to `teleport-vm-viewer`
-by using the following URI, replacing `my-project` with the name of your Google
+by using the following URI, replacing `<project_id>` with the name of your Google
 Cloud project:
 
 ```text
@@ -404,7 +379,7 @@ Create a file called `google-cloud-cli-access.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: google-cloud-cli-access
 spec:
@@ -439,7 +414,7 @@ replacing `my-project` with the ID of your Google Cloud project in the value of
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: google-cloud-cli-access
 spec:
@@ -467,13 +442,13 @@ $ tctl create -f google-cloud-cli-access.yaml
 
 You can define a Teleport role that denies a user access to one or more Google
 Cloud service accounts. To do so, assign values to the `gcp_service_accounts`
-field within the `spec.deny` section of a `role` resource. 
+field within the `spec.deny` section of a `role` resource.
 
 For example, this role denies the user access to all Google Cloud service accounts:
 
 ```yaml
 kind: role
-version: v6
+version: v7
 metadata:
   name: "no-google-cloud"
 spec:
@@ -488,7 +463,7 @@ spec:
 The `no-google-cloud` role enables the user to access all registered
 applications, but makes use of the wildcard character (`*`) within the
 `deny.gcp_service_accounts` field to prevent the user from assuming any Google
-Cloud service account. 
+Cloud service account.
 
 Unlike values of `allow.gcp_service_accounts`, values of
 `deny.gcp_service_accounts` can include wildcard expressions in addition to the
@@ -531,7 +506,7 @@ $ tsh apps login google-cloud-cli --gcp-service-account teleport-vm-viewer
 This command validates the value of the `--gcp-service-account` flag against the
 ones the user is authorized to assume. The value of the flag can either be the
 full URI of the service account or the name of the identity, e.g.,
-`teleport-vm-viewer`. 
+`teleport-vm-viewer`.
 
 A user can omit the `--gcp-service-account` flag if they are only authorized to
 access a single Google Cloud service account, but otherwise an empty
@@ -551,7 +526,7 @@ Example command: tsh gcloud compute instances list
 At this point, you can run `gcloud` commands using the Teleport Application
 Service by prefixing them with `tsh`. Since your user authenticated to your
 Google Cloud CLI application with a service account that can list VMs, for
-example, run this command to do so: 
+example, run this command to do so:
 
 ```code
 $ tsh gcloud compute instances list
@@ -597,7 +572,7 @@ authenticate requests to Google Cloud's APIs.
 To start the local proxy, run the following `tsh` command:
 
 ```code
-$ tsh proxy gcloud 
+$ tsh proxy gcloud
 ```
 
 The command will print the address of the local proxy server along with
@@ -670,3 +645,8 @@ command.
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and
   [`gsutil`](https://cloud.google.com/storage/docs/gsutil).
+- For full details on how Teleport populates the `internal` and `external`
+  traits we illustrated in the Teleport roles within this guide, see
+  the [Teleport Access Controls
+  Reference](../../access-controls/reference.mdx).
+

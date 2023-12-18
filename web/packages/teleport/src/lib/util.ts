@@ -1,29 +1,22 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { AuthType } from 'teleport/services/user';
-
-// TODO(ravicious): Refactor teleport.e and teleterm.e to import pluralize from shared/utils/text
-// and remove this temporary reexport.
-export {
-  /**
-   * @deprecated Import pluralize from `shared/utils/text` instead.
-   */
-  pluralize,
-} from 'shared/utils/text';
 
 export const openNewTab = (url: string) => {
   const element = document.createElement('a');
@@ -86,35 +79,6 @@ export function arrayStrDiff(stringsA: string[], stringsB: string[]) {
 
   return stringsA.filter(l => !stringsB.includes(l));
 }
-
-export const compareSemVers = (a: string, b: string): -1 | 1 => {
-  const splitA = a.split('.');
-  const splitB = b.split('.');
-
-  if (splitA.length < 3 || splitB.length < 3) {
-    return -1;
-  }
-
-  const majorA = parseInt(splitA[0]);
-  const majorB = parseInt(splitB[0]);
-  if (majorA !== majorB) {
-    return majorA > majorB ? 1 : -1;
-  }
-
-  const minorA = parseInt(splitA[1]);
-  const minorB = parseInt(splitB[1]);
-  if (minorA !== minorB) {
-    return minorA > minorB ? 1 : -1;
-  }
-
-  const patchA = parseInt(splitA[2].split('-')[0]);
-  const patchB = parseInt(splitB[2].split('-')[0]);
-  if (patchA !== patchB) {
-    return patchA > patchB ? 1 : -1;
-  }
-
-  return 1;
-};
 
 // compareByString is a sort compare function that
 // compares by string.
