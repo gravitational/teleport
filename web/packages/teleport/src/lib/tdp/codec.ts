@@ -87,6 +87,17 @@ export type PngFrame = {
   data: HTMLImageElement;
 };
 
+/**
+ * `| message type (29) | data_length uint32 | data []byte |`
+ *
+ * `RdpFastPathPdu` is an alias to a `Uint8Array` so that it can
+ * be passed into the `FastPathProcessor`'s `process` method and
+ * used without copying. See [the wasm-bindgen guide].
+ *
+ * [the wasm-bindgen guide]: (https://rustwasm.github.io/docs/wasm-bindgen/reference/types/number-slices.html#number-slices-u8-i8-u16-i16-u32-i32-u64-i64-f32-and-f64)
+ */
+export type RdpFastPathPdu = Uint8Array;
+
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
 export type ClipboardData = {
@@ -952,12 +963,12 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRDPFastPathPDU(buffer: ArrayBuffer): RDPFastPathPDU {
+  decodeRDPFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
     let offset = 0;
     offset += byteLength; // eat message type
     offset += uint32Length; // eat data_length
     const data = buffer.slice(offset);
-    return new RDPFastPathPDU(new Uint8Array(data));
+    return new Uint8Array(data);
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
