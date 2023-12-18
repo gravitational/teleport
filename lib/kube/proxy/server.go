@@ -299,7 +299,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
-		ReadDeadline: 10 * time.Second,
+		DetectTimeout: 10 * time.Second,
 	}
 	for _, opt := range options {
 		opt(&muxConfig)
