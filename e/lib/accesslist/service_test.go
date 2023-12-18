@@ -514,6 +514,14 @@ func (a *fakeAuth) GetAccessRequestAllowedPromotions(ctx context.Context, req ty
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
+func (a *fakeAuth) GetRole(ctx context.Context, name string) (types.Role, error) {
+	return &types.RoleV6{}, nil
+}
+
+func (a *fakeAuth) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
+	return &types.UserV2{}, nil
+}
+
 type testClient struct {
 	services.ClusterConfiguration
 	services.Trust

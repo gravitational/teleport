@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
@@ -24,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // eModuleComponent is the name of the component used for logging
@@ -191,6 +193,12 @@ func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI inter
 
 func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return accessrequest.GenerateAccessRequestPromotions(ctx, accessListGetter, accessRequest)
+}
+
+func (p *enterpriseModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
+	accessListGetter modules.AccessListGetter, requestID string,
+) ([]*accesslist.AccessList, error) {
+	return accessrequest.GetSuggestedAccessLists(ctx, identity, clt, accessListGetter, requestID)
 }
 
 // getLicenseFeatures is only used to read `on-prem` licenses.

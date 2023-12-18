@@ -18,25 +18,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-type roleGetter interface {
-	GetRole(ctx context.Context, name string) (types.Role, error)
-}
-
-type AccessListSuggestionClient interface {
-	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
-	roleGetter
-
-	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-}
 type userDataGetter interface {
-	roleGetter
+	modules.RoleGetter
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
-}
-
-type AccessListGetter interface {
-	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
 }
 
 type AccessListLister interface {
@@ -44,8 +29,8 @@ type AccessListLister interface {
 }
 
 // GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
-func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,
-	accessListGetter AccessListGetter, requestID string,
+func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
+	accessListGetter modules.AccessListGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	accessRequests, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{ID: requestID})
 	if err != nil {
@@ -103,7 +88,7 @@ func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt 
 	return ranked, nil
 }
 
-func canModifyAccessList(clt roleGetter, reviewerIdentity *tlsca.Identity, reviewer types.User, accessList *accesslist.AccessList) error {
+func canModifyAccessList(clt modules.RoleGetter, reviewerIdentity *tlsca.Identity, reviewer types.User, accessList *accesslist.AccessList) error {
 	// if owner, then can list and modify
 	err := services.IsAccessListOwner(*reviewerIdentity, accessList)
 	switch {

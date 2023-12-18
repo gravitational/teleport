@@ -64,6 +64,9 @@ type AuthServer interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	SubmitAccessReview(ctx context.Context, req types.AccessReviewSubmission) (types.AccessRequest, error)
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+
+	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
 }
 
 // ServiceConfig is the service config for the Access Lists gRPC service.
@@ -1612,6 +1615,29 @@ func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Service) GetSuggestedAccessLists(ctx context.Context, request *accesslistv1.GetSuggestedAccessListsRequest) (*accesslistv1.GetSuggestedAccessListsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity := authCtx.Identity.GetIdentity()
+	suggestions, err := modules.GetModules().GetSuggestedAccessLists(ctx, &identity, s.authServer, s.accessLists, request.AccessRequestId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	suggestionsProto := make([]*accesslistv1.AccessList, len(suggestions))
+	for i, r := range suggestions {
+		suggestionsProto[i] = conv.ToProto(r)
+	}
+
+	return &accesslistv1.GetSuggestedAccessListsResponse{
+		AccessLists: suggestionsProto,
+	}, nil
 }
 
 // Check if the user is either authorized for the access list or owns this access list.
