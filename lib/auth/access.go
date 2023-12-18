@@ -193,8 +193,8 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 
 	var expiresTime time.Time
 	// leave as 0 if no lock expiration was set
-	if lock.LockExpiry() != nil {
-		expiresTime = lock.LockExpiry().UTC()
+	if le := lock.LockExpiry(); le != nil {
+		expiresTime = le.UTC()
 	}
 	um := authz.ClientUserMetadata(ctx)
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
