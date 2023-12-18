@@ -3909,10 +3909,11 @@ type ProvisionTokenSpecV2GitHub struct {
 	EnterpriseServerHost string `protobuf:"bytes,2,opt,name=EnterpriseServerHost,proto3" json:"enterprise_server_host,omitempty"`
 	// EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be
 	// included in the expected issuer of the OIDC tokens. This is for
-	// compatability with the `include_enterprise_slug` option in GHE.
+	// compatibility with the `include_enterprise_slug` option in GHE.
 	//
 	// This field be set to the slug of your enterprise if this is enabled. If
-	// this is not enabled, then this field must be left empty.
+	// this is not enabled, then this field must be left empty. This field cannot
+	// be specified if `enterprise_server_host` is specified.
 	//
 	// See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
 	// for more information about customised issuer values.

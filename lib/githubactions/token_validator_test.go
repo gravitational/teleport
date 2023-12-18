@@ -256,7 +256,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name:           "fails if slugged jwt is used with non-slug idp",
-			assertError:    require.NoError,
+			assertError:    require.Error,
 			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: enterpriseSlugIDP.issueToken(
 				t,
@@ -274,7 +274,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		},
 		{
 			name:           "fails if non-slugged jwt is used with idp",
-			assertError:    require.NoError,
+			assertError:    require.Error,,
 			defaultIDPHost: enterpriseSlugIDP.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
