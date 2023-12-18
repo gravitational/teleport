@@ -178,7 +178,7 @@ export function AwsAccount() {
 
     updateAgentMeta({
       ...agentMeta,
-      integration: selectedAwsIntegration.value,
+      awsIntegration: selectedAwsIntegration.value,
     });
 
     nextStep();

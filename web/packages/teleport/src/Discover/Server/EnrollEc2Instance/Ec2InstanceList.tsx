@@ -30,7 +30,7 @@ import {
   labelMatcher,
 } from 'teleport/Discover/Shared';
 
-import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import { Regions } from 'teleport/services/integrations';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
@@ -156,9 +156,7 @@ export const Ec2InstanceList = ({
           <ConfigureIamPerms
             kind="ec2"
             region={region}
-            integrationRoleArn={
-              (agentMeta as NodeMeta).integration.spec.roleArn
-            }
+            integrationRoleArn={agentMeta.awsIntegration.spec.roleArn}
           />
         </Box>
       )}

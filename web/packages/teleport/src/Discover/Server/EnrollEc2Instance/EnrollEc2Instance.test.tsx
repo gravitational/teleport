@@ -150,11 +150,12 @@ function getMockedContexts() {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
       resourceName: 'node-name',
+      awsRegion: 'us-west-1',
       agentMatcherLabels: [],
       db: {} as any,
       selectedAwsRdsDb: {} as any,
       node: {} as any,
-      integration: {
+      awsIntegration: {
         kind: IntegrationKind.AwsOidc,
         name: 'test-oidc',
         resourceType: 'integration',

@@ -275,7 +275,7 @@ const Component = () => {
           region: 'us-east-1',
         },
       },
-      integration: {
+      awsIntegration: {
         kind: IntegrationKind.AwsOidc,
         name: 'test-oidc',
         resourceType: 'integration',

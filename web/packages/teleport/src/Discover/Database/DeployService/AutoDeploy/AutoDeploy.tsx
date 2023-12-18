@@ -104,9 +104,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     setShowLabelMatchErr(false);
     setAttempt({ status: 'processing' });
     integrationService
-      .deployAwsOidcService(dbMeta.integration?.name, {
+      .deployAwsOidcService(dbMeta.awsIntegration?.name, {
         deploymentMode: 'database-service',
-        region: dbMeta.selectedAwsRdsDb?.region,
+        region: dbMeta.awsRegion,
         subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
         taskRoleArn,
         databaseAgentMatcherLabels: labels,
@@ -166,7 +166,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             <Heading
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
-              region={dbMeta.selectedAwsRdsDb.region}
+              region={dbMeta.awsRegion}
             />
 
             {/* step one */}
@@ -189,7 +189,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                   showLabelMatchErr={showLabelMatchErr}
                   dbLabels={dbLabels}
                   autoFocus={false}
-                  region={dbMeta.selectedAwsRdsDb?.region}
+                  region={dbMeta.awsRegion}
                 />
               </Box>
             </StyledBox>
@@ -303,7 +303,7 @@ const CreateAccessRole = ({
   validator: Validator;
 }) => {
   const [scriptUrl, setScriptUrl] = useState('');
-  const { integration, selectedAwsRdsDb } = dbMeta;
+  const { awsIntegration, awsRegion } = dbMeta;
 
   function generateAutoConfigScript() {
     if (!validator.validate()) {
@@ -311,11 +311,11 @@ const CreateAccessRole = ({
     }
 
     const newScriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
-      integrationName: integration.name,
-      region: selectedAwsRdsDb.region,
+      integrationName: awsIntegration.name,
+      region: awsRegion,
       // arn's are formatted as `don-care-about-this-part/role-arn`.
       // We are splitting by slash and getting the last element.
-      awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
+      awsOidcRoleArn: awsIntegration.spec.roleArn.split('/').pop(),
       taskRoleArn,
     });
 

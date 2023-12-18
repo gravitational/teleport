@@ -120,6 +120,7 @@ export function useCreateDatabase() {
     updateAgentMeta({
       ...(agentMeta as DbMeta),
       resourceName: createdDb.name,
+      awsRegion: createdDb.awsRegion,
       agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
       serviceDeployedMethod:
@@ -220,6 +221,7 @@ export function useCreateDatabase() {
         updateAgentMeta({
           ...(agentMeta as DbMeta),
           resourceName: db.name,
+          awsRegion: db.awsRegion,
           agentMatcherLabels: db.labels,
           selectedAwsRdsDb: db.awsRds,
         });

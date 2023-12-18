@@ -106,7 +106,7 @@ export function EnrollEc2Instance() {
   }
 
   async function fetchEc2Instances(data: TableData) {
-    const integrationName = (agentMeta as NodeMeta).integration.name;
+    const integrationName = agentMeta.awsIntegration.name;
 
     setTableData({ ...data, fetchStatus: 'loading' });
     setFetchEc2InstancesAttempt({ status: 'processing' });
@@ -184,7 +184,7 @@ export function EnrollEc2Instance() {
   }
 
   async function fetchEc2InstanceConnectEndpoints() {
-    const integrationName = (agentMeta as NodeMeta).integration.name;
+    const integrationName = agentMeta.awsIntegration.name;
 
     setFetchEc2IceAttempt({ status: 'processing' });
     try {

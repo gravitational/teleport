@@ -75,14 +75,11 @@ export const SelectSecurityGroups = ({
   }
 
   async function fetchSecurityGroups() {
-    const integration = dbMeta.integration;
-    const selectedDb = dbMeta.selectedAwsRdsDb;
-
     run(() =>
       integrationService
-        .fetchSecurityGroups(integration.name, {
-          vpcId: selectedDb.vpcId,
-          region: selectedDb.region,
+        .fetchSecurityGroups(dbMeta.awsIntegration.name, {
+          vpcId: dbMeta.selectedAwsRdsDb.vpcId,
+          region: dbMeta.awsRegion,
           nextToken: sgTableData.nextToken,
         })
         .then(({ securityGroups, nextToken }) => {
