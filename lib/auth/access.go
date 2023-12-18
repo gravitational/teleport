@@ -21,9 +21,10 @@ package auth
 import (
 	"context"
 	"errors"
-	"github.com/gravitational/trace"
 	"slices"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
