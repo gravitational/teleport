@@ -240,6 +240,10 @@ export function ResourceListItem({
                     cursor: pointer;
                     height: 20px;
                     line-height: 19px;
+                    max-width: 100%;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                   `}
                 >
                   {labelText}
