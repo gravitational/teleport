@@ -9,7 +9,7 @@ to Microsoft Windows desktops for local Windows users.
 
 Passwordless access for local users is limited to 5 desktops in Teleport Community Edition.
 
-If you have more than 5 desktops registered under `non_ad_hosts`, Teleport
+If you have more than 5 desktops registered under `non_ad_hosts` and `static_hosts` with `ad: false`, Teleport
 Community Edition will not allow connections to any of them.
 
 Teleport Enterprise users can have unlimited number of desktops.
@@ -119,7 +119,11 @@ following for the Windows Desktop Service:
    windows_desktop_service:
      enabled: yes
      non_ad_hosts:
-     - 192.0.2.156
+     - 192.0.2.155
+     static_hosts:
+     - name: host1
+       ad: false
+       addr: 192.0.2.156
    
    auth_service:
      enabled: no
@@ -132,7 +136,7 @@ following for the Windows Desktop Service:
    In this file:
 
    - Set the `proxy_server` to the address of your Teleport cluster.
-   - List the Windows IP addresses or host names under `non_ad_hosts`.
+   - List the Windows desktops under `static_hosts` (or IP addresses or host names under `non_ad_hosts` in versions prior to 14.3).
 
    Teleport can't automatically discover Windows desktops without Active Directory. 
    Therefore, you must specify the Windows IP addresses or host names that you want to 
@@ -144,7 +148,26 @@ following for the Windows Desktop Service:
 
 1. (Optional) Add labels for the Windows Desktop Service to the configuration file.
 
-   You can attach labels to Windows computers by matching to their hostnames.
+   You can add labels to Windows computers using the `labels` section of the host config. For example, the following
+   adds the `datacenter: dc1` label:
+
+   ```diff
+   version: v3
+   teleport:
+     nodename: <Var name="windows.teleport.example.com" />
+     proxy_server: <Var name="teleport.example.com:443" />
+     auth_token: <Var name="/tmp/token" />
+   windows_desktop_service:
+     enabled: yes
+     static_hosts:
+     - name: host1
+       ad: false
+       addr: 192.0.2.156
+   +   labels:
+   +     datacenter: dc1
+   ```
+
+   Alternatively, you can attach labels to Windows computers by matching to their hostnames.
    For example, the following adds the `cloud: ec2` label to computers that have 
    host names ending with `.us-east-2.compute.internal`:
 
@@ -156,8 +179,13 @@ following for the Windows Desktop Service:
    windows_desktop_service:
      enabled: yes
      non_ad_hosts:
-   -    - 192.0.2.156
-   +    - ip-192-0-2-156.us-east-2.compute.internal
+   -    - 192.0.2.155
+   +    - ip-192-0-2-155.us-east-2.compute.internal
+     static_hosts:
+      - name: host1
+        ad: false
+   -    addr: 192.0.2.156
+   +    addr: ip-192-0-2-156.us-east-2.compute.internal
    + host_labels:
    +    - match: '.*\.us-east-2.compute.internal'
    +      labels:

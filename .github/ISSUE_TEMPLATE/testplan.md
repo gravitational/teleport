@@ -1023,10 +1023,16 @@ tsh bench web sessions --max=5000 --web user ls
 ## Desktop Access
 
 - Direct mode (set `listen_addr`):
-  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - IoT mode (reverse tunnel through proxy):
-  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
   verify that connections to desktops on different AD domains works. (Attempt to
@@ -1055,6 +1061,7 @@ tsh bench web sessions --max=5000 --web user ls
     Version, DNS hostname.
   - [ ] Regexp-based host labeling applies across all desktops, regardless of
     origin.
+  - [ ] Labels from `static_hosts` are applied to correct desktops
 - RBAC
   - [ ] RBAC denies access to a Windows desktop due to labels
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
