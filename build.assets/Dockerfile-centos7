@@ -36,7 +36,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-gcc \
         ${DEVTOOLSET}-make && \
     yum clean all
 
@@ -82,7 +82,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* && \
+        ${DEVTOOLSET}-gcc && \
     yum clean all
 
 # Install libudev-zero.
@@ -154,15 +154,19 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
         centos-release-scl \
-        elfutils-libelf-devel-static \
         scl-utils && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-gcc \
         ${DEVTOOLSET}-make && \
     yum clean all
+
+# Install custom package with -fPIC.
+COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
+RUN rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static.*.rpm && \
+    rm -rf /opt/custom-packages
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 # BUILD_STATIC_ONLY - builds only static libraries without shared ones
@@ -198,12 +202,13 @@ RUN yum groupinstall -y 'Development Tools' && \
         autoconf-archive \
         libudev-devel \
         scl-utils \
-        centos-release-scl \
+        centos-release-scl && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* && \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ && \
     yum clean all
 
 # Install libpcsclite - compile with a newer GCC. The one installed by default is not able to compile it.
@@ -249,8 +254,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum install -y \
     # required by libbpf
     centos-release-scl \
-    # required by libbpf
-    elfutils-libelf-devel-static \
     net-tools \
     # required by Teleport PAM support
     pam-devel \
@@ -258,17 +261,22 @@ RUN yum groupinstall -y 'Development Tools' && \
     tree \
     # used by our Makefile
     which \
-    zip \
-    # required by libbpf
-    zlib-static && \
+    zip && \
     yum clean all && \
     localedef -c -i en_US -f UTF-8 en_US.UTF-8
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc* \
+        ${DEVTOOLSET}-gcc \
+        ${DEVTOOLSET}-gcc-c++ \
         ${DEVTOOLSET}-make && \
     yum clean all
+
+# Install custom packages with -fPIC.
+COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
+RUN rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static.*.rpm \
+        /opt/custom-packages/zlib-static.*.rpm && \
+    rm -rf /opt/custom-packages
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /

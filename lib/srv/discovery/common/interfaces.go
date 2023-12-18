@@ -30,6 +30,9 @@ type Fetcher interface {
 	Get(ctx context.Context) (types.ResourcesWithLabels, error)
 	// ResourceType identifies the resource type the fetcher is returning.
 	ResourceType() string
+	// FetcherType identifies the Fetcher Type (cloud resource name).
+	// Eg, ec2, rds, aks, gce
+	FetcherType() string
 	// Cloud returns the cloud the fetcher is operating.
 	Cloud() string
 }

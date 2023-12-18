@@ -20,15 +20,25 @@ package local
 
 import (
 	"context"
+	"encoding/xml"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -40,11 +50,23 @@ const (
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
-	svc generic.Service[types.SAMLIdPServiceProvider]
+	svc        generic.Service[types.SAMLIdPServiceProvider]
+	log        logrus.FieldLogger
+	httpClient *http.Client
+}
+
+// SAMLIdPOption adds optional arguments to NewSAMLIdPServiceProviderService.
+type SAMLIdPOption func(*SAMLIdPServiceProviderService)
+
+// WithHTTPClient configures SAMLIdPServiceProviderService with given http client.
+func WithHTTPClient(httpClient *http.Client) SAMLIdPOption {
+	return func(s *SAMLIdPServiceProviderService) {
+		s.httpClient = httpClient
+	}
 }
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
-func NewSAMLIdPServiceProviderService(backend backend.Backend) (*SAMLIdPServiceProviderService, error) {
+func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOption) (*SAMLIdPServiceProviderService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
 		Backend:       backend,
 		PageLimit:     samlIDPServiceProviderMaxPageSize,
@@ -57,9 +79,25 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) (*SAMLIdPServiceP
 		return nil, trace.Wrap(err)
 	}
 
-	return &SAMLIdPServiceProviderService{
+	samlSPService := &SAMLIdPServiceProviderService{
 		svc: *svc,
-	}, nil
+		log: logrus.WithFields(logrus.Fields{trace.Component: "saml-idp"}),
+	}
+
+	for _, opt := range opts {
+		opt(samlSPService)
+	}
+
+	if samlSPService.httpClient == nil {
+		samlSPService.httpClient = &http.Client{
+			Timeout: defaults.HTTPRequestTimeout,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+	}
+
+	return samlSPService, nil
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -74,6 +112,18 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	if sp.GetEntityDescriptor() == "" {
+		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
+			// But a debug log should be helpful to indicate source of error.
+			s.log.Debugf("Failed to fetch entity descriptor from %s. %s.", sp.GetEntityID(), err.Error())
+
+			if err := s.generateAndSetEntityDescriptor(sp); err != nil {
+				return trace.BadParameter("could not generate entity descriptor with given entity_id and acs_url.")
+			}
+		}
+	}
+
 	if err := validateSAMLIdPServiceProvider(sp); err != nil {
 		return trace.Wrap(err)
 	}
@@ -166,7 +216,12 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		switch {
+		case errors.Is(err, io.EOF):
+			return trace.BadParameter("missing entity descriptor: %s", err.Error())
+		default:
+			return trace.BadParameter(err.Error())
+		}
 	}
 
 	if ed.EntityID != sp.GetEntityID() {
@@ -181,5 +236,62 @@ func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
 		}
 	}
 
+	return nil
+}
+
+// fetchAndSetEntityDescriptor fetches Service Provider entity descriptor (aka SP metadata)
+// from remote metadata endpoint (Entity ID) and sets it to sp if the xml format
+// is a valid Service Provider metadata format.
+func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
+	if s.httpClient == nil {
+		return trace.BadParameter("missing http client")
+	}
+	resp, err := s.httpClient.Get(sp.GetEntityID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return trace.Wrap(trace.ReadError(resp.StatusCode, nil))
+	}
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// parse body to check if its a valid entity descriptor
+	_, err = samlsp.ParseMetadata(body)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sp.SetEntityDescriptor(string(body))
+	return nil
+}
+
+// generateAndSetEntityDescriptor generates and sets Service Provider entity descriptor
+// with ACS URL, Entity ID and unspecified NameID format.
+func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
+	s.log.Infof("Generating a default entity_descriptor with entity_id %s and acs_url %s.", sp.GetEntityID(), sp.GetACSURL())
+
+	acsURL, err := url.Parse(sp.GetACSURL())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newServiceProvider := saml.ServiceProvider{
+		EntityID:          sp.GetEntityID(),
+		AcsURL:            *acsURL,
+		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
+	}
+
+	entityDescriptor, err := xml.MarshalIndent(newServiceProvider.Metadata(), "", "  ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sp.SetEntityDescriptor(string(entityDescriptor))
 	return nil
 }

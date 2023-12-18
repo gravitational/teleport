@@ -28,8 +28,10 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 		name             string
 		entityDescriptor string
 		entityID         string
+		acsURL           string
 		errAssertion     require.ErrorAssertionFunc
 		expectedEntityID string
+		attributeMapping []*SAMLAttributeMapping
 	}{
 		{
 			name:             "valid entity descriptor",
@@ -47,7 +49,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			expectedEntityID: "IAMShowcase",
 		},
 		{
-			name:             "empty entity descriptor",
+			name:             "empty entity descriptor, entity ID and ACS URL",
 			entityDescriptor: "",
 			errAssertion:     require.Error,
 		},
@@ -56,6 +58,88 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			entityDescriptor: testEntityDescriptor,
 			errAssertion:     require.NoError,
 			expectedEntityID: "IAMShowcase",
+		},
+		{
+			name:             "empty entity descriptor and entity ID",
+			entityDescriptor: "",
+			acsURL:           "https:/test.com/acs",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndEntityID)
+			},
+		},
+		{
+			name:             "empty entity descriptor and ACS URL",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrEmptyEntityDescriptorAndACSURL)
+			},
+		},
+		{
+			name:             "empty entity descriptor with entity ID and ACS URL",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
+		},
+		{
+			name:             "duplicate attribute mapping",
+			entityDescriptor: testEntityDescriptor,
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "username",
+					Value: "user.traits.name",
+				},
+				{
+					Name:  "user1",
+					Value: "user.traits.firstname",
+				},
+				{
+					Name:  "username",
+					Value: "user.traits.givenname",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrDuplicateAttributeName)
+			},
+		},
+		{
+			name:             "valid attribute mapping",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "username",
+					Value: "user.traits.name",
+				},
+				{
+					Name:  "user1",
+					Value: "user.traits.givenname",
+				},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:             "invalid attribute mapping name format",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:       "username",
+					Value:      "user.traits.name",
+					NameFormat: "emailAddress",
+				},
+				{
+					Name:  "user1",
+					Value: "user.traits.givenname",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid name format")
+			},
 		},
 	}
 
@@ -66,11 +150,16 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
 				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
+				AttributeMapping: test.attributeMapping,
 			})
 
 			test.errAssertion(t, err)
 			if sp != nil {
 				require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+				if len(sp.GetAttributeMapping()) > 0 {
+					require.Equal(t, test.attributeMapping, sp.GetAttributeMapping())
+				}
 			}
 		})
 	}

@@ -1111,6 +1111,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
 	}
 
+	if fc.Proxy.AutomaticUpgradesChannels != nil {
+		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
+	}
+
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
@@ -1966,11 +1970,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
-	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
-	if err != nil {
-		return trace.Wrap(err)
+	if len(fc.WindowsDesktop.ADHosts) > 0 {
+		log.Warnln("hosts field is deprecated, prefer static_hosts instead")
 	}
-	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
+	if len(fc.WindowsDesktop.NonADHosts) > 0 {
+		log.Warnln("non_ad_hosts field is deprecated, prefer static_hosts instead")
+	}
+	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2039,6 +2045,37 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	return nil
+}
+
+func staticHostsWithAddress(ws WindowsDesktopService) ([]servicecfg.WindowsHost, error) {
+	var hostsWithAddress []servicecfg.WindowsHost
+	var cfgHosts []WindowsHost
+	cfgHosts = append(cfgHosts, ws.StaticHosts...)
+	for _, host := range ws.NonADHosts {
+		cfgHosts = append(cfgHosts, WindowsHost{
+			Address: host,
+			AD:      false,
+		})
+	}
+	for _, host := range ws.ADHosts {
+		cfgHosts = append(cfgHosts, WindowsHost{
+			Address: host,
+			AD:      true,
+		})
+	}
+	for _, host := range cfgHosts {
+		addr, err := utils.ParseHostPortAddr(host.Address, defaults.RDPListenPort)
+		if err != nil {
+			return nil, trace.BadParameter("invalid addr %q", host.Address)
+		}
+		hostsWithAddress = append(hostsWithAddress, servicecfg.WindowsHost{
+			Name:    host.Name,
+			Address: *addr,
+			Labels:  host.Labels,
+			AD:      host.AD,
+		})
+	}
+	return hostsWithAddress, nil
 }
 
 // applyTracingConfig applies file configuration for the "tracing_service" section.

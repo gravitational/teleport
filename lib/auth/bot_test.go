@@ -138,7 +138,7 @@ func TestServerCreateBot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
-			res, err := srv.Auth().createBot(ctx, tt.request)
+			res, err := srv.Auth().CreateBot(ctx, tt.request)
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
 				return
@@ -213,7 +213,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a new bot.
-	bot, err := srv.Auth().createBot(ctx, &proto.CreateBotRequest{
+	bot, err := srv.Auth().CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  "test",
 		Roles: []string{"example"},
 	})
@@ -271,7 +271,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a new bot.
-	bot, err := srv.Auth().createBot(ctx, &proto.CreateBotRequest{
+	bot, err := srv.Auth().CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  "test",
 		Roles: []string{"example"},
 	})
@@ -344,7 +344,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	require.NoError(t, err)
 
 	botName := "botty"
-	_, err = a.createBot(ctx, &proto.CreateBotRequest{
+	_, err = a.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  botName,
 		Roles: []string{roleName},
 	})

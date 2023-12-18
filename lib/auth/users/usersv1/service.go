@@ -31,6 +31,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -217,7 +218,11 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -279,7 +284,11 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -296,7 +305,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		req.User.SetCreatedBy(prevUser.GetCreatedBy())
 	}
 
-	if err = CheckOktaAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
+	if err = okta.CheckAccess(authzCtx, prevUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -345,6 +354,10 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if createdBy := req.User.GetCreatedBy(); createdBy.IsEmpty() {
 		req.User.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authzCtx.User.GetName()},
@@ -364,11 +377,11 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		verb = types.VerbCreate
 	}
 
-	if err = CheckOktaOrigin(authzCtx, req.User); err != nil {
+	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err = CheckOktaAccess(authzCtx, prevUser, verb); err != nil {
+	if err = okta.CheckAccess(authzCtx, prevUser, verb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -417,6 +430,10 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	prevUser, err := s.cache.GetUser(ctx, req.Name, false)
 	var omitEditorEvent bool
 	if err != nil && !trace.IsNotFound(err) {
@@ -426,7 +443,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		omitEditorEvent = true
 	}
 
-	if err = CheckOktaAccess(authzCtx, prevUser, types.VerbDelete); err != nil {
+	if err = okta.CheckAccess(authzCtx, prevUser, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

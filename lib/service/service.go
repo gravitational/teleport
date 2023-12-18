@@ -137,6 +137,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/system"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1620,7 +1621,6 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 	if len(loggers) < 1 {
 		if externalAuditStorage.IsUsed() {
 			return nil, externalAuditMissingAthenaError
-
 		}
 		return nil, nil
 	}
@@ -2672,6 +2672,7 @@ func (process *TeleportProcess) initSSH() error {
 				ID:                  teleport.Component(teleport.ComponentNode, process.id),
 				CertAuthorityGetter: authClient.GetCertAuthority,
 				LocalClusterName:    conn.ServerIdentity.ClusterName,
+				FixedHeader:         sshutils.SSHVersionPrefix + "\r\n",
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -4051,11 +4052,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner:     proxySigner,
-			OpenAIConfig:    cfg.Testing.OpenAIConfig,
-			NodeWatcher:     nodeWatcher,
-			AccessGraphAddr: accessGraphAddr,
-			TracerProvider:  process.TracingProvider,
+			PROXYSigner:               proxySigner,
+			OpenAIConfig:              cfg.Testing.OpenAIConfig,
+			NodeWatcher:               nodeWatcher,
+			AccessGraphAddr:           accessGraphAddr,
+			TracerProvider:            process.TracingProvider,
+			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
