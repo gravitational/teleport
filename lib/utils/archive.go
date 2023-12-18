@@ -20,6 +20,7 @@ package utils
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"io/fs"
@@ -74,4 +75,44 @@ func CompressTarGzArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer,
 	}
 
 	return archiveBytes, nil
+}
+
+// CompressZipArchive creates a zip archive in memory, reading the files using
+// the provided file reader.
+func CompressZipArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer, error) {
+	buffer := &bytes.Buffer{}
+
+	zipWriter := zip.NewWriter(buffer)
+	defer zipWriter.Close()
+
+	for _, filename := range files {
+		bs, err := fileReader.ReadFile(filename)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fileStat, err := fileReader.Stat(filename)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		header, err := zip.FileInfoHeader(fileStat)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// fs.FileInfo's Name method returns only the base name of the file
+		// it describes, so make sure we set the full file name.
+		header.Name = filename
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := writer.Write(bs); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return buffer, nil
 }

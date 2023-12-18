@@ -20,6 +20,8 @@ package utils
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -121,5 +123,66 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 			require.Equal(t, tt.fsContents[header.Name].mode, fs.FileMode(header.Mode))
 		}
 		require.ElementsMatch(t, tarContentFileNames, tt.fileNames)
+	}
+}
+
+func TestCompressZipArchive(t *testing.T) {
+	tests := []struct {
+		name       string
+		fileNames  []string
+		fsContents map[string]*InMemoryFile
+		assert     require.ErrorAssertionFunc
+	}{
+		{
+			name:       "File Not Exists bubbles up",
+			fileNames:  []string{"not", "found"},
+			fsContents: map[string]*InMemoryFile{},
+			assert: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, fs.ErrNotExist)
+			},
+		},
+		{
+			name:      "Archive is created",
+			fileNames: []string{"file1", "file2"},
+			fsContents: map[string]*InMemoryFile{
+				"file1": NewInMemoryFile("file1", teleport.FileMaskOwnerOnly, time.Now(), []byte("contentsfile1")),
+				"file2": NewInMemoryFile("file2", teleport.FileMaskOwnerOnly, time.Now(), []byte("contentsfile2")),
+			},
+			assert: require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		fileReader := mockFileReader{
+			files: tt.fsContents,
+		}
+		bs, err := CompressZipArchive(tt.fileNames, fileReader)
+		tt.assert(t, err)
+		if err != nil {
+			continue
+		}
+
+		reader := bytes.NewReader(bs.Bytes())
+		zipReader, err := zip.NewReader(reader, int64(bs.Len()))
+		require.NoError(t, err)
+
+		var fileNames []string
+		for _, f := range zipReader.File {
+			fileNames = append(fileNames, f.Name)
+			require.Contains(t, tt.fsContents, f.Name)
+
+			require.True(t, f.FileInfo().Mode().Type().IsRegular())
+
+			fileReader, err := f.Open()
+			require.NoError(t, err)
+
+			gotBytes, err := io.ReadAll(fileReader)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.fsContents[f.Name].content, gotBytes)
+			require.Equal(t, tt.fsContents[f.Name].mode, f.Mode())
+		}
+		require.ElementsMatch(t, tt.fileNames, fileNames)
 	}
 }
