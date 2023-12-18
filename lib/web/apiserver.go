@@ -273,12 +273,6 @@ type Config struct {
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
 
-	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
-	// This URL must returns a valid version string.
-	// Eg, v13.4.3
-	// Optional: uses cloud/stable channel when omitted.
-	AutomaticUpgradesVersionURL string
-
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
 	AccessGraphAddr utils.NetAddr
 
@@ -363,6 +357,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
+	}
+
+	if automaticUpgrades(cfg.ClusterFeatures) && cfg.AutomaticUpgradesChannels == nil {
+		cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
+	if cfg.AutomaticUpgradesChannels != nil {
+		err := cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -1558,7 +1563,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
