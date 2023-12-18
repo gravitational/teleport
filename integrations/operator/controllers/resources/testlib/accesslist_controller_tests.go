@@ -18,14 +18,13 @@ package testlib
 
 import (
 	"context"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
 func newAccessListSpec(nextAudit time.Time) accesslist.Spec {

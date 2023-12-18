@@ -18,10 +18,11 @@ package resources
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/client"
+
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 )
