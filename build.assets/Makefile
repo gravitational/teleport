@@ -82,6 +82,10 @@ REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cr
 # needed on CI as they start with a fresh state each time.
 PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
 
+# This determines which make target we call in this repo's top level Makefile when
+# make release in this Makefile is called. Currently this supports its default value
+# (release) and release-unix-preserving-webassets. See the release-arm target for
+# more details.
 RELEASE_TARGET ?= release
 
 #
