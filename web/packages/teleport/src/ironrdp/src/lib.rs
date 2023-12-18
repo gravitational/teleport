@@ -67,34 +67,6 @@ pub fn init_wasm_log(log_level: &str) {
     }
 }
 
-/// | message type (29) | data_length uint32 | data []byte |
-///
-/// This type is used in javascript pass raw RDP Server Fast-Path Update PDU data to Rust.
-#[wasm_bindgen]
-pub struct RDPFastPathPDU {
-    data: Uint8Array,
-}
-
-#[wasm_bindgen]
-impl RDPFastPathPDU {
-    #[wasm_bindgen(constructor)]
-    pub fn new(data: Uint8Array) -> Self {
-        Self { data }
-    }
-}
-
-struct RustRDPFastPathPDU {
-    data: Vec<u8>,
-}
-
-impl From<RDPFastPathPDU> for RustRDPFastPathPDU {
-    fn from(js_frame: RDPFastPathPDU) -> Self {
-        Self {
-            data: js_frame.data.to_vec(), // TODO(isaiah): is it possible to avoid copy?
-        }
-    }
-}
-
 #[wasm_bindgen]
 pub struct BitmapFrame {
     top: u16,
@@ -193,23 +165,26 @@ impl FastPathProcessor {
         }
     }
 
-    /// draw_cb: (bitmapFrame: BitmapFrame) => void
+    /// `tdp_fast_path_frame: Uint8Array`
     ///
-    /// respond_cb: (responseFrame: ArrayBuffer) => void
+    /// `cb_context: tdp.Client`
+    ///
+    /// `draw_cb: (bitmapFrame: BitmapFrame) => void`
+    ///
+    /// `respond_cb: (responseFrame: ArrayBuffer) => void`
     pub fn process(
         &mut self,
-        tdp_fast_path_frame: RDPFastPathPDU,
+        tdp_fast_path_frame: &[u8],
         cb_context: &JsValue,
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
         let (rdp_responses, client_updates) = {
             let mut output = WriteBuf::new();
-            let tdp_fast_path_frame: RustRDPFastPathPDU = tdp_fast_path_frame.into();
 
             let processor_updates = self
                 .fast_path_processor
-                .process(&mut self.image, &tdp_fast_path_frame.data, &mut output)
+                .process(&mut self.image, tdp_fast_path_frame, &mut output)
                 .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
             (output.into_inner(), processor_updates)
