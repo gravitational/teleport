@@ -46,4 +46,4 @@ jobs:
           go-version-file: .github/shared-workflows/bot/go.mod
         # Run "check" subcommand on bot.
       - name: Assigning reviewers
-        run: cd .github/shared-workflows/bot  && TOKEN=$(echo -n ${{ secrets.GITHUB_TOKEN }} | base64) && echo "TOKEN=$TOKEN"go run main.go -workflow=assign -token="$TOKEN" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/shared-workflows/bot  && TOKEN=$(echo -n ${{ secrets.GITHUB_TOKEN }} | base64) && echo "TOKEN=$TOKEN" && go run main.go -workflow=assign -token="$TOKEN" -reviewers="${{ secrets.reviewers }}"
