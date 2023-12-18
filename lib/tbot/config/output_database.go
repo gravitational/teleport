@@ -107,6 +107,12 @@ func (o *DatabaseOutput) templates() []template {
 }
 
 func (o *DatabaseOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"DatabaseOutput.Render",
+	)
+	defer span.End()
+
 	if err := identity.SaveIdentity(ctx, ident, o.Destination, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}

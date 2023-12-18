@@ -29,6 +29,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
@@ -43,6 +44,8 @@ const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
 
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
@@ -177,6 +180,13 @@ type CLIConf struct {
 
 	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
 	Insecure bool
+
+	// Trace indicates whether tracing should be enabled.
+	Trace bool
+
+	// TraceExporter is a manually provided URI to send traces to instead of
+	// forwarding them to the Auth service.
+	TraceExporter string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
