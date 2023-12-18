@@ -32,7 +32,7 @@ import (
 
 type ghaIDTokenValidator interface {
 	Validate(
-		ctx context.Context, GHESHost string, token string,
+		ctx context.Context, GHESHost string, enterpriseSlug string, token string,
 	) (*githubactions.IDTokenClaims, error)
 }
 
@@ -53,7 +53,8 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 	// enterpriseOverride is a hostname to use instead of github.com when
 	// validating tokens. This allows GHES instances to be connected.
 	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
-	if enterpriseOverride != "" {
+	enterpriseSlug := token.Spec.GitHub.EnterpriseSlug
+	if enterpriseOverride != "" || enterpriseSlug != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, fmt.Errorf(
 				"github enterprise server joining: %w",
@@ -63,7 +64,7 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 	}
 
 	claims, err := a.ghaIDTokenValidator.Validate(
-		ctx, enterpriseOverride, req.IDToken,
+		ctx, enterpriseOverride, enterpriseSlug, req.IDToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

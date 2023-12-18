@@ -80,6 +80,22 @@ spec:
 ```
 </Admonition>
 
+<Admonition type="note" title="Using GitHub Enterprise Cloud?">
+If you have enabled `include_enterprise_slug` in your GitHub Enterprise
+Cloud configuration, you will need to set `spec.github.enterprise_slug` to
+the slug of your GitHub Enterprise.
+
+For example:
+```yaml
+spec:
+  github:
+    enterprise_slug: my-enterprise
+```
+
+Read more about `include_enterprise_slug` on the the GitHub guide to
+[customizing the issuer value for an enterprise.](https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise).
+</Admonition>
+
 Once the resource file has been written, create the token with `tctl`:
 
 ```code
