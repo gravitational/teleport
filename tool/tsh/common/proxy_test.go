@@ -1100,14 +1100,15 @@ func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 }
 
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	av := mustSearchEvents(t, s.root.GetAuthServer())
-	for _, e := range av {
-		if e.GetCode() == events.AuthAttemptFailureCode {
-			require.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
-			return
+	require.Eventually(t, func() bool {
+		es := mustSearchEvents(t, s.root.GetAuthServer())
+		for _, e := range es {
+			if e.GetCode() == events.AuthAttemptFailureCode && e.(*apievents.AuthAttempt).Login == nodeLogin {
+				return true
+			}
 		}
-	}
-	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+		return false
+	}, 5*time.Second, 500*time.Millisecond, "failed to find AuthAttemptFailureCode event")
 }
 
 func TestFormatCommand(t *testing.T) {
