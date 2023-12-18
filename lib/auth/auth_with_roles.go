@@ -3086,7 +3086,11 @@ func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotReq
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.createBot(ctx, req)
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateBot(ctx, req)
 }
 
 // DeleteBot removes a certificate renewal bot by name.
@@ -3100,7 +3104,12 @@ func (a *ServerWithRoles) DeleteBot(ctx context.Context, botName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.deleteBot(ctx, botName)
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteBot(ctx, botName)
 }
 
 // GetBotUsers fetches all users with bot labels. It does not fetch users with

@@ -237,6 +237,11 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 	return trace.Wrap(a.service.DeleteAllResources(ctx))
 }
 
+// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request. This is not implemented in the local service.
+func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error) {
+	return nil, trace.NotImplemented("GetSuggestedAccessLists should not be called")
+}
+
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	var members []*accesslist.AccessListMember
@@ -514,7 +519,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			return trace.Wrap(err)
 		}
 
-		nextAuditDate = services.SelectNextReviewDate(accessList)
+		nextAuditDate = accessList.SelectNextReviewDate()
 		accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
