@@ -27,6 +27,7 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -130,6 +131,12 @@ loop:
 				}
 
 				switch msg := msg.(type) {
+				case tdp.RDPFastPathPDU:
+					if movie != nil {
+						movie.Close()
+						os.Remove(currentFilename)
+					}
+					return frameCount, trace.BadParameter("this session contains frames that cannot yet be exported, please use the web UI to view it")
 				case tdp.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
