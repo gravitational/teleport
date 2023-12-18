@@ -1296,7 +1296,7 @@ message ProvisionTokenSpecV2GitHub {
   // included in the expected issuer of the OIDC tokens. This is for
   // compatibility with the `include_enterprise_slug` option in GHE.
   //
-  // This field be set to the slug of your enterprise if this is enabled. If
+  // This field should be set to the slug of your enterprise if this is enabled. If
   // this is not enabled, then this field must be left empty. This field cannot
   // be specified if `enterprise_server_host` is specified.
   //
