@@ -103,12 +103,18 @@ func (d *TestDevice) registerStream(
 		return trace.Wrap(err)
 	}
 
+	var usage proto.DeviceUsage
+	if d.passwordless {
+		usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	}
+
 	// Inform device name and type.
 	if err := stream.Send(&proto.AddMFADeviceRequest{
 		Request: &proto.AddMFADeviceRequest_Init{
 			Init: &proto.AddMFADeviceRequestInit{
-				DeviceName: devName,
-				DeviceType: devType,
+				DeviceName:  devName,
+				DeviceType:  devType,
+				DeviceUsage: usage,
 			},
 		},
 	}); err != nil {
