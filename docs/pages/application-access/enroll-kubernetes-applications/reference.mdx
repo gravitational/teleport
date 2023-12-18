@@ -108,7 +108,9 @@ annotations:
     - "localhost"
     - "jenkins.internal.dev"
     headers:
-    - "X-Custom-Header: example"
-    - "Authorization: Bearer {{internal.jwt}}"
+    - name: "X-Custom-Header"
+      value: "example"
+    - name: "Authorization"
+      value: "Bearer {{internal.jwt}}"
 ```
 
