@@ -169,7 +169,8 @@ func Run(args []string, stdout io.Writer) error {
 		return trace.Wrap(err, "setting up logger")
 	}
 	if cf.Trace {
-		tp, err := initializeTracing(&cf)
+		log.WithField("trace_exporter", cf.TraceExporter).Info("Initializing tracing provider. Traces will be exported.")
+		tp, err := initializeTracing(cf.TraceExporter)
 		if err != nil {
 			return trace.Wrap(err, "initializing tracing")
 		}
@@ -222,14 +223,14 @@ func Run(args []string, stdout io.Writer) error {
 	return err
 }
 
-func initializeTracing(cf *config.CLIConf) (*tracing.Provider, error) {
-	if cf.TraceExporter == "" {
+func initializeTracing(endpoint string) (*tracing.Provider, error) {
+	if endpoint == "" {
 		return nil, trace.BadParameter("trace exporter URL must be provided")
 	}
 
 	provider, err := tracing.NewTraceProvider(context.Background(), tracing.Config{
 		Service:     teleport.ComponentTBot,
-		ExporterURL: cf.TraceExporter,
+		ExporterURL: endpoint,
 		// We are using 1 here to record all spans as a result of this tbot command. Teleport
 		// will respect the recording flag of remote spans even if the spans it generates
 		// wouldn't otherwise be recorded due to its configured sampling rate.
