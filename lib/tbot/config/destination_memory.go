@@ -21,6 +21,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -67,7 +69,14 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 	return nil
 }
 
-func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) error {
+func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"DestinationMemory.Write",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	dm.mutex.Lock()
 	defer dm.mutex.Unlock()
 	dm.store[name] = data
@@ -75,7 +84,14 @@ func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) 
 	return nil
 }
 
-func (dm *DestinationMemory) Read(_ context.Context, name string) ([]byte, error) {
+func (dm *DestinationMemory) Read(ctx context.Context, name string) ([]byte, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"DestinationMemory.Read",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	dm.mutex.RLock()
 	defer dm.mutex.RUnlock()
 	b, ok := dm.store[name]

@@ -50,6 +50,8 @@ const renewalRetryLimit = 5
 func (b *Bot) renewOutputsLoop(
 	ctx context.Context, reloadChan <-chan struct{},
 ) error {
+	ctx, span := tracer.Start(ctx, "Bot.renewOutputsLoop")
+	defer span.End()
 	b.log.Infof(
 		"Beginning output renewal loop: ttl=%s interval=%s",
 		b.cfg.CertificateTTL,
@@ -181,6 +183,9 @@ func (b *Bot) generateIdentity(
 	defaultRoles []string,
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
+	ctx, span := tracer.Start(ctx, "Bot.generateIdentity")
+	defer span.End()
+
 	// TODO: enforce expiration > renewal period (by what margin?)
 	//   This should be ignored if a renewal has been triggered manually or
 	//   by a CA rotation.
@@ -265,6 +270,9 @@ func (b *Bot) generateIdentity(
 }
 
 func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Database, error) {
+	ctx, span := tracer.Start(ctx, "getDatabase")
+	defer span.End()
+
 	servers, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
@@ -286,6 +294,9 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 }
 
 func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
+	ctx, span := tracer.Start(ctx, "Bot.getRouteToDatabase")
+	defer span.End()
+
 	if output.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
@@ -317,6 +328,9 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, outpu
 }
 
 func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.KubeCluster, error) {
+	ctx, span := tracer.Start(ctx, "getKubeCluster")
+	defer span.End()
+
 	servers, err := apiclient.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindKubeServer,
@@ -338,6 +352,9 @@ func getKubeCluster(ctx context.Context, clt auth.ClientI, name string) (types.K
 }
 
 func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+	ctx, span := tracer.Start(ctx, "getApp")
+	defer span.End()
+
 	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindAppServer,
@@ -362,6 +379,9 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 }
 
 func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+	ctx, span := tracer.Start(ctx, "Bot.getRouteToApp")
+	defer span.End()
+
 	app, err := getApp(ctx, client, output.AppName)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
@@ -400,6 +420,9 @@ func (b *Bot) generateImpersonatedIdentity(
 	output config.Output,
 	defaultRoles []string,
 ) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
+	ctx, span := tracer.Start(ctx, "Bot.generateImpersonatedIdentity")
+	defer span.End()
+
 	impersonatedIdentity, err = b.generateIdentity(
 		ctx, botClient, botIdentity, output, defaultRoles, nil,
 	)
@@ -519,6 +542,9 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 func (b *Bot) renewOutputs(
 	ctx context.Context,
 ) error {
+	ctx, span := tracer.Start(ctx, "Bot.renewOutputs")
+	defer span.End()
+
 	botIdentity := b.ident()
 	client, err := b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
 	if err != nil {

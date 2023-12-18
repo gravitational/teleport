@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -43,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
 type Bot struct {
 	cfg     *config.BotConfig
@@ -94,6 +97,9 @@ func (b *Bot) markStarted() error {
 }
 
 func (b *Bot) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "Bot.Run")
+	defer span.End()
+
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,6 +218,9 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // initialize returns an unlock function which must be deferred.
 func (b *Bot) initialize(ctx context.Context) (func() error, error) {
+	ctx, span := tracer.Start(ctx, "Bot.initialize")
+	defer span.End()
+
 	if b.cfg.AuthServer == "" {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
@@ -285,7 +294,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		// If using a non-renewable join method, or we weren't able to load an
 		// identity from the store, let's get a new identity using the
 		// configured token.
-		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
+		newIdentity, err = botIdentityFromToken(ctx, b.log, b.cfg)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
@@ -322,7 +331,10 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 // It checks this loaded identity against the configured onboarding profile
 // and ignores the loaded identity if there has been a configuration change.
 func (b *Bot) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
+	ctx, span := tracer.Start(ctx, "Bot.loadIdentityFromStore")
+	defer span.End()
 	b.log.WithField("store", store).Info("Loading existing bot identity from store.")
+
 	loadedIdent, err := identity.LoadIdentity(ctx, store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -431,6 +443,9 @@ func (b *Bot) checkIdentity(ident *identity.Identity) error {
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
 func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
+	ctx, span := tracer.Start(ctx, "Bot.AuthenticatedUserClientFromIdentity")
+	defer span.End()
+
 	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
