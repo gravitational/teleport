@@ -32,3 +32,16 @@ Prior to this RFD the reset mechanism also incorporated a lockout after 3 failur
 ### Fix
 
 Because reset tokens are not user controlled, and neither tokens nor MFA devices are able to be brute forced, this lockout on reset is unnecessary.  We should remove this mechanism so that legitimate users who have control over reset tokens or associated MFA can maintain access even under attack conditions.
+
+### API Changes
+
+The API for retrieving and deleting recovery attempt records will be removed, as they exclusively support the now-obsolete lock mechanism.  Additionally, the user status will no longer include a recovery attempt lock expiration.
+
+### Audit Events
+
+An event is already sent when an account recovery fails.  That auditing will be preserved, no new metrics will be added.
+
+### Security
+
+Upon implementing this change, all accounts previously locked due to account recovery issues will be immediately unlocked, making them available for recovery.
+
