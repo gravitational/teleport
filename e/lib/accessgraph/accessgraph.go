@@ -34,12 +34,14 @@ import (
 	_ "google.golang.org/grpc/health"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServiceClientConfig is the configuration for the access graph service client.
@@ -178,8 +180,6 @@ func newTagEventWatcher(ctx context.Context, stream accessGraphSender) *tagEvent
 
 // sendTeleportResources sends all teleport resources to the access graph service.
 func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, authServer *auth.Server) error {
-	// Order of sending matters here. Roles must go first.
-	// TODO(jakule): Order should not matter.
 	if err := sendRoles(ctx, authServer, stream); err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,11 +188,20 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 		return trace.Wrap(err)
 	}
 
-	if err := sendNodes(ctx, authServer, stream); err != nil {
+	if err := sendAccessRequests(ctx, authServer, stream); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := sendAccessRequests(ctx, authServer, stream); err != nil {
+	if err := pushResourcesViaUnifiedResourcesCache(
+		ctx,
+		authServer,
+		stream,
+		types.KindNode,
+		types.KindAppServer,
+		types.KindDatabaseServer,
+		types.KindWindowsDesktop,
+		types.KindKubeServer,
+	); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -214,6 +223,10 @@ func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server) error
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindAccessRequest},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindWindowsDesktop},
 	}
 
 	return trace.Wrap(auth.WatchEvents(&proto.Watch{Kinds: observedKinds}, eventWatcher, "accessgraph", authServer))
@@ -221,73 +234,96 @@ func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server) error
 
 // sendUsers sends all users to the access graph service.
 func sendUsers(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
-	users, err := authServer.GetUsers(ctx, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	startToken := ""
+	limit := defaults.DefaultChunkSize
 
-	for _, user := range users {
-		u, ok := user.(*types.UserV2)
-		if !ok {
-			return trace.BadParameter("expected userV2, got %T", user)
-		}
-
-		// TODO(tigrato): batch these up
-		err := stream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_User{
-								User: u,
-							},
-						},
-					},
-				},
-			},
-		},
-		)
+	for {
+		users, nextToken, err := authServer.ListUsers(ctx, limit, startToken, false /*withSecrets*/)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		if err := pushUsersToTAG(ctx, stream, users); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if nextToken == "" {
+			break
+		}
+		startToken = nextToken
 	}
 
 	return nil
 }
 
+func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, users []types.User) error {
+	if len(users) == 0 {
+		return nil
+	}
+	list := &accessgraphv1.ResourceList{}
+	for _, user := range users {
+		u, ok := user.(*types.UserV2)
+		if !ok {
+			return trace.BadParameter("expected types.UserV2, got %T", user)
+		}
+		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+			Resource: &accessgraphv1.ResourceEntry_User{
+				User: u,
+			},
+		})
+	}
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
+		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+			Upsert: list,
+		},
+	}))
+}
+
 // sendRoles sends all roles to the access graph service.
 func sendRoles(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+	// Get all roles.
+	// Auth server does not support pagination for roles, so we have to get all roles at once
+	// and we chunk them after.
 	roles, err := authServer.GetRoles(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, role := range roles {
-		r, ok := role.(*types.RoleV6)
-		if !ok {
-			return trace.BadParameter("expected roleV6, got %T", role)
+	chunkSize := defaults.DefaultChunkSize
+	for i := 0; i < len(roles); i += chunkSize {
+		end := i + chunkSize
+		if end > len(roles) {
+			end = len(roles)
 		}
-		// TODO(tigrato): batch these up
-		err := stream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_Role{
-								Role: r,
-							},
-						},
-					},
-				},
-			},
-		},
-		)
-		if err != nil {
+
+		if err := pushRolesToTAG(ctx, stream, roles[i:end]); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
 	return nil
+}
+
+func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, roles []types.Role) error {
+	if len(roles) == 0 {
+		return nil
+	}
+	list := &accessgraphv1.ResourceList{}
+	for _, role := range roles {
+		r, ok := role.(*types.RoleV6)
+		if !ok {
+			return trace.BadParameter("expected *types.RoleV6, got %T", role)
+		}
+		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+			Resource: &accessgraphv1.ResourceEntry_Role{
+				Role: r,
+			},
+		})
+	}
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
+		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+			Upsert: list,
+		},
+	}))
 }
 
 // sendAccessRequests sends all access requests to the access graph service.
@@ -297,69 +333,44 @@ func sendAccessRequests(ctx context.Context, authServer *auth.Server, stream acc
 		return trace.Wrap(err)
 	}
 
-	for _, request := range requests {
-		r, ok := request.(*types.AccessRequestV3)
-		if !ok {
-			return trace.BadParameter("expected AccessRequestV3, got %T", request)
+	chunkSize := defaults.DefaultChunkSize
+	for i := 0; i < len(requests); i += chunkSize {
+		end := i + chunkSize
+		if end > len(requests) {
+			end = len(requests)
 		}
 
-		// TODO(tigrato): batch these up
-		err := stream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_AccessRequest{
-								AccessRequest: r,
-							},
-						},
-					},
-				},
-			},
-		},
-		)
-		if err != nil {
+		if err := pushAccessRequestToTAG(ctx, stream, requests[i:end]); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
 	return nil
 }
 
-// sendNodes sends all nodes to the access graph service.
-func sendNodes(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
-	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
+func pushAccessRequestToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, accessRequests []types.AccessRequest) error {
+	if len(accessRequests) == 0 {
+		return nil
 	}
-
-	for _, server := range nodes {
-		s, ok := server.(*types.ServerV2)
+	list := &accessgraphv1.ResourceList{}
+	for _, accessRequest := range accessRequests {
+		a, ok := accessRequest.(*types.AccessRequestV3)
 		if !ok {
-			return trace.BadParameter("expected ServerV2, got %T", server)
+			return trace.BadParameter("expected *types.AccessRequestV3, got %T", accessRequest)
 		}
-
-		// TODO(tigrato): batch these up
-		err := stream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_Server{
-								Server: s,
-							},
-						},
-					},
+		list.Resources = append(
+			list.Resources,
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_AccessRequest{
+					AccessRequest: a,
 				},
 			},
-		},
 		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
-
-	return nil
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
+		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+			Upsert: list,
+		},
+	}))
 }
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
@@ -405,7 +416,7 @@ type tagEventWatcher struct {
 	ready atomic.Bool
 	// cache is used to cache events before the watcher is ready.
 	cache []*proto.Event
-	//cacheMtx is used to synchronize access to the cache.
+	// cacheMtx is used to synchronize access to the cache.
 	cacheMtx sync.Mutex
 	// accessGraphStream is used to send events to the access graph service.
 	accessGraphStream accessGraphSender
@@ -475,87 +486,274 @@ func (t *tagEventWatcher) MarkReady() error {
 }
 
 func (t *tagEventWatcher) sendDelete(event *proto.Event) error {
-	resourceHeader, ok := event.Resource.(*proto.Event_ResourceHeader)
-	if !ok {
-		return trace.BadParameter("expected resource header, got %T", event.Resource)
-	}
-	err := t.accessGraphStream.Send(
-		&accessgraphv1.EventsStreamRequest{
+	deleteEventStreamRequest := func(header *types.ResourceHeader) *accessgraphv1.EventsStreamRequest {
+		return &accessgraphv1.EventsStreamRequest{
 			Operation: &accessgraphv1.EventsStreamRequest_Delete{
 				Delete: &accessgraphv1.ResourceHeaderList{
-					Resources: []*types.ResourceHeader{resourceHeader.ResourceHeader},
+					Resources: []*types.ResourceHeader{
+						header,
+					},
 				},
 			},
-		},
+		}
+	}
+	var req *accessgraphv1.EventsStreamRequest
+	switch resource := event.Resource.(type) {
+	case *proto.Event_User:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindUser,
+				types.V2,
+				resource.User,
+			),
+		)
+
+	case *proto.Event_Role:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindRole,
+				resource.Role.Version,
+				resource.Role,
+			),
+		)
+	case *proto.Event_AccessRequest:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindAccessRequest,
+				resource.AccessRequest.Version,
+				resource.AccessRequest,
+			),
+		)
+	case *proto.Event_Server:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindNode,
+				resource.Server.Version,
+				resource.Server,
+			),
+		)
+	case *proto.Event_KubernetesServer:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindKubeServer,
+				resource.KubernetesServer.Version,
+				resource.KubernetesServer,
+			),
+		)
+	case *proto.Event_AppServer:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindAppServer,
+				resource.AppServer.Version,
+				resource.AppServer,
+			),
+		)
+	case *proto.Event_DatabaseServer:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindDatabaseServer,
+				resource.DatabaseServer.Version,
+				resource.DatabaseServer,
+			),
+		)
+	case *proto.Event_WindowsDesktop:
+		req = deleteEventStreamRequest(
+			resourceHeaderFromMetadata(
+				types.KindWindowsDesktop,
+				resource.WindowsDesktop.Version,
+				resource.WindowsDesktop,
+			),
+		)
+	case *proto.Event_ResourceHeader:
+		req = deleteEventStreamRequest(resource.ResourceHeader)
+
+	default:
+		return trace.BadParameter("unexpected resource type: %T", resource)
+	}
+
+	err := t.accessGraphStream.Send(
+		req,
 	)
 	return trace.Wrap(err)
 }
 
 func (t *tagEventWatcher) sendPut(event *proto.Event) (err error) {
+	putEventStreamRequest := func(resources ...*accessgraphv1.ResourceEntry) *accessgraphv1.EventsStreamRequest {
+		return &accessgraphv1.EventsStreamRequest{
+			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+				Upsert: &accessgraphv1.ResourceList{
+					Resources: resources,
+				},
+			},
+		}
+	}
+	var req *accessgraphv1.EventsStreamRequest
 	switch resource := event.Resource.(type) {
 	case *proto.Event_User:
-		err = t.accessGraphStream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_User{
-								User: resource.User,
-							},
-						},
-					},
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_User{
+					User: resource.User,
 				},
 			},
-		},
 		)
 	case *proto.Event_Role:
-		err = t.accessGraphStream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_Role{
-								Role: resource.Role,
-							},
-						},
-					},
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_Role{
+					Role: resource.Role,
 				},
 			},
-		},
 		)
 	case *proto.Event_AccessRequest:
-		err = t.accessGraphStream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_AccessRequest{
-								AccessRequest: resource.AccessRequest,
-							},
-						},
-					},
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_AccessRequest{
+					AccessRequest: resource.AccessRequest,
 				},
 			},
-		},
 		)
 	case *proto.Event_Server:
-		err = t.accessGraphStream.Send(&accessgraphv1.EventsStreamRequest{
-			Operation: &accessgraphv1.EventsStreamRequest_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: []*accessgraphv1.ResourceEntry{
-						{
-							Resource: &accessgraphv1.ResourceEntry_Server{
-								Server: resource.Server,
-							},
-						},
-					},
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_Server{
+					Server: resource.Server,
 				},
 			},
-		},
+		)
+	case *proto.Event_KubernetesServer:
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_KubernetesServer{
+					KubernetesServer: resource.KubernetesServer,
+				},
+			},
+		)
+	case *proto.Event_AppServer:
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_AppServer{
+					AppServer: resource.AppServer,
+				},
+			},
+		)
+	case *proto.Event_DatabaseServer:
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_DatabaseServer{
+					DatabaseServer: resource.DatabaseServer,
+				},
+			},
+		)
+	case *proto.Event_WindowsDesktop:
+		req = putEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{
+					WindowsDesktop: resource.WindowsDesktop,
+				},
+			},
 		)
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
 
+	err = t.accessGraphStream.Send(
+		req,
+	)
 	return trace.Wrap(err)
+}
+
+func resourceHeaderFromMetadata(kind, version string, t interface{ GetMetadata() types.Metadata }) *types.ResourceHeader {
+	return &types.ResourceHeader{
+		Kind:     kind,
+		Version:  version,
+		Metadata: t.GetMetadata(),
+	}
+}
+
+// pushResourcesViaUnifiedResourcesCache pushes resources to the access graph service via the unified resources cache.
+// It iterates over all resources in the unified resources cache whose kinds match [kinds] and pushes them to the access graph service.
+func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamClient, kinds ...string) error {
+	set := utils.StringsSet(kinds)
+	req := &proto.ListUnifiedResourcesRequest{
+		Kinds: kinds,
+		Limit: apidefaults.DefaultChunkSize,
+		SortBy: types.SortBy{
+			Field: types.ResourceKind,
+		},
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		panic(err)
+	}
+
+	for {
+		resources, nextKey, err := authServer.UnifiedResourceCache.IterateUnifiedResources(
+			ctx,
+			func(rwl types.ResourceWithLabels) (bool, error) {
+				_, ok := set[rwl.GetKind()]
+				return ok, nil
+			},
+			req,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := pushResourcesWithLabelsToTAG(resources, stream); err != nil {
+			return trace.Wrap(err)
+		}
+		if nextKey == "" {
+			break
+		}
+		req.StartKey = nextKey
+	}
+	return nil
+}
+
+// pushResourcesWithLabelsToTAG pushes resources with labels to the access graph service.
+func pushResourcesWithLabelsToTAG(resources []types.ResourceWithLabels, stream accessgraphv1.AccessGraphService_EventsStreamClient) error {
+	if len(resources) == 0 {
+		return nil
+	}
+	list := &accessgraphv1.ResourceList{}
+	for _, resource := range resources {
+		switch resource := resource.(type) {
+		case *types.ServerV2:
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_Server{
+					Server: resource,
+				},
+			})
+		case *types.KubernetesServerV3:
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_KubernetesServer{
+					KubernetesServer: resource,
+				},
+			})
+		case *types.AppServerV3:
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_AppServer{
+					AppServer: resource,
+				},
+			})
+		case *types.DatabaseServerV3:
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_DatabaseServer{
+					DatabaseServer: resource,
+				},
+			})
+		case *types.WindowsDesktopV3:
+			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{
+					WindowsDesktop: resource,
+				},
+			})
+		default:
+			return trace.BadParameter("unexpected resource type: %T", resource)
+		}
+	}
+	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamRequest{
+		Operation: &accessgraphv1.EventsStreamRequest_Upsert{
+			Upsert: list,
+		},
+	}))
 }
