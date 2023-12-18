@@ -150,7 +150,7 @@ export function IntegrationPick() {
                 href="https://goteleport.com/docs/access-controls/access-request-plugins/"
                 target="_blank"
               >
-                https://github.com/gravitational/teleport-plugins
+                https://goteleport.com/docs/access-controls/access-request-plugins
               </ExternalLink>
               . Self-hosted plugins will not show up in your integration list,
               and must be managed outside of the Teleport UI.

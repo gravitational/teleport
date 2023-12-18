@@ -366,7 +366,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             rel="noreferrer"
             target="_blank"
           >
-            https://github.com/gravitational/teleport-plugins
+            https://goteleport.com/docs/access-controls/access-request-plugins
           </a>
           . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
         </div>
@@ -1470,7 +1470,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             rel="noreferrer"
             target="_blank"
           >
-            https://github.com/gravitational/teleport-plugins
+            https://goteleport.com/docs/access-controls/access-request-plugins
           </a>
           . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
         </div>
@@ -2762,7 +2762,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             rel="noreferrer"
             target="_blank"
           >
-            https://github.com/gravitational/teleport-plugins
+            https://goteleport.com/docs/access-controls/access-request-plugins
           </a>
           . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
         </div>
