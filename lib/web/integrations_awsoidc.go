@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -155,7 +154,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.ClusterFeatures) {
-		cloudStableVersion, err := automaticupgrades.Version(ctx, "" /* use default version server */)
+		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
