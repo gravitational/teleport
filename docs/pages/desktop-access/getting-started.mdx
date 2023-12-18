@@ -148,7 +148,7 @@ following for the Windows Desktop Service:
 1. (Optional) Add labels for the Windows Desktop Service to the configuration file.
 
    You can add labels to Windows computers using the `labels` section of the host config. For example, the following
-   adds the `important: true` label:
+   adds the `datacenter: dc1` label:
 
    ```diff
    version: v3
@@ -163,7 +163,7 @@ following for the Windows Desktop Service:
        ad: false
        addr: 192.0.2.156
    +   labels:
-   +     important: true
+   +     datacenter: dc1
    ```
 
    Alternatively, you can attach labels to Windows computers by matching to their hostnames.
