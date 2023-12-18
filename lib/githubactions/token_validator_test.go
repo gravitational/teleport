@@ -267,14 +267,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 			),
-			want: &IDTokenClaims{
-				Actor: "octocat",
-				Sub:   "repo:octo-org/octo-repo:environment:prod",
-			},
 		},
 		{
 			name:           "fails if non-slugged jwt is used with idp",
-			assertError:    require.Error,,
+			assertError:    require.Error,
 			defaultIDPHost: enterpriseSlugIDP.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
@@ -286,10 +282,6 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				time.Now().Add(5*time.Minute),
 			),
 			enterpriseSlug: "slug",
-			want: &IDTokenClaims{
-				Actor: "octocat",
-				Sub:   "repo:octo-org/octo-repo:environment:prod",
-			},
 		},
 		{
 			name:           "expired",
