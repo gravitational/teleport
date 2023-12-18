@@ -1290,14 +1290,14 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
 		return true, nil
 	}
-	if !equalSliceValues(cf.DatabaseRoles, identity.RouteToDatabase.Roles) {
+	if !containSameElements(cf.DatabaseRoles, identity.RouteToDatabase.Roles) {
 		log.Debugf("Will reissue database certificate for database roles %v (was %v)", cf.DatabaseRoles, identity.RouteToDatabase.Roles)
 		return true, nil
 	}
 	return false, nil
 }
 
-func equalSliceValues[S ~[]E, E comparable](s1, s2 S) bool {
+func containSameElements[S ~[]E, E comparable](s1, s2 S) bool {
 	if len(s1) != len(s2) {
 		return false
 	}

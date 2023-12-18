@@ -3003,15 +3003,21 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
-	switch {
-	case active.Username != "" && active.Database != "":
-		return fmt.Sprintf("> %v (user: %v, db: %v)", active.ServiceName, active.Username, active.Database)
-	case active.Username != "":
-		return fmt.Sprintf("> %v (user: %v)", active.ServiceName, active.Username)
-	case active.Database != "":
-		return fmt.Sprintf("> %v (db: %v)", active.ServiceName, active.Database)
+	var details []string
+	if active.Username != "" {
+		details = append(details, "user: "+active.Username)
 	}
-	return fmt.Sprintf("> %v", active.ServiceName)
+	if active.Database != "" {
+		details = append(details, "db: "+active.Database)
+	}
+	if len(active.Roles) > 0 {
+		details = append(details, fmt.Sprintf("roles: %v", active.Roles))
+	}
+
+	if len(details) == 0 {
+		return fmt.Sprintf("> %v", active.ServiceName)
+	}
+	return fmt.Sprintf("> %v (%v)", active.ServiceName, strings.Join(details, ", "))
 }
 
 // onListClusters executes 'tsh clusters' command

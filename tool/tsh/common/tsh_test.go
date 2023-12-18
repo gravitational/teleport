@@ -5316,3 +5316,61 @@ func TestLogout(t *testing.T) {
 		})
 	}
 }
+
+func Test_formatActiveDB(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		active tlsca.RouteToDatabase
+		expect string
+	}{
+		{
+			name: "no route details",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+			},
+			expect: "> my-db",
+		},
+		{
+			name: "user only",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Username:    "alice",
+			},
+			expect: "> my-db (user: alice)",
+		},
+		{
+			name: "db only",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Database:    "sales",
+			},
+			expect: "> my-db (db: sales)",
+		},
+		{
+			name: "user & db",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Username:    "alice",
+				Database:    "sales",
+			},
+			expect: "> my-db (user: alice, db: sales)",
+		},
+		{
+			name: "db & roles",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Database:    "sales",
+				Roles:       []string{"reader", "writer"},
+			},
+			expect: "> my-db (db: sales, roles: [reader writer])",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expect, formatActiveDB(test.active))
+		})
+	}
+}
