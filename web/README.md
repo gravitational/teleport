@@ -119,7 +119,7 @@ requests to the given target.
 
 ### WASM
 
-The web UI includes a WASM modul built from a Rust codebase located in `packages/teleport/src/ironrdp`.
+The web UI includes a WASM module built from a Rust codebase located in `packages/teleport/src/ironrdp`.
 It is built with the help of [wasm-pack](https://github.com/rustwasm/wasm-pack).
 
 Running `yarn build-wasm` builds the WASM binary as well as the appropriate Javascript/Typescript
