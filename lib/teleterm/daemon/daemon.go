@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/teleterm/services/accessrequests"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -568,12 +567,16 @@ func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.R
 		}
 		defer authClient.Close()
 
-		accessRequest, err := accessrequests.PromoteAccessRequest(ctx, authClient.AccessListClient(), req)
+		promoteResponse, err := authClient.AccessListClient().AccessRequestPromote(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessRequest := promoteResponse.AccessRequest
 		response = &clusters.AccessRequest{
 			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
 			AccessRequest: accessRequest,
 		}
-		return trace.Wrap(err)
+		return nil
 	})
 
 	return response, trace.Wrap(err)
@@ -600,9 +603,12 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI ur
 		}
 		defer authClient.Close()
 
-		accessLists, err := accessrequests.GetSuggestedAccessLists(ctx, authClient.AccessListClient(), accessRequestID)
+		accessLists, err := authClient.AccessListClient().GetSuggestedAccessLists(ctx, accessRequestID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		response = accessLists
-		return trace.Wrap(err)
+		return nil
 	})
 
 	return response, trace.Wrap(err)
