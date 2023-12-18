@@ -514,7 +514,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			return trace.Wrap(err)
 		}
 
-		nextAuditDate = services.SelectNextReviewDate(accessList)
+		nextAuditDate = accessList.SelectNextReviewDate()
 		accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
