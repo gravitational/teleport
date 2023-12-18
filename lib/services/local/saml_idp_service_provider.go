@@ -25,7 +25,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"reflect"
 	"time"
 
 	"github.com/crewjam/saml"
@@ -308,33 +307,27 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 	return nil
 }
 
-// embedAttributeMapping embeds attribute mapping details into entity descriptor.
+// embedAttributeMapping embeds attribute mapping input into entity descriptor.
 func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPServiceProvider) error {
-	if len(sp.GetAttributeMapping()) == 0 {
-		s.log.Debugf("no custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
-		return nil
-	}
-
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// return if provided attributes are already embedded.
-	embeddedSPSSODescriptorIndex, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(ed.SPSSODescriptors)
-	if reflect.DeepEqual(sp.GetAttributeMapping(), embeddedAttributes) {
+	existingTeleportSPSSODescriptorIndex, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
+	switch atrrMapLen := len(sp.GetAttributeMapping()); {
+	case atrrMapLen == 0 && existingTeleportSPSSODescriptorIndex == 0:
+		s.log.Debugf("no custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
 		return nil
-	}
-
-	// If there is an existing SPSSODescriptor with "TELEPORT_SAML_IDP" service, we'll replace it with
-	// newEmbeddedSPSSODescriptor(which has the updated attributes). Replacement is necessary to avoid duplication
-	// or possible fragmented SPSSODescriptor. Else, we will append newEmbeddedSPSSODescriptor to entity descriptor,
-	// creating new "TELEPORT_SAML_IDP" service.
-	newEmbeddedSPSSODescriptor := spSSODescriptorWithRequestedAttributes(sp.GetAttributeMapping())
-	if embeddedSPSSODescriptorIndex == 0 {
-		ed.SPSSODescriptors = append(ed.SPSSODescriptors, newEmbeddedSPSSODescriptor)
-	} else {
-		ed.SPSSODescriptors[embeddedSPSSODescriptorIndex] = newEmbeddedSPSSODescriptor
+	case atrrMapLen == 0 && existingTeleportSPSSODescriptorIndex > 0:
+		// delete Teleport SPSSODescriptor
+		ed.SPSSODescriptors = append(ed.SPSSODescriptors[:existingTeleportSPSSODescriptorIndex], ed.SPSSODescriptors[existingTeleportSPSSODescriptorIndex+1:]...)
+	case atrrMapLen > 0 && existingTeleportSPSSODescriptorIndex == 0:
+		ed.SPSSODescriptors = append(ed.SPSSODescriptors, genTeleportSPSSODescriptor(sp.GetAttributeMapping()))
+	case atrrMapLen > 0 && existingTeleportSPSSODescriptorIndex > 0:
+		// if there is existing SPSSODescriptor with "TELEPORT_SAML_IDP" service name, replace it at
+		// existingTeleportSPSSODescriptorIndex to avoid duplication or possible fragmented SPSSODescriptor.
+		ed.SPSSODescriptors[existingTeleportSPSSODescriptorIndex] = genTeleportSPSSODescriptor(sp.GetAttributeMapping())
 	}
 
 	edWithAttributes, err := xml.MarshalIndent(ed, " ", "    ")
@@ -346,9 +339,28 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 	return nil
 }
 
-// spSSODescriptorWithRequestedAttributes builds new saml.SPSSODescriptor populated with
-// types.SAMLAttributeMapping (attributeMapping input) converted to saml.RequestedAttributes format.
-func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
+// GetTeleportSPSSODescriptor returns Teleport embedded SPSSODescriptor and its index from a
+// list of SPSSODescriptors. The correct SPSSODescriptor is determined by searching for
+// AttributeConsumingService element with ServiceNames named TELEPORT_SAML_IDP.
+func GetTeleportSPSSODescriptor(spSSODescriptors []saml.SPSSODescriptor) (embeddedSPSSODescriptorIndex int, teleportSPSSODescriptor saml.SPSSODescriptor) {
+	for descriptorIndex, descriptor := range spSSODescriptors {
+		for _, acs := range descriptor.AttributeConsumingServices {
+			for _, serviceName := range acs.ServiceNames {
+				if serviceName.Value == teleportSAMLIdP {
+					embeddedSPSSODescriptorIndex = descriptorIndex
+					teleportSPSSODescriptor = spSSODescriptors[descriptorIndex]
+					return
+				}
+			}
+		}
+	}
+	return
+}
+
+// genTeleportSPSSODescriptor returns saml.SPSSODescriptor populated with Attribute Consuming Service
+// named TELEPORT_SAML_IDP and attributeMapping input (types.SAMLAttributeMapping) converted to
+// saml.RequestedAttributes format.
+func genTeleportSPSSODescriptor(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
 	var reqs []saml.RequestedAttribute
 	for _, v := range attributeMapping {
 		reqs = append(reqs, saml.RequestedAttribute{
@@ -360,7 +372,6 @@ func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttrib
 			},
 		})
 	}
-
 	return saml.SPSSODescriptor{
 		AttributeConsumingServices: []saml.AttributeConsumingService{
 			{
@@ -373,32 +384,4 @@ func spSSODescriptorWithRequestedAttributes(attributeMapping []*types.SAMLAttrib
 			},
 		},
 	}
-}
-
-// samlSPSSODescriptorToProtoSAMLAttributeMapping converts []saml.SPSSODescriptor to []*types.SAMLAttributeMapping
-// and returns SPSSODescriptor element index and converted attribute mapping values.
-// The correct SPSSODescriptor is determined by searching for AttributeConsumingService element with ServiceNames named
-// TELEPORT_SAML_IDP.
-func samlSPSSODescriptorToProtoSAMLAttributeMapping(spSSODescriptors []saml.SPSSODescriptor) (embeddedSPSSODescriptorIndex int, embeddedAttributes []*types.SAMLAttributeMapping) {
-	for descriptorIndex, descriptor := range spSSODescriptors {
-		for _, acs := range descriptor.AttributeConsumingServices {
-			for _, serviceName := range acs.ServiceNames {
-				if serviceName.Value == teleportSAMLIdP {
-					embeddedSPSSODescriptorIndex = descriptorIndex
-					for _, reqAttr := range acs.RequestedAttributes {
-						for _, reqAttrVal := range reqAttr.Values {
-							embeddedAttributes = append(embeddedAttributes, &types.SAMLAttributeMapping{
-								Name:       reqAttr.Name,
-								NameFormat: reqAttr.NameFormat,
-								Value:      reqAttrVal.Value,
-							})
-						}
-					}
-					return
-				}
-			}
-		}
-	}
-
-	return
 }

@@ -554,8 +554,8 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 	edWithEmbeddedAttributes, err := samlsp.ParseMetadata([]byte(spFromBackend.GetEntityDescriptor()))
 	require.NoError(t, err)
 
-	_, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithEmbeddedAttributes.SPSSODescriptors)
-
+	_, teleportSPSSODescriptor := GetTeleportSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors)
+	embeddedAttributes := teleportSPSSODescriptorToAttributeMapping(teleportSPSSODescriptor)
 	require.Equal(t, attributeMappingInput, embeddedAttributes)
 	require.Contains(t, spFromBackend.GetEntityDescriptor(), `<ServiceName xml:lang="">TELEPORT_SAML_IDP</ServiceName>`)
 
@@ -573,23 +573,21 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 
 	err = idpSPService.UpdateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
-
 	updatedSPFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, sp.GetName())
 	require.NoError(t, err)
-
 	edWithUpdatedAttributes, err := samlsp.ParseMetadata([]byte(updatedSPFromBackend.GetEntityDescriptor()))
 	require.NoError(t, err)
-
-	_, embeddedAttributes = samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithUpdatedAttributes.SPSSODescriptors)
+	_, teleportSPSSODescriptor = GetTeleportSPSSODescriptor(edWithUpdatedAttributes.SPSSODescriptors)
+	embeddedAttributes = teleportSPSSODescriptorToAttributeMapping(teleportSPSSODescriptor)
 	require.Equal(t, attributeMappingInput, embeddedAttributes)
 	require.Equal(t, 1, countEmbeddedSPSSODescriptor(edWithUpdatedAttributes.SPSSODescriptors))
 
-	// 3. test we do not override SP managed SPSSODescriptor.
+	// 3. test we do not override SPSSODescriptor that isn't embedded by Teleport.
 	// We will create SP with test entity descriptor edWithMultipleSPSSODescriptor, which already
 	// has total 2 SPSSODescriptor elements. Once the SP is created with attribute mapping,
 	// we will test that attributes are correctly embedded and that total count of embedded
 	// SPSSODescriptor is exactly 1 and if we remove embedded element, the resulting entity descriptor
-	// matches original data.
+	// matches original xml.
 	newMultipleSSODescriptorSP, err := types.NewSAMLIdPServiceProvider(
 		types.Metadata{
 			Name: "newMultipleSSODescriptorSP",
@@ -602,22 +600,39 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 
 	err = idpSPService.CreateSAMLIdPServiceProvider(ctx, newMultipleSSODescriptorSP)
 	require.NoError(t, err)
-
 	newMultipleSSODescriptorSPFromBackend, err := idpSPService.GetSAMLIdPServiceProvider(ctx, newMultipleSSODescriptorSP.GetName())
 	require.NoError(t, err)
-
 	edWithEmbeddedAttributes, err = samlsp.ParseMetadata([]byte(newMultipleSSODescriptorSPFromBackend.GetEntityDescriptor()))
 	require.NoError(t, err)
-
-	embeddedIndex, embeddedAttributes := samlSPSSODescriptorToProtoSAMLAttributeMapping(edWithEmbeddedAttributes.SPSSODescriptors)
+	_, teleportSPSSODescriptor = GetTeleportSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors)
+	embeddedAttributes = teleportSPSSODescriptorToAttributeMapping(teleportSPSSODescriptor)
 	require.Equal(t, attributeMappingInput, embeddedAttributes)
 	require.Equal(t, 1, countEmbeddedSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors))
 
-	// and if we remove embedded SPSSODescriptor, the resulting entity descriptor should be exactly the same as before embedding.
-	edWithEmbeddedAttributes.SPSSODescriptors = append(edWithEmbeddedAttributes.SPSSODescriptors[:embeddedIndex], edWithEmbeddedAttributes.SPSSODescriptors[embeddedIndex+1:]...)
+	// and if we remove attribute mapping, the resulting entity descriptor should be exactly the same as before embedding.
+	newMultipleSSODescriptorSP.SetAttributeMapping(nil)
+	err = idpSPService.UpdateSAMLIdPServiceProvider(ctx, newMultipleSSODescriptorSP)
+	require.NoError(t, err)
+	newMultipleSSODescriptorSPFromBackend, err = idpSPService.GetSAMLIdPServiceProvider(ctx, newMultipleSSODescriptorSP.GetName())
+	require.NoError(t, err)
+	edWithEmbeddedAttributes, err = samlsp.ParseMetadata([]byte(newMultipleSSODescriptorSPFromBackend.GetEntityDescriptor()))
+	require.NoError(t, err)
 	originalED, err := samlsp.ParseMetadata([]byte(edWithMultipleSPSSODescriptor))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(originalED, edWithEmbeddedAttributes))
+}
+
+func teleportSPSSODescriptorToAttributeMapping(spSSODescriptors saml.SPSSODescriptor) (embeddedAttributes []*types.SAMLAttributeMapping) {
+	for _, acs := range spSSODescriptors.AttributeConsumingServices {
+		for _, reqAttr := range acs.RequestedAttributes {
+			embeddedAttributes = append(embeddedAttributes, &types.SAMLAttributeMapping{
+				Name:       reqAttr.Name,
+				NameFormat: reqAttr.NameFormat,
+				Value:      reqAttr.Values[0].Value,
+			})
+		}
+	}
+	return
 }
 
 func countEmbeddedSPSSODescriptor(spSSODescriptor []saml.SPSSODescriptor) (embeddedSPSSODescriptorAcount int) {
@@ -661,3 +676,39 @@ const edWithMultipleSPSSODescriptor = `<EntityDescriptor xmlns="urn:oasis:names:
 </SPSSODescriptor>
 </EntityDescriptor>
 `
+
+func TestCreateSAMLIdPServiceProvider_GetTeleportSPSSODescriptor(t *testing.T) {
+	// edWithMultipleSPSSODescriptor has predefined two ACS elements
+	ed, err := samlsp.ParseMetadata([]byte(edWithMultipleSPSSODescriptor))
+	require.NoError(t, err)
+
+	ed.SPSSODescriptors = append(ed.SPSSODescriptors, saml.SPSSODescriptor{
+		AttributeConsumingServices: []saml.AttributeConsumingService{
+			{
+				// ACS with the TELEPORT_SAML_IDP service name
+				ServiceNames: []saml.LocalizedName{{Value: teleportSAMLIdP}},
+				RequestedAttributes: []saml.RequestedAttribute{{
+					Attribute: saml.Attribute{
+						FriendlyName: "groups",
+						Name:         "groups",
+						NameFormat:   "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
+						Values:       []saml.AttributeValue{{Value: "user.spec.traits.groups"}},
+					},
+				}},
+			},
+			{
+				// ACS without the TELEPORT_SAML_IDP service name
+				RequestedAttributes: []saml.RequestedAttribute{{
+					Attribute: saml.Attribute{
+						FriendlyName: "roles",
+						Name:         "roles",
+						NameFormat:   "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified",
+						Values:       []saml.AttributeValue{{Value: "user.spec.traits.grrolesoups"}},
+					},
+				}},
+			},
+		},
+	})
+	index, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
+	require.Equal(t, 3, index)
+}
