@@ -50,4 +50,4 @@ jobs:
           cd .github/shared-workflows/bot
           TOKEN=$(echo -n ${{ secrets.GITHUB_TOKEN }} | base64 -d)
           echo "token=$TOKEN"
-          go run main.go -workflow=assign -token="$TOKEN" -reviewers="${{ secrets.reviewers }}"
+          go run main.go -token="$TOKEN" -reviewers="${{ secrets.reviewers }}"
