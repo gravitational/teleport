@@ -68,17 +68,29 @@ func TestTshDB(t *testing.T) {
 // env/config" after login.
 func testDatabaseLogin(t *testing.T) {
 	t.Parallel()
+
+	autoUserRole, err := types.NewRole("autouser", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{"auto-user": []string{"true"}},
+			DatabaseNames:  []string{"*"},
+			DatabaseUsers:  []string{"reader", "writer"},
+		},
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+	})
+	require.NoError(t, err)
+
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	// to use default --db-user and --db-name selection, make a user with just
 	// one of each allowed.
 	alice.SetDatabaseUsers([]string{"admin"})
 	alice.SetDatabaseNames([]string{"default"})
-	alice.SetRoles([]string{"access"})
-	alice.SetDatabaseRoles([]string{"reader", "writer"})
+	alice.SetRoles([]string{"access", "autouser"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, autoUserRole, alice)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -111,6 +123,9 @@ func testDatabaseLogin(t *testing.T) {
 					Name:     "mysql-autouser",
 					Protocol: defaults.ProtocolMySQL,
 					URI:      "localhost:3306",
+					StaticLabels: map[string]string{
+						"auto-user": "true",
+					},
 					AdminUser: servicecfg.DatabaseAdminUser{
 						Name: "teleport-admin",
 					},
@@ -282,6 +297,18 @@ func testDatabaseLogin(t *testing.T) {
 				Protocol:    "postgres",
 				Username:    "admin",
 				Database:    "default",
+			},
+			expectCertsLen: 1,
+		},
+		{
+			name:              "select db role",
+			databaseName:      "mysql-autouser",
+			extraLoginOptions: []string{"--db-role", "reader"},
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "mysql-autouser",
+				Protocol:    "mysql",
+				Username:    "alice@example.com",
+				Roles:       []string{"reader"},
 			},
 			expectCertsLen: 1,
 		},
