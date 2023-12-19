@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -239,7 +240,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 
 // groupTargets returns the names of all Okta user groups that the user has access to.
 func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker services.AccessChecker) ([]string, error) {
-	var targets []string
+	targets := map[string]struct{}{}
 
 	// Page through the user groups.
 	groups, nextKey, err := u.accessPoint.ListUserGroups(ctx, u.groupPageSize, "")
@@ -253,7 +254,7 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 			if group.Origin() == types.OriginOkta {
 				// If the user has access to the group, add it to the list of targets.
 				if err := accessChecker.CheckAccess(group, u.accessState); err == nil {
-					targets = append(targets, group.GetName())
+					targets[group.GetName()] = struct{}{}
 				} else if !trace.IsAccessDenied(err) {
 					u.log.Errorf("Error checking access to group during login: %v", err)
 				}
@@ -268,12 +269,12 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 		groups, nextKey, err = u.accessPoint.ListUserGroups(ctx, u.groupPageSize, nextKey)
 	}
 
-	return targets, nil
+	return maps.Keys(targets), nil
 }
 
 // groupTargets returns the names of all Okta app IDs that the user has access to.
 func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChecker services.AccessChecker) ([]string, error) {
-	var targets []string
+	targets := map[string]struct{}{}
 
 	// Page through the app servers.
 	resp, err := u.accessPoint.ListResources(ctx, proto.ListResourcesRequest{
@@ -294,9 +295,12 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 					u.log.Errorf("Expected AppServer, got %T", resource)
 					continue
 				}
+				app := appServer.GetApp()
 				// If the user has access to the app, extra the Okta app label and add it to the list of targets.
-				if err := accessChecker.CheckAccess(appServer.GetApp(), u.accessState); err == nil {
-					targets = append(targets, resource.GetName())
+				if err := accessChecker.CheckAccess(app, u.accessState); err == nil {
+					// We're deduplicating here because app servers are not unique depending on the heartbeat/backend/etc.,
+					// so we're making sure that we're not creating duplicate entries for the same apps.
+					targets[app.GetName()] = struct{}{}
 				} else if !trace.IsAccessDenied(err) {
 					u.log.Errorf("Error checking access to application during login: %v", err)
 				}
@@ -315,7 +319,7 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 		})
 	}
 
-	return targets, nil
+	return maps.Keys(targets), nil
 }
 
 // newOktaAssignment will create an Okta assignment resource corresponding to the groups and apps given. The groups and apps

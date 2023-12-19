@@ -54,7 +54,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	// Create the cleaned up resources in the backend.
 	require.NoError(t, ap.CreateUserGroup(ctx, group(t, "cleanedUpGroup1", types.OriginOkta, testOrgURL)))
 	_, err := ap.UpsertApplicationServer(ctx,
-		application(t, hash, "cleanedUpApp1", link, types.OriginOkta, testOrgURL))
+		application(t, hash, "cleanedUpApp1", link, types.OriginOkta, testOrgURL, testHostID))
 	require.NoError(t, err)
 	oktaClient.addGroupToMapping("cleanedUpGroup1")
 	oktaClient.addApplicationToMapping("okta-app-1")
@@ -83,7 +83,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	// Create the actual resources in the backend.
 	require.NoError(t, ap.CreateUserGroup(ctx, group(t, "group1", types.OriginOkta, testOrgURL)))
 	_, err = ap.UpsertApplicationServer(ctx,
-		application(t, hash, "app1", "link", types.OriginOkta, testOrgURL))
+		application(t, hash, "app1", "link", types.OriginOkta, testOrgURL, testHostID))
 	require.NoError(t, err)
 	oktaClient.addGroupToMapping("group1")
 	oktaClient.addApplicationToMapping("okta-app-2")

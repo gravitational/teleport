@@ -68,7 +68,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	hash := crypto.SHA256
-	appServer := application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL)
+	appServer := application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
 	_, err = ap.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
@@ -216,9 +216,9 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		{
 			name: "Okta targets",
 			appTargets: []types.AppServer{
-				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL),
-				application(t, hash, "app2", "link1", types.OriginOkta, testOrgURL),
-				application(t, hash, "app3", "link1", types.OriginDynamic, testOrgURL),
+				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
+				application(t, hash, "app2", "link1", types.OriginOkta, testOrgURL, testHostID),
+				application(t, hash, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID),
 			},
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginOkta, testOrgURL),
@@ -236,7 +236,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			name:              "app not found",
 			skipBackendCreate: true,
 			appTargets: []types.AppServer{
-				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL),
+				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignmentStatus: constants.OktaAssignmentStatusPending,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
@@ -257,9 +257,9 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		{
 			name: "no Okta targets",
 			appTargets: []types.AppServer{
-				application(t, hash, "app1", "link1", types.OriginDynamic, testOrgURL),
-				application(t, hash, "app2", "link1", types.OriginDynamic, testOrgURL),
-				application(t, hash, "app3", "link1", types.OriginDynamic, testOrgURL), // This should be skipped
+				application(t, hash, "app1", "link1", types.OriginDynamic, testOrgURL, testHostID),
+				application(t, hash, "app2", "link1", types.OriginDynamic, testOrgURL, testHostID),
+				application(t, hash, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID), // This should be skipped
 			},
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginDynamic, testOrgURL),

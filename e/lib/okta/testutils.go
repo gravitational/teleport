@@ -536,7 +536,7 @@ func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *typ
 	return app
 }
 
-func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgURL string) types.AppServer {
+func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
 	labels := map[string]string{
 		types.OriginLabel:       origin,
 		teleport.OktaAppIDLabel: name,
@@ -555,7 +555,7 @@ func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgU
 	})
 	appServer, err := types.NewAppServerV3(metadata, types.AppServerSpecV3{
 		Hostname: testHostname,
-		HostID:   testHostID,
+		HostID:   hostID,
 		App:      app,
 	})
 	require.NoError(t, err)

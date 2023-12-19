@@ -10,6 +10,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -95,9 +96,20 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, assignments)
 
-	app1 := application(t, uac.hash, "app1", "link", types.OriginOkta, testOrgURL)
+	app1 := application(t, uac.hash, "app1", "link", types.OriginOkta, testOrgURL, testHostID)
 	_, err = ap.UpsertApplicationServer(ctx, app1)
 	require.NoError(t, err)
+	appDupe := application(t, uac.hash, "app1", "link", types.OriginOkta, testOrgURL, "dummy-host")
+	_, err = ap.UpsertApplicationServer(ctx, appDupe)
+	require.NoError(t, err)
+
+	// App servers from different hosts will both show up under list resources.
+	resources, err := ap.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        5,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources.Resources, 2)
 
 	// Should get an assignment that has one action for the app.
 	require.NoError(t, uac.OnLogin(ctx, user))
@@ -135,6 +147,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
 
 	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app1.GetHostID(), app1.GetName()))
+	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, appDupe.GetHostID(), appDupe.GetName()))
 
 	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
 	require.NoError(t, ap.CreateUserGroup(ctx, group1))
@@ -214,7 +227,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	// We'll add a new app, which should cause a new assignment to be generated and the
 	// old one to be marked as needing cleanup.
-	app2 := application(t, uac.hash, "app2", "link", types.OriginOkta, testOrgURL)
+	app2 := application(t, uac.hash, "app2", "link", types.OriginOkta, testOrgURL, testHostID)
 	_, err = ap.UpsertApplicationServer(ctx, app2)
 	require.NoError(t, err)
 
