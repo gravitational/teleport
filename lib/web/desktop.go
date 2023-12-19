@@ -359,7 +359,7 @@ func readUsername(r *http.Request) (string, error) {
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
-		return "", trace.BadParameter("missing username")
+		return "", trace.BadParameter("missing username in URL")
 	}
 
 	return username, nil
