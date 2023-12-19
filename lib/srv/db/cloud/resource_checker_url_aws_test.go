@@ -55,7 +55,7 @@ func TestURLChecker_AWS(t *testing.T) {
 		mocks.WithRDSClusterReader,
 		mocks.WithRDSClusterCustomEndpoint("my-custom"),
 	)
-	rdsClusterDBs, err := services.NewDatabasesFromRDSCluster(rdsCluster)
+	rdsClusterDBs, err := services.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
 	require.NoError(t, err)
 	require.Len(t, rdsClusterDBs, 3) // Primary, reader, custom.
 	testCases = append(testCases, append(rdsClusterDBs, rdsInstanceDB)...)
