@@ -31,6 +31,7 @@ const devices: MfaDevice[] = [
     name: 'touch_id',
     registeredDate: new Date(1628799417000),
     lastUsedDate: new Date(1628799417000),
+    residentKey: true,
   },
   {
     id: '2',
@@ -38,6 +39,7 @@ const devices: MfaDevice[] = [
     name: 'yubikey',
     registeredDate: new Date(1623722252000),
     lastUsedDate: new Date(1623981452000),
+    residentKey: true,
   },
 ];
 

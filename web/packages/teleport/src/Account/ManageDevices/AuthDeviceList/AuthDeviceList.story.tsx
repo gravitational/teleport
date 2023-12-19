@@ -77,6 +77,7 @@ const devices = [
     name: 'touch_id',
     registeredDate: new Date(1628799417000),
     lastUsedDate: new Date(1628799417000),
+    residentKey: true,
   },
   {
     id: '2',
@@ -84,6 +85,7 @@ const devices = [
     name: 'solokey',
     registeredDate: new Date(1623722252000),
     lastUsedDate: new Date(1623981452000),
+    residentKey: true,
   },
   {
     id: '3',
@@ -91,6 +93,7 @@ const devices = [
     name: 'backup yubikey',
     registeredDate: new Date(1618711052000),
     lastUsedDate: new Date(1626472652000),
+    residentKey: true,
   },
   {
     id: '4',
@@ -98,5 +101,6 @@ const devices = [
     name: 'yubikey',
     registeredDate: new Date(1612493852000),
     lastUsedDate: new Date(1614481052000),
+    residentKey: true,
   },
 ];
