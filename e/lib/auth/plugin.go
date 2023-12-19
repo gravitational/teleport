@@ -255,6 +255,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		AccessListReviews:   accessListStorage,
 		Emitter:             p.authServer.Emitter,
 		UsageEvents:         p.authServer.AuthServer,
+		UsageReporter:       p.authServer.AuthServer,
 		Clock:               p.authServer.AuthServer.GetClock(),
 		CachedUsersServices: p.authServer.AuthServer.Cache,
 		AuthServer:          p.authServer.AuthServer,
@@ -263,6 +264,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 	accesslistv1.RegisterAccessListServiceServer(gRPCServer, accessListSvc)
+
+	go accessListSvc.ReportCompliance(ctx)
 
 	if err := p.registerAccessGraphService(ctx, gRPCServer); err != nil {
 		return trace.Wrap(err)

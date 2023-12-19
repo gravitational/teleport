@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 const (
@@ -92,6 +93,9 @@ type ServiceConfig struct {
 	// UsageEventsClient is the client for sending usage events metrics.
 	UsageEvents UsageEventsClient
 
+	// UsageReporter is the reporter for sending usage without it be related to an API call.
+	UsageReporter usagereporter.UsageReporter
+
 	// Clock is the clock.
 	Clock clockwork.Clock
 
@@ -132,14 +136,6 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("CachedUsersServices is missing")
 	}
 
-	if modules.GetModules().Features().Cloud {
-		if c.UsageEvents == nil {
-			return trace.BadParameter("missing usage events")
-		}
-	} else {
-		c.UsageEvents = nil
-	}
-
 	if c.AuthServer == nil {
 		return trace.BadParameter("auth server is missing")
 	}
@@ -164,6 +160,7 @@ type Service struct {
 	membershipChecker *services.AccessListMembershipChecker
 	accessListReviews services.AccessListReviews
 	usageEvents       UsageEventsClient
+	usageReporter     usagereporter.UsageReporter
 	emitter           apievents.Emitter
 	clock             clockwork.Clock
 	cachedUsers       UsersService
@@ -187,6 +184,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 			cfg.Clock, cfg.AccessLists, cfg.LockGetter),
 		accessListReviews: cfg.AccessListReviews,
 		usageEvents:       cfg.UsageEvents,
+		usageReporter:     cfg.UsageReporter,
 		emitter:           cfg.Emitter,
 		clock:             cfg.Clock,
 		cachedUsers:       cfg.CachedUsersServices,
@@ -1506,10 +1504,19 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	accessList, err := s.accessLists.GetAccessList(ctx, req.Review.Spec.AccessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	username := authCtx.Identity.GetIdentity().Username
 	resp, updatedReview, createErr := s.createAccessListReview(ctx, review, authCtx, username)
 
 	s.emitCreateAccessListReview(ctx, username, updatedReview, createErr)
+
+	if createErr == nil {
+		s.emitCreateAccessListReviewUsageEvent(ctx, accessList.GetName(), updatedReview, accessList.Spec.Audit.NextAuditDate)
+	}
 
 	return resp, trace.Wrap(createErr)
 }
@@ -1594,6 +1601,33 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username strin
 	}
 }
 
+func (s *Service) emitCreateAccessListReviewUsageEvent(ctx context.Context, accessListName string, review *accesslist.Review, originalNextAuditDate time.Time) {
+	if s.usageEvents == nil {
+		return
+	}
+
+	daysSinceOriginalNextAuditDate := s.clock.Since(originalNextAuditDate) / (24 * time.Hour)
+
+	event := &usageeventsv1.UsageEventOneOf{
+		Event: &usageeventsv1.UsageEventOneOf_AccessListReviewCreate{
+			AccessListReviewCreate: &usageeventsv1.AccessListReviewCreate{
+				Metadata: &usageeventsv1.AccessListMetadata{
+					Id: accessListName,
+				},
+				DaysPastNextAuditDate:         int32(daysSinceOriginalNextAuditDate),
+				MembershipRequirementsChanged: review.Spec.Changes.MembershipRequirementsChanged != nil,
+				ReviewFrequencyChanged:        review.Spec.Changes.ReviewFrequencyChanged.String() != "",
+				ReviewDayOfMonthChanged:       review.Spec.Changes.ReviewDayOfMonthChanged.String() != "",
+				NumberOfRemovedMembers:        int32(len(review.Spec.Changes.RemovedMembers)),
+			},
+		},
+	}
+
+	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit access list review create usage event")
+	}
+}
+
 // DeleteAccessListReview will delete an access list review from the backend.
 func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -1614,7 +1648,30 @@ func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	s.emitDeleteAccessListReviewUsageEvent(ctx, req.AccessListName, req.ReviewName)
+
 	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) emitDeleteAccessListReviewUsageEvent(ctx context.Context, accessListName, reviewID string) {
+	if s.usageEvents == nil {
+		return
+	}
+
+	event := &usageeventsv1.UsageEventOneOf{
+		Event: &usageeventsv1.UsageEventOneOf_AccessListReviewDelete{
+			AccessListReviewDelete: &usageeventsv1.AccessListReviewDelete{
+				Metadata: &usageeventsv1.AccessListMetadata{
+					Id: accessListName,
+				},
+				AccessListReviewId: reviewID,
+			},
+		},
+	}
+
+	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit access list review delete usage event")
+	}
 }
 
 // GetSuggestedAccessLists returns suggested access lists for an access request.
