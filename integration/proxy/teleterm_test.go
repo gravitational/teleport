@@ -54,12 +54,14 @@ import (
 // testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
 // cost of setting up clusters in tests.
 func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
+	ctx := context.Background()
+
 	t.Run("root cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testDBGatewayCertRenewal(t, pack, "", databaseURI)
+		testDBGatewayCertRenewal(ctx, t, pack, "", databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
@@ -68,7 +70,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 			AppendLeafCluster(leafClusterName).
 			AppendDB(pack.Leaf.MysqlService.Name)
 
-		testDBGatewayCertRenewal(t, pack, "", databaseURI)
+		testDBGatewayCertRenewal(ctx, t, pack, "", databaseURI)
 	})
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -82,14 +84,15 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testDBGatewayCertRenewal(t, pack, albProxy.Addr().String(), databaseURI)
+		testDBGatewayCertRenewal(ctx, t, pack, albProxy.Addr().String(), databaseURI)
 	})
 }
 
-func testDBGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
+func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
 	t.Helper()
 
 	testGatewayCertRenewal(
+		ctx,
 		t,
 		pack.Root.Cluster,
 		pack.Root.User.GetName(),
@@ -104,7 +107,7 @@ func testDBGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAdd
 
 type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
 
-func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, albAddr string, params daemon.CreateGatewayParams, testConnection testGatewayConnectionFunc) {
+func testGatewayCertRenewal(ctx context.Context, t *testing.T, inst *helpers.TeleInstance, username, albAddr string, params daemon.CreateGatewayParams, testConnection testGatewayConnectionFunc) {
 	t.Helper()
 
 	tc, err := inst.NewClient(helpers.ClientConfig{
@@ -149,7 +152,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 	require.NoError(t, err)
 
 	// Here the test setup ends and actual test code starts.
-	gateway, err := daemonService.CreateGateway(context.Background(), params)
+	gateway, err := daemonService.CreateGateway(ctx, params.createGatewayParams)
 	require.NoError(t, err, trace.DebugReport(err))
 
 	testConnection(t, daemonService, gateway)
@@ -258,6 +261,7 @@ func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotif
 func TestTeletermKubeGateway(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
+	ctx := context.Background()
 
 	const (
 		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
@@ -310,12 +314,12 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("root", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, suite, "", kubeURI)
 	})
 	t.Run("leaf", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, suite, "", kubeURI)
 	})
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -328,11 +332,11 @@ func TestTeletermKubeGateway(t *testing.T) {
 		profileName := mustGetProfileName(t, albProxy.Addr().String())
 
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(t, suite, albProxy.Addr().String(), kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, suite, albProxy.Addr().String(), kubeURI)
 	})
 }
 
-func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kubeURI uri.ResourceURI) {
+func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, suite *Suite, albAddr string, kubeURI uri.ResourceURI) {
 	t.Helper()
 
 	var client *kubernetes.Clientset
@@ -361,6 +365,7 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 	}
 
 	testGatewayCertRenewal(
+		ctx,
 		t,
 		suite.root,
 		suite.username,
