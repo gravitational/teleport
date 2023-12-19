@@ -301,7 +301,7 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => Promise<AccessList[]>;
   promoteAccessRequest: (
-    params: apiService.PromoteAccessRequestRequest.AsObject,
+    params: PromoteAccessRequestParams,
     abortSignal?: TshAbortSignal
   ) => Promise<AccessRequest>;
 };
@@ -416,6 +416,10 @@ export type UnifiedResourceResponse =
   | { kind: 'kube'; resource: Kube };
 
 export type UserPreferences = apiService.UserPreferences.AsObject;
+export type PromoteAccessRequestParams =
+  apiService.PromoteAccessRequestRequest.AsObject & {
+    rootClusterUri: uri.RootClusterUri;
+  };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
