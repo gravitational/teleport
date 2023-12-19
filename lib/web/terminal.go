@@ -436,7 +436,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
-	t.stream = NewTerminalStream(ctx, ws, t.log)
+	t.stream = NewTerminalStream(ctx, TerminalStreamConfig{WS: ws, Logger: t.log})
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -1003,20 +1003,45 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 	return w
 }
 
+// TerminalStreamConfig contains dependencies of a TerminalStream.
+type TerminalStreamConfig struct {
+	// The websocket to operate over. Required.
+	WS WSConn
+	// A logger to emit log messages. Optional.
+	Logger logrus.FieldLogger
+	// A custom set of handlers to process messages received
+	// over the websocket. Optional.
+	Handlers map[string]WSHandlerFunc
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws WSConn, log logrus.FieldLogger) *TerminalStream {
+func NewTerminalStream(ctx context.Context, cfg TerminalStreamConfig) *TerminalStream {
 	t := &TerminalStream{
 		sessionReadyC: make(chan struct{}),
 	}
 
-	handlers := map[string]WSHandlerFunc{
-		defaults.WebsocketResize:               t.handleWindowResize,
-		defaults.WebsocketFileTransferRequest:  t.handleFileTransferRequest,
-		defaults.WebsocketFileTransferDecision: t.handleFileTransferDecision,
+	if cfg.Handlers == nil {
+		cfg.Handlers = map[string]WSHandlerFunc{}
 	}
 
-	t.WSStream = NewWStream(ctx, ws, log, handlers)
+	if _, ok := cfg.Handlers[defaults.WebsocketResize]; !ok {
+		cfg.Handlers[defaults.WebsocketResize] = t.handleWindowResize
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferRequest]; !ok {
+		cfg.Handlers[defaults.WebsocketFileTransferRequest] = t.handleFileTransferRequest
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferDecision]; !ok {
+		cfg.Handlers[defaults.WebsocketFileTransferDecision] = t.handleFileTransferDecision
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = utils.NewLogger()
+	}
+
+	t.WSStream = NewWStream(ctx, cfg.WS, cfg.Logger, cfg.Handlers)
 
 	return t
 }
