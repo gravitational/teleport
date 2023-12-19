@@ -21,7 +21,20 @@ import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
 import cfg from 'teleport/config';
-import { getDbMeta, TeleportProvider } from 'teleport/Discover/fixtures';
+
+import { ResourceKind } from 'teleport/Discover/Shared';
+
+import {
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
+} from 'teleport/Discover/Fixtures/databases';
+
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -34,9 +47,9 @@ initialize();
 
 export const Init = () => {
   return (
-    <TeleportProvider agentMeta={getDbMeta()}>
+    <ComponentWrapper>
       <AutoDeploy />
-    </TeleportProvider>
+    </ComponentWrapper>
   );
 };
 
@@ -55,10 +68,15 @@ Init.parameters = {
 export const InitWithAutoEnroll = () => {
   return (
     <TeleportProvider
+      resourceKind={ResourceKind.Database}
       agentMeta={{
         ...getDbMeta(),
         autoDiscoveryConfig: { name: '', discoveryGroup: '', aws: [] },
       }}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
     >
       <AutoDeploy />
     </TeleportProvider>
@@ -79,6 +97,11 @@ InitWithAutoEnroll.parameters = {
 export const InitWithLabels = () => {
   return (
     <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
       agentMeta={{
         ...getDbMeta(),
         agentMatcherLabels: [
@@ -106,9 +129,9 @@ InitWithLabels.parameters = {
 
 export const InitSecurityGroupsLoadingFailed = () => {
   return (
-    <TeleportProvider agentMeta={getDbMeta()}>
+    <ComponentWrapper>
       <AutoDeploy />
-    </TeleportProvider>
+    </ComponentWrapper>
   );
 };
 
@@ -131,9 +154,9 @@ InitSecurityGroupsLoadingFailed.parameters = {
 
 export const InitSecurityGroupsLoading = () => {
   return (
-    <TeleportProvider agentMeta={getDbMeta()}>
+    <ComponentWrapper>
       <AutoDeploy />
-    </TeleportProvider>
+    </ComponentWrapper>
   );
 };
 

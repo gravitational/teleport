@@ -20,13 +20,15 @@ import React from 'react';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { rest } from 'msw';
 
-import {
-  TeleportProvider,
-  getDbMeta,
-  getDbResourceSpec,
-} from 'teleport/Discover/fixtures';
 import { noAccess, getAcl } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
+} from 'teleport/Discover/Fixtures/databases';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
@@ -43,7 +45,7 @@ export default {
             ctx.json({
               name: 'llama',
               roles: ['access'],
-              traits: staticTraits,
+              traits: dynamicTraits,
             })
           )
         ),
@@ -59,7 +61,14 @@ export const NoTraits = () => {
   meta.db.users = [];
   meta.db.names = [];
   return (
-    <TeleportProvider agentMeta={meta}>
+    <TeleportProvider
+      agentMeta={meta}
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+    >
       <SetupAccess />
     </TeleportProvider>
   );
@@ -83,6 +92,7 @@ export const WithTraitsAwsPostgres = () => (
       DatabaseLocation.Aws
     )}
     agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
   >
     <SetupAccess />
   </TeleportProvider>
@@ -93,6 +103,7 @@ export const WithTraitsAwsPostgresAutoEnroll = () => {
   meta.db = undefined;
   return (
     <TeleportProvider
+      resourceKind={ResourceKind.Database}
       resourceSpec={getDbResourceSpec(
         DatabaseEngine.Postgres,
         DatabaseLocation.Aws
@@ -121,24 +132,22 @@ export const WithTraitsAwsPostgresAutoEnroll = () => {
 };
 
 export const WithTraitsAwsMySql = () => (
-  <TeleportProvider
-    agentMeta={getDbMeta()}
-    resourceSpec={getDbResourceSpec(DatabaseEngine.MySql, DatabaseLocation.Aws)}
-  >
+  <ComponentWrapper>
     <SetupAccess />
-  </TeleportProvider>
+  </ComponentWrapper>
 );
 
 export const WithTraitsPostgres = () => (
-  <TeleportProvider agentMeta={getDbMeta()}>
+  <ComponentWrapper>
     <SetupAccess />
-  </TeleportProvider>
+  </ComponentWrapper>
 );
 
 export const WithTraitsMongo = () => (
   <TeleportProvider
     resourceSpec={getDbResourceSpec(DatabaseEngine.MongoDb)}
     agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
   >
     <SetupAccess />
   </TeleportProvider>
@@ -148,6 +157,7 @@ export const WithTraitsMySql = () => (
   <TeleportProvider
     resourceSpec={getDbResourceSpec(DatabaseEngine.MySql)}
     agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
   >
     <SetupAccess />
   </TeleportProvider>
@@ -157,20 +167,33 @@ export const NoAccess = () => (
   <TeleportProvider
     customAcl={{ ...getAcl(), users: noAccess }}
     agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
   >
     <SetupAccess />
   </TeleportProvider>
 );
 
 export const SsoUser = () => (
-  <TeleportProvider authType="sso" agentMeta={getDbMeta()}>
+  <TeleportProvider
+    authType="sso"
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
+  >
     <SetupAccess />
   </TeleportProvider>
 );
 
-const staticTraits = {
-  databaseUsers: ['staticUser1', 'staticUser2'],
-  databaseNames: ['staticName1', 'staticName2'],
+const dynamicTraits = {
+  databaseNames: ['dynamicName1', 'dynamicName2'],
+  databaseUsers: ['dynamicUser1', 'dynamicUser2', 'staticUser1'],
   logins: [],
   kubeUsers: [],
   kubeGroups: [],

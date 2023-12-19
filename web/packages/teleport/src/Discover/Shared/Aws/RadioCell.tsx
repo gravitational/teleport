@@ -61,7 +61,6 @@ export function RadioCell<T>({
           onChange={() => onChange(item)}
           value={value}
           disabled={disabled}
-          data-testid="input-radio"
         />
       </Flex>
     </DisableableCell>

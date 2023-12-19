@@ -17,31 +17,19 @@
 import React, { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-  ResourceSpec,
-} from 'teleport/Discover/SelectResource';
-import {
-  IntegrationKind,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+import { ResourceSpec } from 'teleport/Discover/SelectResource';
 import { ContextProvider } from 'teleport';
 import {
   DiscoverProvider,
   DiscoverContextState,
   AgentMeta,
-  DbMeta,
 } from 'teleport/Discover/useDiscover';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import cfg from 'teleport/config';
-import { IamPolicyStatus } from 'teleport/services/databases';
 import { Acl, AuthType } from 'teleport/services/user';
-
-import { DATABASES } from './SelectResource/databases';
 
 export const TeleportProvider: React.FC<
   PropsWithChildren<{
@@ -50,14 +38,47 @@ export const TeleportProvider: React.FC<
     interval?: number;
     customAcl?: Acl;
     authType?: AuthType;
+    resourceKind: ResourceKind;
   }>
 > = props => {
   const ctx = createTeleportContext({ customAcl: props.customAcl });
   if (props.authType) {
     ctx.storeUser.state.authType = props.authType;
   }
-  const discoverCtx: DiscoverContextState = {
+  const discoverCtx = defaultDiscoverContext({
     agentMeta: props.agentMeta,
+    resourceSpec: props.resourceSpec,
+  });
+
+  return (
+    <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+      <ContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider mockCtx={discoverCtx}>
+            <PingTeleportProvider
+              interval={props.interval || 100000}
+              resourceKind={props.resourceKind}
+            >
+              {props.children}
+            </PingTeleportProvider>
+          </DiscoverProvider>
+        </FeaturesContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+export function defaultDiscoverContext({
+  agentMeta,
+  resourceSpec,
+}: {
+  agentMeta?: AgentMeta;
+  resourceSpec?: ResourceSpec;
+}): DiscoverContextState {
+  return {
+    agentMeta: agentMeta
+      ? agentMeta
+      : { resourceName: '', agentMatcherLabels: [] },
     exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],
@@ -70,77 +91,16 @@ export const TeleportProvider: React.FC<
     nextStep: () => null,
     prevStep: () => null,
     onSelectResource: () => null,
-    handleAndEmitRequestError: () => null,
-    resourceSpec: props.resourceSpec
-      ? props.resourceSpec
-      : getDbResourceSpec(DatabaseEngine.Postgres, DatabaseLocation.Aws),
-  };
-
-  return (
-    <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
-      <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <PingTeleportProvider
-              interval={props.interval || 100000}
-              resourceKind={ResourceKind.Database}
-            >
-              {props.children}
-            </PingTeleportProvider>
-          </DiscoverProvider>
-        </FeaturesContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-};
-
-export function getDbResourceSpec(
-  engine: DatabaseEngine,
-  location?: DatabaseLocation
-): ResourceSpec {
-  return {
-    ...DATABASES[0],
-    dbMeta: {
-      engine,
-      location,
-    },
+    resourceSpec: resourceSpec ? resourceSpec : defaultResourceSpec(null),
   };
 }
 
-export function getDbMeta(): DbMeta {
+export function defaultResourceSpec(kind: ResourceKind): ResourceSpec {
   return {
-    resourceName: 'db-name',
-    awsRegion: 'us-east-1',
-    agentMatcherLabels: [],
-    db: {
-      aws: {
-        iamPolicyStatus: IamPolicyStatus.Unspecified,
-        rds: {
-          region: 'us-east-1',
-          vpcId: 'test-vpc',
-          resourceId: 'some-rds-resource-id',
-          subnets: [],
-        },
-      },
-      kind: 'db',
-      name: 'some-db-name',
-      description: 'some-description',
-      type: 'rds',
-      protocol: 'postgres',
-      labels: [],
-      hostname: 'some-db-hostname',
-      names: ['dynamicName1', 'dynamicName2'],
-      users: ['dynamicUser1', 'dynamicUser2'],
-    },
-    selectedAwsRdsDb: { region: 'us-east-1' } as any,
-    awsIntegration: {
-      kind: IntegrationKind.AwsOidc,
-      name: 'test-integration',
-      resourceType: 'integration',
-      spec: {
-        roleArn: 'arn-123',
-      },
-      statusCode: IntegrationStatusCode.Running,
-    },
+    name: '',
+    kind,
+    icon: null,
+    keywords: '',
+    event: null,
   };
 }
