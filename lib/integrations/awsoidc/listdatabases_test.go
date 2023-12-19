@@ -318,6 +318,7 @@ func TestListDatabases(t *testing.T) {
 							"engine-version":     "",
 							"region":             "",
 							"status":             "available",
+							"vpc-id":             "vpc-999",
 							"teleport.dev/cloud": "AWS",
 						},
 					},
