@@ -1086,29 +1086,24 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 	require.Error(t, err)
 }
 
-func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
-	now := time.Now()
-	ctx := context.Background()
-	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
-		From:  now.Add(-time.Hour),
-		To:    now.Add(time.Hour),
-		Order: types.EventOrderDescending,
-	})
-
-	require.NoError(t, err)
-	return events
-}
-
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	require.Eventually(t, func() bool {
-		es := mustSearchEvents(t, s.root.GetAuthServer())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		now := time.Now()
+		ctx := context.Background()
+		es, _, err := s.root.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
+			From:  now.Add(-time.Hour),
+			To:    now.Add(time.Hour),
+			Order: types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+
 		for _, e := range es {
 			if e.GetCode() == events.AuthAttemptFailureCode && e.(*apievents.AuthAttempt).Login == nodeLogin {
-				return true
+				return
 			}
 		}
-		return false
-	}, 5*time.Second, 500*time.Millisecond, "failed to find AuthAttemptFailureCode event")
+		t.Errorf("Failed to find an AuthAttemptFailureCode event")
+	}, 5*time.Second, 500*time.Millisecond)
 }
 
 func TestFormatCommand(t *testing.T) {
