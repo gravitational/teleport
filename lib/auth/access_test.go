@@ -173,6 +173,8 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 		Target: types.LockTarget{MFADevice: "mfa-device-id"},
 	})
 	require.NoError(t, err)
+	futureTime := time.Now().UTC().Add(12 * time.Hour)
+	lock.SetLockExpiry(&futureTime)
 
 	// Creating a lock should emit a LockCreatedEvent.
 	err = p.a.UpsertLock(ctx, lock)
@@ -180,6 +182,7 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	require.Equal(t, events.LockCreatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, lock.GetName(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Name)
 	require.Equal(t, lock.Target(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Target)
+	require.Equal(t, lock.LockExpiry().UTC(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Expires)
 	p.mockEmitter.Reset()
 
 	// When a lock update results in an error, no event should be emitted.
