@@ -165,10 +165,13 @@ func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
-func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
-	command := &AuthCommand{}
+func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &AuthCommand{
+		stdout: &stdoutBuff,
+	}
 	args = append([]string{"auth"}, args...)
-	return runCommand(t, fc, command, args, opts...)
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
@@ -223,7 +226,7 @@ func mustAddUser(t *testing.T, fc *config.FileConfig, username string, roles ...
 
 func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string) string {
 	identityFilePath := filepath.Join(t.TempDir(), "identity")
-	err := runAuthCommand(t, fc, []string{"sign", "--user", username, "--out", identityFilePath})
+	_, err := runAuthCommand(t, fc, []string{"sign", "--user", username, "--out", identityFilePath})
 	require.NoError(t, err)
 	return identityFilePath
 }

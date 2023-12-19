@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -1057,4 +1058,104 @@ func TestGenerateCRLForCA(t *testing.T) {
 		authClient := &mockClient{crl: []byte{}}
 		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
 	})
+}
+
+func TestExportAuthorities(t *testing.T) {
+	ctx := context.Background()
+
+	exportOneFunc := func(_ context.Context, _ auth.ClientI, _ client.ExportAuthoritiesRequest) ([][]byte, error) {
+		// PEM is always concatenated into a single "file" byte blob.
+		return [][]byte{[]byte("apple")}, nil
+	}
+	exportManyFunc := func(_ context.Context, _ auth.ClientI, _ client.ExportAuthoritiesRequest) ([][]byte, error) {
+		// DER can be multiple "file" byte blobs, if there are multiple keys/certs to export.
+		return [][]byte{[]byte("banana"), []byte("cherry"), []byte("dragon fruit")}, nil
+	}
+
+	tests := []struct {
+		desc              string
+		outputToFiles     bool
+		exportPrivateKeys bool
+		exportFunc        func(context.Context, auth.ClientI, client.ExportAuthoritiesRequest) ([][]byte, error)
+		wantFiles         map[string][]byte
+		wantStdout        string
+		wantErrContains   string
+	}{
+		{
+			desc:          "output one CA cert to file",
+			outputToFiles: true,
+			exportFunc:    exportOneFunc,
+			wantFiles: map[string][]byte{
+				"out.cer": []byte("apple"),
+			},
+		},
+		{
+			desc:          "output many CA certs to file",
+			outputToFiles: true,
+			exportFunc:    exportManyFunc,
+			wantFiles: map[string][]byte{
+				"out-0.cer": []byte("banana"),
+				"out-1.cer": []byte("cherry"),
+				"out-2.cer": []byte("dragon fruit"),
+			},
+		},
+		{
+			desc:              "output one CA key to file",
+			outputToFiles:     true,
+			exportPrivateKeys: true,
+			exportFunc:        exportOneFunc,
+			wantFiles: map[string][]byte{
+				"out.key": []byte("apple"),
+			},
+		},
+		{
+			desc:              "output many CA keys to file",
+			outputToFiles:     true,
+			exportPrivateKeys: true,
+			exportFunc:        exportManyFunc,
+			wantFiles: map[string][]byte{
+				"out-0.key": []byte("banana"),
+				"out-1.key": []byte("cherry"),
+				"out-2.key": []byte("dragon fruit"),
+			},
+		},
+		{
+			desc:       "output one CA to stdout",
+			exportFunc: exportOneFunc,
+			wantStdout: "apple",
+		},
+		{
+			desc:            "output many CA files to stdout is an error",
+			exportFunc:      exportManyFunc,
+			wantErrContains: "provide a file name with --out",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			var stdoutBuff bytes.Buffer
+			authClient := &mockClient{}
+			ac := AuthCommand{
+				exportPrivateKeys:  test.exportPrivateKeys,
+				overrideExportFunc: test.exportFunc,
+				stdout:             &stdoutBuff,
+			}
+			tempDir := t.TempDir()
+			if test.outputToFiles {
+				ac.output = filepath.Join(tempDir, "out")
+				ac.outputOverwrite = true
+			}
+			err := ac.ExportAuthorities(ctx, authClient)
+			if test.wantErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.wantErrContains)
+				return
+			}
+			for wantName, wantData := range test.wantFiles {
+				gotData, err := os.ReadFile(filepath.Join(tempDir, wantName))
+				require.NoError(t, err)
+				require.Equal(t, wantData, gotData)
+			}
+			require.Contains(t, stdoutBuff.String(), test.wantStdout)
+		})
+	}
 }
