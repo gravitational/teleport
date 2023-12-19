@@ -25,17 +25,22 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -49,12 +54,11 @@ import (
 )
 
 func TestAdminActionMFA(t *testing.T) {
-	s := newAdminActionTestSuite(t)
-
-	t.Run("Users", s.testAdminActionMFA_Users)
+	suite.Run(t, &AdminActionTestSuite{})
 }
 
-func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
+func (s *AdminActionTestSuite) TestUser() {
+	t := s.T()
 	ctx := context.Background()
 
 	user, err := types.NewUser("teleuser")
@@ -87,16 +91,105 @@ func (s *adminActionTestSuite) testAdminActionMFA_Users(t *testing.T) {
 			setup:      createUser,
 			cleanup:    deleteUser,
 		},
+		"tctl users reset": {
+			command:    "users reset teleuser",
+			cliCommand: &tctl.UserCommand{},
+			setup:      createUser,
+			cleanup:    deleteUser,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			s.runTestCase(t, ctx, tc)
+			s.testCommand(t, ctx, tc)
 		})
 	}
 
-	s.testAdminActionMFA_ResourceCommand(t, ctx, resourceCommandTestCase{
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
 		resource:       user,
 		resourceCreate: createUser,
 		resourceDelete: deleteUser,
+	})
+}
+
+func (s *AdminActionTestSuite) TestBot() {
+	t := s.T()
+	ctx := context.Background()
+
+	botName := "bot"
+	botReq := &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: botName,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+		},
+	}
+
+	createBot := func() error {
+		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
+		return trace.Wrap(err)
+	}
+
+	deleteBot := func() error {
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+			BotName: botName,
+		})
+		return trace.Wrap(err)
+	}
+
+	t.Run("BotCommands", func(t *testing.T) {
+		for name, tc := range map[string]adminActionTestCase{
+			"tctl bots add": {
+				command:    fmt.Sprintf("bots add --roles=%v %v", teleport.PresetAccessRoleName, botName),
+				cliCommand: &tctl.BotsCommand{},
+				cleanup:    deleteBot,
+			},
+			"tctl bots rm": {
+				command:    fmt.Sprintf("bots rm %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				s.testCommand(t, ctx, tc)
+			})
+		}
+	})
+}
+
+func (s *AdminActionTestSuite) TestRole() {
+	t := s.T()
+	ctx := context.Background()
+
+	role, err := types.NewRole("telerole", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	createRole := func() error {
+		_, err := s.authServer.CreateRole(ctx, role)
+		return trace.Wrap(err)
+	}
+
+	getRole := func() (types.Resource, error) {
+		return s.authServer.GetRole(ctx, role.GetName())
+	}
+
+	deleteRole := func() error {
+		return s.authServer.DeleteRole(ctx, role.GetName())
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:       role,
+		resourceCreate: createRole,
+		resourceDelete: deleteRole,
+	})
+
+	s.testEditCommand(t, ctx, editCommandTestCase{
+		resourceRef:    getResourceRef(role),
+		resourceCreate: createRole,
+		resourceGet:    getRole,
+		resourceDelete: deleteRole,
 	})
 }
 
@@ -106,7 +199,7 @@ type resourceCommandTestCase struct {
 	resourceDelete func() error
 }
 
-func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
+func (s *AdminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
 	t.Helper()
 
 	f, err := os.CreateTemp(t.TempDir(), "resource-*.yaml")
@@ -114,7 +207,7 @@ func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, 
 	require.NoError(t, utils.WriteYAML(f, tc.resource))
 
 	t.Run("tctl create", func(t *testing.T) {
-		s.runTestCase(t, ctx, adminActionTestCase{
+		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("create %v", f.Name()),
 			cliCommand: &tctl.ResourceCommand{},
 			cleanup:    tc.resourceDelete,
@@ -122,7 +215,7 @@ func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, 
 	})
 
 	t.Run("tctl create -f", func(t *testing.T) {
-		s.runTestCase(t, ctx, adminActionTestCase{
+		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("create -f %v", f.Name()),
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
@@ -131,7 +224,7 @@ func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, 
 	})
 
 	t.Run("tctl rm", func(t *testing.T) {
-		s.runTestCase(t, ctx, adminActionTestCase{
+		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("rm %v", getResourceRef(tc.resource)),
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
@@ -140,16 +233,50 @@ func (s *adminActionTestSuite) testAdminActionMFA_ResourceCommand(t *testing.T, 
 	})
 }
 
-type adminActionTestSuite struct {
+type editCommandTestCase struct {
+	resourceRef    string
+	resourceCreate func() error
+	resourceGet    func() (types.Resource, error)
+	resourceDelete func() error
+}
+
+func (s *AdminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context, tc editCommandTestCase) {
+	t.Run("tctl edit", func(t *testing.T) {
+		s.testCommand(t, ctx, adminActionTestCase{
+			command: fmt.Sprintf("edit %v", tc.resourceRef),
+			setup:   tc.resourceCreate,
+			cliCommand: &tctl.EditCommand{
+				Editor: func(filename string) error {
+					// Get the latest version of the resource with the correct revision ID.
+					resource, err := tc.resourceGet()
+					require.NoError(t, err)
+
+					// Update the expiry so that the edit goes through.
+					resource.SetExpiry(time.Now())
+
+					f, err := os.Create(filename)
+					require.NoError(t, err)
+					require.NoError(t, utils.WriteYAML(f, resource))
+					return nil
+				},
+			},
+			cleanup: tc.resourceDelete,
+		})
+	})
+}
+
+type AdminActionTestSuite struct {
+	suite.Suite
 	authServer *auth.Server
 	// userClientWithMFA supports MFA prompt for admin actions.
 	userClientWithMFA auth.ClientI
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA auth.ClientI
+	userClientNoMFA  auth.ClientI
+	localAdminClient *auth.Client
 }
 
-func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
-	t.Helper()
+func (s *AdminActionTestSuite) SetupSuite() {
+	t := s.T()
 	ctx := context.Background()
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -173,7 +300,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
-	authServer := process.GetAuthServer()
+	s.authServer = process.GetAuthServer()
 
 	// create admin role and user.
 	username := "admin"
@@ -188,16 +315,16 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		},
 	})
 	require.NoError(t, err)
-	adminRole, err = authServer.CreateRole(ctx, adminRole)
+	adminRole, err = s.authServer.CreateRole(ctx, adminRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(username)
 	user.SetRoles([]string{adminRole.GetName()})
 	require.NoError(t, err)
-	_, err = authServer.CreateUser(ctx, user)
+	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
 
-	mockWebauthnLogin := setupWebAuthn(t, authServer, username)
+	mockWebauthnLogin := setupWebAuthn(t, s.authServer, username)
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
@@ -223,7 +350,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	require.NoError(t, err)
 
-	userClientNoMFA, err := auth.NewClient(client.Config{
+	s.userClientNoMFA, err = auth.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -231,7 +358,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	userClientWithMFA, err := auth.NewClient(client.Config{
+	s.userClientWithMFA, err = auth.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -240,11 +367,22 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	return &adminActionTestSuite{
-		authServer:        authServer,
-		userClientNoMFA:   userClientNoMFA,
-		userClientWithMFA: userClientWithMFA,
-	}
+	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	require.NoError(t, err)
+	localAdmin, err := auth.ReadLocalIdentity(
+		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
+		auth.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+	)
+	require.NoError(t, err)
+	localAdminTLS, err := localAdmin.TLSConfig(nil)
+	require.NoError(t, err)
+	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
+		TLS:         localAdminTLS,
+		AuthServers: []utils.NetAddr{*authAddr},
+		Log:         utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+	s.localAdminClient = localAdminClient
 }
 
 type adminActionTestCase struct {
@@ -254,16 +392,16 @@ type adminActionTestCase struct {
 	cleanup    func() error
 }
 
-func (s *adminActionTestSuite) runTestCase(t *testing.T, ctx context.Context, tc adminActionTestCase) {
+func (s *AdminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc adminActionTestCase) {
 	t.Helper()
 
 	t.Run("OK with MFA", func(t *testing.T) {
-		err := runTestSubCase(t, ctx, s.userClientWithMFA, tc)
+		err := runTestCase(t, ctx, s.userClientWithMFA, tc)
 		require.NoError(t, err)
 	})
 
 	t.Run("NOK without MFA", func(t *testing.T) {
-		err := runTestSubCase(t, ctx, s.userClientNoMFA, tc)
+		err := runTestCase(t, ctx, s.userClientNoMFA, tc)
 		require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
 	})
 
@@ -279,12 +417,12 @@ func (s *adminActionTestSuite) runTestCase(t *testing.T, ctx context.Context, tc
 			require.NoError(t, s.authServer.SetAuthPreference(ctx, originalAuthPref))
 		})
 
-		err = runTestSubCase(t, ctx, s.userClientNoMFA, tc)
+		err = runTestCase(t, ctx, s.userClientNoMFA, tc)
 		require.NoError(t, err)
 	})
 }
 
-func runTestSubCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
+func runTestCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
 	t.Helper()
 
 	if tc.setup != nil {

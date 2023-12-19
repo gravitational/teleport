@@ -264,6 +264,9 @@ func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error
 		}
 		bs.logger.Warn("CreateBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
 	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return authCtx, nil
 }
 
@@ -380,6 +383,9 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	bot, err := UpsertBot(
 		ctx, bs.backend, req.Bot, bs.clock.Now(), authCtx.User.GetName(),
@@ -416,10 +422,13 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
-	_, err := authz.AuthorizeWithVerbs(
+	authCtx, err := authz.AuthorizeWithVerbs(
 		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbUpdate,
 	)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -531,14 +540,18 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 // deleteBotAuthz allows the legacy rbac noun/verbs to continue being used until
 // v16.0.0.
 func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
-	_, originalErr := authz.AuthorizeWithVerbs(
+	var authCtx *authz.Context
+	var originalErr error
+	authCtx, originalErr = authz.AuthorizeWithVerbs(
 		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbDelete,
 	)
 	if originalErr != nil {
 		// TODO(noah): DELETE IN 16.0.0
-		if _, err := authz.AuthorizeWithVerbs(
+		var err error
+		authCtx, err = authz.AuthorizeWithVerbs(
 			ctx, bs.logger, bs.authorizer, false, types.KindUser, types.VerbDelete,
-		); err != nil {
+		)
+		if err != nil {
 			return originalErr
 		}
 		if _, err := authz.AuthorizeWithVerbs(
@@ -552,6 +565,9 @@ func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
 			return originalErr
 		}
 		bs.logger.Warn("DeleteBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

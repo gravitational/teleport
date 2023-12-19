@@ -228,6 +228,10 @@ func (f *KubeAppFetcher) Cloud() string {
 	return ""
 }
 
+func (f *KubeAppFetcher) FetcherType() string {
+	return types.KubernetesMatchersApp
+}
+
 func (f *KubeAppFetcher) String() string {
 	return fmt.Sprintf("KubeAppFetcher(Namespaces=%v, Labels=%v)", f.Namespaces, f.FilterLabels)
 }

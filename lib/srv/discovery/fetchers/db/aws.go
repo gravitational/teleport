@@ -155,6 +155,11 @@ func (f *awsFetcher) ResourceType() string {
 	return types.KindDatabase
 }
 
+// FetcherType returns the type (`discovery_service.aws.[].types`) of the fetcher.
+func (f *awsFetcher) FetcherType() string {
+	return f.cfg.Type
+}
+
 // String returns the fetcher's string description.
 func (f *awsFetcher) String() string {
 	return fmt.Sprintf("awsFetcher(Type: %v, Region=%v, Labels=%v)",
