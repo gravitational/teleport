@@ -33,6 +33,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -144,7 +145,22 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string, mfaPr
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	// TODO(ravicious): Add the equivalent of checkIfCertsAreAllowedToAccessCluster.
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	rootClusterName, err := c.clusterClient.RootClusterName(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
+		key,
+		rootClusterName,
+		c.Name,
+		kubeCluster); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 
 	cert, err := key.KubeTLSCert(kubeCluster)
 	if err != nil {

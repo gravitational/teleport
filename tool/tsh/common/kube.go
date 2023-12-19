@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -807,7 +808,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := checkIfCertsAreAllowedToAccessCluster(k,
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
 		rootClusterName,
 		c.teleportCluster,
 		c.kubeCluster); err != nil {
@@ -834,55 +835,6 @@ func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Pro
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
-}
-
-// checkIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
-// to access kubeCluster has at least one kubernetes_user or kubernetes_group
-// defined. If not, it returns an error.
-// This is a safety check in order to print a better message to the user even
-// before hitting Teleport Kubernetes Proxy.
-func checkIfCertsAreAllowedToAccessCluster(k *client.Key, rootCluster, teleportCluster, kubeCluster string) error {
-	// This is a safety check in order to print a better message to the user even
-	// before hitting Teleport Kubernetes Proxy.
-	// We only enforce this check for root clusters, since we don't have knowledge
-	// of the RBAC role mappings for remote clusters.
-	if rootCluster != teleportCluster {
-		return nil
-	}
-	for k8sCluster, cert := range k.KubeTLSCerts {
-		if k8sCluster != kubeCluster {
-			continue
-		}
-		log.Debugf("Got TLS cert for Kubernetes cluster %q", k8sCluster)
-		exist, err := checkIfCertHasKubeGroupsAndUsers(cert)
-		if err != nil {
-			return trace.Wrap(err)
-		} else if exist {
-			return nil
-		}
-	}
-	errMsg := "Your user's Teleport role does not allow Kubernetes access." +
-		" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
-	return trace.AccessDenied(errMsg)
-}
-
-// checkIfCertHasKubeGroupsAndUsers checks if the certificate has Kubernetes groups or users
-// in the Subject Name. If it does, it returns true, otherwise false.
-// Having no Kubernetes groups or users in the certificate means that the user
-// is not allowed to access the Kubernetes cluster since Kubernetes Access enforces
-// the presence of at least one of Kubernetes groups or users in the certificate.
-// If the certificate does not have any Kubernetes groups or users, the
-func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
-	cert, err := tlsca.ParseCertificatePEM(certB)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	for _, name := range cert.Subject.Names {
-		if name.Type.Equal(tlsca.KubeGroupsASN1ExtensionOID) || name.Type.Equal(tlsca.KubeUsersASN1ExtensionOID) {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
