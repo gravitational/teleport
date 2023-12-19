@@ -84,7 +84,6 @@ import (
 	_ "github.com/vulcand/predicate"
 	_ "golang.org/x/crypto/bcrypt"
 	_ "golang.org/x/exp/maps"
-	_ "golang.org/x/exp/slices"
 	_ "golang.org/x/mod/semver"
 	_ "golang.org/x/net/html"
 	_ "golang.org/x/oauth2"

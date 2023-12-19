@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"encoding/asn1"
 	"net"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

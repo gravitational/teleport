@@ -18,11 +18,11 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
