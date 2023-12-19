@@ -1160,7 +1160,14 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
-		s.termHandlers.HandleTerminalSize(r)
+		if err := s.termHandlers.HandleTerminalSize(r); err != nil {
+			s.Logger.WithError(err).Warn("failed to handle terminal size request")
+			if r.WantReply {
+				if err := r.Reply(false, nil); err != nil {
+					s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
+				}
+			}
+		}
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
