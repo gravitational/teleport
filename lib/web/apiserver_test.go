@@ -105,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -4544,20 +4545,21 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
-	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("v99.0.1"))
-	}))
-	defer httpTestServer.Close()
-	versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
 	require.NoError(t, err)
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesVersionURL = versionURL
+	// This version is too high and MUST NOT be used
+	testVersion := "v99.0.1"
+	channels := automaticupgrades.Channels{
+		automaticupgrades.DefaultCloudChannelName: {
+			StaticVersion: testVersion,
+		},
+	}
+	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
+	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
 	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.

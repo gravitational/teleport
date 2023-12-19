@@ -3086,7 +3086,11 @@ func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotReq
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.createBot(ctx, req)
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateBot(ctx, req)
 }
 
 // DeleteBot removes a certificate renewal bot by name.
@@ -3100,7 +3104,12 @@ func (a *ServerWithRoles) DeleteBot(ctx context.Context, botName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.deleteBot(ctx, botName)
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteBot(ctx, botName)
 }
 
 // GetBotUsers fetches all users with bot labels. It does not fetch users with
@@ -3120,6 +3129,10 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 
 	if a.hasBuiltinRole(types.RoleOkta) {
 		return nil, trace.AccessDenied("access denied")
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
@@ -3887,6 +3900,10 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.validateRole(ctx, role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3901,6 +3918,10 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.validateRole(ctx, role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3912,6 +3933,10 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 // UpsertRole creates or updates role.
 func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4062,6 +4087,11 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// DELETE IN (7.0)
 	// It's OK to delete this code alongside migrateOSS code in auth.
 	// It prevents 6.0 from migrating resources multiple times
@@ -4414,6 +4444,11 @@ func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (t
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4422,9 +4457,9 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	// Don't allow leaf clusters if running in Cloud.
+	// Don't allow a leaf cluster to be added to a Cloud tenant.
 	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("cloud clusters do not support trusted cluster resources")
+		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
 	// the token provides it's own authorization and authentication

@@ -285,12 +285,6 @@ type Config struct {
 	// sessions.
 	PresenceChecker PresenceChecker
 
-	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
-	// This URL must returns a valid version string.
-	// Eg, v13.4.3
-	// Optional: uses cloud/stable channel when omitted.
-	AutomaticUpgradesVersionURL string
-
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
 	AccessGraphAddr utils.NetAddr
 
@@ -379,6 +373,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
+	}
+
+	if automaticUpgrades(cfg.ClusterFeatures) && cfg.AutomaticUpgradesChannels == nil {
+		cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
+	if cfg.AutomaticUpgradesChannels != nil {
+		err := cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -1574,7 +1579,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2067,7 +2072,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	clientMeta := clientMetaFromReq(r)
 
 	var webSession types.WebSession
-
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
@@ -2093,22 +2097,11 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get stuck in a
-	// racy session creation loop.
-	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
-		User:      req.User,
-		SessionID: webSession.GetName(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), req.User, webSession.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), webSession)
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
@@ -2267,7 +2260,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	sess := res.WebSession
-	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2503,7 +2496,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), user, session.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), session)
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}

@@ -151,6 +151,10 @@ func (a *aksFetcher) Cloud() string {
 	return types.CloudAzure
 }
 
+func (a *aksFetcher) FetcherType() string {
+	return types.AzureMatcherKubernetes
+}
+
 func (a *aksFetcher) String() string {
 	return fmt.Sprintf("aksFetcher(ResourceGroups=%v, Regions=%v, FilterLabels=%v)",
 		a.ResourceGroups, a.Regions, a.FilterLabels)
