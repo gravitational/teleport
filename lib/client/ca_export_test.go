@@ -83,7 +83,7 @@ func TestExportAuthorities(t *testing.T) {
 	validateTLSCertificatesDERFunc := func(wantCount int) func(*testing.T, [][]byte) {
 		return func(t *testing.T, output [][]byte) {
 			t.Helper()
-			require.Equal(t, wantCount, len(output), "expected %v der encoded cert(s)", wantCount)
+			require.Len(t, wantCount, len(output), "expected %v der encoded cert(s)", wantCount)
 			for _, cert := range output {
 				validateTLSCert(t, cert)
 			}
@@ -114,7 +114,7 @@ func TestExportAuthorities(t *testing.T) {
 	validatePrivateKeysDERFunc := func(wantCount int) func(*testing.T, [][]byte) {
 		return func(t *testing.T, output [][]byte) {
 			t.Helper()
-			require.Equal(t, wantCount, len(output), "expected %v der encoded private key(s)", wantCount)
+			require.Len(t, wantCount, len(output), "expected %v der encoded private key(s)", wantCount)
 			for _, key := range output {
 				validatePrivateKey(t, key)
 			}
