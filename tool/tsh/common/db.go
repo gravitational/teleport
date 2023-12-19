@@ -332,6 +332,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+
 		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
 			return trace.Wrap(err)
 		}
@@ -352,6 +353,13 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(dbInfo.Roles) > 0 {
+		if route, ok := findActiveDatabase(dbInfo.ServiceName, profile.Databases); ok && len(route.Roles) == 0 {
+			fmt.Fprintf(cf.Stdout(), "Warning. Selected db roles %v are not issued by the Teleport Cluster and all assigned database roles will be used instead. This is likely due to your Teleport Cluster running an older version that doesn't support this feature.\n\n", dbInfo.Roles)
+		}
+	}
+
 	// Update the database-specific connection profile file.
 	err = dbprofile.Add(cf.Context, tc, dbInfo.RouteToDatabase, *profile)
 	return trace.Wrap(err)
