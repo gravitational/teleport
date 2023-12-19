@@ -74,12 +74,12 @@ func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchersFn:   fetchersFn,
-		ctx:          cancelCtx,
-		cancel:       cancelFn,
-		pollInterval: time.Minute,
-		pollTrigger:  make(<-chan struct{}),
-		InstancesC:   make(chan Instances),
+		fetchersFn:    fetchersFn,
+		ctx:           cancelCtx,
+		cancel:        cancelFn,
+		pollInterval:  time.Minute,
+		triggerFetchC: make(<-chan struct{}),
+		InstancesC:    make(chan Instances),
 	}
 
 	for _, opt := range opts {

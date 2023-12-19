@@ -44,10 +44,10 @@ type Fetcher interface {
 	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
 }
 
-// WithPollTrigger sets a poll trigger to manual start a resource polling.
-func WithPollTrigger(pollTrigger <-chan struct{}) Option {
+// WithTriggerFetchC sets a poll trigger to manual start a resource polling.
+func WithTriggerFetchC(triggerFetchC <-chan struct{}) Option {
 	return func(w *Watcher) {
-		w.pollTrigger = pollTrigger
+		w.triggerFetchC = triggerFetchC
 	}
 }
 
@@ -57,11 +57,11 @@ type Watcher struct {
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetchersFn   func() []Fetcher
-	pollInterval time.Duration
-	pollTrigger  <-chan struct{}
-	ctx          context.Context
-	cancel       context.CancelFunc
+	fetchersFn    func() []Fetcher
+	pollInterval  time.Duration
+	triggerFetchC <-chan struct{}
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) {
@@ -92,8 +92,8 @@ func (w *Watcher) Run() {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
-	if w.pollTrigger == nil {
-		w.pollTrigger = make(<-chan struct{})
+	if w.triggerFetchC == nil {
+		w.triggerFetchC = make(<-chan struct{})
 	}
 
 	w.fetchAndSubmit()
@@ -106,7 +106,7 @@ func (w *Watcher) Run() {
 			}
 		case <-ticker.C:
 			w.fetchAndSubmit()
-		case <-w.pollTrigger:
+		case <-w.triggerFetchC:
 			w.fetchAndSubmit()
 		case <-w.ctx.Done():
 			return

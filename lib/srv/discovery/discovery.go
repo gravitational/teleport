@@ -125,10 +125,10 @@ type Config struct {
 	// discovery cycles.
 	PollInterval time.Duration
 
-	// PollTrigger is a list of channels that must be notified when a off-band poll must be performed.
+	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
-	PollTrigger   []chan struct{}
-	pollTriggerMU *sync.RWMutex
+	TriggerFetchC  []chan struct{}
+	triggerFetchMu *sync.RWMutex
 
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
@@ -187,8 +187,8 @@ kubernetes matchers are present.`)
 		c.PollInterval = 5 * time.Minute
 	}
 
-	c.PollTrigger = make([]chan struct{}, 0)
-	c.pollTriggerMU = &sync.RWMutex{}
+	c.TriggerFetchC = make([]chan struct{}, 0)
+	c.triggerFetchMu = &sync.RWMutex{}
 
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -372,7 +372,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.ec2Watcher, err = server.NewEC2Watcher(
 		s.ctx, s.getAllAWSServerFetchers, s.caRotationCh,
 		server.WithPollInterval(s.PollInterval),
-		server.WithPollTrigger(s.newPollSubscription()),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -553,7 +553,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	s.azureWatcher, err = server.NewAzureWatcher(
 		s.ctx, s.getAllAzureServerFetchers,
 		server.WithPollInterval(s.PollInterval),
-		server.WithPollTrigger(s.newPollSubscription()),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -610,7 +610,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 	s.gcpWatcher, err = server.NewGCPWatcher(
 		s.ctx, s.getAllGCPServerFetchers,
 		server.WithPollInterval(s.PollInterval),
-		server.WithPollTrigger(s.newPollSubscription()),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1237,7 +1237,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
 					// We blindly delete it, in the worst case, this is a no-op.
 					s.deleteDynamicFetchers(event.Resource.GetName())
-					s.triggerPoll()
+					s.notifyDiscoveryConfigChanged()
 					continue
 				}
 
@@ -1245,11 +1245,11 @@ func (s *Server) startDynamicWatcherUpdater() {
 					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 					continue
 				}
-				s.triggerPoll()
+				s.notifyDiscoveryConfigChanged()
 
 			case types.OpDelete:
 				s.deleteDynamicFetchers(event.Resource.GetName())
-				s.triggerPoll()
+				s.notifyDiscoveryConfigChanged()
 			default:
 				s.Log.Warnf("Skipping unknown event type %s", event.Type)
 			}
@@ -1260,23 +1260,23 @@ func (s *Server) startDynamicWatcherUpdater() {
 	}
 }
 
-// newPollSubscription creates a new subscription for triggering a poll event.
+// newDiscoveryConfigChangedSub creates a new subscription for DiscoveryConfig events.
 // The consumer must have an active reader on the returned channel, and start a new Poll when it returns a value.
-func (s *Server) newPollSubscription() (ch chan struct{}) {
+func (s *Server) newDiscoveryConfigChangedSub() (ch chan struct{}) {
 	chSubscription := make(chan struct{})
-	s.pollTriggerMU.Lock()
-	s.PollTrigger = append(s.PollTrigger, chSubscription)
-	s.pollTriggerMU.Unlock()
+	s.triggerFetchMu.Lock()
+	s.TriggerFetchC = append(s.TriggerFetchC, chSubscription)
+	s.triggerFetchMu.Unlock()
 	return chSubscription
 }
 
 // triggerPoll sends a notification to all the registered watchers so that they start a new Poll.
-func (s *Server) triggerPoll() {
-	s.pollTriggerMU.RLock()
-	defer s.pollTriggerMU.RUnlock()
-	for _, watcherPollTrigger := range s.PollTrigger {
+func (s *Server) notifyDiscoveryConfigChanged() {
+	s.triggerFetchMu.RLock()
+	defer s.triggerFetchMu.RUnlock()
+	for _, watcherTriggerC := range s.TriggerFetchC {
 		select {
-		case watcherPollTrigger <- struct{}{}:
+		case watcherTriggerC <- struct{}{}:
 			// Successfully sent notification.
 		default:
 			// Channel already has valued queued.
