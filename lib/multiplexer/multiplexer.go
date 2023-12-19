@@ -81,9 +81,9 @@ type Config struct {
 	Listener net.Listener
 	// Context is a context to signal stops, cancellations
 	Context context.Context
-	// ReadDeadline is a connection read deadline,
-	// set to defaults.ReadHeadersTimeout if unspecified
-	ReadDeadline time.Duration
+	// DetectTimeout is a timeout applied to the whole detection phase of the
+	// connection, set to defaults.ReadHeadersTimeout if unspecified
+	DetectTimeout time.Duration
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
@@ -100,6 +100,12 @@ type Config struct {
 	// connection (coming from same IP as the listening address) when deciding if it should drop connection with
 	// missing required PROXY header. This is needed since all connections in tests are self connections.
 	IgnoreSelfConnections bool
+
+	// FixedHeader contains data that's sent to the client at the beginning of
+	// every connection, before protocol detection happens. An equal amount of
+	// data is then skipped from the connection when the application writes into
+	// it. Mostly useful for SSH servers.
+	FixedHeader string
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -110,8 +116,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Context == nil {
 		c.Context = context.TODO()
 	}
-	if c.ReadDeadline == 0 {
-		c.ReadDeadline = defaults.ReadHeadersTimeout
+	if c.DetectTimeout == 0 {
+		c.DetectTimeout = defaults.ReadHeadersTimeout
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -279,11 +285,20 @@ func (m *Mux) protocolListener(proto Protocol) *Listener {
 // protocol without a registered protocol listener are closed. This
 // method is called as a goroutine by Serve for each connection.
 func (m *Mux) detectAndForward(conn net.Conn) {
-	err := conn.SetReadDeadline(m.Clock.Now().Add(m.ReadDeadline))
-	if err != nil {
+	if err := conn.SetDeadline(m.Clock.Now().Add(m.DetectTimeout)); err != nil {
 		m.Warning(err.Error())
 		conn.Close()
 		return
+	}
+
+	if m.FixedHeader != "" {
+		if _, err := conn.Write([]byte(m.FixedHeader)); err != nil {
+			if !utils.IsOKNetworkError(err) {
+				m.WithError(err).Warn("Failed to send connection header.")
+			}
+			conn.Close()
+			return
+		}
 	}
 
 	connWrapper, err := m.detect(conn)
@@ -297,8 +312,8 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	err = conn.SetReadDeadline(time.Time{})
-	if err != nil {
+
+	if err := connWrapper.SetDeadline(time.Time{}); err != nil {
 		m.Warning(trace.DebugReport(err))
 		connWrapper.Close()
 		return
@@ -570,10 +585,11 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			return &Conn{
-				protocol:  proto,
-				Conn:      conn,
-				reader:    reader,
-				proxyLine: proxyLine,
+				protocol:       proto,
+				Conn:           conn,
+				reader:         reader,
+				proxyLine:      proxyLine,
+				alreadyWritten: []byte(m.FixedHeader),
 			}, nil
 		}
 	}
