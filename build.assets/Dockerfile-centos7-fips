@@ -23,7 +23,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
         centos-release-scl \
-        elfutils-libelf-devel-static \
         scl-utils && \
     yum clean all
 
@@ -33,6 +32,11 @@ RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-gcc-c++ \
         ${DEVTOOLSET}-make && \
     yum clean all
+
+# Install custom package with -fPIC.
+COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
+RUN rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static.*.rpm && \
+    rm -rf /opt/custom-packages
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 # BUILD_STATIC_ONLY - builds only static libraries without shared ones
@@ -79,8 +83,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     centos-release-scl \
     # required by Clang/LLVM
     cmake3 \
-    # required by libbpf
-    elfutils-libelf-devel-static \
     git \
     net-tools \
     # required by boringssl
@@ -91,9 +93,7 @@ RUN yum groupinstall -y 'Development Tools' && \
     tree \
     # used by our Makefile
     which \
-    zip \
-    # required by libbpf
-    zlib-static && \
+    zip && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.

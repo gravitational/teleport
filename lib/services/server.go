@@ -394,15 +394,7 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *server
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			server = &copy
-		}
-		return utils.FastMarshal(server)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
 	default:
 		return nil, trace.BadParameter("unrecognized server version %T", server)
 	}

@@ -417,7 +417,7 @@ enter/arm: buildbox-arm
 # AMD64 builds are done on CentOS 7 build boxes for broader glibc compatibility.
 .PHONY: release-amd64
 release-amd64:
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes
+	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
 
 .PHONY: release-amd64-fips
 release-amd64-fips:
