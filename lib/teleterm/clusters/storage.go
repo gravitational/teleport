@@ -207,6 +207,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	cfg.KeysDir = s.Dir
 	cfg.HomePath = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
+	cfg.WebauthnLogin = s.WebauthnLogin
 
 	if leafClusterName != "" {
 		clusterNameForKey = leafClusterName

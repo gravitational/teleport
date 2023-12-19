@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -40,6 +41,10 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -99,9 +104,9 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers
 			username: pack.Root.User.GetName(),
 			albAddr:  albAddr,
 			createGatewayParams: daemon.CreateGatewayParams{
-			TargetURI:  databaseURI.String(),
-			TargetUser: pack.Root.User.GetName(),
-		},
+				TargetURI:  databaseURI.String(),
+				TargetUser: pack.Root.User.GetName(),
+			},
 			testGatewayConnectionFunc: mustConnectDatabaseGateway,
 		},
 	)
@@ -115,6 +120,7 @@ type gatewayCertRenewalParams struct {
 	albAddr                   string
 	createGatewayParams       daemon.CreateGatewayParams
 	testGatewayConnectionFunc testGatewayConnectionFunc
+	webauthnLogin             libclient.WebauthnLoginFunc
 }
 
 func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
@@ -137,7 +143,8 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
-		Clock: fakeClock,
+		Clock:         fakeClock,
+		WebauthnLogin: params.webauthnLogin,
 	})
 	require.NoError(t, err)
 
@@ -356,12 +363,48 @@ func TestTeletermKubeGateway(t *testing.T) {
 			albAddr: albProxy.Addr().String(),
 		})
 	})
+
+	// MFA tests.
+	// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
+
+	t.Run("root with per-session MFA", func(t *testing.T) {
+		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
+
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:         suite,
+			kubeURI:       kubeURI,
+			webauthnLogin: webauthnLogin,
+		})
+	})
+	t.Run("leaf with per-session MFA", func(t *testing.T) {
+		// Set up MFA in the leaf cluster too so that MFA is required, but use webauthnLogin from the
+		// root cluster since we're connecting through the root cluster.
+		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
+		setupUserMFA(ctx, t, suite.leaf.Process.GetAuthServer(), kubeRole, username)
+
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:         suite,
+			kubeURI:       kubeURI,
+			webauthnLogin: webauthnLogin,
+		})
+	})
 }
 
 type kubeGatewayCertRenewalParams struct {
 	suite         *Suite
 	kubeURI       uri.ResourceURI
 	albAddr       string
+	webauthnLogin libclient.WebauthnLoginFunc
 }
 
 func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGatewayCertRenewalParams) {
@@ -403,6 +446,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 				TargetURI: params.kubeURI.String(),
 			},
 			testGatewayConnectionFunc: testKubeConnection,
+			webauthnLogin:             params.webauthnLogin,
 		},
 	)
 }
@@ -413,4 +457,81 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 	cmd, err := daemonService.GetGatewayCLICommand(gw)
 	require.NoError(t, err)
 	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmd.Env)
+}
+
+// setupUserMFA upserts role so that it requires per-session MFA and configures the user account to
+// support MFA. Assumes that user already holds role. Returns WebauthnLoginFunc that can be passed
+// to the client.
+//
+// Based on setupUserMFA from e/tool/tsh/tsh_test.go.
+func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, role types.Role, username string) libclient.WebauthnLoginFunc {
+	t.Helper()
+
+	// Enable optional MFA.
+	err := authServer.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Configure role.
+	options := role.GetOptions()
+	options.RequireMFAType = types.RequireMFAType_SESSION
+	role.SetOptions(options)
+	_, err = authServer.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Configure user account.
+	const origin = "https://localhost"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	tokenID := token.GetName()
+	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID: tokenID,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion(origin, assertion)
+		if err != nil {
+			return nil, "", err
+		}
+
+		carProto := wantypes.CredentialAssertionResponseToProto(car)
+
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: carProto,
+			},
+		}, "", nil
+	}
+
+	return webauthnLogin
 }
