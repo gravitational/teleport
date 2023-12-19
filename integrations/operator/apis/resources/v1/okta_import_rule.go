@@ -116,6 +116,8 @@ func (o TeleportOktaImportRule) ToTeleport() types.OktaImportRule {
 	return importRule
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (l *TeleportOktaImportRule) StatusConditions() *[]metav1.Condition {
 	return &l.Status.Conditions
 }

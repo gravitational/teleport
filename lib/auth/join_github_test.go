@@ -34,21 +34,29 @@ import (
 )
 
 type mockIDTokenValidator struct {
-	tokens             map[string]githubactions.IDTokenClaims
-	lastCalledGHESHost string
+	tokens                   map[string]githubactions.IDTokenClaims
+	lastCalledGHESHost       string
+	lastCalledEnterpriseSlug string
 }
 
 var errMockInvalidToken = errors.New("invalid token")
 
-func (m *mockIDTokenValidator) Validate(_ context.Context, ghes string, token string) (*githubactions.IDTokenClaims, error) {
+func (m *mockIDTokenValidator) Validate(
+	_ context.Context, ghes, enterpriseSlug, token string,
+) (*githubactions.IDTokenClaims, error) {
 	m.lastCalledGHESHost = ghes
-
+	m.lastCalledEnterpriseSlug = enterpriseSlug
 	claims, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken
 	}
 
 	return &claims, nil
+}
+
+func (m *mockIDTokenValidator) reset() {
+	m.lastCalledGHESHost = ""
+	m.lastCalledEnterpriseSlug = ""
 }
 
 func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
@@ -150,12 +158,45 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			setEnterprise: true,
 		},
 		{
+			name: "enterprise slug",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseSlug: "slug",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			setEnterprise: true,
+			request:       newRequest(validIDToken),
+			assertError:   require.NoError,
+		},
+		{
 			name: "ghes override requires enterprise license",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
 				GitHub: &types.ProvisionTokenSpecV2GitHub{
 					EnterpriseServerHost: "my.ghes.instance",
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						allowRule(nil),
+					},
+				},
+			},
+			request: newRequest(validIDToken),
+			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrRequiresEnterprise)
+			}),
+		},
+		{
+			name: "enterprise slug requires enterprise license",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodGitHub,
+				Roles:      []types.SystemRole{types.RoleNode},
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					EnterpriseSlug: "slug",
 					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
 						allowRule(nil),
 					},
@@ -314,6 +355,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(idTokenValidator.reset)
 			if tt.setEnterprise {
 				modules.SetTestModules(
 					t,
@@ -329,14 +371,20 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 
 			_, err = auth.RegisterUsingToken(ctx, tt.request)
 			tt.assertError(t, err)
-
-			if tt.tokenSpec.GitHub.EnterpriseServerHost != "" {
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseServerHost,
-					idTokenValidator.lastCalledGHESHost,
-				)
+			if err != nil {
+				return
 			}
+
+			require.Equal(
+				t,
+				tt.tokenSpec.GitHub.EnterpriseServerHost,
+				idTokenValidator.lastCalledGHESHost,
+			)
+			require.Equal(
+				t,
+				tt.tokenSpec.GitHub.EnterpriseSlug,
+				idTokenValidator.lastCalledEnterpriseSlug,
+			)
 		})
 	}
 }
