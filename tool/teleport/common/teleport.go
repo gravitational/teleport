@@ -490,6 +490,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
+	cloudAWSCredCmd := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
+	cloudAWSCredArg := cloudAWSCredCmd.Arg("file", "Credential file to output").Required().String()
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -585,6 +588,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfListDatabasesIAM(ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
 		err = onIntegrationConfExternalAuditCmd(ccf.IntegrationConfExternalAuditStorageArguments)
+	case cloudAWSCredCmd.FullCommand():
+		err = onCloudAWSCredCmd(*cloudAWSCredArg)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -1041,4 +1046,21 @@ func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalAudi
 		Sts: sts.NewFromConfig(cfg),
 	}
 	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
+}
+
+func onCloudAWSCredCmd(cloudAWSCredArg string) error {
+	if cloudAWSCredArg == "" {
+		return trace.BadParameter("teleport cloud-aws-cred: file argument required")
+	}
+
+	credFile, err := os.Open(cloudAWSCredArg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := io.Copy(os.Stdout, credFile); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
