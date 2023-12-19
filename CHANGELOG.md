@@ -21,8 +21,8 @@ or use PAM.
 
 #### Container images
 
-Teleport 15 contains several breaking changes to improve the default
-security and usability of container images.
+Teleport 15 contains several breaking changes to improve the default security
+and usability of container images.
 
 ##### "Heavy" container images are discontinued
 
@@ -36,7 +36,8 @@ introduced in Teleport 12. These images can be found at:
 * https://gallery.ecr.aws/gravitational/teleport-ent-distroless
 
 For users who need a shell in a Teleport container, a "debug" image is
-available which contains BusyBox, including a shell and many CLI tools. Find the debug images at:
+available which contains BusyBox, including a shell and many CLI tools. Find
+the debug images at:
 
 * https://gallery.ecr.aws/gravitational/teleport-distroless-debug
 * https://gallery.ecr.aws/gravitational/teleport-ent-distroless-debug
@@ -51,8 +52,8 @@ throughout the remainder of these releases' lifecycle.
 Teleport Operator container images will no longer be published with architecture
 suffixes in their tags (for example: `14.2.1-amd64` and `14.2.1-arm`). Instead,
 only a single tag will be published with multi-platform support (e.g., `15.0.0`).
-If you use Teleport Operator images with an architecture suffix, remove the suffix
-and your client should automatically pull the platform-appropriate image.
+If you use Teleport Operator images with an architecture suffix, remove the
+suffix and your client should automatically pull the platform-appropriate image.
 Individual architectures may be pulled with `docker pull --platform <arch>`.
 
 ##### Quay.io registry
@@ -63,10 +64,11 @@ longer supported and no new container images will be published to quay.io.
 
 For Teleport 8+, replacement container images can be found in [Teleport's public ECR registry](https://gallery.ecr.aws/gravitational).
 
-Users who wish to continue to use unsupported container images prior to Teleport 8
-will need to download any quay.io images they depend on and mirror them elsewhere
-before July 2024. Following brownouts in May and June, Teleport will disable pulls from
-all Teleport quay.io repositories on Wednesday, 2024-07-03.
+Users who wish to continue to use unsupported container images prior to
+Teleport 8 will need to download any quay.io images they depend on and mirror
+them elsewhere before July 2024. Following brownouts in May and June, Teleport
+will disable pulls from all Teleport quay.io repositories on Wednesday July 3,
+2024.
 
 ## 14.0.0 (09/20/23)
 
