@@ -2,10 +2,10 @@ package mdm
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // ErrScheduleNoEntries is returned when no entries are provided to the

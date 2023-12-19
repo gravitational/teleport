@@ -7,10 +7,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"slices"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"

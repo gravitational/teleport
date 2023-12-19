@@ -2,6 +2,7 @@ package resourceusagev1
 
 import (
 	context "context"
+	"slices"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"

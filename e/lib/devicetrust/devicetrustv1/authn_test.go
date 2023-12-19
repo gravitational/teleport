@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"

@@ -10,11 +10,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 // This provides wrapper functions for the Aptly command. Aptly is written in Go but it doesn't appear

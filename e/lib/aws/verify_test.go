@@ -1,10 +1,10 @@
 package aws
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
-	"golang.org/x/exp/slices"
 	check "gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/e/lib/fixtures"

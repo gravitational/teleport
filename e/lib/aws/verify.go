@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"net/http"
+	"slices"
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"

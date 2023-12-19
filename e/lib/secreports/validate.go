@@ -1,8 +1,9 @@
 package secreports
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	"github.com/gravitational/teleport/lib/modules"

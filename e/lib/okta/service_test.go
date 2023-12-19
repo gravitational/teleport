@@ -2,13 +2,13 @@ package okta
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 )
