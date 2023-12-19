@@ -43,7 +43,7 @@ available which contains BusyBox, including a shell and many CLI tools. Find the
 
 Do not run debug container images in production environments.
 
-Heavy container images will continue to be published for Telport 13 and 14
+Heavy container images will continue to be published for Teleport 13 and 14
 throughout the remainder of these releases' lifecycle.
 
 ##### Multi-architecture Teleport Operator images
