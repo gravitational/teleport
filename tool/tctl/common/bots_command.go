@@ -263,7 +263,7 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) err
 		return trace.Wrap(err)
 	}
 	if len(proxies) == 0 {
-		return trace.Errorf("This cluster does not have any proxy servers running.")
+		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
 	}
 	addr := proxies[0].GetPublicAddr()
 	if addr == "" {
@@ -401,7 +401,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	if len(proxies) == 0 {
-		return trace.Errorf("This cluster does not have any proxy servers running.")
+		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
 	}
 	addr := proxies[0].GetPublicAddr()
 	if addr == "" {
