@@ -146,12 +146,6 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string, mfaPr
 
 	// TODO(ravicious): Add the equivalent of checkIfCertsAreAllowedToAccessCluster.
 
-	// TODO(ravicious): Share this logic with issueKubeCert in tool/tsh/common/kube_proxy.go.
-	if !mfaRequired {
-		if err := c.clusterClient.LocalAgent().AddKubeKey(key); err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-	}
 	cert, err := key.KubeTLSCert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
