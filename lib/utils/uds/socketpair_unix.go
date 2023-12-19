@@ -18,31 +18,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package uds
 
 import (
-	"net"
+	"os"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
-// DualPipeNetConn creates a pipe to connect a client and a server. The
-// two net.Conn instances are wrapped in an PipeNetConn which holds the source and
-// destination addresses.
-//
-// The pipe is constructed from a syscall.Socketpair instead of a net.Pipe because
-// the synchronous nature of net.Pipe causes it to deadlock when attempting to perform
-// TLS or SSH handshakes.
-func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (net.Conn, net.Conn, error) {
-	client, server, err := uds.NewSocketpair(uds.SocketTypeStream)
+// NewSocketpair creates a unix socket pair, returning the halves as files.
+func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+	lfd, rfd, err := cloexecSocketpair(t)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	serverConn := NewConnWithAddr(server, dstAddr, srcAddr)
-	clientConn := NewConnWithAddr(client, srcAddr, dstAddr)
+	lfile, rfile := os.NewFile(lfd, "lsock"), os.NewFile(rfd, "rsock")
+	defer func() {
+		lfile.Close()
+		rfile.Close()
+	}()
 
-	return serverConn, clientConn, nil
+	left, err = FromFile(lfile)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	right, err = FromFile(rfile)
+	if err != nil {
+		left.Close()
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return left, right, nil
 }

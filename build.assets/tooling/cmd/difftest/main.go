@@ -73,6 +73,9 @@ var (
 
 		// TestWithRsync takes ~10 seconds to run
 		"TestWithRsync",
+
+		// TestAdminActionMFA takes longer than 6 seconds to run.
+		"TestAdminActionMFA",
 	}
 )
 
