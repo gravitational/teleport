@@ -557,7 +557,7 @@ func TestCreateSAMLIdPServiceProvider_embedAttributeMapping(t *testing.T) {
 	_, teleportSPSSODescriptor := GetTeleportSPSSODescriptor(edWithEmbeddedAttributes.SPSSODescriptors)
 	embeddedAttributes := teleportSPSSODescriptorToAttributeMapping(teleportSPSSODescriptor)
 	require.Equal(t, attributeMappingInput, embeddedAttributes)
-	require.Contains(t, spFromBackend.GetEntityDescriptor(), `<ServiceName xml:lang="">TELEPORT_SAML_IDP</ServiceName>`)
+	require.Contains(t, spFromBackend.GetEntityDescriptor(), `<ServiceName xml:lang="">teleport_saml_idp_service</ServiceName>`)
 
 	// 2. Now using previously embedded entity descriptor (spFromBackend.GetEntityDescriptor())
 	// update sp with one additional attribute mapping and test that:
@@ -639,7 +639,7 @@ func countEmbeddedSPSSODescriptor(spSSODescriptor []saml.SPSSODescriptor) (embed
 	for _, ssoDescriptor := range spSSODescriptor {
 		for _, acs := range ssoDescriptor.AttributeConsumingServices {
 			for _, serviceName := range acs.ServiceNames {
-				if serviceName.Value == teleportSAMLIdP {
+				if serviceName.Value == samlIDPServiceName {
 					embeddedSPSSODescriptorAcount++
 				}
 			}
@@ -685,8 +685,8 @@ func TestCreateSAMLIdPServiceProvider_GetTeleportSPSSODescriptor(t *testing.T) {
 	ed.SPSSODescriptors = append(ed.SPSSODescriptors, saml.SPSSODescriptor{
 		AttributeConsumingServices: []saml.AttributeConsumingService{
 			{
-				// ACS with the TELEPORT_SAML_IDP service name
-				ServiceNames: []saml.LocalizedName{{Value: teleportSAMLIdP}},
+				// ACS with the teleport_saml_idp_service name
+				ServiceNames: []saml.LocalizedName{{Value: samlIDPServiceName}},
 				RequestedAttributes: []saml.RequestedAttribute{{
 					Attribute: saml.Attribute{
 						FriendlyName: "groups",
@@ -697,7 +697,7 @@ func TestCreateSAMLIdPServiceProvider_GetTeleportSPSSODescriptor(t *testing.T) {
 				}},
 			},
 			{
-				// ACS without the TELEPORT_SAML_IDP service name
+				// ACS without the teleport_saml_idp_service service name
 				RequestedAttributes: []saml.RequestedAttribute{{
 					Attribute: saml.Attribute{
 						FriendlyName: "roles",

@@ -46,7 +46,7 @@ const (
 	samlIDPServiceProviderModifyLock    = "saml_idp_service_provider_modify_lock"
 	samlIDPServiceProviderModifyLockTTL = time.Second * 5
 	samlIDPServiceProviderMaxPageSize   = 200
-	teleportSAMLIdP                     = "TELEPORT_SAML_IDP"
+	samlIDPServiceName                  = "teleport_saml_idp_service"
 )
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
@@ -314,20 +314,24 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 		return trace.Wrap(err)
 	}
 
-	existingTeleportSPSSODescriptorIndex, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
-	switch atrrMapLen := len(sp.GetAttributeMapping()); {
-	case atrrMapLen == 0 && existingTeleportSPSSODescriptorIndex == 0:
-		s.log.Debugf("no custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
-		return nil
-	case atrrMapLen == 0 && existingTeleportSPSSODescriptorIndex > 0:
-		// delete Teleport SPSSODescriptor
-		ed.SPSSODescriptors = append(ed.SPSSODescriptors[:existingTeleportSPSSODescriptorIndex], ed.SPSSODescriptors[existingTeleportSPSSODescriptorIndex+1:]...)
-	case atrrMapLen > 0 && existingTeleportSPSSODescriptorIndex == 0:
-		ed.SPSSODescriptors = append(ed.SPSSODescriptors, genTeleportSPSSODescriptor(sp.GetAttributeMapping()))
-	case atrrMapLen > 0 && existingTeleportSPSSODescriptorIndex > 0:
-		// if there is existing SPSSODescriptor with "TELEPORT_SAML_IDP" service name, replace it at
-		// existingTeleportSPSSODescriptorIndex to avoid duplication or possible fragmented SPSSODescriptor.
-		ed.SPSSODescriptors[existingTeleportSPSSODescriptorIndex] = genTeleportSPSSODescriptor(sp.GetAttributeMapping())
+	teleportSPSSODescriptorIndex, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
+	switch attrMapLen := len(sp.GetAttributeMapping()); {
+	case attrMapLen == 0:
+		if teleportSPSSODescriptorIndex == 0 {
+			s.log.Debugf("No custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
+			return nil
+		} else {
+			// delete Teleport SPSSODescriptor
+			ed.SPSSODescriptors = append(ed.SPSSODescriptors[:teleportSPSSODescriptorIndex], ed.SPSSODescriptors[teleportSPSSODescriptorIndex+1:]...)
+		}
+	case attrMapLen > 0:
+		if teleportSPSSODescriptorIndex == 0 {
+			ed.SPSSODescriptors = append(ed.SPSSODescriptors, genTeleportSPSSODescriptor(sp.GetAttributeMapping()))
+		} else {
+			// if there is existing SPSSODescriptor with "teleport_saml_idp_service" service name, replace it at
+			// existingTeleportSPSSODescriptorIndex to avoid duplication or possible fragmented SPSSODescriptor.
+			ed.SPSSODescriptors[teleportSPSSODescriptorIndex] = genTeleportSPSSODescriptor(sp.GetAttributeMapping())
+		}
 	}
 
 	edWithAttributes, err := xml.MarshalIndent(ed, " ", "    ")
@@ -341,15 +345,13 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 
 // GetTeleportSPSSODescriptor returns Teleport embedded SPSSODescriptor and its index from a
 // list of SPSSODescriptors. The correct SPSSODescriptor is determined by searching for
-// AttributeConsumingService element with ServiceNames named TELEPORT_SAML_IDP.
+// AttributeConsumingService element with ServiceNames named teleport_saml_idp_service.
 func GetTeleportSPSSODescriptor(spSSODescriptors []saml.SPSSODescriptor) (embeddedSPSSODescriptorIndex int, teleportSPSSODescriptor saml.SPSSODescriptor) {
 	for descriptorIndex, descriptor := range spSSODescriptors {
 		for _, acs := range descriptor.AttributeConsumingServices {
 			for _, serviceName := range acs.ServiceNames {
-				if serviceName.Value == teleportSAMLIdP {
-					embeddedSPSSODescriptorIndex = descriptorIndex
-					teleportSPSSODescriptor = spSSODescriptors[descriptorIndex]
-					return
+				if serviceName.Value == samlIDPServiceName {
+					return descriptorIndex, spSSODescriptors[descriptorIndex]
 				}
 			}
 		}
@@ -358,7 +360,7 @@ func GetTeleportSPSSODescriptor(spSSODescriptors []saml.SPSSODescriptor) (embedd
 }
 
 // genTeleportSPSSODescriptor returns saml.SPSSODescriptor populated with Attribute Consuming Service
-// named TELEPORT_SAML_IDP and attributeMapping input (types.SAMLAttributeMapping) converted to
+// named teleport_saml_idp_service and attributeMapping input (types.SAMLAttributeMapping) converted to
 // saml.RequestedAttributes format.
 func genTeleportSPSSODescriptor(attributeMapping []*types.SAMLAttributeMapping) saml.SPSSODescriptor {
 	var reqs []saml.RequestedAttribute
@@ -375,11 +377,11 @@ func genTeleportSPSSODescriptor(attributeMapping []*types.SAMLAttributeMapping) 
 	return saml.SPSSODescriptor{
 		AttributeConsumingServices: []saml.AttributeConsumingService{
 			{
-				// ServiceNames is hardcoded with value TELEPORT_SAML_IDP to make the descriptor
+				// ServiceNames is hardcoded with value teleport_saml_idp_service to make the descriptor
 				// recognizable throughout SAML SSO flow. Attribute mapping should only ever
-				// edit SPSSODescriptor containing TELEPORT_SAML_IDP element. Otherwise, we risk
+				// edit SPSSODescriptor containing teleport_saml_idp_service element. Otherwise, we risk
 				// overriding SP managed SPSSODescriptor!
-				ServiceNames:        []saml.LocalizedName{{Value: teleportSAMLIdP}},
+				ServiceNames:        []saml.LocalizedName{{Value: samlIDPServiceName}},
 				RequestedAttributes: reqs,
 			},
 		},
