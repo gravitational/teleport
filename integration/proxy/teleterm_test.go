@@ -157,8 +157,8 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	// Create a mock tshd events service server and have the daemon connect to it,
 	// like it would during normal initialization of the app.
-	tshdEventsService, tshEventsServerAddr := newMockTSHDEventsServiceServer(t, tc, inst, username)
-	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshEventsServerAddr)
+	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshdEventsService.addr)
 	require.NoError(t, err)
 
 	// Here the test setup ends and actual test code starts.
@@ -199,21 +199,23 @@ type mockTSHDEventsService struct {
 	tc         *libclient.TeleportClient
 	inst       *helpers.TeleInstance
 	username   string
+	addr       string
 	callCounts map[string]int
 }
 
-func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService, addr string) {
+func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService) {
 	t.Helper()
+
+	ls, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
 	tshdEventsService := &mockTSHDEventsService{
 		tc:         tc,
 		inst:       inst,
 		username:   username,
+		addr:       ls.Addr().String(),
 		callCounts: make(map[string]int),
 	}
-
-	ls, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
@@ -235,7 +237,7 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 		}
 	})
 
-	return tshdEventsService, ls.Addr().String()
+	return tshdEventsService
 }
 
 // Relogin simulates the act of the user logging in again in the Electron app by replacing the user
