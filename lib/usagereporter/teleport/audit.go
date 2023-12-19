@@ -43,6 +43,17 @@ const (
 	PortKubeSessionType = "k8s_port"
 )
 
+// userKindFromBotFlag converts a boolean bot flag to a UserKind. The
+// `UNSPECIFIED` case is the default value for legacy clients so the only values
+// intentionally reported by clusters will be `BOT` and `HUMAN`.
+func userKindFromBotFlag(bot bool) prehogv1a.UserKind {
+	if bot {
+		return prehogv1a.UserKind_USER_KIND_BOT
+	}
+
+	return prehogv1a.UserKind_USER_KIND_HUMAN
+}
+
 func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	switch e := event.(type) {
 	case *apievents.UserLogin:
@@ -76,6 +87,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
+			UserKind:    userKindFromBotFlag(e.Bot),
 		}
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
@@ -85,6 +97,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
+			UserKind:    userKindFromBotFlag(e.Bot),
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -95,6 +108,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
 			},
+			UserKind: userKindFromBotFlag(e.Bot),
 		}
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
@@ -104,6 +118,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
+			UserKind:    userKindFromBotFlag(e.Bot),
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
@@ -119,6 +134,10 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				WindowsDomain:     e.Domain,
 				AllowUserCreation: e.AllowUserCreation,
 			},
+
+			// Note: Unlikely for this to ever be a bot session, but included
+			// for completeness.
+			UserKind: userKindFromBotFlag(e.Bot),
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -143,12 +162,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.KubeRequest:
 		return &KubeRequestEvent{
 			UserName: e.User,
+			UserKind: userKindFromBotFlag(e.Bot),
 		}
 
 	case *apievents.SFTP:
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
+			UserKind: userKindFromBotFlag(e.Bot),
 		}
 
 	case *apievents.BotJoin:

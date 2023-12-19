@@ -279,6 +279,9 @@ type IdentityContext struct {
 	// been renewed.
 	Generation uint64
 
+	// Bot indicates the user associated with this identity is a Machine ID bot.
+	Bot bool
+
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID

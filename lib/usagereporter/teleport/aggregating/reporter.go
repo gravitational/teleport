@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -188,6 +189,18 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	go r.anonymizeAndSubmit(filtered)
 }
 
+// convertUserKind converts a v1alpha UserKind to a v1 UserKind.
+func convertUserKind(v1AlphaUserKind prehogv1alpha.UserKind) prehogv1.UserKind {
+	switch v1AlphaUserKind {
+	case prehogv1alpha.UserKind_USER_KIND_BOT:
+		return prehogv1.UserKind_USER_KIND_BOT
+	case prehogv1alpha.UserKind_USER_KIND_HUMAN:
+		return prehogv1.UserKind_USER_KIND_HUMAN
+	default:
+		return prehogv1.UserKind_USER_KIND_UNSPECIFIED
+	}
+}
+
 func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 	for _, e := range events {
 		select {
@@ -211,10 +224,14 @@ func (r *Reporter) run(ctx context.Context) {
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
-	userRecord := func(userName string) *prehogv1.UserActivityRecord {
+	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
+		v1UserKind := convertUserKind(v1AlphaUserKind)
+
 		record := userActivity[userName]
 		if record == nil {
-			record = &prehogv1.UserActivityRecord{}
+			record = &prehogv1.UserActivityRecord{
+				UserKind: v1UserKind,
+			}
 			userActivity[userName] = record
 		}
 		return record
@@ -253,30 +270,31 @@ Ingest:
 
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
-			userRecord(te.UserName).Logins++
+			// Bots never generate tp.user.login events.
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
-				userRecord(te.UserName).SshSessions++
+				userRecord(te.UserName, te.UserKind).SshSessions++
 			case string(types.AppSessionKind):
-				userRecord(te.UserName).AppSessions++
+				userRecord(te.UserName, te.UserKind).AppSessions++
 			case string(types.KubernetesSessionKind):
-				userRecord(te.UserName).KubeSessions++
+				userRecord(te.UserName, te.UserKind).KubeSessions++
 			case string(types.DatabaseSessionKind):
-				userRecord(te.UserName).DbSessions++
+				userRecord(te.UserName, te.UserKind).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
-				userRecord(te.UserName).DesktopSessions++
+				userRecord(te.UserName, te.UserKind).DesktopSessions++
 			case usagereporter.PortSSHSessionType:
-				userRecord(te.UserName).SshPortV2Sessions++
+				userRecord(te.UserName, te.UserKind).SshPortV2Sessions++
 			case usagereporter.PortKubeSessionType:
-				userRecord(te.UserName).KubePortSessions++
+				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
-				userRecord(te.UserName).AppTcpSessions++
+				userRecord(te.UserName, te.UserKind).AppTcpSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
-			userRecord(te.UserName).KubeRequests++
+			userRecord(te.UserName, te.UserKind).KubeRequests++
 		case *usagereporter.SFTPEvent:
-			userRecord(te.UserName).SftpEvents++
+			userRecord(te.UserName, te.UserKind).SftpEvents++
 		}
 
 		if ae != nil && r.ingested != nil {

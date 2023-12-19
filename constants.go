@@ -495,6 +495,9 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+	// CertExtensionBot indicates this cert is associated with a Machine ID bot
+	// user.
+	CertExtensionBot = "teleport-bot"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.

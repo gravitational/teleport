@@ -61,6 +61,9 @@ export class UserActivityRecord extends jspb.Message {
     getUserName_asB64(): string;
     setUserName(value: Uint8Array | string): UserActivityRecord;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): UserActivityRecord;
+
     getLogins(): number;
     setLogins(value: number): UserActivityRecord;
 
@@ -111,6 +114,7 @@ export class UserActivityRecord extends jspb.Message {
 export namespace UserActivityRecord {
     export type AsObject = {
         userName: Uint8Array | string,
+        userKind: UserKind,
         logins: number,
         sshSessions: number,
         appSessions: number,
@@ -170,4 +174,10 @@ export namespace SubmitUsageReportsResponse {
     export type AsObject = {
         batchUuid: Uint8Array | string,
     }
+}
+
+export enum UserKind {
+    USER_KIND_UNSPECIFIED = 0,
+    USER_KIND_HUMAN = 1,
+    USER_KIND_BOT = 2,
 }
