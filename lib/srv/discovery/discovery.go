@@ -128,7 +128,7 @@ type Config struct {
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
 	TriggerFetchC  []chan struct{}
-	triggerFetchMu *sync.RWMutex
+	triggerFetchMu sync.RWMutex
 
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
@@ -188,7 +188,7 @@ kubernetes matchers are present.`)
 	}
 
 	c.TriggerFetchC = make([]chan struct{}, 0)
-	c.triggerFetchMu = &sync.RWMutex{}
+	c.triggerFetchMu = sync.RWMutex{}
 
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
