@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -374,6 +375,22 @@ func (o *OktaAssignmentV1) setStaticFields() {
 	o.Version = V1
 }
 
+// Implement sort.Interface so that we can sort assignment targets.
+type oktaAssignmentTargetsV1 []*OktaAssignmentTargetV1
+
+func (o oktaAssignmentTargetsV1) Len() int {
+	return len(o)
+}
+
+func (o oktaAssignmentTargetsV1) Less(i, j int) bool {
+	// Use type unless types are equal, in which case use id.
+	return o[i].Type < o[j].Type || (o[i].Type == o[j].Type && o[i].Id < o[j].Id)
+}
+
+func (o oktaAssignmentTargetsV1) Swap(i, j int) {
+	o[i], o[j] = o[j], o[i]
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 	o.setStaticFields()
@@ -392,6 +409,32 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 	// Make sure the times are UTC so that Copy() works properly.
 	o.Spec.CleanupTime = o.Spec.CleanupTime.UTC()
 	o.Spec.LastTransition = o.Spec.LastTransition.UTC()
+
+	// Deduplicate targets
+	allTargets := map[OktaAssignmentTargetV1_OktaAssignmentTargetType]map[string]struct{}{}
+
+	for _, target := range o.Spec.Targets {
+		if _, ok := allTargets[target.Type]; !ok {
+			allTargets[target.Type] = map[string]struct{}{}
+		}
+
+		allTargets[target.Type][target.Id] = struct{}{}
+	}
+
+	var deduplicatedTargets oktaAssignmentTargetsV1
+	for targetType, targets := range allTargets {
+		for target := range targets {
+			deduplicatedTargets = append(deduplicatedTargets, &OktaAssignmentTargetV1{
+				Type: targetType,
+				Id:   target,
+			})
+		}
+	}
+
+	// Sort the targets to provide some level of idempotency, i.e. two Okta assignments
+	// with the same metadata and same targets will be equal.
+	sort.Sort(deduplicatedTargets)
+	o.Spec.Targets = deduplicatedTargets
 
 	return nil
 }

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -27,6 +28,9 @@ import (
 )
 
 func TestOktaAssignments_SetStatus(t *testing.T) {
+	testTargets := []*OktaAssignmentTargetV1{
+		newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+	}
 	tests := []struct {
 		startStatus string
 		nextStatus  string
@@ -73,17 +77,80 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 				errAssertionFunc = require.NoError
 			}
 
-			assignment := newOktaAssignment(t, test.startStatus)
+			assignment := newOktaAssignment(t, "assignment", test.startStatus, testTargets)
 			errAssertionFunc(t, assignment.SetStatus(test.nextStatus))
 		})
 	}
 }
 
-func newOktaAssignment(t *testing.T, status string) OktaAssignment {
-	assignment := &OktaAssignmentV1{}
+func TestOktaAssignmentTargets(t *testing.T) {
+	tests := []struct {
+		name            string
+		targets         []*OktaAssignmentTargetV1
+		expectedTargets []OktaAssignmentTarget
+	}{
+		{
+			name: "no duplicates",
+			targets: []*OktaAssignmentTargetV1{
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "2"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "3"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "2"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "3"),
+			},
+			expectedTargets: []OktaAssignmentTarget{
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "2"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "3"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "2"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "3"),
+			},
+		},
+		{
+			name: "duplicates",
+			targets: []*OktaAssignmentTargetV1{
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "1"),
+			},
+			expectedTargets: []OktaAssignmentTarget{
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_APPLICATION, "1"),
+				newOktaAssignmentTarget(OktaAssignmentTargetV1_GROUP, "1"),
+			},
+		},
+	}
 
-	require.NoError(t, assignment.SetStatus(status))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assignment := newOktaAssignment(t, "assignment", constants.OktaAssignmentStatusPending, test.targets)
+			targets := assignment.GetTargets()
+			require.Empty(t, cmp.Diff(test.expectedTargets, targets))
+		})
+	}
+}
+
+func newOktaAssignment(t *testing.T, name, status string, targets []*OktaAssignmentTargetV1) OktaAssignment {
+	assignment, err := NewOktaAssignment(Metadata{
+		Name: name,
+	}, OktaAssignmentSpecV1{
+		Targets: targets,
+		Status:  OktaAssignmentStatusToProto(status),
+		User:    "test-user",
+	})
+	require.NoError(t, err)
 	return assignment
+}
+
+func newOktaAssignmentTarget(targetType OktaAssignmentTargetV1_OktaAssignmentTargetType, id string) *OktaAssignmentTargetV1 {
+	return &OktaAssignmentTargetV1{
+		Type: targetType,
+		Id:   id,
+	}
 }
 
 func invalidTransition(startStatus, nextStatus string) require.ErrorAssertionFunc {
