@@ -39,7 +39,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -54,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1096,48 +1094,6 @@ func (c *sessionResources) transferClosers() []io.Closer {
 
 func sessionKey(user, sessionID string) string {
 	return user + sessionID
-}
-
-// waitForWebSession will block until the requested web session shows up in the
-// cache or a timeout occurs.
-func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSessionRequest) error {
-	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
-	if err == nil {
-		return nil
-	}
-	logger := h.log.WithField("req", req)
-	if !trace.IsNotFound(err) {
-		logger.WithError(err).Debug("Failed to query web session.")
-	}
-	// Establish a watch.
-	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
-		Name: teleport.ComponentWebProxy,
-		Kinds: []types.WatchKind{
-			{
-				Kind:    types.KindWebSession,
-				SubKind: types.KindWebSession,
-			},
-		},
-		MetricComponent: teleport.ComponentWebProxy,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
-	matchEvent := func(event types.Event) (types.Resource, error) {
-		if event.Type == types.OpPut &&
-			event.Resource.GetKind() == types.KindWebSession &&
-			event.Resource.GetSubKind() == types.KindWebSession &&
-			event.Resource.GetName() == req.SessionID {
-			return event.Resource, nil
-		}
-		return nil, trace.CompareFailed("no match")
-	}
-	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
-	if err != nil {
-		logger.WithError(err).Warn("Failed to wait for web session.")
-	}
-	return trace.Wrap(err)
 }
 
 // remoteClientCache stores remote clients keyed by site name while also keeping

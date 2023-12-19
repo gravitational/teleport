@@ -78,6 +78,7 @@ crdgen: ## Generate CRDs
 
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
+	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
 .PHONY: manifests
