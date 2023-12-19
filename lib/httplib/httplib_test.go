@@ -415,7 +415,7 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		"object-src":      "'none'",
 		"style-src":       "'self' 'unsafe-inline'",
 		"img-src":         "'self' data: blob:",
-		"script-src":      fmt.Sprintf("'%s'", scriptSrc),
+		"script-src":      fmt.Sprintf("'self' '%s'", scriptSrc),
 	}
 
 	h := make(http.Header)
