@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { matchLabels } from './common';
+import { exactMatchLabels, matchLabels } from './common';
 
 const newDbLabels = [
   { name: 'env', value: 'prod' },
@@ -110,6 +110,83 @@ const testCases = [
 describe('matchLabels()', () => {
   test.each(testCases)('$name', ({ matcherLabels, match, noDbLabels }) => {
     const isMatched = matchLabels(noDbLabels ? [] : newDbLabels, matcherLabels);
+    expect(isMatched).toEqual(match);
+  });
+});
+
+describe('exactMatchLabels()', () => {
+  const testCases = [
+    {
+      name: 'exact match',
+      match: true,
+      labels: [
+        { name: 'os', value: 'mac' },
+        { name: 'fruit', value: 'apple' },
+      ],
+      matcherLabels: {
+        os: ['window', 'mac'],
+        fruit: ['banana', 'apple'],
+      },
+    },
+    {
+      name: 'no match, missing matcher',
+      match: false,
+      labels: [
+        { name: 'os', value: 'mac' },
+        { name: 'fruit', value: 'apple' },
+      ],
+      matcherLabels: {
+        os: ['os', 'mac'],
+      },
+    },
+    {
+      name: 'no match, missing label',
+      match: false,
+      labels: [{ name: 'os', value: 'mac' }],
+      matcherLabels: {
+        os: ['os', 'mac'],
+        fruit: ['banana', 'apple'],
+      },
+    },
+    {
+      name: 'no match, mismatch values',
+      match: false,
+      labels: [
+        { name: 'os', value: 'mac' },
+        { name: 'fruit', value: 'apple' },
+      ],
+      matcherLabels: {
+        os: ['window'],
+        fruit: ['banana', 'carrot'],
+      },
+    },
+    {
+      name: 'no match, mismatch length',
+      match: false,
+      labels: [
+        { name: 'os', value: 'mac' },
+        { name: 'fruit', value: 'apple' },
+      ],
+      matcherLabels: {
+        os: ['window'],
+      },
+    },
+    {
+      name: 'no match with empty matchers',
+      match: false,
+      labels: [{ name: 'os', value: 'env' }],
+      matcherLabels: {},
+    },
+    {
+      name: 'no match with empty labels',
+      match: false,
+      labels: [],
+      matcherLabels: { os: ['env'] },
+    },
+  ];
+
+  test.each(testCases)('$name', ({ matcherLabels, match, labels }) => {
+    const isMatched = exactMatchLabels(labels, matcherLabels);
     expect(isMatched).toEqual(match);
   });
 });

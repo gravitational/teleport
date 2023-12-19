@@ -130,6 +130,36 @@ export const integrationService = {
       });
   },
 
+  fetchAwsRdsDatabasesForAllEngines(
+    integrationName,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
+  ): Promise<ListAwsRdsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest = {
+      ...req,
+      rdsType: 'instance',
+      engines: [
+        'mysql',
+        'mariadb',
+        'postgres',
+        'aurora-mysql',
+        'aurora-postgresql',
+      ],
+    };
+
+    return api
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
+      .then(json => {
+        const dbs = json?.databases ?? [];
+        return {
+          databases: dbs.map(makeAwsDatabase),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
   deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest

@@ -69,6 +69,7 @@ InstanceList.parameters = {
       rest.get(cfg.api.databasesPath, (req, res, ctx) =>
         res(ctx.json({ items: [rdsInstances[2]] }))
       ),
+      rest.post(cfg.api.databasesPath, (req, res, ctx) => res(ctx.json({}))),
       rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
@@ -166,7 +167,7 @@ const Component = () => {
         name: 'test-oidc',
         resourceType: 'integration',
         spec: {
-          roleArn: 'arn-123',
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
         },
         statusCode: IntegrationStatusCode.Running,
       },

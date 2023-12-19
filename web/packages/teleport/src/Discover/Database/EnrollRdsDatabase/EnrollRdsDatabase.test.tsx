@@ -24,11 +24,14 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
-import { TeleportProvider, getDbMeta } from 'teleport/Discover/fixtures';
 import DatabaseService from 'teleport/services/databases/databases';
 import * as discoveryService from 'teleport/services/discovery/discovery';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
 
-import { EnrollRdsDatabase } from './EnrollRdsDatabase';
+import {
+  EnrollRdsDatabase,
+  foundRequiredDatabaseServices,
+} from './EnrollRdsDatabase';
 
 describe('test EnrollRdsDatabase.tsx', () => {
   beforeEach(() => {
@@ -36,8 +39,24 @@ describe('test EnrollRdsDatabase.tsx', () => {
       .spyOn(DatabaseService.prototype, 'fetchDatabases')
       .mockResolvedValue({ agents: [] });
     jest
+      .spyOn(DatabaseService.prototype, 'createDatabase')
+      .mockResolvedValue({} as any);
+    jest
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
+    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
+      name: '',
+      discoveryGroup: '',
+      aws: [],
+    });
+    jest
+      .spyOn(integrationService, 'fetchAwsRdsDatabasesForAllEngines')
+      .mockResolvedValue({
+        databases: [],
+      });
+    jest
+      .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
+      .mockResolvedValue({ services: [] });
   });
 
   afterEach(() => {
@@ -49,11 +68,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
       .spyOn(integrationService, 'fetchAwsRdsDatabases')
       .mockResolvedValue({ databases: [] });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -73,11 +88,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
       databases: mockAwsDbs,
     });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -92,27 +103,20 @@ describe('test EnrollRdsDatabase.tsx', () => {
     expect(DatabaseService.prototype.fetchDatabases).toHaveBeenCalledTimes(1);
   });
 
-  test('auto enroll is on by default and creates discovery config', async () => {
+  test('auto enroll is on by default with no database services', async () => {
     jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
-    });
-    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
-      name: '',
-      discoveryGroup: '',
-      aws: [],
     });
     jest
       .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
       .mockResolvedValue({ services: [] });
     jest
-      .spyOn(DatabaseService.prototype, 'createDatabase')
-      .mockResolvedValue({} as any);
+      .spyOn(integrationService, 'fetchAwsRdsDatabasesForAllEngines')
+      .mockResolvedValue({
+        databases: mockAwsDbs,
+      });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -129,30 +133,61 @@ describe('test EnrollRdsDatabase.tsx', () => {
     expect(
       DatabaseService.prototype.fetchDatabaseServices
     ).toHaveBeenCalledTimes(1);
+    expect(
+      integrationService.fetchAwsRdsDatabasesForAllEngines
+    ).toHaveBeenCalledTimes(1);
     expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();
+  });
+
+  test('auto enroll with rds paging and existing database services', async () => {
+    jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
+      databases: mockAwsDbs,
+    });
+    jest
+      .spyOn(integrationService, 'fetchAwsRdsDatabasesForAllEngines')
+      .mockResolvedValueOnce({
+        databases: mockAwsDbsMultiple,
+        nextToken: 'next-token-abc',
+      })
+      .mockResolvedValueOnce({
+        databases: mockAwsDbs,
+        nextToken: '',
+      });
+
+    render(<Component />);
+
+    // select a region from selector.
+    const selectEl = screen.getByLabelText(/aws region/i);
+    fireEvent.focus(selectEl);
+    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText('us-east-2'));
+
+    // Rds results renders result.
+    await screen.findByText(/rds-1/i);
+
+    act(() => screen.getByText('Next').click());
+    await screen.findByText(/Creating Auto Discovery Config/i);
+    expect(discoveryService.createDiscoveryConfig).toHaveBeenCalledTimes(1);
+
+    expect(
+      integrationService.fetchAwsRdsDatabasesForAllEngines
+    ).toHaveBeenNthCalledWith(1, 'test-integration', {
+      region: 'us-east-2',
+    });
+    expect(
+      integrationService.fetchAwsRdsDatabasesForAllEngines
+    ).toHaveBeenNthCalledWith(2, 'test-integration', {
+      region: 'us-east-2',
+      nextToken: 'next-token-abc',
+    });
   });
 
   test('auto enroll disabled, creates database', async () => {
     jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
     });
-    jest
-      .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
-      .mockResolvedValue({ services: [] });
-    jest
-      .spyOn(DatabaseService.prototype, 'createDatabase')
-      .mockResolvedValue({} as any);
-    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
-      name: '',
-      discoveryGroup: '',
-      aws: [],
-    });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -163,10 +198,12 @@ describe('test EnrollRdsDatabase.tsx', () => {
     await screen.findByText(/rds-1/i);
 
     // disable auto enroll
+    expect(screen.getByText('Next')).toBeEnabled();
     act(() => screen.getByText(/auto-enroll all/i).click());
     expect(screen.getByText('Next')).toBeDisabled();
 
-    act(() => screen.getByTestId('input-radio').click());
+    act(() => screen.getByRole('radio').click());
+
     act(() => screen.getByText('Next').click());
     await screen.findByText(/Database "rds-1" successfully registered/i);
 
@@ -175,6 +212,80 @@ describe('test EnrollRdsDatabase.tsx', () => {
       DatabaseService.prototype.fetchDatabaseServices
     ).toHaveBeenCalledTimes(1);
     expect(DatabaseService.prototype.createDatabase).toHaveBeenCalledTimes(1);
+    expect(
+      integrationService.fetchAwsRdsDatabasesForAllEngines
+    ).not.toHaveBeenCalled();
+  });
+});
+
+describe('foundRequiredDatabaseServices', () => {
+  const dbSvcs = [
+    { name: 'not-match', matcherLabels: { region: ['region'] } },
+    {
+      name: 'match1',
+      matcherLabels: {
+        region: ['us-east-1'],
+        'account-id': ['123'],
+        'vpc-id': ['vpc123'],
+      },
+    },
+    { name: 'not-match', matcherLabels: { region: ['us-east-1'] } },
+    {
+      name: 'match2',
+      matcherLabels: {
+        region: ['us-east-1'],
+        'account-id': ['123'],
+        'vpc-id': ['vpc-2'],
+      },
+    },
+    {
+      name: 'match3',
+      matcherLabels: {
+        region: ['us-east-1'],
+        'account-id': ['123'],
+        'vpc-id': ['vpc-3'],
+      },
+    },
+  ];
+
+  const vpcMap = {
+    vpc123: ['s1'],
+    'vpc-3': ['a', 'b'],
+    'vpc-2': ['c', 'd', 'e'],
+  };
+
+  test('found all matches', async () => {
+    const found = foundRequiredDatabaseServices(
+      vpcMap,
+      'us-east-1',
+      '123',
+      dbSvcs
+    );
+    expect(found).toBe(true);
+  });
+
+  test('not match: missing a match', async () => {
+    const found = foundRequiredDatabaseServices(vpcMap, 'us-east-1', '123', [
+      { name: 'not-match', matcherLabels: { region: ['region'] } },
+      {
+        name: 'match1',
+        matcherLabels: {
+          region: ['us-east-1'],
+          'account-id': ['123'],
+          'vpc-id': ['vpc123'],
+        },
+      },
+      { name: 'not-match', matcherLabels: { region: ['us-east-1'] } },
+      {
+        name: 'match2',
+        matcherLabels: {
+          region: ['us-east-1'],
+          'account-id': ['123'],
+          'vpc-id': ['vpc-2'],
+        },
+      },
+    ]);
+    expect(found).toBe(false);
   });
 });
 
@@ -192,3 +303,36 @@ const mockAwsDbs: AwsRdsDatabase[] = [
     subnets: ['subnet1', 'subnet2'],
   },
 ];
+
+const mockAwsDbsMultiple: AwsRdsDatabase[] = [
+  {
+    engine: 'mysql',
+    name: 'rds-a',
+    uri: 'endpoint-1',
+    status: 'available',
+    labels: [{ name: 'env', value: 'prod' }],
+    accountId: 'account-id-1',
+    resourceId: 'resource-id-1',
+    vpcId: 'vpc-2',
+    region: 'us-east-2',
+    subnets: ['subnet2a'],
+  },
+  {
+    engine: 'mariadb',
+    name: 'rds-b',
+    uri: 'endpoint-1',
+    status: 'available',
+    labels: [{ name: 'env', value: 'prod' }],
+    accountId: 'account-id-1',
+    resourceId: 'resource-id-1',
+    vpcId: 'vpc-3',
+    region: 'us-east-2',
+    subnets: ['subnet3a', 'subnet3b'],
+  },
+];
+
+const Component = () => (
+  <ComponentWrapper>
+    <EnrollRdsDatabase />
+  </ComponentWrapper>
+);

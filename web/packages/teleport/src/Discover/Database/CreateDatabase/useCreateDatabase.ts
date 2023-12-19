@@ -21,11 +21,6 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import {
-  DISCOVERY_GROUP_CLOUD,
-  DiscoveryConfig,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
 import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
@@ -33,7 +28,6 @@ import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
 import { DatabaseLocation } from 'teleport/Discover/SelectResource';
 import { IamPolicyStatus } from 'teleport/services/databases';
-import { Regions } from 'teleport/services/integrations';
 
 import { matchLabels } from '../common';
 
@@ -63,7 +57,6 @@ export function useCreateDatabase() {
   // isDbCreateErr is a flag that indicates
   // attempt failed from trying to create a database.
   const [isDbCreateErr, setIsDbCreateErr] = useState(false);
-  const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
 
   const [pollTimeout, setPollTimeout] = useState(0);
   const [pollActive, setPollActive] = useState(false);
@@ -245,63 +238,6 @@ export function useCreateDatabase() {
     setPollActive(true);
   }
 
-  async function enableAutoDiscovery({
-    selectedRegion,
-  }: {
-    selectedRegion: Regions;
-  }) {
-    setAttempt({ status: 'processing' });
-
-    // Create a discovery config for the discovery service.
-    let discoveryConfig = autoDiscoveryCfg;
-    try {
-      if (!discoveryConfig) {
-        discoveryConfig = await createDiscoveryConfig(clusterId, {
-          name: crypto.randomUUID(),
-          discoveryGroup: DISCOVERY_GROUP_CLOUD,
-          aws: [
-            {
-              types: ['rds'],
-              regions: [selectedRegion],
-              tags: { '*': ['*'] },
-              integration: (agentMeta as DbMeta).integration.name,
-            },
-          ],
-        });
-        setAutoDiscoveryCfg(discoveryConfig);
-      }
-    } catch (err) {
-      handleRequestError(err, 'failed to create discovery config: ');
-      return;
-    }
-
-    // See if we have existing database services that has asteriks or region
-    try {
-      const { services } = await ctx.databaseService.fetchDatabaseServices(
-        clusterId
-      );
-
-      let serviceDeployedMethod;
-      if (
-        findActiveDatabaseSvc(
-          [{ name: 'region', value: selectedRegion }],
-          services
-        )
-      ) {
-        serviceDeployedMethod = 'skipped';
-      }
-
-      updateAgentMeta({
-        ...(agentMeta as DbMeta),
-        autoDiscoveryConfig: discoveryConfig,
-        serviceDeployedMethod,
-      });
-      setAttempt({ status: 'success' });
-    } catch (err) {
-      handleRequestError(err, 'failed to fetch database services: ');
-    }
-  }
-
   // attemptDbServerQueryAndBuildErrMsg tests if the duplicated `dbName`
   // (determined by an error returned from the initial register db attempt)
   // is already a part of the cluster by querying for its db server.
@@ -414,7 +350,6 @@ export function useCreateDatabase() {
     isDbCreateErr,
     prevStep,
     nextStep: handleNextStep,
-    enableAutoDiscovery,
   };
 }
 

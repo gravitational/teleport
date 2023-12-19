@@ -21,8 +21,9 @@ import { Box, Link, Text, Toggle } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
@@ -33,15 +34,23 @@ import {
 } from 'teleport/services/integrations';
 import { DatabaseEngine } from 'teleport/Discover/SelectResource';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
-import { Database } from 'teleport/services/databases';
+import { Database, DatabaseService } from 'teleport/services/databases';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import cfg from 'teleport/config';
+import {
+  DISCOVERY_GROUP_CLOUD,
+  DiscoveryConfig,
+  createDiscoveryConfig,
+} from 'teleport/services/discovery';
+import useTeleport from 'teleport/useTeleport';
+import { ResourceLabel } from 'teleport/services/agents';
 
 import { ActionButtons, Header, Mark } from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
+import { exactMatchLabels } from '../common';
 
 import { DatabaseList } from './RdsDatabaseList';
 import { AutoEnrollDialog } from './AutoEnrollDialog';
@@ -76,11 +85,16 @@ export function EnrollRdsDatabase() {
     clearAttempt: clearRegisterAttempt,
     nextStep,
     fetchDatabaseServers,
-    enableAutoDiscovery,
   } = useCreateDatabase();
 
-  const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
+  const ctx = useTeleport();
+  const clusterId = ctx.storeUser.getClusterId();
+
+  const { agentMeta, resourceSpec, updateAgentMeta, emitErrorEvent } =
+    useDiscover();
   const { attempt: fetchDbAttempt, setAttempt: setFetchDbAttempt } =
+    useAttempt('');
+  const { attempt: autoDiscoverAttempt, setAttempt: setAutoDiscoverAttempt } =
     useAttempt('');
 
   const [tableData, setTableData] = useState<TableData>({
@@ -89,7 +103,13 @@ export function EnrollRdsDatabase() {
     fetchStatus: 'disabled',
   });
   const [selectedDb, setSelectedDb] = useState<CheckedAwsRdsDatabase>();
+
   const [wantAutoDiscover, setWantAutoDiscover] = useState(true);
+  const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
+  const [vpc, setVpc] = useState<{
+    map: Record<string, string[]>;
+    nextPageToken?: string;
+  }>({ map: {} });
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -178,6 +198,165 @@ export function EnrollRdsDatabase() {
     }
   }
 
+  /**
+   * getAllVpcIdsAndSubnets will page through all RDS's for all engines
+   * given region, and collect unique vpc id's and its subnets.
+   * Collecting of vpc id's is required for two reasons:
+   *   1. lookup existing db services that can proxy all the rds's
+   *      by matching labels for region, account-id, and vpc-id
+   *   2. if no db services exists, setup the correct network access for
+   *      new db services using the collected vpc id's
+   *
+   * Will only pass through a page once. Failure at a page
+   * will resume at the failed page at the next attempt.
+   */
+  async function getAllVpcIdsAndSubnets() {
+    if (Object.keys(vpc.map).length > 0 && !vpc.nextPageToken) {
+      return Promise.resolve(vpc);
+    }
+
+    const { awsIntegration } = agentMeta;
+    const vpcMap: Record<string, string[]> = vpc.map;
+
+    let nextPageToken = vpc.nextPageToken;
+    try {
+      // Loop until no next page token.
+      for (;;) {
+        const { databases, nextToken } =
+          await integrationService.fetchAwsRdsDatabasesForAllEngines(
+            awsIntegration.name,
+            {
+              region: tableData.currRegion,
+              nextToken: nextPageToken,
+            }
+          );
+        nextPageToken = nextToken;
+
+        // Collect unique vpc id's from queried result.
+        for (let i = 0; i < databases.length; i++) {
+          const d = databases[i];
+
+          if (d.status !== 'available') {
+            continue;
+          }
+          if (vpcMap[d.vpcId]) {
+            continue;
+          }
+
+          vpcMap[d.vpcId] = d.subnets;
+        }
+
+        if (!nextToken) {
+          break;
+        }
+      }
+      setVpc({ map: vpcMap });
+      return Promise.resolve({ map: vpcMap });
+    } catch (err) {
+      handleAndEmitRequestError(err, {
+        preErrMsg: 'failed collecting vpc ids and its subnets: ',
+        setAttempt: setAutoDiscoverAttempt,
+      });
+      // preserve what we've collected so far
+      // to resume at the spot we failed at
+      setVpc({ map: vpcMap, nextPageToken });
+      throw err;
+    }
+  }
+
+  /**
+   * createAutoDiscoveryConfig will only run once even
+   * if called repeatedly during the current flow.
+   */
+  async function createAutoDiscoveryConfig() {
+    // Create a discovery config for the discovery service.
+    let discoveryConfig = autoDiscoveryCfg;
+    try {
+      if (!discoveryConfig) {
+        discoveryConfig = await createDiscoveryConfig(clusterId, {
+          name: crypto.randomUUID(),
+          discoveryGroup: DISCOVERY_GROUP_CLOUD,
+          aws: [
+            {
+              types: ['rds'],
+              regions: [tableData.currRegion],
+              tags: { '*': ['*'] },
+              integration: agentMeta.awsIntegration.name,
+            },
+          ],
+        });
+        setAutoDiscoveryCfg(discoveryConfig);
+      }
+      return Promise.resolve(discoveryConfig);
+    } catch (err) {
+      handleAndEmitRequestError(err, {
+        preErrMsg: 'failed to create discovery config: ',
+        setAttempt: setAutoDiscoverAttempt,
+      });
+      throw err;
+    }
+  }
+
+  async function getDatabaseServices() {
+    try {
+      return await ctx.databaseService.fetchDatabaseServices(clusterId);
+    } catch (err) {
+      handleAndEmitRequestError(err, {
+        preErrMsg: 'failed to fetch database services: ',
+        setAttempt: setAutoDiscoverAttempt,
+      });
+      throw err;
+    }
+  }
+
+  function handleAndEmitRequestError(
+    err: Error,
+    cfg: { preErrMsg?: string; setAttempt?(attempt: Attempt): void }
+  ) {
+    const message = getErrMessage(err);
+    if (cfg.setAttempt) {
+      cfg.setAttempt({
+        status: 'failed',
+        statusText: `${cfg.preErrMsg}${message}`,
+      });
+    }
+    emitErrorEvent(`${cfg.preErrMsg}${message}`);
+  }
+
+  function enableAutoDiscovery() {
+    setAutoDiscoverAttempt({ status: 'processing' });
+    // Each promise has it's own error handler,
+    // so no need to catch them here.
+    Promise.all([
+      getAllVpcIdsAndSubnets(),
+      getDatabaseServices(),
+      createAutoDiscoveryConfig(),
+    ]).then(result => {
+      setAutoDiscoverAttempt({ status: 'success' });
+
+      const vpcMap = result[0].map;
+      const dbSvcs = result[1].services;
+      const discoveryConfig = result[2];
+
+      const { roleArn } = agentMeta.awsIntegration.spec;
+      const accountId = roleArn.split('arn:aws:iam::')[1].substring(0, 12);
+
+      const foundService = foundRequiredDatabaseServices(
+        vpcMap,
+        tableData.currRegion,
+        accountId,
+        dbSvcs
+      );
+
+      updateAgentMeta({
+        ...(agentMeta as DbMeta),
+        autoDiscoveryConfig: discoveryConfig,
+        serviceDeployedMethod: foundService ? undefined : 'skipped',
+        awsRegion: tableData.currRegion,
+      });
+    });
+  }
+
   function clear() {
     clearRegisterAttempt();
 
@@ -194,8 +373,9 @@ export function EnrollRdsDatabase() {
 
   function handleOnProceed() {
     if (wantAutoDiscover) {
-      enableAutoDiscovery({ selectedRegion: tableData.currRegion });
+      enableAutoDiscovery();
     } else {
+      const isNewDb = selectedDb.name !== createdDb?.name;
       registerDatabase(
         {
           name: selectedDb.name,
@@ -203,42 +383,41 @@ export function EnrollRdsDatabase() {
           uri: selectedDb.uri,
           labels: selectedDb.labels,
           awsRds: selectedDb,
+          awsRegion: tableData.currRegion,
         },
         // Corner case where if registering db fails a user can:
         //   1) change region, which will list new databases or
         //   2) select a different database before re-trying.
-        selectedDb.name !== createdDb?.name
+        isNewDb
       );
     }
+  }
+
+  let DialogComponent;
+  if (registerAttempt.status !== '') {
+    DialogComponent = (
+      <CreateDatabaseDialog
+        pollTimeout={pollTimeout}
+        attempt={registerAttempt}
+        next={nextStep}
+        close={clearRegisterAttempt}
+        retry={handleOnProceed}
+        dbName={selectedDb.name}
+      />
+    );
+  } else if (autoDiscoverAttempt.status !== '') {
+    DialogComponent = (
+      <AutoEnrollDialog
+        attempt={autoDiscoverAttempt}
+        next={nextStep}
+        close={() => setAutoDiscoverAttempt({ status: '' })}
+        retry={handleOnProceed}
+        region={tableData.currRegion}
+      />
+    );
   }
 
   const hasIamPermError = isIamPermError(fetchDbAttempt);
-  let DialogComponent;
-  if (registerAttempt.status !== '') {
-    if (wantAutoDiscover) {
-      DialogComponent = (
-        <AutoEnrollDialog
-          attempt={registerAttempt}
-          next={nextStep}
-          close={clearRegisterAttempt}
-          retry={handleOnProceed}
-          region={tableData.currRegion}
-        />
-      );
-    } else {
-      DialogComponent = (
-        <CreateDatabaseDialog
-          pollTimeout={pollTimeout}
-          attempt={registerAttempt}
-          next={nextStep}
-          close={clearRegisterAttempt}
-          retry={handleOnProceed}
-          dbName={selectedDb.name}
-        />
-      );
-    }
-  }
-
   const showTable = !hasIamPermError && tableData.currRegion;
 
   return (
@@ -258,35 +437,11 @@ export function EnrollRdsDatabase() {
       />
       {showTable && (
         <>
-          <Box mb={2}>
-            <Toggle
-              isToggled={wantAutoDiscover}
-              onToggle={() => setWantAutoDiscover(p => !p)}
-              disabled={tableData.items.length === 0}
-            >
-              <Box ml={2} mr={1}>
-                Auto-Enroll all Databases for selected region
-              </Box>
-              <ToolTipInfo>
-                Auto-Enroll will automatically identify all RDS databases from
-                the selected region and register them as database resources in
-                your infrastructure.
-              </ToolTipInfo>
-            </Toggle>
-            {!cfg.isCloud && wantAutoDiscover && (
-              <Box mt={2} mb={3}>
-                Auto-enrolling requires you to setup a{' '}
-                <Mark>Discovery Service</Mark>. <br /> Follow{' '}
-                <Link
-                  target="_blank"
-                  href="https://goteleport.com/docs/database-access/guides/aws-discovery/"
-                >
-                  this guide
-                </Link>{' '}
-                to configure one before going to the next step.
-              </Box>
-            )}
-          </Box>
+          <ToggleSection
+            wantAutoDiscover={wantAutoDiscover}
+            setWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
+            isDisabled={tableData.items.length === 0}
+          />
           <DatabaseList
             wantAutoDiscover={wantAutoDiscover}
             items={tableData.items}
@@ -311,7 +466,8 @@ export function EnrollRdsDatabase() {
       {showTable && wantAutoDiscover && (
         <Text mt={4} mb={-3}>
           <b>Note:</b> Auto-Enroll will enroll <Mark>all</Mark> database engines
-          in this region (eg: postgres, mysql, aurora etc.)
+          in this region: mysql, mariadb, postgres, postgres-mysql, and
+          aurora-postgresql
         </Text>
       )}
       <ActionButtons
@@ -319,7 +475,8 @@ export function EnrollRdsDatabase() {
         disableProceed={
           fetchDbAttempt.status === 'processing' ||
           (!wantAutoDiscover && !selectedDb) ||
-          hasIamPermError
+          hasIamPermError ||
+          fetchDbAttempt.status === 'failed'
         }
       />
       {DialogComponent}
@@ -338,4 +495,99 @@ function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
     case DatabaseEngine.AuroraPostgres:
       return 'aurora-postgres';
   }
+}
+
+function ToggleSection({
+  wantAutoDiscover,
+  setWantAutoDiscover,
+  isDisabled,
+}: {
+  wantAutoDiscover: boolean;
+  isDisabled: boolean;
+  setWantAutoDiscover(): void;
+}) {
+  return (
+    <Box mb={2}>
+      <Toggle
+        isToggled={wantAutoDiscover}
+        onToggle={() => setWantAutoDiscover()}
+        disabled={isDisabled}
+      >
+        <Box ml={2} mr={1}>
+          Auto-Enroll all Databases for selected region
+        </Box>
+        <ToolTipInfo>
+          Auto-Enroll will automatically identify all RDS databases from the
+          selected region and register them as database resources in your
+          infrastructure.
+        </ToolTipInfo>
+      </Toggle>
+      {!cfg.isCloud && wantAutoDiscover && (
+        <Box mt={2} mb={3}>
+          Auto-enrolling requires you to setup a <Mark>Discovery Service</Mark>.{' '}
+          <br /> Follow{' '}
+          <Link
+            target="_blank"
+            href="https://goteleport.com/docs/database-access/guides/aws-discovery/"
+          >
+            this guide
+          </Link>{' '}
+          to configure one before going to the next step.
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+export function foundRequiredDatabaseServices(
+  vpcMap: Record<string, string[]>,
+  region: Regions,
+  accountId: string,
+  dbServices: DatabaseService[]
+) {
+  // TODO(lisa): will there be a case of no vpcs?
+  const vpcIds = Object.keys(vpcMap);
+  const svcs = [...dbServices];
+  for (let i = 0; i < vpcIds.length; i++) {
+    const vpcId = vpcIds[i];
+    const matchedIndex = findActiveDatabaseSvcWithExactMatch(
+      [
+        { name: 'region', value: region },
+        { name: 'account-id', value: accountId },
+        { name: 'vpc-id', value: vpcId },
+      ],
+      svcs
+    );
+
+    // One mismatch means database service deployments are required.
+    if (matchedIndex == -1) {
+      return false;
+    }
+
+    // Remove the found database service.
+    // There will never be a duplicate vpc-id.
+    svcs.splice(matchedIndex, 1);
+  }
+  return true;
+}
+
+function findActiveDatabaseSvcWithExactMatch(
+  labels: ResourceLabel[],
+  dbServices: DatabaseService[]
+) {
+  if (!dbServices.length) {
+    return -1;
+  }
+
+  for (let i = 0; i < dbServices.length; i++) {
+    // Loop through the current service label keys and its value set.
+    const currService = dbServices[i];
+    const match = exactMatchLabels(labels, currService.matcherLabels);
+
+    if (match) {
+      return i;
+    }
+  }
+
+  return -1;
 }
