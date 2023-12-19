@@ -587,7 +587,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	mfaResp, err := promptMFA(ctx, mfaChal)
 	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
+		return nil, trace.Wrap(ceremonyFailedErr{trail.FromGRPC(err)})
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
@@ -2046,6 +2046,20 @@ func (c *NodeClient) Close() error {
 	errors = append(errors, c.Client.Close())
 
 	return trace.NewAggregate(errors...)
+}
+
+// ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
+type ceremonyFailedErr struct {
+	err error
+}
+
+// Error returns the error string of the wrapped error if one exists.
+func (c ceremonyFailedErr) Error() string {
+	if c.err == nil {
+		return ""
+	}
+
+	return c.err.Error()
 }
 
 func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeDetails, user string) ([]ssh.AuthMethod, error) {
