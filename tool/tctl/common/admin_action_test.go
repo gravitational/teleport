@@ -116,9 +116,9 @@ func (s *adminActionTestSuite) testUsers(t *testing.T) {
 	}
 
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
-		resource:       user,
-		resourceCreate: createUser,
-		resourceDelete: deleteUser,
+		resource:        user,
+		resourceCreate:  createUser,
+		resourceCleanup: deleteUser,
 	})
 }
 
@@ -190,16 +190,16 @@ func (s *adminActionTestSuite) testRoles(t *testing.T) {
 	}
 
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
-		resource:       role,
-		resourceCreate: createRole,
-		resourceDelete: deleteRole,
+		resource:        role,
+		resourceCreate:  createRole,
+		resourceCleanup: deleteRole,
 	})
 
 	s.testEditCommand(t, ctx, editCommandTestCase{
-		resourceRef:    getResourceRef(role),
-		resourceCreate: createRole,
-		resourceGet:    getRole,
-		resourceDelete: deleteRole,
+		resourceRef:     getResourceRef(role),
+		resourceCreate:  createRole,
+		resourceGet:     getRole,
+		resourceCleanup: deleteRole,
 	})
 }
 
@@ -335,18 +335,18 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       token,
-			resourceCreate: createToken,
-			resourceDelete: deleteToken,
+			resource:        token,
+			resourceCreate:  createToken,
+			resourceCleanup: deleteToken,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(token),
-			resourceCreate: createToken,
-			resourceGet:    getToken,
-			resourceDelete: deleteToken,
+			resourceRef:     getResourceRef(token),
+			resourceCreate:  createToken,
+			resourceGet:     getToken,
+			resourceCleanup: deleteToken,
 		})
 	})
 }
@@ -408,18 +408,18 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       connector,
-			resourceCreate: createOIDCConnector,
-			resourceDelete: deleteOIDCConnector,
+			resource:        connector,
+			resourceCreate:  createOIDCConnector,
+			resourceCleanup: deleteOIDCConnector,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(connector),
-			resourceCreate: createOIDCConnector,
-			resourceGet:    getOIDCConnector,
-			resourceDelete: deleteOIDCConnector,
+			resourceRef:     getResourceRef(connector),
+			resourceCreate:  createOIDCConnector,
+			resourceGet:     getOIDCConnector,
+			resourceCleanup: deleteOIDCConnector,
 		})
 	})
 }
@@ -453,18 +453,18 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       connector,
-			resourceCreate: createSAMLConnector,
-			resourceDelete: deleteSAMLConnector,
+			resource:        connector,
+			resourceCreate:  createSAMLConnector,
+			resourceCleanup: deleteSAMLConnector,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(connector),
-			resourceCreate: createSAMLConnector,
-			resourceGet:    getSAMLConnector,
-			resourceDelete: deleteSAMLConnector,
+			resourceRef:     getResourceRef(connector),
+			resourceCreate:  createSAMLConnector,
+			resourceGet:     getSAMLConnector,
+			resourceCleanup: deleteSAMLConnector,
 		})
 	})
 }
@@ -502,18 +502,18 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       connector,
-			resourceCreate: createGithubConnector,
-			resourceDelete: deleteGithubConnector,
+			resource:        connector,
+			resourceCreate:  createGithubConnector,
+			resourceCleanup: deleteGithubConnector,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(connector),
-			resourceCreate: createGithubConnector,
-			resourceGet:    getGithubConnector,
-			resourceDelete: deleteGithubConnector,
+			resourceRef:     getResourceRef(connector),
+			resourceCreate:  createGithubConnector,
+			resourceGet:     getGithubConnector,
+			resourceCleanup: deleteGithubConnector,
 		})
 	})
 }
@@ -551,26 +551,26 @@ func (s *adminActionTestSuite) testSAMLIdpServiceProvider(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       sp,
-			resourceCreate: CreateSAMLIdPServiceProvider,
-			resourceDelete: deleteSAMLIdPServiceProvider,
+			resource:        sp,
+			resourceCreate:  CreateSAMLIdPServiceProvider,
+			resourceCleanup: deleteSAMLIdPServiceProvider,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(sp),
-			resourceCreate: CreateSAMLIdPServiceProvider,
-			resourceGet:    getSAMLIdPServiceProvider,
-			resourceDelete: deleteSAMLIdPServiceProvider,
+			resourceRef:     getResourceRef(sp),
+			resourceCreate:  CreateSAMLIdPServiceProvider,
+			resourceGet:     getSAMLIdPServiceProvider,
+			resourceCleanup: deleteSAMLIdPServiceProvider,
 		})
 	})
 }
 
 type resourceCommandTestCase struct {
-	resource       types.Resource
-	resourceCreate func() error
-	resourceDelete func() error
+	resource        types.Resource
+	resourceCreate  func() error
+	resourceCleanup func() error
 }
 
 func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
@@ -584,7 +584,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("create %v", f.Name()),
 			cliCommand: &tctl.ResourceCommand{},
-			cleanup:    tc.resourceDelete,
+			cleanup:    tc.resourceCleanup,
 		})
 	})
 
@@ -593,7 +593,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			command:    fmt.Sprintf("create -f %v", f.Name()),
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceDelete,
+			cleanup:    tc.resourceCleanup,
 		})
 	})
 
@@ -602,16 +602,16 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			command:    fmt.Sprintf("rm %v", getResourceRef(tc.resource)),
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceDelete,
+			cleanup:    tc.resourceCleanup,
 		})
 	})
 }
 
 type editCommandTestCase struct {
-	resourceRef    string
-	resourceCreate func() error
-	resourceGet    func() (types.Resource, error)
-	resourceDelete func() error
+	resourceRef     string
+	resourceCreate  func() error
+	resourceGet     func() (types.Resource, error)
+	resourceCleanup func() error
 }
 
 func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context, tc editCommandTestCase) {
@@ -634,7 +634,7 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 					return nil
 				},
 			},
-			cleanup: tc.resourceDelete,
+			cleanup: tc.resourceCleanup,
 		})
 	})
 }
