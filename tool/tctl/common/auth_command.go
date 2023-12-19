@@ -106,6 +106,13 @@ type AuthCommand struct {
 	stdout io.Writer
 }
 
+func (a *AuthCommand) Stdout() io.Writer {
+	if a.stdout == nil {
+		return os.Stdout
+	}
+	return a.stdout
+}
+
 // Initialize allows TokenCommand to plug itself into the CLI parser
 func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	a.config = config
@@ -170,10 +177,6 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities.")
 	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
-
-	if a.stdout == nil {
-		a.stdout = os.Stdout
-	}
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -287,7 +290,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt auth.ClientI) e
 		)
 	}
 	for _, data := range authorities {
-		fmt.Fprintf(a.stdout, "%s\n", data)
+		fmt.Fprintf(a.Stdout(), "%s\n", data)
 	}
 
 	return nil
@@ -311,7 +314,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(a.stdout, "wrote public key to: %v and private key to: %v\n", a.genPubPath, a.genPrivPath)
+	fmt.Fprintf(a.Stdout(), "wrote public key to: %v and private key to: %v\n", a.genPubPath, a.genPrivPath)
 	return nil
 }
 
@@ -319,7 +322,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.streamTarfile {
 		tarWriter := newTarWriter(clockwork.NewRealClock())
-		defer tarWriter.Archive(a.stdout)
+		defer tarWriter.Archive(a.Stdout())
 		a.identityWriter = tarWriter
 	}
 
@@ -462,9 +465,9 @@ func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.Clien
 		return err
 	}
 	if a.rotateTargetPhase != "" {
-		fmt.Fprintf(a.stdout, "Updated rotation phase to %q. To check status use 'tctl status'\n", a.rotateTargetPhase)
+		fmt.Fprintf(a.Stdout(), "Updated rotation phase to %q. To check status use 'tctl status'\n", a.rotateTargetPhase)
 	} else {
-		fmt.Fprintf(a.stdout, "Initiated certificate authority rotation. To check status use 'tctl status'\n")
+		fmt.Fprintf(a.Stdout(), "Initiated certificate authority rotation. To check status use 'tctl status'\n")
 	}
 
 	return nil
@@ -483,11 +486,11 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.Clien
 	case teleport.Text:
 		// auth servers don't have labels.
 		verbose := false
-		return sc.writeText(a.stdout, verbose)
+		return sc.writeText(a.Stdout(), verbose)
 	case teleport.YAML:
-		return writeYAML(sc, a.stdout)
+		return writeYAML(sc, a.Stdout())
 	case teleport.JSON:
-		return writeJSON(sc, a.stdout)
+		return writeJSON(sc, a.Stdout())
 	}
 
 	return nil
@@ -506,7 +509,7 @@ func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintln(a.stdout, string(crl))
+	fmt.Fprintln(a.Stdout(), string(crl))
 	return nil
 }
 
@@ -990,7 +993,7 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI auth.ClientI) error {
 	if a.outputFormat != identityfile.FormatKubernetes && a.leafCluster != "" {
 		// User set --cluster but it's not actually used for the chosen --format.
 		// Print a warning but continue.
-		fmt.Fprintf(a.stdout, "Note: --cluster is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
+		fmt.Fprintf(a.Stdout(), "Note: --cluster is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
 	}
 
 	if a.outputFormat != identityfile.FormatKubernetes {
@@ -1204,5 +1207,5 @@ func (a *AuthCommand) helperMsgDst() io.Writer {
 	if a.streamTarfile {
 		return os.Stderr
 	}
-	return a.stdout
+	return a.Stdout()
 }
