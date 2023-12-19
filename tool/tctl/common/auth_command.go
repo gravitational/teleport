@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -78,7 +79,7 @@ type AuthCommand struct {
 	windowsUser                string
 	windowsDomain              string
 	windowsSID                 string
-	signOverwrite              bool
+	outputOverwrite            bool
 	password                   string
 	caType                     string
 	streamTarfile              bool
@@ -112,6 +113,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authExport.Flag("type",
 		fmt.Sprintf("export certificate type (%v)", strings.Join(allowedCertificateTypes, ", "))).
 		EnumVar(&a.authType, allowedCertificateTypes...)
+	a.authExport.Flag("out", "CA output").Short('o').StringVar(&a.output)
+	a.authExport.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.outputOverwrite)
 
 	a.authGenerate = auth.Command("gen", "Generate a new SSH keypair.").Hidden()
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
@@ -131,7 +134,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 	a.authSign.Flag("proxy", `Address of the Teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
-	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.signOverwrite)
+	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.outputOverwrite)
 	a.authSign.Flag("tar", "Create a tarball of the resulting certificates and stream to stdout.").BoolVar(&a.streamTarfile)
 	// --kube-cluster was an unfortunately chosen flag name, before teleport
 	// supported kubernetes_service and registered kubernetes clusters that are
@@ -379,7 +382,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 			WindowsDesktopCerts: map[string][]byte{a.windowsUser: certDER},
 		},
 		Format:               a.outputFormat,
-		OverwriteDestination: a.signOverwrite,
+		OverwriteDestination: a.outputOverwrite,
 		Writer:               a.identityWriter,
 	})
 	if err != nil {
@@ -416,7 +419,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
-		OverwriteDestination: a.signOverwrite,
+		OverwriteDestination: a.outputOverwrite,
 		Writer:               a.identityWriter,
 	})
 	if err != nil {
@@ -534,7 +537,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		OutputPath:           filePath,
 		Key:                  key,
 		Format:               a.outputFormat,
-		OverwriteDestination: a.signOverwrite,
+		OverwriteDestination: a.outputOverwrite,
 		Writer:               a.identityWriter,
 	})
 	if err != nil {
@@ -565,7 +568,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		ClusterAPI:         clusterAPI,
 		Principals:         principals,
 		OutputFormat:       a.outputFormat,
-		OutputCanOverwrite: a.signOverwrite,
+		OutputCanOverwrite: a.outputOverwrite,
 		OutputLocation:     a.output,
 		TTL:                a.genTTL,
 		Key:                key,
@@ -949,7 +952,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		KubeProxyAddr:        a.proxyAddr,
 		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
-		OverwriteDestination: a.signOverwrite,
+		OverwriteDestination: a.outputOverwrite,
 		Writer:               a.identityWriter,
 	})
 	if err != nil {

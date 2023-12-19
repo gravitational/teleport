@@ -150,10 +150,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "valid --proxy URL with valid URL scheme",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
-				proxyAddr:     "https://proxy-from-flag.example.com",
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
+				proxyAddr:       "https://proxy-from-flag.example.com",
 			},
 			wantAddr:  "https://proxy-from-flag.example.com",
 			assertErr: require.NoError,
@@ -162,10 +162,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "valid --proxy URL with invalid URL scheme",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
-				proxyAddr:     "file://proxy-from-flag.example.com",
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
+				proxyAddr:       "file://proxy-from-flag.example.com",
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
@@ -176,10 +176,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "valid --proxy URL without URL scheme",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
-				proxyAddr:     "proxy-from-flag.example.com",
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
+				proxyAddr:       "proxy-from-flag.example.com",
 			},
 			wantAddr:  "https://proxy-from-flag.example.com",
 			assertErr: require.NoError,
@@ -188,10 +188,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "invalid --proxy URL",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
-				proxyAddr:     "1https://proxy-from-flag.example.com",
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
+				proxyAddr:       "1https://proxy-from-flag.example.com",
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
@@ -202,9 +202,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "k8s proxy running locally with public_addr",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
@@ -217,9 +217,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "k8s proxy running locally without public_addr",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
@@ -234,9 +234,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "k8s proxy from cluster info",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
@@ -251,10 +251,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "--kube-cluster specified with valid cluster",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
-				leafCluster:   remoteCluster.GetMetadata().Name,
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
+				leafCluster:     remoteCluster.GetMetadata().Name,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
@@ -270,10 +270,10 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "--kube-cluster specified with invalid cluster",
 			client: newSeparatedCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
-				leafCluster:   "doesnotexist.example.com",
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
+				leafCluster:     "doesnotexist.example.com",
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
@@ -290,9 +290,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "k8s proxy running locally in multiplex mode without public_addr",
 			client: newMultiplexCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
 				config: &servicecfg.Config{
 					Auth: servicecfg.AuthConfig{
 						NetworkingConfig: &types.ClusterNetworkingConfigV2{
@@ -313,9 +313,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			desc:   "k8s proxy from cluster info with multiplex mode",
 			client: newMultiplexCluster(),
 			ac: AuthCommand{
-				output:        filepath.Join(t.TempDir(), "kubeconfig"),
-				outputFormat:  identityfile.FormatKubernetes,
-				signOverwrite: true,
+				output:          filepath.Join(t.TempDir(), "kubeconfig"),
+				outputFormat:    identityfile.FormatKubernetes,
+				outputOverwrite: true,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
@@ -686,11 +686,11 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ac := AuthCommand{
-				output:        filepath.Join(test.inOutDir, test.inOutFile),
-				outputFormat:  test.inFormat,
-				signOverwrite: true,
-				genHost:       test.inHost,
-				genTTL:        time.Hour,
+				output:          filepath.Join(test.inOutDir, test.inOutFile),
+				outputFormat:    test.inFormat,
+				outputOverwrite: true,
+				genHost:         test.inHost,
+				genTTL:          time.Hour,
 			}
 
 			err = ac.generateDatabaseKeysForKey(context.Background(), authClient, key)
@@ -800,11 +800,11 @@ func TestGenerateAppCertificates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			output := filepath.Join(tc.outDir, tc.outFileBase)
 			ac := AuthCommand{
-				output:        output,
-				outputFormat:  identityfile.FormatTLS,
-				signOverwrite: true,
-				genTTL:        time.Hour,
-				appName:       tc.appName,
+				output:          output,
+				outputFormat:    identityfile.FormatTLS,
+				outputOverwrite: true,
+				genTTL:          time.Hour,
+				appName:         tc.appName,
 			}
 			err = ac.generateUserKeys(context.Background(), authClient)
 			tc.assertErr(t, err)
@@ -929,13 +929,13 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			certsDir := t.TempDir()
 			output := filepath.Join(certsDir, test.dbService)
 			ac := AuthCommand{
-				output:        output,
-				outputFormat:  identityfile.FormatTLS,
-				signOverwrite: true,
-				genTTL:        time.Hour,
-				dbService:     test.dbService,
-				dbName:        test.dbName,
-				dbUser:        test.dbUser,
+				output:          output,
+				outputFormat:    identityfile.FormatTLS,
+				outputOverwrite: true,
+				genTTL:          time.Hour,
+				dbService:       test.dbService,
+				dbName:          test.dbName,
+				dbUser:          test.dbUser,
 			}
 
 			err = ac.generateUserKeys(ctx, authClient)
@@ -1028,11 +1028,11 @@ func TestGenerateAndSignKeys(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ac := AuthCommand{
-				output:        filepath.Join(test.inOutDir, test.inOutFile),
-				outputFormat:  test.inFormat,
-				signOverwrite: true,
-				genHost:       test.inHost,
-				genTTL:        time.Hour,
+				output:          filepath.Join(test.inOutDir, test.inOutFile),
+				outputFormat:    test.inFormat,
+				outputOverwrite: true,
+				genHost:         test.inHost,
+				genTTL:          time.Hour,
 			}
 
 			err = ac.GenerateAndSignKeys(context.Background(), authClient)
