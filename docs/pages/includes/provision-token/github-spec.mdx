@@ -22,6 +22,18 @@ spec:
     # this value should be configured to the hostname of your GHES instance.
     enterprise_server_host: ghes.example.com
 
+    # enterprise_slug allows the slug of a GitHub Enterprise organisation to be
+    # included in the expected issuer of the OIDC tokens. This is for
+    # compatibility with the include_enterprise_slug option in GHE.
+    #
+    # This field should be set to the slug of your Github Enterprise organization if this is enabled. If
+    # this is not enabled, then this field must be left empty. This field cannot
+    # be specified if `enterprise_server_host` is specified.
+    #
+    # See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+    # for more information about customized issuer values.
+    enterprise_slug: slug
+
     # allow is an array of rule configurations for what GitHub Actions workflows
     # should be allowed to join. All options configured within one allow entry
     # must be satisfied for the GitHub Actions run to be allowed to join. Where
