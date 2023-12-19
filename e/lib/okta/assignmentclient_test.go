@@ -185,10 +185,32 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient, assignmentClient := testClientWithAssignments()
 
 		// When calls to the underlying client fail with a oktaAPIValidationError
-		oktaClient.unassignAppErr[testApp] = oktaAPIValidationError{}
-		oktaClient.unassignGroupErr[testGroup] = oktaAPIValidationError{}
+		oktaClient.unassignAppErr[testApp] = &oktaAPIValidationError{}
+		oktaClient.unassignGroupErr[testGroup] = &oktaAPIValidationError{}
 
 		// Expect that the oktaAPIValidationError is treated as a success, the
+		// error is *NOT* propagated from the underlying Okta client, and the
+		// user assignments are updated as requested
+		require.NoError(t, assignmentClient.unregisterUserFromApp(ctx, testUser, testApp))
+		isAssigned, err := assignmentClient.userAssignedToApp(ctx, testUser, testApp)
+		require.NoError(t, err)
+		require.False(t, isAssigned)
+
+		require.NoError(t, assignmentClient.unregisterUserFromGroup(ctx, testUser, testGroup))
+		isAssigned, err = assignmentClient.userAssignedToGroup(ctx, testUser, testGroup)
+		require.NoError(t, err)
+		require.False(t, isAssigned)
+	})
+
+	t.Run("not found errors are not propagated", func(t *testing.T) {
+		// Given an assignment client with pre-existing memberships...
+		oktaClient, assignmentClient := testClientWithAssignments()
+
+		// When calls to the underlying client fail with a NotFound error
+		oktaClient.unassignAppErr[testApp] = trace.WithField(trace.NotFound("summary"), oktaErrorID, oktaErrCodeNotFoundException)
+		oktaClient.unassignGroupErr[testGroup] = trace.WithField(trace.NotFound("summary"), oktaErrorID, oktaErrCodeNotFoundException)
+
+		// Expect that the NotFound is treated as a success, the
 		// error is *NOT* propagated from the underlying Okta client, and the
 		// user assignments are updated as requested
 		require.NoError(t, assignmentClient.unregisterUserFromApp(ctx, testUser, testApp))

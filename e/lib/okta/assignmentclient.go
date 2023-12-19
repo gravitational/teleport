@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -118,22 +119,26 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		return trace.Wrap(err)
 	}
 
+	log := a.log.WithFields(logrus.Fields{"user": userID, "group": groupID})
+
 	// Already unregistered.
 	if !ok {
-		a.log.Debugf("User %s is already unassigned from group %s", userID, groupID)
+		log.Debug("User is already unassigned from group")
 		return nil
 	}
 
 	if err := a.oktaClient.unassignUserFromGroup(ctx, userID, groupID); err != nil {
-		if _, ok := err.(oktaAPIValidationError); !ok {
+		if oErr := (*oktaAPIValidationError)(nil); errors.As(err, &oErr) {
+			// This is referring to Okta group rules:
+			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
+			log.Warn("Unable to remove user from group due to API validation exception. This membership is likely managed by Okta group rules. Proceeding as if this were successful.")
+		} else if trace.IsNotFound(err) {
+			log.Warn("Unable to remove user from group due because the group cannot be found in Okta. Proceeding as if this were successful.")
+		} else {
 			return trace.Wrap(err)
 		}
-
-		// This is referring to Okta group rules:
-		// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
-		a.log.Warnf("Unable to remove user %s from group %s due to API validation exception. This membership is likely managed by Okta group rules. Proceeding as if this were successful.", userID, groupID)
 	} else {
-		a.log.Debugf("User %s has been unassigned to group %s", userID, groupID)
+		log.Debug("User has been unassigned from groups")
 	}
 
 	a.groupsMu.Lock()
@@ -221,19 +226,26 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 		return trace.Wrap(err)
 	}
 
+	log := a.log.WithFields(logrus.Fields{"user": userID, "application": appID})
+
 	// Already unregistered.
 	if !ok {
-		a.log.Debugf("User %s has already been unassigned from app %s", userID, appID)
+		log.Debug("User has already been unassigned from app")
 		return nil
 	}
 
 	if err := a.oktaClient.unassignUserFromApplication(ctx, userID, appID); err != nil {
-		if _, ok := err.(oktaAPIValidationError); !ok {
+		if oErr := (*oktaAPIValidationError)(nil); errors.As(err, &oErr) {
+			// This is referring to Okta group rules:
+			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
+			log.Warn("Unable to remove user from application due to API validation exception. Proceeding as if this were successful.")
+		} else if trace.IsNotFound(err) {
+			log.Warn("Unable to remove user from application due because the application cannot be found in Okta. Proceeding as if this were successful.")
+		} else {
 			return trace.Wrap(err)
 		}
-		a.log.Warnf("Unable to remove user %s from application %s due to API validation exception. Proceeding as if this were successful.", userID, appID)
 	} else {
-		a.log.Debugf("User %s has been unassigned from app %s", userID, appID)
+		log.Debug("User has been unassigned from app")
 	}
 
 	a.appsMu.Lock()

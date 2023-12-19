@@ -387,7 +387,7 @@ func (w *wrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
 	case oktaErrCodeResourceNotFoundException, oktaErrCodeNotFoundException:
 		return trace.WithField(trace.NotFound(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
 	case oktaErrCodeAPIValidationException:
-		return oktaAPIValidationError{errorID: oktaErr.ErrorId, summary: oktaErr.ErrorSummary}
+		return &oktaAPIValidationError{errorID: oktaErr.ErrorId, summary: oktaErr.ErrorSummary}
 	default:
 		// If we don't have a more specific error to provide, just wrap the error and return it.
 		return trace.WithField(trace.BadParameter(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
