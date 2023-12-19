@@ -225,3 +225,14 @@ tests:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: distinct-updater-sa
+  - it: sets extraArgs when set
+    values:
+      - ../.lint/updater.yaml
+    set:
+      updater:
+        extraArgs:
+          - "--foo=bar"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--foo=bar"

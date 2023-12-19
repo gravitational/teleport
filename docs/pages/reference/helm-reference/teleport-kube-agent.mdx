@@ -203,6 +203,14 @@ Cloud user, and manage your own version server.
 You can override this to use your own Teleport Kube Agent Updater image rather
 than a Teleport-published image.
 
+### `updater.extraArgs`
+
+| Type   | Default value | Required? |
+|--------|---------------|-----------|
+| `list` | `[]`          | No        |
+
+`extraArgs` contains additional arguments to pass to the updater binary.
+
 ## `roleBindingName`
 
 | Type     | Default value | Required? |
