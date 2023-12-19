@@ -94,16 +94,16 @@ export function SetupAccess(props: State) {
   }
 
   function handleOnProceed() {
-    let numStepsToSkip;
+    let numStepsToIncrement;
     // Skip test connection since test connection currently
     // only supports one resource testing and auto enrolling
     // enrolls resources > 1.
     if (agentMeta.autoDiscoveryConfig) {
-      numStepsToSkip = 2;
+      numStepsToIncrement = 2;
     }
     onProceed(
       { databaseNames: selectedNames, databaseUsers: selectedUsers },
-      numStepsToSkip
+      numStepsToIncrement
     );
   }
 
@@ -135,9 +135,9 @@ export function SetupAccess(props: State) {
     >
       {agentMeta.autoDiscoveryConfig && (
         <Text mb={3}>
-          Since auto-discovery is enabled, ensure to include all database users
-          and names that you will be using to connect to the discovered
-          databased.
+          Since auto-discovery is enabled, make sure to include all database
+          users and names that will be used to connect to the discovered
+          databases.
         </Text>
       )}
       <Box mb={4}>

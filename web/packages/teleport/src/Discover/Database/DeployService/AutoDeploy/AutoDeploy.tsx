@@ -182,13 +182,14 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               validator={validator}
             />
 
-            {/* step two
-             * for auto discover, this step is disabled atm since
-             * user's can't supply custom label matchers
+            {/* step two & step three
+             * for auto discover, these steps are disabled atm since
+             * user's can't supply custom label matchers and selecting
+             * security groups is out of scope.
              */}
             {!wantAutoDiscover && (
-              <StyledBox mb={5}>
-                <Box>
+              <>
+                <StyledBox mb={5}>
                   <Text bold>Step 2 (Optional)</Text>
                   <Labels
                     labels={labels}
@@ -199,30 +200,25 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                     autoFocus={false}
                     region={dbMeta.selectedAwsRdsDb?.region}
                   />
-                </Box>
-              </StyledBox>
+                </StyledBox>
+                {/* step three */}
+                <StyledBox mb={5}>
+                  <Text bold>Step 3(Optional)</Text>
+                  <SelectSecurityGroups
+                    selectedSecurityGroups={selectedSecurityGroups}
+                    setSelectedSecurityGroups={setSelectedSecurityGroups}
+                    dbMeta={dbMeta}
+                    emitErrorEvent={emitErrorEvent}
+                  />
+                </StyledBox>
+              </>
             )}
 
-            {/* step three */}
             <StyledBox mb={5}>
-              <Text bold>Step {wantAutoDiscover ? 2 : 3} (Optional)</Text>
-              <SelectSecurityGroups
-                selectedSecurityGroups={selectedSecurityGroups}
-                setSelectedSecurityGroups={setSelectedSecurityGroups}
-                dbMeta={dbMeta}
-                emitErrorEvent={emitErrorEvent}
-              />
-            </StyledBox>
-
-            <StyledBox mb={5}>
-              <Text bold>Step 4</Text>
-              <Text>Deploy the Teleport Database Service.</Text>
-              {wantAutoDiscover && (
-                <Box mb={2}>
-                  For auto-enrollment, default wildcard label matcher will be
-                  used to match any databases.
-                </Box>
-              )}
+              <Text bold>Step {wantAutoDiscover ? 2 : 4}</Text>
+              <Box mb={2}>
+                <Text>Deploy the Teleport Database Service.</Text>
+              </Box>
               <ButtonSecondary
                 width="215px"
                 type="submit"

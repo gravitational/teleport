@@ -117,7 +117,7 @@ export function useUserTraits() {
   // before updating user in the backend.
   function onProceed(
     traitOpts: Partial<Record<Trait, Option[]>>,
-    numStepsToSkip?: number
+    numStepsToIncrement?: number
   ) {
     switch (resourceSpec.kind) {
       case ResourceKind.Kubernetes:
@@ -155,7 +155,7 @@ export function useUserTraits() {
       case ResourceKind.Database:
         let newDynamicDbUsers = new Set<string>();
         if (wantAutoDiscover) {
-          newDynamicDbUsers = new Set<string>(dynamicTraits.databaseUsers);
+          newDynamicDbUsers = new Set(dynamicTraits.databaseUsers);
         }
         traitOpts.databaseUsers.forEach(o => {
           if (!staticTraits.databaseUsers.includes(o.value)) {
@@ -165,7 +165,7 @@ export function useUserTraits() {
 
         let newDynamicDbNames = new Set<string>();
         if (wantAutoDiscover) {
-          newDynamicDbNames = new Set<string>(dynamicTraits.databaseNames);
+          newDynamicDbNames = new Set(dynamicTraits.databaseNames);
         }
         traitOpts.databaseNames.forEach(o => {
           if (!staticTraits.databaseNames.includes(o.value)) {
@@ -178,7 +178,7 @@ export function useUserTraits() {
             databaseUsers: [...newDynamicDbUsers],
             databaseNames: [...newDynamicDbNames],
           },
-          numStepsToSkip
+          numStepsToIncrement
         );
         break;
 

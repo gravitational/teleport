@@ -17,8 +17,10 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { AWSMatcher, DiscoveryConfig } from './types';
+import { AwsMatcher, DiscoveryConfig } from './types';
 
+// the backend expected hardcoded value for field `discoveryGroup`
+// when creating a discovery config.
 export const DISCOVERY_GROUP_CLOUD = 'cloud-discovery-group';
 
 export function createDiscoveryConfig(
@@ -27,12 +29,10 @@ export function createDiscoveryConfig(
 ): Promise<DiscoveryConfig> {
   return api
     .post(cfg.getDiscoveryConfigUrl(clusterId), req)
-    .then(makecreateDiscoveryConfig);
+    .then(makeDiscoveryConfig);
 }
 
-export function makecreateDiscoveryConfig(
-  rawResp: DiscoveryConfig
-): DiscoveryConfig {
+export function makeDiscoveryConfig(rawResp: DiscoveryConfig): DiscoveryConfig {
   const { name, discoveryGroup, aws } = rawResp;
 
   return {
@@ -42,7 +42,7 @@ export function makecreateDiscoveryConfig(
   };
 }
 
-function makeAws(rawResp: AWSMatcher[]) {
+function makeAws(rawResp: AwsMatcher[]) {
   if (!rawResp) {
     return [];
   }

@@ -24,16 +24,16 @@ export type DiscoveryConfig = {
   // discoveryGroup is the Group of the DiscoveryConfig.
   discoveryGroup: string;
   // aws is a list of matchers for AWS resources.
-  aws: AWSMatcher[];
+  aws: AwsMatcher[];
 };
 
-type awsMatcherDatabaseTypes = 'ec2' | 'rds';
+type AwsMatcherDatabaseTypes = 'ec2' | 'rds';
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
-export type AWSMatcher = {
+export type AwsMatcher = {
   // types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
   // or "memorydb".
-  types: awsMatcherDatabaseTypes[];
+  types: AwsMatcherDatabaseTypes[];
   // regions are AWS regions to query for databases.
   regions: Regions[];
   // tags are AWS resource tags to match.

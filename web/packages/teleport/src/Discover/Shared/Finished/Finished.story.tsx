@@ -51,7 +51,7 @@ export const FinishedWithAutoEnroll = () => (
 );
 
 const props: AgentStepProps = {
-  agentMeta: { resourceName: 'some-resource-name' } as any,
+  agentMeta: { resourceName: 'some-resource-name', agentMatcherLabels: [] },
   updateAgentMeta: () => null,
   nextStep: () => null,
 };
