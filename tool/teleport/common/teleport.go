@@ -1057,6 +1057,7 @@ func onCloudAWSCredCmd(cloudAWSCredArg string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer credFile.Close()
 
 	if _, err := io.Copy(os.Stdout, credFile); err != nil {
 		return trace.Wrap(err)
