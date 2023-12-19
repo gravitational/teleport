@@ -94,26 +94,36 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers
 	testGatewayCertRenewal(
 		ctx,
 		t,
-		pack.Root.Cluster,
-		pack.Root.User.GetName(),
-		albAddr,
-		daemon.CreateGatewayParams{
+		gatewayCertRenewalParams{
+			inst:     pack.Root.Cluster,
+			username: pack.Root.User.GetName(),
+			albAddr:  albAddr,
+			createGatewayParams: daemon.CreateGatewayParams{
 			TargetURI:  databaseURI.String(),
 			TargetUser: pack.Root.User.GetName(),
 		},
-		mustConnectDatabaseGateway,
+			testGatewayConnectionFunc: mustConnectDatabaseGateway,
+		},
 	)
 }
 
 type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
 
-func testGatewayCertRenewal(ctx context.Context, t *testing.T, inst *helpers.TeleInstance, username, albAddr string, params daemon.CreateGatewayParams, testConnection testGatewayConnectionFunc) {
+type gatewayCertRenewalParams struct {
+	inst                      *helpers.TeleInstance
+	username                  string
+	albAddr                   string
+	createGatewayParams       daemon.CreateGatewayParams
+	testGatewayConnectionFunc testGatewayConnectionFunc
+}
+
+func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
 	t.Helper()
 
-	tc, err := inst.NewClient(helpers.ClientConfig{
-		Login:   username,
-		Cluster: inst.Secrets.SiteName,
-		ALBAddr: albAddr,
+	tc, err := params.inst.NewClient(helpers.ClientConfig{
+		Login:   params.username,
+		Cluster: params.inst.Secrets.SiteName,
+		ALBAddr: params.albAddr,
 	})
 	require.NoError(t, err)
 
@@ -155,19 +165,19 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, inst *helpers.Tel
 	gateway, err := daemonService.CreateGateway(ctx, params.createGatewayParams)
 	require.NoError(t, err, trace.DebugReport(err))
 
-	testConnection(t, daemonService, gateway)
+	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
 	// Advance the fake clock to simulate the db cert expiry inside the middleware.
 	fakeClock.Advance(time.Hour * 48)
 
 	// Overwrite user certs with expired ones to simulate the user cert expiry.
 	expiredCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  inst.Process,
-		Username: username,
+		Process:  params.inst.Process,
+		Username: params.username,
 		TTL:      -time.Hour,
 	})
 	require.NoError(t, err)
-	err = helpers.SetupUserCreds(tc, inst.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	err = helpers.SetupUserCreds(tc, params.inst.Config.Proxy.SSHAddr.Addr, *expiredCreds)
 	require.NoError(t, err)
 
 	// Open a new connection.
@@ -175,7 +185,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, inst *helpers.Tel
 	// and then it will attempt to reissue the user cert using an expired user cert.
 	// The mocked tshdEventsClient will issue a valid user cert, save it to disk, and the middleware
 	// will let the connection through.
-	testConnection(t, daemonService, gateway)
+	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
 	require.Equal(t, 1, tshdEventsService.callCounts["Relogin"],
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
@@ -314,12 +324,18 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("root", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(ctx, t, suite, "", kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:   suite,
+			kubeURI: kubeURI,
+		})
 	})
 	t.Run("leaf", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(ctx, t, suite, "", kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:   suite,
+			kubeURI: kubeURI,
+		})
 	})
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -332,20 +348,30 @@ func TestTeletermKubeGateway(t *testing.T) {
 		profileName := mustGetProfileName(t, albProxy.Addr().String())
 
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(ctx, t, suite, albProxy.Addr().String(), kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:   suite,
+			kubeURI: kubeURI,
+			albAddr: albProxy.Addr().String(),
+		})
 	})
 }
 
-func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, suite *Suite, albAddr string, kubeURI uri.ResourceURI) {
+type kubeGatewayCertRenewalParams struct {
+	suite         *Suite
+	kubeURI       uri.ResourceURI
+	albAddr       string
+}
+
+func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGatewayCertRenewalParams) {
 	t.Helper()
 
 	var client *kubernetes.Clientset
 	var clientOnce sync.Once
 
-	kubeCluster := kubeURI.GetKubeName()
-	teleportCluster := suite.root.Secrets.SiteName
-	if kubeURI.GetLeafClusterName() != "" {
-		teleportCluster = kubeURI.GetLeafClusterName()
+	kubeCluster := params.kubeURI.GetKubeName()
+	teleportCluster := params.suite.root.Secrets.SiteName
+	if params.kubeURI.GetLeafClusterName() != "" {
+		teleportCluster = params.kubeURI.GetLeafClusterName()
 	}
 
 	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
@@ -367,13 +393,15 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, suite *Suite,
 	testGatewayCertRenewal(
 		ctx,
 		t,
-		suite.root,
-		suite.username,
-		albAddr,
-		daemon.CreateGatewayParams{
-			TargetURI: kubeURI.String(),
+		gatewayCertRenewalParams{
+			inst:     params.suite.root,
+			username: params.suite.username,
+			albAddr:  params.albAddr,
+			createGatewayParams: daemon.CreateGatewayParams{
+				TargetURI: params.kubeURI.String(),
+			},
+			testGatewayConnectionFunc: testKubeConnection,
 		},
-		testKubeConnection,
 	)
 }
 
