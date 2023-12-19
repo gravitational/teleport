@@ -512,15 +512,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *certAuthority
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			certAuthority = &copy
-		}
-		return utils.FastMarshal(certAuthority)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

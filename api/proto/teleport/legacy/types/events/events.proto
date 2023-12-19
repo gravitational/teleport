@@ -1410,6 +1410,13 @@ message AccessRequestCreate {
   // was promoted to.
   // This field is only populated when the request is in the PROMOTED state.
   string PromotedAccessListName = 15 [(gogoproto.jsontag) = "promoted_access_list_name,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 16 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // ResourceID is a unique identifier for a teleport resource. This is duplicated

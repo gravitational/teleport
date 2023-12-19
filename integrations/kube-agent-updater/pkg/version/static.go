@@ -20,7 +20,10 @@ package version
 
 import (
 	"context"
+	"fmt"
 	"strings"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 )
 
 // StaticGetter is a fake version.Getter that return a static answer. This is used
@@ -37,6 +40,13 @@ func (v StaticGetter) GetVersion(_ context.Context) (string, error) {
 
 // NewStaticGetter creates a StaticGetter
 func NewStaticGetter(version string, err error) Getter {
+	if version == constants.NoVersion {
+		return StaticGetter{
+			version: "",
+			err:     &NoNewVersionError{Message: fmt.Sprintf("target version set to '%s'", constants.NoVersion)},
+		}
+	}
+
 	semVersion := version
 	if semVersion != "" && !strings.HasPrefix(semVersion, "v") {
 		semVersion = "v" + version

@@ -190,6 +190,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// AccessLists are enterprise-only but there is no specific feature-flag for them.
+	if pong.ServerFeatures.AdvancedAccessWorkflows {
+		if err = resources.NewAccessListReconciler(mgr.GetClient(), client).
+			SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TeleportAccessList")
+			os.Exit(1)
+		}
+	}
+
 	//+kubebuilder:scaffold:builder
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
