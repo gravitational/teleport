@@ -239,7 +239,7 @@ func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			c.cfg.Log.Debug(err)
+			c.cfg.Log.Debug("Error reading client screen spec: %v", err)
 			continue
 		}
 
