@@ -49,7 +49,8 @@
       "BuildType": "production"
     },
     "run_tags": {
-      "Name": "{{user `ami_name`}}"
+      "Name": "{{user `ami_name`}}",
+      "teleport.dev/is_public": "true"
     },
     "run_volume_tags": {
       "Name": "{{user `ami_name`}}"
@@ -92,7 +93,8 @@
       "BuildType": "production-fips"
     },
     "run_tags": {
-      "Name": "{{user `fips_ami_name`}}"
+      "Name": "{{user `fips_ami_name`}}",
+      "teleport.dev/is_public": "true"
     },
     "run_volume_tags": {
       "Name": "{{user `fips_ami_name`}}"
