@@ -1,0 +1,107 @@
+import { Cell, DateCell } from 'design/DataTable';
+import Table from 'design/DataTable/Table';
+import React from 'react';
+
+import styled from 'styled-components';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
+import * as Icon from 'design/Icon';
+import { ButtonWarningBorder } from 'design/Button/Button';
+
+import { MfaDevice } from 'teleport/services/mfa';
+
+export interface AuthDeviceListProps {
+  header: React.ReactNode;
+  devices: MfaDevice[];
+  onRemove?: (device: MfaDevice) => void;
+}
+
+/**
+ * Renders a table with authentication devices, preceded by a header, all inside
+ * a border.
+ */
+export function AuthDeviceList({
+  devices,
+  header,
+  onRemove,
+}: AuthDeviceListProps) {
+  return (
+    <MultiRowBox>
+      <Row>{header}</Row>
+      {devices.length > 0 && (
+        <Row>
+          <StyledTable<MfaDevice>
+            columns={[
+              {
+                key: 'description',
+                headerText: 'Passkey Type',
+                isSortable: true,
+              },
+              { key: 'name', headerText: 'Nickname', isSortable: true },
+              {
+                key: 'registeredDate',
+                headerText: 'Added',
+                isSortable: true,
+                render: device => <DateCell data={device.registeredDate} />,
+              },
+              {
+                key: 'lastUsedDate',
+                headerText: 'Last Used',
+                isSortable: true,
+                render: device => <DateCell data={device.lastUsedDate} />,
+              },
+              {
+                altKey: 'remove-btn',
+                headerText: 'Actions',
+                render: device => (
+                  <RemoveCell onRemove={() => onRemove(device)} />
+                ),
+              },
+            ]}
+            data={devices}
+            emptyText=""
+            isSearchable={false}
+            initialSort={{
+              key: 'registeredDate',
+              dir: 'DESC',
+            }}
+          />
+        </Row>
+      )}
+    </MultiRowBox>
+  );
+}
+
+interface RemoveCellProps {
+  onRemove?: () => void;
+}
+
+function RemoveCell({ onRemove }: RemoveCellProps) {
+  return (
+    <Cell>
+      <ButtonWarningBorder p={2} onClick={onRemove}>
+        <Icon.Trash size="small" />
+      </ButtonWarningBorder>
+    </Cell>
+  );
+}
+
+const StyledTable = styled(Table)(
+  props => `
+  background-color: transparent;
+
+  & thead tr th {
+    text-transform: none;
+
+    &:first-child {
+      border-radius: ${props.theme.radii[2]}px 0 0 ${props.theme.radii[2]}px;
+    }
+    &:last-child {
+      border-radius: 0 ${props.theme.radii[2]}px ${props.theme.radii[2]}px 0;
+    }
+  }
+
+  & tbody tr {
+    border: none;
+  }
+`
+);
