@@ -111,13 +111,23 @@ func (h *Handler) createDesktopConnection(
 		return err
 	}
 
-	q := r.URL.Query()
-	username := q.Get("username")
-	if username == "" {
-		return sendTDPError(trace.BadParameter("missing username"))
+	username, err := readUsername(r)
+	if err != nil {
+		return sendTDPError(err)
 	}
-
 	log.Debugf("Attempting to connect to desktop using username=%v\n", username)
+
+	// Read the tdp.ClientScreenSpec from the websocket.
+	// This is always the first thing sent by the client.
+	// Certificate issuance may rely on the client sending
+	// a subsequent tdp.MFA message, hence we need to make
+	// sure that this message has been read from the wire
+	// beforehand.
+	screenSpec, err := readClientScreenSpec(ws)
+	if err != nil {
+		return sendTDPError(err)
+	}
+	log.Debugf("Received screen spec: %v\n", screenSpec)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -179,6 +189,10 @@ func (h *Handler) createDesktopConnection(
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
 	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
+	if err != nil {
+		return sendTDPError(err)
+	}
+	err = tdpConn.WriteMessage(screenSpec)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -339,6 +353,21 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 	}
 
 	return newCerts.TLS, nil
+}
+
+func readUsername(r *http.Request) (string, error) {
+	q := r.URL.Query()
+	username := q.Get("username")
+	if username == "" {
+		return "", trace.BadParameter("missing username")
+	}
+
+	return username, nil
+}
+
+func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
+	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
+	return tdpConn.ReadClientScreenSpec()
 }
 
 type connector struct {

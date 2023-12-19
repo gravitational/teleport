@@ -237,15 +237,12 @@ const (
 
 func (c *Client) readClientSize() error {
 	for {
-		msg, err := c.cfg.Conn.ReadMessage()
+		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		s, ok := msg.(tdp.ClientScreenSpec)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
+			c.cfg.Log.Debug(err)
 			continue
 		}
+
 		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
 
 		if s.Width > maxRDPScreenWidth || s.Height > maxRDPScreenHeight {
