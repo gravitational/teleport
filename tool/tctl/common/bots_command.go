@@ -288,6 +288,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	// Jankily call the endpoint invalidly. This lets us version check and use
 	// the legacy version of this CLI tool if we are talking to an older
 	// server.
+	// DELETE IN 16.0
 	{
 		_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 			Bot: nil,
@@ -426,6 +427,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error 
 	})
 	if err != nil {
 		if trace.IsNotImplemented(err) {
+			// This falls back to the deprecated RPC.
 			// TODO(noah): DELETE IN 16.0.0
 			if err := client.DeleteBot(ctx, c.botName); err != nil {
 				return trace.Wrap(err, "error deleting bot")
