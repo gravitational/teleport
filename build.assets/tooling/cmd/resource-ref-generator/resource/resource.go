@@ -386,13 +386,14 @@ func getJSONTag(tags string) string {
 }
 
 var camelCaseWordBoundary *regexp.Regexp = regexp.MustCompile("([a-z]+)([A-Z])")
-var versionNumber *regexp.Regexp = regexp.MustCompile("V([0-9]+)")
+var versionNumber *regexp.Regexp = regexp.MustCompile("V([0-9]+)$")
 
 // makeSectionName edits the original name of a declaration to make it more
 // suitable as a section within the resource reference.
 func makeSectionName(original string) string {
-	s := camelCaseWordBoundary.ReplaceAllString(original, "$1 $2")
-	return versionNumber.ReplaceAllString(s, "v$1")
+	s := versionNumber.ReplaceAllString(original, "")
+	s = camelCaseWordBoundary.ReplaceAllString(s, "$1 $2")
+	return s
 }
 
 // getYAMLTypeForExpr takes an AST type expression and recursively
