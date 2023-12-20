@@ -205,7 +205,7 @@ jobs:
       - name: Build tool
         run: |
           sudo apt install -y gcc
-          CGO_ENABLED=1 go build -race -o "$(pwd)/$TOOL_BINARY_PATH" -C "./tooling/os-package-repo-tool/" "./src/"
+          CGO_ENABLED=1 go build -C "./tooling/os-package-repo-tool/" -o "$(pwd)/$TOOL_BINARY_PATH" -race "./src/"
       - name: Install the required runtime dependencies
         run: |
           # Exit on error, and error on unset vars
