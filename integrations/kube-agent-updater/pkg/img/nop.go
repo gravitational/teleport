@@ -59,7 +59,7 @@ func NewNopValidator(name string) Validator {
 }
 
 // unresolvedImageRef is the insecure version of imageRef. It does not contain the
-// digest, which means we cannot enforce that the image ran b y Kubernetes is
+// digest, which means we cannot enforce that the image ran by Kubernetes is
 // the same that was validated.
 // This should only be used with the insecure validator.
 type unresolvedImageRef struct {
