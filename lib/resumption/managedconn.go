@@ -279,8 +279,8 @@ func (w *buffer) len() uint64 {
 }
 
 // buffered returns the currently used areas of the internal buffer, in order.
-// It's not possible for the second slice to be nonempty if the first slice is
-// empty. The total length of the slices is equal to w.len().
+// If only one slice is nonempty, it shall be the first of the two returned
+// slices.
 func (w *buffer) buffered() ([]byte, []byte) {
 	if w.len() == 0 {
 		return nil, nil
