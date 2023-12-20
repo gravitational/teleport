@@ -9,8 +9,8 @@ required_field_types:
     name: "ResourceHeader"
   - package: "types"
     name: "Metadata"
-source: "../../api"
-destination: "../../docs/pages/includes/resources.mdx"
+source: "../../../../api"
+destination: "../../../../docs/pages/includes/resources.mdx"
 excluded_resource_types:
   - package: "types"
     name: "ResourceHeader"
