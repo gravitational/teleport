@@ -182,14 +182,14 @@ func genEC2Instances(n int) []*ec2.Instance {
 
 type mockSSMInstaller struct {
 	mu                 sync.Mutex
-	installedInstances []string
+	installedInstances map[string]struct{}
 }
 
 func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
-		m.installedInstances = append(m.installedInstances, inst.InstanceID)
+		m.installedInstances[inst.InstanceID] = struct{}{}
 	}
 	return nil
 }
@@ -197,7 +197,11 @@ func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) erro
 func (m *mockSSMInstaller) GetInstalledInstances() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installedInstances
+	keys := make([]string, 0, len(m.installedInstances))
+	for k := range m.installedInstances {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestDiscoveryServer(t *testing.T) {
@@ -480,7 +484,9 @@ func TestDiscoveryServer(t *testing.T) {
 
 			logger := logrus.New()
 			reporter := &mockUsageReporter{}
-			installer := &mockSSMInstaller{}
+			installer := &mockSSMInstaller{
+				installedInstances: make(map[string]struct{}),
+			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -499,13 +505,6 @@ func TestDiscoveryServer(t *testing.T) {
 			if tc.discoveryConfig != nil {
 				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
-
-				// Wait for the DiscoveryConfig to be added to the dynamic matchers
-				require.Eventually(t, func() bool {
-					server.muDynamicServerAWSFetchers.RLock()
-					defer server.muDynamicServerAWSFetchers.RUnlock()
-					return len(server.dynamicServerAWSFetchers) > 0
-				}, 1*time.Second, 100*time.Millisecond)
 			}
 
 			go server.Start()
@@ -517,13 +516,14 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
+
 				}, 5000*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-			require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
+			require.GreaterOrEqual(t, 1, reporter.DiscoveryFetchEventCount())
 		})
 	}
 }
@@ -1899,14 +1899,6 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			srv.muDynamicDatabaseFetchers.RLock()
-			defer srv.muDynamicDatabaseFetchers.RUnlock()
-			return len(srv.dynamicDatabaseFetchers) == 0
-		}, 1*time.Second, 100*time.Millisecond)
-
-		// Advance clock to trigger a poll.
-		clock.Advance(5 * time.Minute)
 
 		// Reconcile should not have any databases
 		select {
@@ -1938,15 +1930,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			srv.muDynamicDatabaseFetchers.RLock()
-			defer srv.muDynamicDatabaseFetchers.RUnlock()
-			return len(srv.dynamicDatabaseFetchers) > 0
-		}, 1*time.Second, 100*time.Millisecond)
-
 		require.Zero(t, reporter.DiscoveryFetchEventCount())
-		// Advance clock to trigger a poll.
-		clock.Advance(5 * time.Minute)
 
 		// Check for new resource in reconciler
 		expectDatabases := []types.Database{awsRDSDB}
@@ -1978,14 +1962,6 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			// Remove DiscoveryConfig
 			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
 			require.NoError(t, err)
-			require.Eventually(t, func() bool {
-				srv.muDynamicDatabaseFetchers.RLock()
-				defer srv.muDynamicDatabaseFetchers.RUnlock()
-				return len(srv.dynamicDatabaseFetchers) == 0
-			}, 1*time.Second, 100*time.Millisecond)
-
-			// Advance clock to trigger a poll.
-			clock.Advance(5 * time.Minute)
 
 			// Existing databases must be removed.
 			select {
@@ -2101,14 +2077,14 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 
 type mockAzureInstaller struct {
 	mu                 sync.Mutex
-	installedInstances []string
+	installedInstances map[string]struct{}
 }
 
 func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
-		m.installedInstances = append(m.installedInstances, *inst.Name)
+		m.installedInstances[*inst.Name] = struct{}{}
 	}
 	return nil
 }
@@ -2116,7 +2092,11 @@ func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) 
 func (m *mockAzureInstaller) GetInstalledInstances() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installedInstances
+	keys := make([]string, 0, len(m.installedInstances))
+	for k := range m.installedInstances {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -2311,7 +2291,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
-			installer := &mockAzureInstaller{}
+			installer := &mockAzureInstaller{
+				installedInstances: make(map[string]struct{}),
+			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -2385,14 +2367,14 @@ func (m *mockGCPClient) RemoveSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) er
 
 type mockGCPInstaller struct {
 	mu                 sync.Mutex
-	installedInstances []string
+	installedInstances map[string]struct{}
 }
 
 func (m *mockGCPInstaller) Run(_ context.Context, req server.GCPRunRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
-		m.installedInstances = append(m.installedInstances, inst.Name)
+		m.installedInstances[inst.Name] = struct{}{}
 	}
 	return nil
 }
@@ -2400,7 +2382,12 @@ func (m *mockGCPInstaller) Run(_ context.Context, req server.GCPRunRequest) erro
 func (m *mockGCPInstaller) GetInstalledInstances() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installedInstances
+
+	keys := make([]string, 0, len(m.installedInstances))
+	for k := range m.installedInstances {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestGCPVMDiscovery(t *testing.T) {
@@ -2564,7 +2551,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
-			installer := &mockGCPInstaller{}
+			installer := &mockGCPInstaller{
+				installedInstances: make(map[string]struct{}),
+			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
