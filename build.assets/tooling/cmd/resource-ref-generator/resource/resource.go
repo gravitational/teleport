@@ -535,6 +535,9 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 			desc = field.doc
 			typ = field.kind.formatForTable()
 		}
+		// Escape pipes so they do not affect table rendering.
+		desc = strings.ReplaceAll(desc, "|", `\|`)
+		// Remove surrounding spaces and inner line breaks.
 		desc = strings.Trim(strings.ReplaceAll(desc, "\n", " "), " ")
 
 		// Escape angle brackets so the docs engine handles them as
