@@ -106,7 +106,7 @@ message ResourcePresenceReport {
   // anonymized, 32 bytes (HMAC-SHA-256)
   bytes reporter_hostid = 3;
   // beginning of the time window for this data; ending is not specified but is
-  // intended to be at most 15 minutes
+  // intended to be at most one hour
   google.protobuf.Timestamp start_time = 4;
 
   repeated ResourceKindPresenceReport resource_kind_reports = 5;

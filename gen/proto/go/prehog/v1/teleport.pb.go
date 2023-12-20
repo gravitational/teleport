@@ -371,7 +371,7 @@ type ResourcePresenceReport struct {
 	// anonymized, 32 bytes (HMAC-SHA-256)
 	ReporterHostid []byte `protobuf:"bytes,3,opt,name=reporter_hostid,json=reporterHostid,proto3" json:"reporter_hostid,omitempty"`
 	// beginning of the time window for this data; ending is not specified but is
-	// intended to be at most 15 minutes
+	// intended to be at most one hour
 	StartTime           *timestamppb.Timestamp        `protobuf:"bytes,4,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	ResourceKindReports []*ResourceKindPresenceReport `protobuf:"bytes,5,rep,name=resource_kind_reports,json=resourceKindReports,proto3" json:"resource_kind_reports,omitempty"`
 }
