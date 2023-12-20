@@ -191,6 +191,49 @@ type AWSOIDCDeployServiceResponse struct {
 	ServiceDashboardURL string `json:"serviceDashboardUrl"`
 }
 
+// AWSOIDCDeployDatabaseServiceRequest contains the required fields to perform a DeployService request.
+// Each deployed DatabaseService will be proxying the resources that match the following labels:
+// -region: <Region>
+// -account-id: <AccountID>
+// -vpc-id: <Deployments[].VPCID>
+type AWSOIDCDeployDatabaseServiceRequest struct {
+	// Region is the AWS Region for the Service.
+	Region string `json:"region"`
+
+	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
+	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
+	// This can be either the ARN or the short name of the AWS Role.
+	TaskRoleARN string `json:"taskRoleArn"`
+
+	// Deployments is a list of Services to be deployed.
+	// If the target deployment already exists, the deployment is skipped.
+	Deployments []DeployDatabaseServiceDeployment `json:"deployments"`
+}
+
+// DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
+type DeployDatabaseServiceDeployment struct {
+	// VPCID is the VPCID where the service is going to be deployed.
+	VPCID string `json:"vpcid"`
+
+	// SubnetIDs are the subnets for the network configuration.
+	// They must belong to the VPCID above.
+	SubnetIDs []string `json:"subnetIds"`
+
+	// SecurityGroups are the SecurityGroup IDs to associate with this particular deployment.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string `json:"securityGroups"`
+}
+
+// AWSOIDCDeployServiceDatabaseResponse contains links to the ECS Cluster Dashboard where the current status for each Service is displayed.
+type AWSOIDCDeployDatabaseServiceResponse struct {
+	// ClusterARN is the Amazon ECS Cluster ARN where the Services were started.
+	ClusterARN string `json:"clusterArn"`
+
+	// ClusterDashboardURL is the URL for the Cluster Dashbord.
+	// Users can open this link and see which Services are running.
+	ClusterDashboardURL string `json:"clusterDashboardUrl"`
+}
+
 // AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
 type AWSOIDCListEC2Request struct {
 	// Region is the AWS Region.

@@ -65,8 +65,8 @@ func TestGenerateTaskDefinitionWithImage(t *testing.T) {
 		RequiresCompatibilities: []ecsTypes.Compatibility{
 			ecsTypes.CompatibilityFargate,
 		},
-		Cpu:    &taskCPU,
-		Memory: &taskMem,
+		Cpu:    aws.String(taskCPU),
+		Memory: aws.String(taskMem),
 
 		NetworkMode:      ecsTypes.NetworkModeAwsvpc,
 		TaskRoleArn:      aws.String("task-role-arn"),
@@ -83,7 +83,7 @@ func TestGenerateTaskDefinitionWithImage(t *testing.T) {
 			},
 			EntryPoint: []string{"teleport"},
 			Image:      aws.String("image-v1"),
-			Name:       &taskAgentContainerName,
+			Name:       aws.String(taskAgentContainerName),
 			LogConfiguration: &ecsTypes.LogConfiguration{
 				LogDriver: ecsTypes.LogDriverAwslogs,
 				Options: map[string]string{
@@ -104,8 +104,8 @@ func TestGenerateTaskDefinitionWithImage(t *testing.T) {
 		RequiresCompatibilities: []ecsTypes.Compatibility{
 			ecsTypes.CompatibilityFargate,
 		},
-		Cpu:    &taskCPU,
-		Memory: &taskMem,
+		Cpu:    aws.String(taskCPU),
+		Memory: aws.String(taskMem),
 
 		NetworkMode:      ecsTypes.NetworkModeAwsvpc,
 		TaskRoleArn:      aws.String("task-role-arn"),
@@ -122,7 +122,7 @@ func TestGenerateTaskDefinitionWithImage(t *testing.T) {
 			},
 			EntryPoint: []string{"teleport"},
 			Image:      aws.String("image-v2"),
-			Name:       &taskAgentContainerName,
+			Name:       aws.String(taskAgentContainerName),
 			LogConfiguration: &ecsTypes.LogConfiguration{
 				LogDriver: ecsTypes.LogDriverAwslogs,
 				Options: map[string]string{

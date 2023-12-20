@@ -191,6 +191,69 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	}, nil
 }
 
+// awsOIDCDeployDatabaseService deploys a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployDatabaseService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployDatabaseServiceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	teleportVersionTag := "14.2.3" //teleport.Version
+	if automaticUpgrades(h.ClusterFeatures) {
+		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
+	}
+
+	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.Deployments))
+	for _, d := range req.Deployments {
+		deployments = append(deployments, awsoidc.DeployDatabaseServiceRequestDeployment{
+			VPCID:            d.VPCID,
+			SubnetIDs:        d.SubnetIDs,
+			SecurityGroupIDs: d.SecurityGroups,
+		})
+	}
+
+	deployServiceResp, err := awsoidc.DeployDatabaseService(ctx, deployServiceClient, awsoidc.DeployDatabaseServiceRequest{
+		Region:              req.Region,
+		TaskRoleARN:         req.TaskRoleARN,
+		ProxyServerHostPort: h.PublicProxyAddr(),
+		TeleportClusterName: h.auth.clusterName,
+		TeleportVersionTag:  teleportVersionTag,
+		IntegrationName:     awsClientReq.IntegrationName,
+		Deployments:         deployments,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployDatabaseServiceResponse{
+		ClusterARN:          deployServiceResp.ClusterARN,
+		ClusterDashboardURL: deployServiceResp.ClusterDashboardURL,
+	}, nil
+}
+
 // awsOIDCConfigureDeployServiceIAM returns a script that configures the required IAM permissions to enable the usage of DeployService action.
 func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	ctx := r.Context()
