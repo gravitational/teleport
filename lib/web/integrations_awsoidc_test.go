@@ -24,6 +24,13 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -420,4 +427,182 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	clt := env.proxies[0].client
+
+	matchRegion := "us-east-1"
+	matchAccountId := "123456789012"
+	req := ui.AWSOIDCRequiredVPCSRequest{
+		Region:    matchRegion,
+		AccountID: matchAccountId,
+	}
+
+	upsertDbSvcFn := func(vpcId string, matcher []*types.DatabaseResourceMatcher) {
+		if matcher == nil {
+			matcher = []*types.DatabaseResourceMatcher{
+				{
+					Labels: &types.Labels{
+						types.DiscoveryLabelAccountID: []string{matchAccountId},
+						types.DiscoveryLabelRegion:    []string{matchRegion},
+						types.DiscoveryLabelVPCID:     []string{vpcId},
+					},
+				},
+			}
+		}
+		svc, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name:   uuid.NewString(),
+			Labels: map[string]string{types.AWSOIDCAgentLabel: types.True},
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: matcher,
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertDatabaseService(ctx, svc)
+		require.NoError(t, err)
+	}
+
+	extractKeysFn := func(resp *ui.AWSOIDCRequiredVPCSResponse) []string {
+		keys := make([]string, 0, len(resp.VPCMapOfSubnets))
+		for k := range resp.VPCMapOfSubnets {
+			keys = append(keys, k)
+		}
+		return keys
+	}
+
+	vpcs := []string{"vpc-1", "vpc-2", "vpc-3", "vpc-4", "vpc-5"}
+	rdss := []rdsTypes.DBInstance{}
+	for _, vpc := range vpcs {
+		rdss = append(rdss, rdsTypes.DBInstance{
+			DBInstanceStatus:     stringPointer("available"),
+			DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", vpc)),
+			DbiResourceId:        stringPointer("db-123"),
+			Engine:               stringPointer("postgres"),
+			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+
+			Endpoint: &rdsTypes.Endpoint{
+				Address: stringPointer("endpoint.amazonaws.com"),
+				Port:    aws.Int32(5432),
+			},
+			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+				Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String(fmt.Sprintf("subnet-for-%s", vpc))}},
+				VpcId:   aws.String(vpc),
+			},
+		})
+	}
+
+	mockListClient := mockListDatabasesClient{dbInstances: rdss}
+
+	// Double check we start with 0 db svcs.
+	s, err := env.server.Auth().ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+	})
+	require.NoError(t, err)
+	require.Len(t, s.Resources, 0)
+
+	// All vpc's required.
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
+	require.NoError(t, err)
+	require.Len(t, resp.VPCMapOfSubnets, 5)
+	require.ElementsMatch(t, vpcs, extractKeysFn(resp))
+
+	// Insert two valid database services.
+	upsertDbSvcFn("vpc-1", []*types.DatabaseResourceMatcher{
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelAccountID: []string{matchAccountId},
+			},
+		},
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelVPCID:  []string{"vpc-1"},
+				types.DiscoveryLabelRegion: []string{matchRegion},
+			},
+		},
+	})
+	upsertDbSvcFn("vpc-5", []*types.DatabaseResourceMatcher{
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelAccountID: []string{matchAccountId},
+			},
+		},
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelRegion: []string{matchRegion},
+			},
+		},
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelVPCID:  []string{"vpc-5"},
+				types.DiscoveryLabelRegion: []string{matchRegion},
+			},
+		},
+	})
+
+	// Insert two invalid database services.
+	upsertDbSvcFn("vpc-2", []*types.DatabaseResourceMatcher{
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelAccountID: []string{matchAccountId},
+				types.DiscoveryLabelRegion:    []string{"us-east-2"}, // not matching region
+				types.DiscoveryLabelVPCID:     []string{"vpc-2"},
+			},
+		},
+	})
+	upsertDbSvcFn("vpc-2a", []*types.DatabaseResourceMatcher{
+		{
+			Labels: &types.Labels{
+				types.DiscoveryLabelAccountID: []string{matchAccountId},
+				types.DiscoveryLabelRegion:    []string{matchRegion},
+				types.DiscoveryLabelVPCID:     []string{"vpc-2"},
+			},
+		},
+		{
+			Labels: &types.Labels{
+				"something": []string{"extra"}, // not matching b/c extra label
+			},
+		},
+	})
+
+	// Double check services were created.
+	s, err = env.server.Auth().ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindDatabaseService,
+	})
+	require.NoError(t, err)
+	require.Len(t, s.Resources, 4)
+
+	// Test that only 3 vpcs are required.
+	resp, err = awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"vpc-2", "vpc-3", "vpc-4"}, extractKeysFn(resp))
+
+	// Insert the rest of db services
+	upsertDbSvcFn("vpc-2", nil)
+	upsertDbSvcFn("vpc-3", nil)
+	upsertDbSvcFn("vpc-4", nil)
+
+	// Test no required vpcs.
+	resp, err = awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
+	require.NoError(t, err)
+	require.Empty(t, resp.VPCMapOfSubnets)
+}
+
+func stringPointer(s string) *string {
+	return &s
+}
+
+type mockListDatabasesClient struct {
+	dbInstances []rdsTypes.DBInstance
+}
+
+func (m mockListDatabasesClient) DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
+	return &rds.DescribeDBInstancesOutput{
+		DBInstances: m.dbInstances,
+	}, nil
+}
+
+func (m mockListDatabasesClient) DescribeDBClusters(ctx context.Context, params *rds.DescribeDBClustersInput, optFns ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error) {
+	return &rds.DescribeDBClustersOutput{}, nil
 }
