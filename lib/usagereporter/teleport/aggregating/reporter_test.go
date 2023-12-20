@@ -111,11 +111,11 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.Logins)
 	require.Equal(t, uint64(2), record.SshSessions)
 
-	r.ingest <- &usagereporter.ResourceHeartbeatEvent{
+	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",
 		Kind:   prehogv1a.ResourceKind_RESOURCE_KIND_NODE,
 		Static: true,
-	}
+	})
 	recvIngested()
 
 	clk.BlockUntil(1)

@@ -170,11 +170,13 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	filtered := events[:0]
 	for _, event := range events {
 		// this should drop all events that we don't care about
+		// note: make sure this matches the set of all events handled in [*Reporter.run]
 		switch event.(type) {
 		case *usagereporter.UserLoginEvent,
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
-			*usagereporter.SFTPEvent:
+			*usagereporter.SFTPEvent,
+			*usagereporter.ResourceHeartbeatEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -274,7 +276,7 @@ Ingest:
 				go func(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
 					defer wg.Done()
 					r.persistResourcePresence(ctx, startTime, resourcePresences)
-				}(ctx, userActivityStartTime, resourcePresences)
+				}(ctx, resourceUsageStartTime, resourcePresences)
 			}
 
 			resourceUsageStartTime = now.Truncate(resourceReportGranularity)
