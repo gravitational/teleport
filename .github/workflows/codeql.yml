@@ -1,31 +1,16 @@
 name: "CodeQL"
 
 on:
-  # we want to run this once a day and on any PRs that change the workflow
   schedule:
     - cron: '0 13 * * *' # At 1:00 PM UTC every day
-  pull_request: {}
+  pull_request:
+    paths:
+      - '.github/workflows/codeql.yml'
   # merge_group is intentionally excluded, because we don't require this workflow
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
-    outputs:
-      workflow-modified: ${{ steps.changes.outputs.workflow }}
-    steps:
-    - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
-      id: changes
-      with:
-        filters: |
-          workflow:
-            - '.github/workflows/codeql.yml'
-
   analyze:
     name: Analyze
-    needs: changes
-    if: ${{ github.event_name == 'cron' || needs.changes.outputs.workflow-modified == 'true' }}
     runs-on: ubuntu-22.04-16core
     permissions:
       actions: read
