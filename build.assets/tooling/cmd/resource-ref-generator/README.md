@@ -10,6 +10,53 @@ It uses the Teleport source as the basis for the guide.
 $ go run gen-resource-ref -config config.yaml
 ```
 
+## How it works
+
+The resource reference generator works by:
+
+1. Identifying Go structs that correspond to dynamic Teleport resources.
+1. Identifying Go types that represent to the fields of each dynamic resource
+   struct.
+1. Retrieving reference information about dynamic resources and their fields
+   using a combination of Go comments and type information.
+
+### Example YAML overrides
+
+Each entry in the resource reference includes an example YAML document. While
+the reference generator attempts to construct the YAML document from Go type
+information by default, you can instruct it to use a hardcoded YAML example by
+editing the Go comment above a declaration. 
+
+This example modifies the `proto` file that declares the `MFADevice` message in
+order to override its example YAML. When we generate Go code from this message
+definition and run the generator, it uses the override instead of Go type
+information to add the YAML example:
+
+```proto
+// MFADevice is a multi-factor authentication device, such as a security key or
+// an OTP app.
+// Example YAML:
+// ---
+// kind: mfa_device
+// version: v1
+// metadata:
+//  name: "string"
+// id: 00000000-0000-0000-0000-000000000000
+message MFADevice {
+```
+
+The generator assumes that all commetns after the following string belong to the
+YAML example:
+
+```go
+// Example YAML:
+// ---
+```
+
+### Editing source files
+
+<!--TODO mention proto files-->
+
 ## Configuration
 
 The path to a YAML configuration file with the following fields:
@@ -54,6 +101,5 @@ excluded_resource_types:
 field_assignment_method: "setStaticFields"
 ```
 
-<!--TODO: Document overrides-->
 <!--TODO: Any other functionality in the reference to document? Look at the
 source-->
