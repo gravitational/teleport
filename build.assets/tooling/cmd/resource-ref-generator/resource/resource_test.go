@@ -1741,6 +1741,41 @@ func (stream MyStream[A, B]) Finish() bool {
 				},
 			},
 		},
+		{
+			description: "assignments inside an if block",
+			source: `package testpkg
+
+import "strings"
+
+type RoleV6 struct {
+    Name string
+    Version string
+}
+
+func (r *RoleV6) setStaticFields() {
+	r.Kind = KindRole
+	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
+		// When incrementing the role version, make sure to update the
+		// role version in the asset file used by the UI.
+		// See: web/packages/teleport/src/Roles/templates/role.yaml
+		r.Version = V7
+	}
+}`,
+			expected: map[PackageInfo][]MethodInfo{
+				PackageInfo{
+					DeclName:    "RoleV6",
+					PackageName: "testpkg",
+				}: []MethodInfo{
+					{
+						Name: "setStaticFields",
+						FieldAssignments: map[string]string{
+							"Kind":    "KindRole",
+							"Version": "V7",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {
