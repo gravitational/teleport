@@ -587,6 +587,9 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 	if strings.Contains(a.EnterpriseServerHost, "/") {
 		return trace.BadParameter("'spec.github.enterprise_server_host' should not contain the scheme or path")
 	}
+	if a.EnterpriseServerHost != "" && a.EnterpriseSlug != "" {
+		return trace.BadParameter("'spec.github.enterprise_server_host' and `spec.github.enterprise_slug` cannot both be set")
+	}
 	return nil
 }
 
