@@ -25,6 +25,11 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+// TODO(espadolini): these sizes have been chosen after a little manual testing
+// to reach full throughput in the data transfer over a single SSH channel. They
+// should be checked again with some more real-world benchmarks before any
+// serious use; if necessary, they could be made configurable on a
+// per-connection basis.
 const (
 	receiveBufferSize = 128 * 1024
 	sendBufferSize    = 2 * 1024 * 1024
