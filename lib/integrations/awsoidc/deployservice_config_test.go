@@ -27,9 +27,9 @@ import (
 
 func TestDeployServiceConfig(t *testing.T) {
 	t.Run("ensure log level is set to debug", func(t *testing.T) {
-		base64Config, err := generateTeleportConfigString(DeployServiceRequest{
+		base64Config, err := generateTeleportConfigString(generateTeleportConfigParams{
 			ProxyServerHostPort:  "host:port",
-			TeleportIAMTokenName: stringPointer("iam-token"),
+			TeleportIAMTokenName: "iam-token",
 			DeploymentMode:       DatabaseServiceDeploymentMode,
 		})
 		require.NoError(t, err)
