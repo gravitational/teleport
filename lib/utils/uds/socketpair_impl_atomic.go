@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package uds
 
 import (
 	"syscall"
@@ -25,11 +25,11 @@ import (
 // cloexecSocketpair returns a unix/local stream socketpair whose file
 // descriptors are flagged close-on-exec. This implementation creates the
 // socketpair directly in close-on-exec mode.
-func cloexecSocketpair() (uintptr, uintptr, error) {
+func cloexecSocketpair(t SocketType) (uintptr, uintptr, error) {
 	// SOCK_CLOEXEC on socketpair is supported since Linux 2.6.27 and go's
 	// minimum requirement is 2.6.32 (FreeBSD supports it since FreeBSD 10 and
 	// go 1.20+ requires FreeBSD 12)
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, t.proto()|syscall.SOCK_CLOEXEC, 0)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)
 	}
