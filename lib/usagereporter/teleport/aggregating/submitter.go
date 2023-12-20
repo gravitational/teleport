@@ -145,6 +145,25 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		return
 	}
 
+	oldest := time.Now()
+	newest := time.Time{}
+	if len(userActivityReports) > 0 {
+		if t := userActivityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := userActivityReports[len(userActivityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
+	if len(resourcePresenceReports) > 0 {
+		if t := resourcePresenceReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := resourcePresenceReports[len(resourcePresenceReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
+
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
 	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
@@ -165,11 +184,11 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	if err != nil {
 		c.Log.WithError(err).WithFields(logrus.Fields{
 			"reports":       totalReportCount,
-			"oldest_report": userActivityReports[0].GetStartTime().AsTime(),
-			"newest_report": userActivityReports[len(userActivityReports)-1].GetStartTime().AsTime(),
+			"oldest_report": oldest,
+			"newest_report": newest,
 		}).Error("Failed to send usage reports.")
 
-		if time.Since(userActivityReports[0].StartTime.AsTime()) <= alertGraceDuration {
+		if time.Since(oldest) <= alertGraceDuration {
 			return
 		}
 		alert, err := types.NewClusterAlert(
@@ -193,7 +212,8 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	c.Log.WithFields(logrus.Fields{
 		"batch_uuid":    batchUUID,
 		"reports":       totalReportCount,
-		"oldest_report": userActivityReports[0].GetStartTime().AsTime(),
+		"oldest_report": oldest,
+		"newest_report": newest,
 	}).Info("Successfully sent usage reports.")
 
 	var lastErr error
