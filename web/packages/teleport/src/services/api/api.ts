@@ -111,6 +111,7 @@ const api = {
       ...params,
       headers: {
         ...params.headers,
+        ...defaultRequestOptions.headers,
         [MFA_HEADER]: JSON.stringify({
           webauthnAssertionResponse: webauthnResponse,
         }),
@@ -119,15 +120,14 @@ const api = {
     return api.fetchJson(url, paramsWithMfaHeader);
   },
 
-  fetch(url, params = {}) {
+  fetch(url, customOptions = {}) {
     url = window.location.origin + url;
     const options = {
-      ...requestOptions,
-      ...params,
+      ...defaultRequestOptions,
+      ...customOptions,
     };
 
     options.headers = {
-      ...requestOptions.headers,
       ...options.headers,
       ...getAuthHeaders(),
     };
@@ -137,7 +137,7 @@ const api = {
   },
 };
 
-const requestOptions: RequestInit = {
+const defaultRequestOptions: RequestInit = {
   credentials: 'same-origin',
   headers: {
     Accept: 'application/json',
