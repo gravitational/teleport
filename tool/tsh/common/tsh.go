@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -941,6 +942,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate.")
 
+	// latency
+	latency := app.Command("latency", "Run latency diagnostics.").Hidden()
+
+	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
+	latencySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1230,6 +1238,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
+	case latencySSH.FullCommand():
+		err = onSSHLatency(&cf)
 	case benchSSH.FullCommand():
 		err = onBenchmark(
 			&cf,
@@ -3253,6 +3263,47 @@ func retryWithAccessRequest(
 	// Clear the original exit status.
 	tc.ExitStatus = 0
 	return trace.Wrap(fn())
+}
+
+func onSSHLatency(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	}
+
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+
+	nodeClient, err := tc.ConnectToNode(
+		cf.Context,
+		clt,
+		client.NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		tc.Config.HostLogin,
+	)
+	if err != nil {
+		tc.ExitStatus = 1
+		return trace.Wrap(err)
+	}
+	defer nodeClient.Close()
+
+	targetPinger, err := latency.NewSSHPinger(nodeClient.Client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
 }
 
 // onSSH executes 'tsh ssh' command
