@@ -159,8 +159,8 @@ func TestMessage(t *testing.T) {
 		Item: backend.Item{
 			Key:      []byte("foo"),
 			Value:    []byte(""),
-			ID:       idFromRevision(rev),
-			Revision: revisionToString(rev),
+			ID:       IdFromRevision(rev),
+			Revision: RevisionToString(rev),
 		},
 	}))
 
@@ -184,8 +184,8 @@ func TestMessage(t *testing.T) {
 		Item: backend.Item{
 			Key:      []byte("foo"),
 			Value:    []byte("foo2"),
-			ID:       idFromRevision(rev),
-			Revision: revisionToString(rev),
+			ID:       IdFromRevision(rev),
+			Revision: RevisionToString(rev),
 		},
 	}))
 
@@ -220,8 +220,8 @@ func TestMessage(t *testing.T) {
 			Key:      []byte("foo2"),
 			Value:    []byte("foo2"),
 			Expires:  time.Date(2023, 9, 5, 15, 57, 1, 340426000, time.UTC),
-			ID:       idFromRevision(rev),
-			Revision: revisionToString(rev),
+			ID:       IdFromRevision(rev),
+			Revision: RevisionToString(rev),
 		},
 	}))
 

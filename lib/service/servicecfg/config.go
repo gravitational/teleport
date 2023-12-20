@@ -20,6 +20,7 @@
 package servicecfg
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net"
@@ -41,7 +42,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/dynamo"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -274,6 +279,48 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// newbks stores a mapping of backend type to backend initialization function.
+	newbks map[string]newbk
+}
+
+// newbk intializes a backend.
+type newbk interface {
+	new(context.Context, backend.Params) (backend.Backend, error)
+}
+
+// newbkfn is a function that can initialize a backend. The function can return
+// any type that implements backend.Backend.
+type newbkfn[T backend.Backend] func(context.Context, backend.Params) (T, error)
+
+// new converts a generic backend type to the backend.Backend interface. This allows
+// any backend intialization function to implement the newbk interface.
+func (fn newbkfn[T]) new(ctx context.Context, params backend.Params) (backend.Backend, error) {
+	return fn(ctx, params)
+}
+
+// RegisterBackend registers a function to initialize a backend type.
+func RegisterBackend[T backend.Backend](cfg *Config, fn newbkfn[T], types ...string) {
+	if cfg.newbks == nil {
+		cfg.newbks = map[string]newbk{}
+	}
+	for _, bkType := range types {
+		cfg.newbks[bkType] = fn
+	}
+}
+
+// Backend initializes a new backend based on the service config.
+func (c *Config) Backend(ctx context.Context) (backend.Backend, error) {
+	bc := c.Auth.StorageConfig
+	newbk, ok := c.newbks[bc.Type]
+	if !ok {
+		return nil, trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
+	}
+	bk, err := newbk.new(ctx, bc.Params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return bk, nil
 }
 
 type ConfigTesting struct {
@@ -684,6 +731,24 @@ func applyDefaults(cfg *Config) {
 	if cfg.PollingPeriod == 0 {
 		cfg.PollingPeriod = defaults.LowResPollingPeriod
 	}
+
+	if cfg.newbks == nil {
+		RegisterOSSBackends(cfg)
+	}
+}
+
+// RegisterOSSBackends registers all oss backend implementations so they can be
+// configured via the service config.
+func RegisterOSSBackends(cfg *Config) {
+	RegisterBackend(cfg, lite.New, lite.GetName())
+	RegisterBackend(cfg, dynamo.New, dynamo.GetName())
+	RegisterBackend(cfg, func(ctx context.Context, params backend.Params) (backend.Backend, error) {
+		return firestore.New(ctx, params, firestore.Options{})
+	}, firestore.GetName())
+	RegisterBackend(cfg, func(ctx context.Context, params backend.Params) (backend.Backend, error) {
+		return etcdbk.New(ctx, params)
+	}, etcdbk.GetName())
+	RegisterBackend(cfg, pgbk.NewFromParams, pgbk.Name, pgbk.AltName)
 }
 
 func validateAuthOrProxyServices(cfg *Config) error {

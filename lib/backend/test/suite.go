@@ -43,6 +43,7 @@ import (
 var (
 	ErrMirrorNotSupported           = errors.New("mirror mode not supported")
 	ErrConcurrentAccessNotSupported = errors.New("concurrent access not supported")
+	ErrFastTTLDeletionNotSupported  = errors.New("fast ttl deletion not supported")
 )
 
 type ConstructionOptions struct {
@@ -52,6 +53,11 @@ type ConstructionOptions struct {
 	// create an entirely independent data store, but instead should create a
 	// new interface to the same underlying data store as `ConcurrentBackend`.
 	ConcurrentBackend backend.Backend
+
+	// FastTTLDeletion indicates ttl deletions happen within a short time period
+	// for testing. Some backends may do async deletion that takes longer, too long
+	// to wait for testing deletion event propigation.
+	FastTTLDeletion bool
 }
 
 // ApplyOptions constructs a new `ConstructionOptions` value from a
@@ -80,6 +86,15 @@ func (opts *ConstructionOptions) Apply(options []ConstructionOption) error {
 // ConstructionOption describes a named-parameter setting function for
 // configuring a ConstructionOptions instance
 type ConstructionOption func(*ConstructionOptions) error
+
+// WithFastTTLDeletes asks the constructor to create a Backend that will propigate
+// ttl deletes quickly. Not all backends support this.
+func WithFastTTLDeletes(b bool) ConstructionOption {
+	return func(opts *ConstructionOptions) error {
+		opts.FastTTLDeletion = b
+		return nil
+	}
+}
 
 // WithMirrorMode asks the constructor to create a Backend in "mirror mode". Not
 // all backends will support this.
@@ -157,6 +172,9 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 
 	t.Run("Events", func(t *testing.T) {
 		testEvents(t, newBackend)
+	})
+	t.Run("TTLDeletionEvent", func(t *testing.T) {
+		testTTLDeletionEvent(t, newBackend)
 	})
 	t.Run("WatchersClose", func(t *testing.T) {
 		testWatchersClose(t, newBackend)
@@ -475,6 +493,9 @@ func testExpiration(t *testing.T, newBackend Constructor) {
 
 	clock.Advance(4 * time.Second)
 
+	_, err = uut.Get(ctx, itemB.Key)
+	require.True(t, trace.IsNotFound(err))
+
 	res, err := uut.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), backend.NoLimit)
 	require.NoError(t, err)
 	RequireItems(t, []backend.Item{itemA}, res.Items)
@@ -593,14 +614,33 @@ func testEvents(t *testing.T, newBackend Constructor) {
 
 	// Make sure a DELETE event is emitted.
 	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
+}
 
-	// Add item to backend with a 1 second TTL.
-	item = &backend.Item{
-		Key:     prefix("c"),
-		Value:   []byte("val"),
-		Expires: clock.Now().UTC().Add(time.Second),
+func testTTLDeletionEvent(t *testing.T, newBackend Constructor) {
+	const eventTimeout = 10 * time.Second
+	uut, clock, err := newBackend(WithFastTTLDeletes(true))
+	if errors.Is(err, ErrFastTTLDeletionNotSupported) {
+		t.Skip("Backend does not support fast ttl deletions")
 	}
-	lease, err = uut.Put(ctx, *item)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, uut.Close()) }()
+
+	prefix := MakePrefix()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	item := &backend.Item{
+		Key:     prefix("a"),
+		Value:   []byte("val"),
+		Expires: clock.Now().Add(1 * time.Second),
+	}
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, watcher.Close()) }()
+
+	// Make sure INIT event is emitted.
+	requireEvent(t, watcher, types.OpInit, nil, eventTimeout)
+
+	lease, err := uut.Put(ctx, *item)
 	require.NoError(t, err)
 
 	// Make sure item was added into backend.
@@ -609,7 +649,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	require.Equal(t, lease.Revision, item.Revision)
 
 	// Make sure a PUT event is emitted.
-	e = requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
+	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
 	require.Equal(t, item.Value, e.Item.Value)
 
 	// Wait a few seconds for the item to expire.

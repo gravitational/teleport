@@ -91,6 +91,16 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 	}
 }
 
+// CheckAndSetDefaultParams validates a pgxpool.Config.
+func CheckAndSetDefaultParams(cfg *pgxpool.Config) error {
+	const defaultTxIsoParamName = "default_transaction_isolation"
+	if defaultTxIso := cfg.ConnConfig.RuntimeParams[defaultTxIsoParamName]; defaultTxIso != "" {
+		return trace.BadParameter("parameter was overridden: %s=%s", defaultTxIsoParamName, defaultTxIso)
+	}
+	cfg.ConnConfig.RuntimeParams[defaultTxIsoParamName] = "serializable"
+	return nil
+}
+
 // Retry runs the closure potentially more than once, retrying quickly on
 // serialization or deadlock errors, and backing off more on other retryable
 // errors. It will not retry on network errors or other ambiguous errors after
