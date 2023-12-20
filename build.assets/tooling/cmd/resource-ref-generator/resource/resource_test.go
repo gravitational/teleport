@@ -33,7 +33,7 @@ func replaceBackticks(source string) string {
 	return strings.ReplaceAll(source, "BACKTICK", "`")
 }
 
-func TestNewFromDecl(t *testing.T) {
+func TestReferenceDataFromDeclaration(t *testing.T) {
 	cases := []struct {
 		description string
 		source      string
@@ -1195,6 +1195,42 @@ func (stream *streamFunc[T]) Next() bool {
 			}
 
 			assert.Equal(t, tc.expected, r)
+		})
+	}
+}
+
+func TestMakeFieldTableInfo(t *testing.T) {
+	cases := []struct {
+		description string
+		input       []rawField
+		expected    []Field
+	}{
+		{
+			description: "angle brackets in GoDoc",
+			input: []rawField{
+				rawField{
+					packageName: "mypkg",
+					doc:         `An ID, e.g., "<myid>"`,
+					kind:        yamlString{},
+					name:        "ObjectID",
+					jsonName:    "object_id",
+					tags:        `json:"object_id"`,
+				},
+			},
+			expected: []Field{
+				{
+					Name:        "object_id",
+					Description: `An ID, e.g., "\<myid\>"`,
+					Type:        "string",
+				},
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			f, err := makeFieldTableInfo(c.input)
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, f)
 		})
 	}
 }

@@ -3908,9 +3908,9 @@ Rule is a set of properties the GCP-ussued token might have to be allowed to use
 
 |Field Name|Description|Type|
 |---|---|---|
-|project_ids|A list of project IDs (e.g. "<example-id-123456>").|`[]string`|
+|project_ids|A list of project IDs (e.g. "\<example-id-123456\>").|`[]string`|
 |locations|A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").|`[]string`|
-|service_accounts|A list of service account emails (e.g. "<project-number>-compute@developer.gserviceaccount.com").|`[]string`|
+|service_accounts|A list of service account emails (e.g. "\<project-number\>-compute@developer.gserviceaccount.com").|`[]string`|
  
 
 
@@ -4513,7 +4513,7 @@ A unique identifier for a teleport resource.
 |cluster|The name of the cluster the resource is in.|`string`|
 |kind|The resource kind.|`string`|
 |name|The name of the specific resource.|`string`|
-|sub_resource|The resource belonging to resource identified by "Name" that the user is allowed to access to. When granting access to a subresource, access to other resources is limited. Currently it just supports resources of Kind=pod and the format is the following "<kube_namespace>/<kube_pod>".|`string`|
+|sub_resource|The resource belonging to resource identified by "Name" that the user is allowed to access to. When granting access to a subresource, access to other resources is limited. Currently it just supports resources of Kind=pod and the format is the following "\<kube_namespace\>/\<kube_pod\>".|`string`|
  
 
 
@@ -5120,7 +5120,7 @@ A SAML connector specification.
 |---|---|---|
 |issuer|The identity provider issuer.|`string`|
 |sso|The URL of the identity provider's SSO service.|`string`|
-|cert|The identity provider certificate PEM. IDP signs <Response> responses using this certificate.|`string`|
+|cert|The identity provider certificate PEM. IDP signs \<Response\> responses using this certificate.|`string`|
 |display|Controls how this connector is displayed.|`string`|
 |acs|A URL for assertion consumer service on the service provider (Teleport's side).|`string`|
 |audience|Uniquely identifies our service provider.|`string`|
@@ -5793,8 +5793,8 @@ A Trusted Cluster specification.
 |enabled|A bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).|`Boolean`|
 |roles|A list of roles that users will be assuming when connecting to this cluster.|`[]string`|
 |token|The authorization token provided by another cluster needed by this cluster to join.|`string`|
-|web_proxy_addr|The address of the web proxy server of the cluster to join. If not set, it is derived from <metadata.name>:<default web proxy server port>.|`string`|
-|tunnel_addr|The address of the SSH proxy server of the cluster to join. If not set, it is derived from <metadata.name>:<default reverse tunnel port>.|`string`|
+|web_proxy_addr|The address of the web proxy server of the cluster to join. If not set, it is derived from \<metadata.name\>:\<default web proxy server port\>.|`string`|
+|tunnel_addr|The address of the SSH proxy server of the cluster to join. If not set, it is derived from \<metadata.name\>:\<default reverse tunnel port\>.|`string`|
 |role_map|Specifies role mappings to remote roles.|`[][Role Mapping](#role-mapping)`|
  
 
