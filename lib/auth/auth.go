@@ -5951,7 +5951,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		// Database CA only contains TLS cert.
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
 		if err != nil {

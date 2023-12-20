@@ -3880,6 +3880,24 @@ func TestAuthExport(t *testing.T) {
 			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
+			name:           "db-der",
+			authType:       "db-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
+			name:           "db-client",
+			authType:       "db-client",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificatePEMFunc,
+		},
+		{
+			name:           "db-client-der",
+			authType:       "db-client-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
 			name:           "tls",
 			authType:       "tls",
 			expectedStatus: http.StatusOK,
