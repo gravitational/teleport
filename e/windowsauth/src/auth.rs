@@ -1,8 +1,9 @@
 use std::ffi::c_void;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::{mem, ptr, slice};
 
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use log::{debug, error, info};
 use windows::{
     core::*, Win32::Foundation::*, Win32::NetworkManagement::NetManagement::*,
@@ -447,12 +448,12 @@ unsafe fn copy_groups_to_token(
     let token_groups = unsafe { (*token.Groups).Groups.as_mut_ptr() };
 
     // put REMOTE_DESKTOP_USERS_SID as first element in array
-    let remote_desktop_users_sid = LocalSID::from(REMOTE_DESKTOP_USERS_SID)?;
+    let mut remote_desktop_users_sid = to_sid(REMOTE_DESKTOP_USERS_SID)?;
     copy_sid(
         token_groups,
         0,
-        remote_desktop_users_sid.length,
-        remote_desktop_users_sid.psid,
+        remote_desktop_users_sid.len() as _,
+        PSID(remote_desktop_users_sid.as_mut_ptr() as _),
     )?;
 
     // put all requested groups' SIDs in array starting at index 1
@@ -595,12 +596,7 @@ unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
         domain_rid = format!("{}-{}", domain_rid, user_info.usri4_primary_group_id);
         NetApiBufferFree(Some(info as _));
     }
-    let sid = LocalSID::from(&domain_rid)?;
-    let psid = sid.into();
-    let len = GetLengthSid(psid);
-    let mut buf = vec![0u8; len as _];
-    CopySid(len, PSID(buf.as_mut_ptr() as _), psid).context("Can't copy SID")?;
-    domain_acc.sid = buf;
+    domain_acc.sid = to_sid(&domain_rid)?;
     domain_acc.name_use = SidTypeGroup;
     Ok(domain_acc)
 }
@@ -720,40 +716,6 @@ unsafe fn to_string(psid: PSID) -> Result<String> {
     converted
 }
 
-struct LocalSID {
-    psid: PSID,
-    length: u32,
-}
-
-impl LocalSID {
-    unsafe fn from(s: &str) -> Result<LocalSID> {
-        let mut sid = PSID::default();
-        let s = s.to_owned() + "\0";
-        ConvertStringSidToSidA(PCSTR::from_raw(s.as_ptr()), &mut sid)
-            .context(format!("Can't convert {} to SID", s))?;
-        Ok(LocalSID {
-            psid: sid,
-            length: GetLengthSid(sid),
-        })
-    }
-}
-
-impl From<LocalSID> for PSID {
-    fn from(val: LocalSID) -> Self {
-        val.psid
-    }
-}
-
-impl Drop for LocalSID {
-    fn drop(&mut self) {
-        if let Err(e) = unsafe { LocalFree(HLOCAL(self.psid.0 as _)) } {
-            if e.code() != S_OK {
-                error!("Can't free SID memory {}", e);
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 struct UTF16(Vec<u16>);
 
@@ -781,5 +743,65 @@ impl Drop for Impersonation {
         if let Err(e) = unsafe { RevertToSelf() } {
             error!("Can't revert to LSA context: {}", e);
         }
+    }
+}
+
+/// to_sid converts a security identifier from its
+/// string representation to binary form.
+/// See: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
+fn to_sid(s: &str) -> Result<Vec<u8>> {
+    // parse the SID manually instead of using ConvertStringSidToSidA,
+    // which sporadically fails with an invalid parameter error
+    let split: Vec<&str> = s.split('-').collect();
+    ensure!(
+        split.len() > 2,
+        "SID must be in standard string representation S-R-I-S..."
+    );
+    // SID standard string representation is S-<revision>-<authority>-<subauthorities>
+    let revision = u8::from_str(split[1])?;
+    let authority = u64::from_str(split[2])?;
+    let subauthorities: Result<Vec<u32>, _> =
+        split.iter().skip(3).map(|s| u32::from_str(s)).collect();
+    let subauthorities = subauthorities.context(format!("Can't convert SID {}", s))?;
+    let mut res = vec![0u8; 2 /*header*/ + 6 /*top authority*/ + 4 * subauthorities.len()];
+    res[0] = revision;
+    res[1] = subauthorities.len() as u8;
+    // top authority is stored as 6 bytes big endian
+    res[2..8].copy_from_slice(&authority.to_be_bytes()[2..]);
+    let mut start = 8;
+    for subauthority in subauthorities {
+        // each subauthority is stored as 4 bytes little endian
+        res[start..start + 4].copy_from_slice(&subauthority.to_le_bytes());
+        start += 4;
+    }
+    Ok(res)
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use crate::auth::to_sid;
+
+    #[test]
+    fn to_sid_ok() -> Result<()> {
+        let sid = to_sid("S-1-5-21-1686530393-9139194-3084028869-513")?;
+        assert_eq!(
+            sid,
+            [
+                1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 89, 105, 134, 100, 250, 115, 139, 0, 197, 139,
+                210, 183, 1, 2, 0, 0
+            ]
+        );
+        let sid = to_sid("S-1-5")?; // no subauthorities
+        assert_eq!(sid, [1, 0, 0, 0, 0, 0, 0, 5]);
+        Ok(())
+    }
+
+    #[test]
+    fn to_sid_err() {
+        assert!(to_sid("S-1").is_err());
+        assert!(to_sid("").is_err());
+        assert!(to_sid("S-1-5-g").is_err());
     }
 }
