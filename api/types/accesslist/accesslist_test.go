@@ -24,8 +24,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 )
+
+func TestAccessListImplementsResourceWithLabels(t *testing.T) {
+	require.Implements(t, (*types.ResourceWithLabels)(nil), &AccessList{})
+}
 
 func TestParseReviewFrequency(t *testing.T) {
 	t.Parallel()

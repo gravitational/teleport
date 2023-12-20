@@ -28,6 +28,10 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 )
 
+func TestAccessListMemberImplementsResourceWithLabels(t *testing.T) {
+	require.Implements(t, (*types.ResourceWithLabels)(nil), &AccessListMember{})
+}
+
 func TestAccessListMemberDefaults(t *testing.T) {
 	newValidAccessListMember := func() *AccessListMember {
 		accesslist := uuid.New().String()
