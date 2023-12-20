@@ -18,285 +18,330 @@ permission management capabilities.
 
 ## Why
 
-Managing database-level permissions is a natural extension of current Teleport
-RBAC capabilities. The described model should also integrate seamlessly with
-TAG, providing a future-proof solution.
+Database-level permission management is a natural extension of current Teleport
+RBAC capabilities. The described model should integrate seamlessly with TAG,
+providing a future-proof solution.
 
 Database administrators will be able to use Teleport for both user and
 permission management.
 
 ## Details
 
-### UX
+### Database object import rules
 
-A set of global "database object import rules" resources are defined for the
-Teleport cluster. At certain points in time, the database schema is read and
-passed through the import rules. The individual import rules may apply custom
-labels. An database object resource will only be created if there is at least
-one import rule that matched it.
+Teleport will fetch database objects and store them as resources in the backend,
+using a set of global "database object import rules". At certain points in time,
+the database schema will be read and passed through the import rules. Each
+import rule defines a set of database labels that must match in order for the
+import rule to fire. The rules are processed in order (as defined by the
+`priority` field).
 
-Only object attributes (standard ones like `protocol` or custom from the
-`attributes` field), which are sourced from the object spec, are subject to
-matching against the import rules. Any labels present on an object, either from
-an import rule or another source, are not subject to be matched by the import
-rule. The permissions matching is different in this regard.
+Each import rule defines a set mappings. Individual mapping consists of a set of
+attributes to match, like `name`, `object kind` or `schema`, and a list of
+labels to apply. The expected values for an attribute are specified as a list,
+while the matching uses glob-like semantics, with `*` matching any set of
+characters.
 
-Example: the `sales-prod` import rule, which imports all tables from `sales`
-Postgres database in prod:
+#### Examples
+
+The `widget-prod` import rule applies to databases with `env: prod` label. It
+has the priority 10. If there is a database object that matches the clauses in
+`spec.mappings.match`, the import rule will apply the specified labels to the
+database object (`env: prod`, `product: WidgetMaster3000`).
 
 ```yaml
 kind: db_object_import_rule
+version: v1
 metadata:
-  name: sales-prod
+  name: rule_widget_prod
 spec:
+  priority: 10
   db_labels:
     env: prod
   mappings:
-    - object_match:
-        - database: sales
-          object_kind: table
-          protocol: postgres
+    - match:
+        databases:
+          - 'Widget*'
+        db_service_names:
+          - all-things-widget
+        names:
+          - '*sales*'
+        object_kinds:
+          - table
+          - view
+          - procedure
+        protocol_names:
+          - postgres
+        schemas:
+          - widget
+          - sales
+          - public
+          - secret
       add_labels:
         env: prod
-        product: sales
-  priority: 10
-version: v1
+        product: WidgetMaster3000
 ```
 
-Example database object, with applied labels:
+There is a Postgres database with a matching labels. Parsing the schema, a
+number of objects is found, including the following one which matches the import
+rule above (pattern matches are noted):
 
 ```yaml
 kind: db_object
+version: v1
 metadata:
-  labels:
-    env: prod
-    product: sales
-  name: sales_main
+  name: widget-sales
 spec:
-  attributes:
-    attr1: custom attr1 value
-    attr2: custom attr2 value
-  database: sales
-  name: sales_main
+  database: WidgetUltimate # matches 'Widget*'
+  db_service_name: all-things-widget
+  name: widget-sales # matches '*sales*'
   object_kind: table
   protocol: postgres
-  schema: public
-  service_name: sales-prod-123
-version: v1
+  schema: sales
 ```
 
-The permissions to particular objects are defined in a role using the new field
-`db_permissions`. The permission specifies the object kind (e.g. `table`),
-permission to grant/revoke (`SELECT`) as well as labels to be matched.
-
-The matching is performed against database object:
-
-- attributes: standard and custom, sourced from the object spec, provided by
-  database-specific schema import code
-- resource labels: aside from standard labels, these can be manipulated by the
-  import rules.
-
-If both attributes and labels provide the same non-empty key, the attributes
-take preference.
-
-Example role `db-dev`, which grants `SELECT` permission to some objects, and
-revokes `UPDATE` from all others.
+After processing, the import rule has applied the labels to the object. As there
+are no other import rules matching this object, it is stored in the backend in
+this form.
 
 ```yaml
-kind: role
+kind: db_object
+version: v1
 metadata:
-  name: db-dev
+  name: widget-sales
+  labels:
+    env: prod
+    product: WidgetMaster3000
 spec:
-  allow:
-    db_permissions:
-      - match:
-          product: sales
-          protocol: postgres
-        object_kind: table
-        permission: SELECT
-  deny:
-    db_permissions:
-      - object_kind: table
-        permission: UPDATE
+  database: WidgetUltimate
+  db_service_name: all-things-widget
+  name: widget-sales
+  object_kind: table
+  protocol: postgres
+  schema: sales
 ```
 
-The database objects are imported during the connection, to be used for
+Any particular attribute can be omitted from the import rule; an import rule
+with empty `match` part will match all objects.
+
+A single rule can also specify multiple sets of labels to be applied. This is
+useful for applying a label with different set of values, depending on database
+object attributes.
+
+```yaml
+kind: db_object_import_rule
+version: v1
+metadata:
+  name: mark-confidential
+spec:
+  priority: 20
+  db_labels:
+    env: prod
+  mappings:
+    - match:
+        schemas:
+          - private
+          - sales
+          - secret
+      add_labels:
+        confidential: 'true'
+    - match:
+        schemas:
+          - public
+      add_labels:
+        confidential: 'false'
+```
+
+As another example, a wide rule to import all tables from all databases may look
+as follows:
+
+```yaml
+kind: db_object_import_rule
+version: v1
+metadata:
+  name: import_all_tables
+spec:
+  priority: 20
+  db_labels:
+    env: staging
+  mappings:
+    - match:
+        object_kinds:
+          - table
+        schemas:
+          - public
+      add_labels:
+        env: staging
+        custom_label: my_custom_value
+```
+
+A more fine-grained rule, targeting a specific set of tables:
+
+```yaml
+kind: db_object_import_rule
+version: v1
+metadata:
+  name: import_specific_tables
+spec:
+  priority: 30
+  db_labels:
+    env: dev
+  mappings:
+    - match:
+        object_kinds:
+          - table
+        schemas:
+          - public
+        names:
+          - 'table1'
+          - 'table2'
+          - 'table3'
+      add_labels:
+        env: dev
+        custom_label: my_custom_value
+```
+
+#### Import process
+
+The database objects are imported by the database agent when establishing a new
+user session to the database. In this context, they are immediately used for
 permission calculation.
 
+Imported objects are also stored in the backend, where TAG can access them.
+
 Additionally, the imports will be done on a predetermined schedule (e.g. every
-10 minutes), and stored in the backend.
+10 minutes), and stored in the backend. If the database engine supports it, the
+sync may also happen when a schema change is detected. For example, in Postgres
+we case use
+(trigger+notify)[https://medium.com/launchpad-lab/postgres-triggers-with-listen-notify-565b44ccd782].
 
-The database objects stored in the backend will be used by TAG.
+#### Import result: the `db_object` resource
 
-The permissions will be applied to the user after the user is provisioned in the
-database. After the session is finished, the user is removed/deactivated, and
-all permissions are revoked.
-
-#### Configuration
-
-##### Resource: `db_object_import_rule`
-
-A new kind of resource `db_object_import_rule` is introduced.
-
-The import rules are processed in order (defined by `priority` field) and
-matched against the database labels.
-
-If the database matches, the object-level mapping rules are processed.
-
-```protobuf
-// DatabaseObjectImportRuleV1 is the resource representing a global database object import rule.
-message DatabaseObjectImportRuleV1 {
-   option (gogoproto.goproto_stringer) = false;
-   option (gogoproto.stringer) = false;
-
-   ResourceHeader Header = 1 [
-      (gogoproto.nullable) = false,
-      (gogoproto.jsontag) = "",
-      (gogoproto.embed) = true
-   ];
-
-   DatabaseObjectImportRuleSpec Spec = 2 [
-      (gogoproto.nullable) = false,
-      (gogoproto.jsontag) = "spec"
-   ];
-}
-
-// DatabaseObjectImportRuleSpec is the spec for database object import rule.
-message DatabaseObjectImportRuleSpec {
-  // Priority represents the priority of the rule application. Lower numbered rules will be applied first.
-  int32 Priority = 1 [(gogoproto.jsontag) = "priority"];
-
-  // DatabaseLabels is a set of labels which must match the database for the rule to be applied.
-  map<string, string> DatabaseLabels = 2 [(gogoproto.jsontag) = "db_labels,omitempty"];
-
-  // Mappings is a list of matches that will map match conditions to labels.
-  repeated DatabaseObjectImportRuleMapping Mappings = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "mappings,omitempty"
-  ];
-}
-```
-
-Individual objects are matched with against all object matches defined in
-`DatabaseObjectImportRuleMapping` message. If any of the matches succeeds (or if
-the list of matches is empty), the labels specified in the mapping are applied
-to the object. The processing continues with the next mapping: multiple mappings
-can match any given object.
-
-```protobuf
-// DatabaseObjectImportRuleMapping is the mapping between object properties and labels that will be added to the object.
-message DatabaseObjectImportRuleMapping {
-  // ObjectMatches is a set of object matching rules for this mapping.
-  // For a given database object, each of the matches is attempted.
-  // If any of them succeed, the labels are applied.
-  repeated DatabaseObjectSpec ObjectMatches = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "object_match"
-  ];
-
-  // AddLabels specifies which labels to add if any of the previous matches match.
-  map<string, string> AddLabels = 3 [(gogoproto.jsontag) = "add_labels"];
-}
-```
-
-##### Resource: `db_object`
-
-Another new resource is the database object (`db_object`), imported using the
-import rules from the database.
-
-The spec for this resource is the `DatabaseObjectSpec` message, which is also
-used in the `DatabaseObjectImportRuleMapping`.
-
-The spec is equivalent to a `map<string, string>`, except it predefines a few
-optional properties.
-
-In case of an `db_object`, the entirety of the spec is provided by
-database-specific schema introspection tool. The custom attributes provide a way
-to express additional properties important to the object, which cannot be
-rightly placed in other attributes. The `object_kind` property is mandatory for
-`db_object` resources.
+Import process creates a number of `db_object` resources with applied labels.
+Aside from standard metadata fields, the object spec consists of a number of
+predefined attributes:
 
 ```protobuf
 // DatabaseObjectSpec is the spec for the database object.
 message DatabaseObjectSpec {
-   string Protocol = 1 [(gogoproto.jsontag) = "protocol,omitempty"];
-   string ServiceName = 2 [(gogoproto.jsontag) = "service_name,omitempty"];
-   string ObjectKind = 3 [(gogoproto.jsontag) = "object_kind"];
-   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
-   string Schema = 5 [(gogoproto.jsontag) = "schema,omitempty"];
-   string Name = 6 [(gogoproto.jsontag) = "name,omitempty"];
-   // extra attributes for matching
-   map<string, string> Attributes = 7 [(gogoproto.jsontag) = "attributes,omitempty"];
+  string Protocol = 1 [(gogoproto.jsontag) = "protocol,omitempty"];
+  string DatabaseServiceName = 2 [(gogoproto.jsontag) = "db_service_name,omitempty"];
+  string ObjectKind = 3 [(gogoproto.jsontag) = "object_kind,omitempty"];
+  string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
+  string Schema = 5 [(gogoproto.jsontag) = "schema,omitempty"];
+  string Name = 6 [(gogoproto.jsontag) = "name,omitempty"];
 }
 ```
 
-#### Role extension: `spec.{allow,deny}.db_permissions` fields
+All of the above fields are optional, and more may be added in the future if
+needed. The database-specific implementation is responsible for populating these
+fields from the database schema.
 
-The role is extended with a `db_permissions` field, which consists of a list of
-permissions to be applied against particular database objects provided the
-permission properties (object kind, match labels) match the given object.
+### Database object permissions
 
-```protobuf
+The permissions for particular objects are defined in a role using the new
+`db_permissions` field, found under `spec.allow` and `spec.deny` respectively.
+Each permission specifies:
 
-  // ...
-  // DatabasePermission specifies a set of permissions that will be granted
-  // to the database user when using automatic database user provisioning.
-  repeated DatabasePermission DatabasePermissions = 38 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "db_permissions,omitempty"
-  ];
-}
+- A list of labels the database object must match.
+- A list of permissions that will be given to the object for the user.
 
-// DatabasePermission specifies the database object permission for the user.
-message DatabasePermission {
-  // ObjectKind is the database object kind: table, schema, etc.
-  string ObjectKind = 1 [(gogoproto.jsontag) = "object_kind"];
-  // Permission is the string representation of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
-  string Permission = 2 [(gogoproto.jsontag) = "permission"];
-  // Match is a list of labels (key, value) to match against database object properties.
-  map<string, string> Match = 3 [(gogoproto.jsontag) = "match,omitempty"];
-}
+As an example, the role `db_read_non_confidential` allows access to tables and
+views with a label `confidential: false` and explicitly disallows any access to
+those labeled `confidential: true`.
 
+```yaml
+kind: role
+version: v7
+metadata:
+  name: db_read_non_confidential
+spec:
+  allow:
+    db_permissions:
+      - labels:
+          confidential: 'false'
+          kind:
+            - table
+            - view
+        permissions:
+          - SELECT
+          - INSERT
+          - UPDATE
+  deny:
+    db_permissions:
+      - labels:
+          confidential: 'true'
+        permissions:
+          - '*'
 ```
 
-### Permission Semantics
+The object attributes are not replicated automatically as labels. In the example
+above, `kind` is a label which must be applied by an import rule, for example
+one as follows:
 
-The precise meaning of individual permissions is left to the database engine.
-The sole exception is the interaction between the `deny` and `allow` parts:
-denied permissions are removed, and the comparison is performed in a
-case-insensitive way after trimming the whitespace. As a special case, `*` is
-allowed as a permission in `deny` part of the role.
+```yaml
+kind: db_object_import_rule
+version: v1
+metadata:
+  name: import_object_kind
+spec:
+  mappings:
+    - add_labels:
+        kind: table
+      match:
+        object_kinds:
+          - table
+    - add_labels:
+        kind: view
+      match:
+        object_kinds:
+          - view
+    - add_labels:
+        kind: schema
+      match:
+        object_kinds:
+          - schema
+  priority: 100
+```
 
-For example, if the `allow` permission is `SELECT`, then it can be removed with
-`select`, `SELECT` or `*`.
+#### Applying permissions
 
-The engines should prohibit invalid permissions. This is a fatal error and
-should cause connection error.
+The permissions will be applied to the user after the user is provisioned in the
+database. After the session is finished, the user is removed/deactivated, and
+_all_ permissions must be revoked. Additionally, the permissions _may_ be
+updated if a schema change is detected. The permissions also _may_ be updated if
+the role definition in the backend changes, but the cost of implementing such a
+feature should be weighed against the benefits it would provide. The list of
+roles for a given user is unchanging in the scope of a single connection, so
+this is not an element that may change.
 
-### Permission Lifecycle
+To avoid confusion regarding the source of access, `db_permissions` will only be
+considered if no `db_roles` are configured for user.
 
-Permissions are applied after the user is automatically provisioned.
-Deprovisioning (deletion/deactivation) of the user should remove ALL permissions
-from the user, without the need to reference the particular user permissions.
+The precise meaning of individual permissions is database-specific.
 
-The permission synchronization is performed at least once, on connection time:
+However, we mandate the interaction between the `deny` and `allow` parts:
 
-- database schema is read,
-- import rules are applied,
-- effective permissions are calculated based on user roles,
-- database-side permissions are updated.
+- permissions found in `deny` remove matching permissions in `allow`;
+- the permissions are compared as strings in case-insensitive manner, with
+  trimmed whitespace;
+- `*` in `deny` matches all permissions in `allow`.
 
-Optional, additional syncs may happen as needed (e.g. when a schema change is
-detected).
+For example, if the `allow` permission contains `SELECT`, then it can be removed
+with `select`, `SELECT` or `*`.
+
+Invalid permissions are prohibited. This is a fatal error and should cause
+connection error.
 
 ### TAG Integration
 
-Periodic application of import rules will populate `db_object` resources in the
-backend. These can be imported to TAG, where permission calculation may happen.
-The permission algorithm is based on label matching, which should be a primitive
-operation that is easy to support in TAG. Performance wise it may be necessary
-to filter the set of objects - a single database can viably produce thousands of
-objects - but it should remain a viable approach.
+The `db_object` resources can be imported to TAG, which can reimplement the
+permission semantics described above. The permission algorithm is based on label
+matching, which should be an operation that is easy to support in TAG, given its
+widespread usage in Teleport RBAC. Performance wise it may be necessary to avoid
+queries spanning objects from multiple databases - a single database can viably
+produce thousands of objects - but nevertheless, it should remain a scalable
+approach.
 
 ### Backward Compatibility
 
@@ -308,48 +353,58 @@ versions that don't support it. The new resources will likewise be ignored.
 The [RFD 113](0113-automatic-database-users.md) introduces events
 `db.user.created` and `db.user.disabled`, but these are yet to be implemented.
 
-The `db.user.created` should be extended with an effective list of applied
-permissions. Since the list of database objects may be long, it may be necessary
-to summarize the list of changes in the audit event.
+The `db.user.created` should be extended with a summarized list of applied
+permissions (permission types, object types, counts).
 
 ### Observability
 
-The expectation is that permission changes should occur swiftly. If necessary,
-we may consider monitoring the latency of schema queries and the time required
-to apply permissions. This becomes particularly relevant when permissions are
-managed external to the database instance, for instance, through a call to AWS
-Security Token Service (STS).
+The expectation is that permission should be applied swiftly. If necessary, we
+may consider monitoring the latency of schema queries and the time required to
+apply permissions. This becomes particularly relevant when permissions are
+managed in the systems external to the database instance, for instance through a
+call to AWS Security Token Service (STS).
 
-To enhance observability, it is advisable to introduce appropriate logging.
+To enhance observability, appropriate logging will be added in key points.
 Debug-level logs can be used to detail individual permissions granted, while
-keeping in mind that the list might encompass thousands of entries.
+keeping in mind that the full list might be thousands of entries long.
 
 ### Product Usage
 
-As of the current point in time, there are no plans for the introduction of
-telemetry.
+A new PostHog event should be added, summarizing the information from the
+`db.user.created` audit event: protocol, number of affected objects of each
+kind, number of permissions.
 
 ### Test Plan
 
-In the test plan, a new section should be incorporated, positioned alongside the
-coverage for the "automated user provisioning" feature. This section should
-enumerate and test each supported configuration separately. At the time of
-writing this RFD, the coverage for the "automated user provisioning" feature in
-the test plan is absent, and it should be added.
+The feature shall be tested using automated e2e tests. Each supported
+configuration should be tested separately.
 
 ### Security
 
 The introduction of the new feature has no direct impact on the security of
-Teleport itself. However, it does have implications for the security of
-connected databases within the supported configurations. For environments
-requiring heightened security, there may be value in explicitly excluding
-specific databases from this feature, potentially using a resource label for
-this purpose.
+Teleport itself, as the permissions will be applied to resourced managed with
+Teleport, not any of the internal services. However, it does have implications
+for the security of connected databases. As a hardening measure, a blanked deny
+role can be used to deny all possible permissions:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: db_deny_all_permissions
+spec:
+  deny:
+    db_permissions:
+      - labels:
+          '*': '*'
+        permissions:
+          - '*'
+```
 
 It's important to recognize that with sufficiently broad permissions, a user
 might have the potential to elevate their database permissions further via
 database-specific means, including creating additional users and granting
-permissions. Given that this feature does not attempt to model the implications
-of individual database permissions, there is no foolproof mechanism to prevent
-such excessive permissions. Therefore, it falls to the system administrator to
-ensure that the granted permissions are kept to a minimum.
+permissions. It is responsibility of the system administrator to ensure the
+permissions are not excessive, and this fact should be reflected in Teleport
+documentation for this feature. However, a suitable IGS report may be helpful in
+this context.
