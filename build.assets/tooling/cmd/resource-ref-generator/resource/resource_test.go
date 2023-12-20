@@ -234,7 +234,7 @@ spec:
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec v1](#server-spec-v1)"},
+							Type:        "[Server Spec](#server-spec)"},
 					},
 				}},
 		},
@@ -387,14 +387,14 @@ spec:
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec v1](#server-spec-v1)"},
+							Type:        "[Server Spec](#server-spec)"},
 					},
 				},
 				PackageInfo{
 					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
-					SectionName: "Server Spec v1",
+					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
 					YAMLExample: `address: "string"
@@ -486,7 +486,7 @@ label_maps:
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec v1](#server-spec-v1)"},
+							Type:        "[Server Spec](#server-spec)"},
 						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
@@ -498,7 +498,7 @@ label_maps:
 					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
-					SectionName: "Server Spec v1",
+					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
 					YAMLExample: `address: "string"
@@ -849,7 +849,7 @@ type Metadata struct {
 					DeclName:    "DatabaseServerV3",
 					PackageName: "typestest",
 				}: ReferenceEntry{
-					SectionName: "Database Server v3",
+					SectionName: "Database Server",
 					Description: "Represents a database access server.",
 					SourcePath:  "myfile.go",
 					Fields: []Field{
@@ -918,7 +918,7 @@ type Metadata struct {
 					DeclName:    "DatabaseServerV3",
 					PackageName: "typestest",
 				}: ReferenceEntry{
-					SectionName: "Database Server v3",
+					SectionName: "Database Server",
 					Description: "Represents a database access server.",
 					SourcePath:  "myfile.go",
 					Fields: []Field{
@@ -1488,7 +1488,7 @@ func TestMakeSectionName(t *testing.T) {
 		{
 			description: "camel-case name with version",
 			original:    "ServerSpecV2",
-			expected:    "Server Spec v2",
+			expected:    "Server Spec",
 		},
 	}
 
