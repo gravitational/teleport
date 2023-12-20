@@ -215,6 +215,8 @@ func TestManagedConn(t *testing.T) {
 }
 
 func TestBuffer(t *testing.T) {
+	t.Parallel()
+
 	var b buffer
 	require.Zero(t, b.len())
 
@@ -250,6 +252,8 @@ func TestBuffer(t *testing.T) {
 }
 
 func TestDeadline(t *testing.T) {
+	t.Parallel()
+
 	var mu sync.Mutex
 	cond := sync.Cond{L: &mu}
 	var d deadline
