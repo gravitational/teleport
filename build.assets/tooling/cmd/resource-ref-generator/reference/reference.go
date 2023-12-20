@@ -30,6 +30,9 @@ import (
 	"text/template"
 )
 
+const versionField = "Version"
+const kindField = "Kind"
+
 // content represents the sections of the resource reference.
 // Fields must be exported so we can use them in templates.
 type content struct {
@@ -362,8 +365,8 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 				continue
 			}
 
-			ver, ok1 := method.FieldAssignments["Version"]
-			kind, ok2 := method.FieldAssignments["Kind"]
+			ver, ok1 := method.FieldAssignments[versionField]
+			kind, ok2 := method.FieldAssignments[kindField]
 
 			// The version and kind weren't assigned
 			if !ok1 || !ok2 {
