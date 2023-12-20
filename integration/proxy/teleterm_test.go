@@ -22,6 +22,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -139,10 +140,11 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
 
-	webauthLoginCalls := 0
+	var webauthLoginCalls atomic.Uint32
 	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		t.Helper()
-		webauthLoginCalls++
+
+		updatedWebauthnLoginCalls := webauthLoginCalls.Add(1)
 
 		// Ensure that the mfa prompt in lib/teleterm has sent a message to the Electron app.
 		// This simulates a flow where the user was notified about the need to tap the key through the
@@ -154,7 +156,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		assert.EventuallyWithT(t, func(t *assert.CollectT) {
 			// Each call to webauthnLogin should have an equivalent call to PromptMFA and there should be
 			// no multiple concurrent calls.
-			assert.Equal(t, webauthLoginCalls, tshdEventsService.callCounts["PromptMFA"],
+			assert.Equal(t, updatedWebauthnLoginCalls, tshdEventsService.promptMFACallCount.Load(),
 				"Expected each call to webauthnLogin to have an equivalent call to PromptMFA")
 		}, 5*time.Second, 50*time.Millisecond)
 
@@ -218,14 +220,14 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	// will let the connection through.
 	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
-	require.Equal(t, 1, tshdEventsService.callCounts["Relogin"],
+	require.Equal(t, uint32(1), tshdEventsService.reloginCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
-	require.Equal(t, 0, tshdEventsService.callCounts["SendNotification"],
+	require.Equal(t, uint32(0), tshdEventsService.sendNotificationCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 	if params.webauthnLogin != nil {
 		// There are two calls, one to issue the certs when creating the gateway and then another to
 		// reissue them after relogin.
-		require.Equal(t, 2, tshdEventsService.callCounts["PromptMFA"],
+		require.Equal(t, uint32(2), tshdEventsService.promptMFACallCount.Load(),
 			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
 	}
 }
@@ -233,11 +235,13 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 type mockTSHDEventsService struct {
 	*api.UnimplementedTshdEventsServiceServer
 
-	tc         *libclient.TeleportClient
-	inst       *helpers.TeleInstance
-	username   string
-	addr       string
-	callCounts map[string]int
+	tc                        *libclient.TeleportClient
+	inst                      *helpers.TeleInstance
+	username                  string
+	addr                      string
+	reloginCallCount          atomic.Uint32
+	sendNotificationCallCount atomic.Uint32
+	promptMFACallCount        atomic.Uint32
 }
 
 func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService) {
@@ -247,11 +251,10 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 	require.NoError(t, err)
 
 	tshdEventsService := &mockTSHDEventsService{
-		tc:         tc,
-		inst:       inst,
-		username:   username,
-		addr:       ls.Addr().String(),
-		callCounts: make(map[string]int),
+		tc:       tc,
+		inst:     inst,
+		username: username,
+		addr:     ls.Addr().String(),
 	}
 
 	grpcServer := grpc.NewServer()
@@ -280,7 +283,7 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 // Relogin simulates the act of the user logging in again in the Electron app by replacing the user
 // cert on disk with a valid one.
 func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
-	c.callCounts["Relogin"]++
+	c.reloginCallCount.Add(1)
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  c.inst.Process,
 		Username: c.username,
@@ -297,12 +300,12 @@ func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*
 }
 
 func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
-	c.callCounts["SendNotification"]++
+	c.sendNotificationCallCount.Add(1)
 	return &api.SendNotificationResponse{}, nil
 }
 
 func (c *mockTSHDEventsService) PromptMFA(context.Context, *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
-	c.callCounts["PromptMFA"]++
+	c.promptMFACallCount.Add(1)
 
 	// PromptMFAResponse returns the TOTP code, so PromptMFA itself
 	// needs to be implemented only once we implement TOTP MFA.
