@@ -137,6 +137,25 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	err = tc.SaveProfile(false /* makeCurrent */)
 	require.NoError(t, err)
 
+	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
+
+	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		t.Helper()
+
+		// Ensure that the mfa prompt in lib/teleterm has sent a message to the Electron app.
+		// This simulates a flow where the user was notified about the need to tap the key through the
+		// UI and then taps the key.
+		// This also makes sure that the goroutine which handles hardware key taps doesn't finish
+		// before the goroutine that sends the message to the Electron app, allowing us to assert later
+		// in tests that PromptMFA on tshd events service has been called.
+		assert.Eventually(t, func() bool {
+			return tshdEventsService.callCounts["PromptMFA"] > 0
+		}, 5*time.Second, 50*time.Millisecond)
+
+		resp, credentialUser, err := params.webauthnLogin(ctx, origin, assertion, prompt, opts)
+		return resp, credentialUser, err
+	}
+
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
@@ -144,7 +163,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
 		Clock:         fakeClock,
-		WebauthnLogin: params.webauthnLogin,
+		WebauthnLogin: webauthnLogin,
 	})
 	require.NoError(t, err)
 
@@ -162,9 +181,8 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		daemonService.Stop()
 	})
 
-	// Create a mock tshd events service server and have the daemon connect to it,
-	// like it would during normal initialization of the app.
-	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
+	// Connect the daemon to the tshd events service, like it would
+	// during normal initialization of the app.
 	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshdEventsService.addr)
 	require.NoError(t, err)
 
@@ -198,6 +216,10 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
 	require.Equal(t, 0, tshdEventsService.callCounts["SendNotification"],
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
+	if params.webauthnLogin != nil {
+		require.Equal(t, 1, tshdEventsService.callCounts["PromptMFA"],
+			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
+	}
 }
 
 type mockTSHDEventsService struct {
@@ -269,6 +291,14 @@ func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*
 func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) PromptMFA(context.Context, *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
+	c.callCounts["PromptMFA"]++
+
+	// PromptMFAResponse returns the TOTP code, so PromptMFA itself
+	// needs to be implemented only once we implement TOTP MFA.
+	return nil, trace.NotImplemented("mockTSHDEventsService does not implement PromptMFA")
 }
 
 // TestTeletermKubeGateway tests making kube API calls against Teleterm kube
