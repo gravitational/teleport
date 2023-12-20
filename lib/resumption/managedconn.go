@@ -59,6 +59,12 @@ type managedConn struct {
 	localAddr  net.Addr
 	remoteAddr net.Addr
 
+	readDeadline  deadline
+	writeDeadline deadline
+
+	receiveBuffer buffer
+	sendBuffer    buffer
+
 	// localClosed indicates that Close() has been called; most operations will
 	// fail immediately with no effect returning [net.ErrClosed]. Takes priority
 	// over just about every other condition.
@@ -68,12 +74,6 @@ type managedConn struct {
 	// connection is gone; reads will start returning [io.EOF] after exhausting
 	// the internal buffer, writes return [syscall.EPIPE].
 	remoteClosed bool
-
-	receiveBuffer buffer
-	sendBuffer    buffer
-
-	readDeadline  deadline
-	writeDeadline deadline
 }
 
 var _ net.Conn = (*managedConn)(nil)
@@ -383,14 +383,15 @@ type deadline struct {
 	// deadline should not be moved or copied
 	_ [0]sync.Mutex
 
+	// timer, if set, is a [time.AfterFunc] timer that sets timeout after
+	// reaching the deadline. Initialized on first use.
+	timer clockwork.Timer
+
 	// timeout is true if we're past the deadline.
 	timeout bool
 
 	// stopped is set if timer is non-nil but it's stopped and ready for reuse.
 	stopped bool
-	// timer, if set, is a [time.AfterFunc] timer that sets timeout after
-	// reaching the deadline. Initialized on first use.
-	timer clockwork.Timer
 }
 
 // setDeadlineLocked sets a new deadline, waking the cond's waiters when the
