@@ -64,6 +64,7 @@ func (s *Server) startDatabaseWatchers() error {
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
+		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
 		Origin:         types.OriginCloud,
 		Clock:          s.clock,
 	})
