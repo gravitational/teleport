@@ -24,6 +24,8 @@ import (
 	"go/token"
 	"regexp"
 	"strings"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 const yamlExampleDelimiter string = "Example YAML:\n---\n"
@@ -848,6 +850,60 @@ func getMethodName(exp ast.Expr) (string, error) {
 	}
 }
 
+// getAssignments collects all of the assignments made to fields of a method
+// reciever. Assumes that n is the function body of the method. In the resulting
+// map, each key is a field name and each value is the assignment value.
+func getAssignments(receiver string, n ast.Node) map[string]string {
+	result := make(map[string]string)
+	astutil.Apply(n, func(c *astutil.Cursor) bool {
+		n, ok := c.Node().(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		// Do not collect assignments with more than one value.
+		// These are done done in the relevant parts of the Teleport
+		// source, and handling them complicates things.
+		if len(n.Rhs) != 1 || len(n.Lhs) != 1 {
+			return true
+		}
+
+		// We don't need to process non-identifier expressions,
+		// such as selector expressions, on the right hand side
+		// yet. See if there is an identifier on the right hand
+		// side.
+		nt, ok := n.Rhs[0].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		rhs := nt.Name
+
+		// We expect the left hand side to be a selector expression,
+		// since it assigns one of the receiver's fields.
+		sel, ok := n.Lhs[0].(*ast.SelectorExpr)
+		// Does not assign one of the method receiver's
+		// fields, since it's not a selector expression.
+		if !ok {
+			return true
+		}
+
+		id, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+
+		// This is not an assignment of a field within
+		// the method receiver.
+		if id.Name != receiver {
+			return true
+		}
+
+		result[sel.Sel.Name] = rhs
+
+		return true
+	}, nil)
+	return result
+}
+
 func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
 	if decls == nil || len(decls) == 0 {
 		return map[PackageInfo][]MethodInfo{}, nil
@@ -906,54 +962,8 @@ func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error
 			continue
 		}
 
-		// Find all statements within the method that assign a value to
-		// one of the receiver's fields. We'll need this to collect
-		// information about dynamic resources, e.g., the kind and
-		// version.
-		for _, l := range f.Body.List {
-			n, ok := l.(*ast.AssignStmt)
-			if !ok {
-				continue
-			}
-
-			// Do not collect assignments with more than one value.
-			// These are done done in the relevant parts of the Teleport
-			// source, and handling them complicates things.
-			if len(n.Rhs) != 1 || len(n.Lhs) != 1 {
-				continue
-			}
-
-			// We don't need to process non-identifier expression,
-			// such as selector expressions, on the right hand side
-			// yet. See if there is an identifier on the right hand
-			// side.
-			nt, ok := n.Rhs[0].(*ast.Ident)
-			if !ok {
-				continue
-			}
-			rhs := nt.Name
-
-			// The expression does not assign one of the method
-			// receiver's fields, since the left hand side is not a
-			// selector expression.
-			sel, ok := n.Lhs[0].(*ast.SelectorExpr)
-			if !ok {
-				continue
-			}
-
-			id, ok := sel.X.(*ast.Ident)
-			if !ok {
-				continue
-			}
-
-			// This is not an assignment of a field within
-			// the method receiver.
-			if id.Name != f.Recv.List[0].Names[0].Name {
-				continue
-			}
-
-			mi.FieldAssignments[sel.Sel.Name] = rhs
-		}
+		s := getAssignments(f.Recv.List[0].Names[0].Name, f)
+		mi.FieldAssignments = s
 
 		result[pi] = append(a, mi)
 	}
