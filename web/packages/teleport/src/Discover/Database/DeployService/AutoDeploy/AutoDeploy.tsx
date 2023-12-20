@@ -241,7 +241,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             {isDeploying && (
               <DeployHints
                 deployFinished={handleDeployFinished}
-                resourceName={(agentMeta as DbMeta).resourceName}
+                resourceName={agentMeta.resourceName}
                 abortDeploying={abortDeploying}
                 deploySvcResp={deploySvcResp}
               />

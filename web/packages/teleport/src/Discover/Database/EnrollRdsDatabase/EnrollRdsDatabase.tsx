@@ -24,7 +24,7 @@ import { Danger } from 'design/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
-import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
   RdsEngineIdentifier,
@@ -236,9 +236,7 @@ export function EnrollRdsDatabase() {
           <ConfigureIamPerms
             kind="rds"
             region={tableData.currRegion}
-            integrationRoleArn={
-              (agentMeta as DbMeta).awsIntegration.spec.roleArn
-            }
+            integrationRoleArn={agentMeta.awsIntegration.spec.roleArn}
           />
         </Box>
       )}
