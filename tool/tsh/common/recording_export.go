@@ -66,7 +66,7 @@ func onExportRecording(cf *CLIConf) error {
 			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf)
+	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
 	return trace.Wrap(err)
 }
 
@@ -80,8 +80,7 @@ func makeAVIFileName(prefix string, currentFile int) string {
 
 // writeMovie writes the events for the specified session into one or more movie files
 // beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
-	write func(format string, args ...any) (int, error)) (frames int, err error) {
+func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
 
 	var screen *image.NRGBA
 	var movie mjpeg.AviWriter
@@ -94,6 +93,7 @@ func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, 
 	currentFilename := makeAVIFileName(prefix, fileCount)
 
 	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
+	fastPathReceived := false
 loop:
 	for {
 		select {
@@ -120,7 +120,19 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
-				break loop
+				if !fastPathReceived {
+					break loop
+				}
+				if movie != nil {
+					movie.Close()
+					os.Remove(currentFilename)
+				}
+				url := fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d",
+					webProxyAddr,
+					evt.ClusterName,
+					evt.SessionID,
+					lastEmitted)
+				return frameCount, trace.BadParameter("this session can't be exported, please visit %s to view it", url)
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
@@ -132,11 +144,7 @@ loop:
 
 				switch msg := msg.(type) {
 				case tdp.RDPFastPathPDU:
-					if movie != nil {
-						movie.Close()
-						os.Remove(currentFilename)
-					}
-					return frameCount, trace.BadParameter("this session contains frames that cannot yet be exported, please use the web UI to view it")
+					fastPathReceived = true
 				case tdp.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
