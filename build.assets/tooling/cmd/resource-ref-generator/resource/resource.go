@@ -149,17 +149,21 @@ func (y yamlSequence) formatForTable() string {
 
 func (y yamlSequence) formatForExampleYAML(indents int) string {
 	var leading string
+	indents++
 	for i := 0; i < indents; i++ {
 		leading += "  "
 	}
+	el := y.elementKind.formatForExampleYAML(indents)
+	// Trim leading indentation since each element is already indented.
+	el = strings.TrimLeft(el, " ")
 	// Always start a sequence on a new line
 	return fmt.Sprintf(`
 %v- %v
 %v- %v
 %v- %v`,
-		leading, y.elementKind.formatForExampleYAML(indents+1),
-		leading, y.elementKind.formatForExampleYAML(indents+1),
-		leading, y.elementKind.formatForExampleYAML(indents+1),
+		leading, el,
+		leading, el,
+		leading, el,
 	)
 }
 
@@ -257,7 +261,7 @@ func (y yamlCustomType) formatForExampleYAML(indents int) string {
 		leading += "  "
 	}
 
-	return "\n" + leading + "# [...]"
+	return leading + "# [...]"
 }
 
 func (y yamlCustomType) formatForTable() string {

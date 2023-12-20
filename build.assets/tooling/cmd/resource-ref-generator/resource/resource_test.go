@@ -126,17 +126,17 @@ type Metadata struct {
 					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
 					SourcePath:  "myfile.go",
 					YAMLExample: `names: 
-- "string"
-- "string"
-- "string"
+  - "string"
+  - "string"
+  - "string"
 numbers: 
-- 1
-- 1
-- 1
+  - 1
+  - 1
+  - 1
 booleans: 
-- true
-- true
-- true
+  - true
+  - true
+  - true
 `,
 					Fields: []Field{
 						Field{
@@ -222,8 +222,7 @@ type Server struct {
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
 					YAMLExample: `name: "string"
-spec: 
-# [...]
+spec: # [...]
 `,
 					Fields: []Field{
 						Field{
@@ -375,8 +374,7 @@ type ServerSpecV1 struct {
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
 					YAMLExample: `name: "string"
-spec: 
-# [...]
+spec: # [...]
 `,
 					Fields: []Field{
 						Field{
@@ -460,27 +458,18 @@ type Label string
 					YAMLExample: `spec: 
 # [...]
 label_maps: 
-- 
-    "string": 
-      # [...]
-    "string": 
-      # [...]
-    "string": 
-      # [...]
-- 
-    "string": 
-      # [...]
-    "string": 
-      # [...]
-    "string": 
-      # [...]
-- 
-    "string": 
-      # [...]
-    "string": 
-      # [...]
-    "string": 
-      # [...]
+  - 
+    "string": # [...]
+    "string": # [...]
+    "string": # [...]
+  - 
+    "string": # [...]
+    "string": # [...]
+    "string": # [...]
+  - 
+    "string": # [...]
+    "string": # [...]
+    "string": # [...]
 `,
 					Fields: []Field{
 						Field{
@@ -865,8 +854,7 @@ type Metadata struct {
 						},
 					},
 					YAMLExample: `kind: "string"
-metadata: 
-# [...]
+metadata: # [...]
 `,
 				},
 				PackageInfo{
@@ -928,8 +916,7 @@ type Metadata struct {
 							Type:        "[Metadata](#metadata)",
 						},
 					},
-					YAMLExample: `metadata: 
-# [...]
+					YAMLExample: `metadata: # [...]
 `,
 				},
 				PackageInfo{
@@ -1419,18 +1406,18 @@ my_string: "string"
 				},
 			},
 			expected: `my_seq: 
-- 
-  - "string"
-  - "string"
-  - "string"
-- 
-  - "string"
-  - "string"
-  - "string"
-- 
-  - "string"
-  - "string"
-  - "string"
+  - 
+    - "string"
+    - "string"
+    - "string"
+  - 
+    - "string"
+    - "string"
+    - "string"
+  - 
+    - "string"
+    - "string"
+    - "string"
 `,
 		},
 		{
@@ -1470,15 +1457,15 @@ my_string: "string"
 				},
 			},
 			expected: `my_seq: 
-- 
+  - 
     "string": true
     "string": true
     "string": true
-- 
+  - 
     "string": true
     "string": true
     "string": true
-- 
+  - 
     "string": true
     "string": true
     "string": true
@@ -1503,10 +1490,10 @@ my_string: "string"
 					},
 				},
 			},
-			expected: `labels:
-- # [...]
-- # [...]
-- # [...]
+			expected: `labels: 
+  - # [...]
+  - # [...]
+  - # [...]
 `,
 		},
 	}
