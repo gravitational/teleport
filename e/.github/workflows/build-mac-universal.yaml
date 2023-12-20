@@ -6,7 +6,7 @@ on:
       oss-teleport-repo:
         description: 'The name of the OSS Teleport repo to checkout'
         required: false
-        default: "gravitational/teleport"
+        default: 'gravitational/teleport'
         type: string
 
       oss-teleport-ref:
@@ -20,7 +20,7 @@ on:
           value is supplied this workflow will use whatever reference is specified in
           the OSS teleport submodule record.
         required: false
-        default: ""
+        default: ''
         type: string
 
       release:
@@ -33,7 +33,7 @@ on:
           Override the build version from what is in the Makefile.
           Use this override to specify a tag for build debugging purposes.
         type: string
-        default: ""
+        default: ''
 
       save-artifacts:
         description: 'Should the build export the build artifacts'
@@ -91,8 +91,15 @@ jobs:
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo WASM_PACK_VERSION=$(make -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
+
+      - name: Print versions
+        run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+          echo "wasm-pack: ${WASM_PACK_VERSION}"
 
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
@@ -109,6 +116,14 @@ jobs:
       - name: Setup yarn
         run: |
           corepack enable yarn
+
+      - name: Set Rust Version
+        run: |
+          make RUST_VERSION=${RUST_VERSION} rustup-set-version
+
+      - name: Install wasm-pack
+        run: |
+          cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
       - name: Setup keychain
         env:
