@@ -139,17 +139,23 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
 
+	webauthLoginCalls := 0
 	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		t.Helper()
+		webauthLoginCalls++
 
 		// Ensure that the mfa prompt in lib/teleterm has sent a message to the Electron app.
 		// This simulates a flow where the user was notified about the need to tap the key through the
 		// UI and then taps the key.
+		//
 		// This also makes sure that the goroutine which handles hardware key taps doesn't finish
 		// before the goroutine that sends the message to the Electron app, allowing us to assert later
 		// in tests that PromptMFA on tshd events service has been called.
-		assert.Eventually(t, func() bool {
-			return tshdEventsService.callCounts["PromptMFA"] > 0
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			// Each call to webauthnLogin should have an equivalent call to PromptMFA and there should be
+			// no multiple concurrent calls.
+			assert.Equal(t, webauthLoginCalls, tshdEventsService.callCounts["PromptMFA"],
+				"Expected each call to webauthnLogin to have an equivalent call to PromptMFA")
 		}, 5*time.Second, 50*time.Millisecond)
 
 		resp, credentialUser, err := params.webauthnLogin(ctx, origin, assertion, prompt, opts)
@@ -217,7 +223,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	require.Equal(t, 0, tshdEventsService.callCounts["SendNotification"],
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 	if params.webauthnLogin != nil {
-		require.Equal(t, 1, tshdEventsService.callCounts["PromptMFA"],
+		// There are two calls, one to issue the certs when creating the gateway and then another to
+		// reissue them after relogin.
+		require.Equal(t, 2, tshdEventsService.callCounts["PromptMFA"],
 			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
 	}
 }
