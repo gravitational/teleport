@@ -258,7 +258,7 @@ metadata:
 spec:
   allow:
     db_permissions:
-      - labels:
+      - match:
           confidential: 'false'
           kind:
             - table
@@ -269,7 +269,7 @@ spec:
           - UPDATE
   deny:
     db_permissions:
-      - labels:
+      - match:
           confidential: 'true'
         permissions:
           - '*'
@@ -395,7 +395,7 @@ metadata:
 spec:
   deny:
     db_permissions:
-      - labels:
+      - match:
           '*': '*'
         permissions:
           - '*'
