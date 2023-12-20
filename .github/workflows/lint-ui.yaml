@@ -15,6 +15,8 @@ jobs:
   lint:
     name: Prettier, ESLint, & TSC
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
@@ -25,6 +27,9 @@ jobs:
 
       - name: Install Yarn dependencies
         run: yarn --frozen-lockfile
+
+      - name: Build WASM
+        run: yarn build-wasm
 
       - name: Run Type Check
         run: yarn type-check

@@ -94,6 +94,7 @@
     "rollup-plugin-visualizer": "^5.9.0",
     "styled-components": "5.3.11",
     "vite": "^5.0.5",
+    "vite-plugin-wasm": "^3.2.2",
     "vite-tsconfig-paths": "^4.2.1",
     "webpack": "^5.76.2",
     "webpack-bundle-analyzer": "^4.6.1",
