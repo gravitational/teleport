@@ -1577,8 +1577,9 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
 	if err != nil {
