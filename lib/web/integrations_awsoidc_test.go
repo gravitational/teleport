@@ -28,11 +28,12 @@ import (
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
@@ -500,7 +501,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 		ResourceType: types.KindDatabaseService,
 	})
 	require.NoError(t, err)
-	require.Len(t, s.Resources, 0)
+	require.Empty(t, s.Resources)
 
 	// All vpc's required.
 	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
@@ -587,6 +588,80 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	resp, err = awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
 	require.NoError(t, err)
 	require.Empty(t, resp.VPCMapOfSubnets)
+}
+
+func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	clt := env.proxies[0].client
+
+	rdss := []rdsTypes.DBInstance{
+		{
+			DBInstanceStatus:     stringPointer("available"),
+			DBInstanceIdentifier: stringPointer("id-vpc1"),
+			DbiResourceId:        stringPointer("db-123"),
+			Engine:               stringPointer("postgres"),
+			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+
+			Endpoint: &rdsTypes.Endpoint{
+				Address: stringPointer("endpoint.amazonaws.com"),
+				Port:    aws.Int32(5432),
+			},
+			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+				Subnets: []rdsTypes.Subnet{
+					{SubnetIdentifier: aws.String("subnet1")},
+					{SubnetIdentifier: aws.String("subnet2")},
+				},
+				VpcId: aws.String("vpc-1"),
+			},
+		},
+		{
+			DBInstanceStatus:     stringPointer("available"),
+			DBInstanceIdentifier: stringPointer("id-vpc1a"),
+			DbiResourceId:        stringPointer("db-123"),
+			Engine:               stringPointer("postgres"),
+			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+
+			Endpoint: &rdsTypes.Endpoint{
+				Address: stringPointer("endpoint.amazonaws.com"),
+				Port:    aws.Int32(5432),
+			},
+			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+				Subnets: []rdsTypes.Subnet{
+					{SubnetIdentifier: aws.String("subnet2")},
+					{SubnetIdentifier: aws.String("subnet3")},
+					{SubnetIdentifier: aws.String("subnet4")},
+					{SubnetIdentifier: aws.String("subnet1")},
+				},
+				VpcId: aws.String("vpc-1"),
+			},
+		},
+		{
+			DBInstanceStatus:     stringPointer("available"),
+			DBInstanceIdentifier: stringPointer("id-vpc2"),
+			DbiResourceId:        stringPointer("db-123"),
+			Engine:               stringPointer("postgres"),
+			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+
+			Endpoint: &rdsTypes.Endpoint{
+				Address: stringPointer("endpoint.amazonaws.com"),
+				Port:    aws.Int32(5432),
+			},
+			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+				Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet8")}},
+
+				VpcId: aws.String("vpc-2"),
+			},
+		},
+	}
+
+	mockListClient := mockListDatabasesClient{dbInstances: rdss}
+
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, mockListClient, clt)
+	require.NoError(t, err)
+	require.Len(t, resp.VPCMapOfSubnets, 2)
+	require.ElementsMatch(t, []string{"subnet1", "subnet2", "subnet3", "subnet4"}, resp.VPCMapOfSubnets["vpc-1"])
+	require.ElementsMatch(t, []string{"subnet8"}, resp.VPCMapOfSubnets["vpc-2"])
 }
 
 func stringPointer(s string) *string {
