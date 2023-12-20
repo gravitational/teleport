@@ -22,15 +22,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -188,6 +193,69 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		ServiceARN:          deployServiceResp.ServiceARN,
 		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
 		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
+	}, nil
+}
+
+// awsOIDCDeployDatabaseService deploys a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployDatabaseServiceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	teleportVersionTag := teleport.Version
+	if automaticUpgrades(h.ClusterFeatures) {
+		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
+	}
+
+	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.Deployments))
+	for _, d := range req.Deployments {
+		deployments = append(deployments, awsoidc.DeployDatabaseServiceRequestDeployment{
+			VPCID:            d.VPCID,
+			SubnetIDs:        d.SubnetIDs,
+			SecurityGroupIDs: d.SecurityGroups,
+		})
+	}
+
+	deployServiceResp, err := awsoidc.DeployDatabaseService(ctx, deployServiceClient, awsoidc.DeployDatabaseServiceRequest{
+		Region:              req.Region,
+		TaskRoleARN:         req.TaskRoleARN,
+		ProxyServerHostPort: h.PublicProxyAddr(),
+		TeleportClusterName: h.auth.clusterName,
+		TeleportVersionTag:  teleportVersionTag,
+		IntegrationName:     awsClientReq.IntegrationName,
+		Deployments:         deployments,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployDatabaseServiceResponse{
+		ClusterARN:          deployServiceResp.ClusterARN,
+		ClusterDashboardURL: deployServiceResp.ClusterDashboardURL,
 	}, nil
 }
 
@@ -369,6 +437,132 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 	return ui.AWSOIDCListSecurityGroupsResponse{
 		NextToken:      resp.NextToken,
 		SecurityGroups: resp.SecurityGroups,
+	}, nil
+}
+
+// awsOIDCListSecurityGroups returns a map of required VPC's and its subnets.
+func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCRequiredVPCSRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, listDBsClient, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRequest, listDBsClient awsoidc.ListDatabasesClient, clt auth.ClientI) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+	resp, err := awsoidc.ListAllDatabases(ctx, listDBsClient, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(resp.Databases) == 0 {
+		return nil, trace.BadParameter("there are no available RDS instances or clusters found in region %q", req.Region)
+	}
+
+	// Get all database services with ecs/fargate metadata label.
+	nextToken := ""
+	fetchedDbSvcs := []types.DatabaseService{}
+	for {
+		page, err := client.GetResourcePage[types.DatabaseService](ctx, clt, &proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.MaxIterationLimit,
+			StartKey:     nextToken,
+			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fetchedDbSvcs = append(fetchedDbSvcs, page.Resources...)
+		nextToken = page.NextKey
+		if len(nextToken) == 0 {
+			break
+		}
+	}
+
+	// Construct map of VPCs and its subnets.
+	vpcLookup := map[string][]string{}
+	for _, db := range resp.Databases {
+		rds := db.GetAWS().RDS
+		vpcId := rds.VPCID
+		if _, found := vpcLookup[vpcId]; !found {
+			vpcLookup[vpcId] = rds.Subnets
+			continue
+		}
+		combinedSubnets := append(vpcLookup[vpcId], rds.Subnets...)
+		vpcLookup[vpcId] = utils.Deduplicate(combinedSubnets)
+	}
+
+	// Start looking for db service matches.
+	wantLabels := map[string][]string{
+		types.DiscoveryLabelAccountID: {},
+		types.DiscoveryLabelRegion:    {},
+		types.DiscoveryLabelVPCID:     {},
+	}
+
+	for _, svc := range fetchedDbSvcs {
+		// Create a lookup table of labels for easier matching.
+		labelLookup := map[string][]string{}
+		for _, matcher := range svc.GetResourceMatchers() {
+			for key, newVals := range *matcher.Labels {
+				if existingVals, ok := labelLookup[key]; ok {
+					labelLookup[key] = append(existingVals, newVals...)
+					continue
+				}
+				labelLookup[key] = newVals
+			}
+		}
+
+		// Do an exact match, b/c other labels may not match.
+		if len(labelLookup) != len(wantLabels) {
+			continue
+		}
+
+		// Match labels contains the keys we are looking for.
+		matchedLabelKeys := true
+		for key := range wantLabels {
+			vals, found := labelLookup[key]
+			if !found {
+				matchedLabelKeys = false
+				break
+			}
+			wantLabels[key] = vals
+		}
+
+		if matchedLabelKeys &&
+			slices.Contains(wantLabels[types.DiscoveryLabelAccountID], req.AccountID) &&
+			slices.Contains(wantLabels[types.DiscoveryLabelRegion], req.Region) {
+			// Delete found vpcs
+			vpcs := wantLabels[types.DiscoveryLabelVPCID]
+			for _, vpc := range vpcs {
+				delete(vpcLookup, vpc)
+			}
+		}
+	}
+
+	return &ui.AWSOIDCRequiredVPCSResponse{
+		VPCMapOfSubnets: vpcLookup,
 	}, nil
 }
 
