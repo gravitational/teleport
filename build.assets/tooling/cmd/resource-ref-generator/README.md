@@ -45,7 +45,7 @@ information to add the YAML example:
 message MFADevice {
 ```
 
-The generator assumes that all commetns after the following string belong to the
+The generator assumes that all comments after the following string belong to the
 YAML example:
 
 ```go
@@ -55,9 +55,9 @@ YAML example:
 
 ### Editing source files
 
-The reference generator indicates in the documentation it produces which Go
-source files it used for each reference entry. The generator is only aware of Go
-source files, not protobuf message definitions.
+The resource reference indicates which Go source files the reference generator
+used for each entry. The generator is only aware of Go source files, not
+protobuf message definitions.
 
 If a source file is based on a protobuf message definition, edit the message
 definition first, then run:
@@ -70,15 +70,15 @@ After that, you can run the reference generator.
 
 ## Configuration
 
-The path to a YAML configuration file with the following fields:
+The generator uses a YAML configuration file with the following fields.
 
 ### Main config
 
 - `required_field_types`: a list of type info mappings (see "Type info")
   indicating type names of fields that must be present in a dynamic resource
-  before we include it in the reference. For example, if this is "Metadata" from
-  package "types", a struct type must include a field with the a field of
-  "types.Metadata" before we add it to the reference.
+  before we include it in the reference. For example, if this is `Metadata` from
+  package `types`, a struct type must include a field with the a field of
+  `types.Metadata` before we add it to the reference.
 
 - `source` (string): the path to the root of a Go project directory.
 
@@ -99,7 +99,7 @@ The path to a YAML configuration file with the following fields:
 ### Example
 
 ```yaml
-required_types:
+required_field_types:
   - name: Metadata
     package: api/types
   - name: ResourceHeader
