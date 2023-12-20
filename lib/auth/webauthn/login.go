@@ -67,13 +67,18 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
-	if user == "" && !passwordless {
+func (f *loginFlow) begin(ctx context.Context, user string, scope wanpb.ChallengeScope, allowReuse bool) (*wantypes.CredentialAssertion, error) {
+	if allowReuse && scope != wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
+		return nil, trace.BadParameter("mfa challenges with scope %v cannot allow reuse", scope)
+	}
+
+	isPasswordless := scope == wanpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+	if user == "" && !isPasswordless {
 		return nil, trace.BadParameter("user required")
 	}
 
 	var u *webUser
-	if passwordless {
+	if isPasswordless {
 		u = &webUser{} // Issue anonymous challenge.
 	} else {
 		webID, err := f.getWebID(ctx, user)
@@ -145,7 +150,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
-		requireUserVerification: passwordless,
+		requireUserVerification: isPasswordless,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -153,7 +158,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 
 	var assertion *protocol.CredentialAssertion
 	var sessionData *wan.SessionData
-	if passwordless {
+	if isPasswordless {
 		assertion, sessionData, err = web.BeginDiscoverableLogin(opts...)
 	} else {
 		assertion, sessionData, err = web.BeginLogin(u, opts...)
@@ -167,6 +172,9 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	sessionDataPB.AllowReuse = allowReuse
+	sessionDataPB.Scope = scope
 	if err := f.sessionData.Upsert(ctx, user, sessionDataPB); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,9 +193,11 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.ChallengeScope, allowReuse bool, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+	isPasswordless := scope == wanpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+
 	switch {
-	case user == "" && !passwordless:
+	case user == "" && !isPasswordless:
 		return nil, "", trace.BadParameter("user required")
 	case resp == nil:
 		// resp != nil is good enough to proceed, we leave remaining validations to
@@ -207,7 +217,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	var webID []byte
-	if passwordless {
+	if isPasswordless {
 		webID = parsedResp.Response.UserHandle
 		if len(webID) == 0 {
 			return nil, "", trace.BadParameter("webauthn user handle required for passwordless")
@@ -260,6 +270,19 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
+	// Check if the given requiredScope is satisfied by the challenge scope.
+	if scope != sessionDataPB.GetScope() {
+		// old clients do not yet provide a scope, so we only enforce scope opportunistically.
+		// TODO(Joerger): DELETE IN v16.0.0
+		if sessionDataPB.GetScope() != wanpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, "", trace.AccessDenied("required scope %q is not satisfied by the given webauthn credentials with scope %q", scope, sessionDataPB.GetScope())
+		}
+	}
+
+	if !allowReuse && sessionDataPB.AllowReuse {
+		return nil, "", trace.AccessDenied("the given webauthn credentials allow reuse, which is not permitted in this context")
+	}
+
 	// Make sure _all_ credentials in the session are accounted for by the user.
 	// webauthn.ValidateLogin requires it.
 	for _, allowedCred := range sessionData.AllowedCredentialIDs {
@@ -277,14 +300,14 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		cfg:                     f.Webauthn,
 		rpID:                    rpID,
 		origin:                  origin,
-		requireUserVerification: passwordless,
+		requireUserVerification: isPasswordless,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	var credential *wan.Credential
-	if passwordless {
+	if isPasswordless {
 		discoverUser := func(_, _ []byte) (wan.User, error) { return u, nil }
 		credential, err = web.ValidateDiscoverableLogin(discoverUser, *sessionData, parsedResp)
 	} else {
@@ -313,9 +336,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	// The user just solved the challenge, so let's make sure it won't be used
-	// again.
-	if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
-		log.Warnf("WebAuthn: failed to delete login SessionData for user %v (passwordless = %v)", user, passwordless)
+	// again, unless reuse is explicitly allowed.
+	if !sessionDataPB.AllowReuse {
+		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
+			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %v)", user, scope.String())
+		}
 	}
 
 	return dev, user, nil

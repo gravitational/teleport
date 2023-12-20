@@ -141,7 +141,7 @@ func TestLogin(t *testing.T) {
 			}
 			test.setUserPresence.SetUserPresence(true)
 
-			assertion, err := loginFlow.Begin(ctx, username)
+			assertion, err := loginFlow.Begin(ctx, username, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 			require.NoError(t, err)
 			if test.removeAppID {
 				assertion.Response.Extensions = nil
@@ -160,7 +160,7 @@ func TestLogin(t *testing.T) {
 			require.NotNil(t, mfaResp.GetWebauthn())
 			require.Equal(t, test.wantRawID, mfaResp.GetWebauthn().RawId)
 
-			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
+			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()), wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 			require.NoError(t, err)
 		})
 	}
@@ -183,7 +183,7 @@ func TestLogin_errors(t *testing.T) {
 	const user = "llama"
 	const origin = "https://localhost"
 	ctx := context.Background()
-	okAssertion, err := loginFlow.Begin(ctx, user)
+	okAssertion, err := loginFlow.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -216,7 +216,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion missing challenge",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user)
+				assertion, err := loginFlow.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				assertion.Response.Challenge = nil
 				return assertion
@@ -226,7 +226,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion missing RPID",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user)
+				assertion, err := loginFlow.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = ""
 				return assertion
@@ -236,7 +236,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion missing credentials",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user)
+				assertion, err := loginFlow.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				assertion.Response.AllowedCredentials = nil
 				return assertion
@@ -246,7 +246,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion invalid user verification requirement",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user)
+				assertion, err := loginFlow.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				assertion.Response.UserVerification = protocol.VerificationRequired
 				return assertion
