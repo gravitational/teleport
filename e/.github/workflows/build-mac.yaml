@@ -6,7 +6,7 @@ on:
       oss-teleport-repo:
         description: 'The name of the OSS Teleport repo to checkout'
         required: false
-        default: 'gravitational/teleport'
+        default: "gravitational/teleport"
         type: string
 
       oss-teleport-ref:
@@ -20,7 +20,7 @@ on:
           value is supplied this workflow will use whatever reference is specified in
           the OSS teleport submodule record.
         required: false
-        default: ''
+        default: ""
         type: string
 
       arch:
@@ -38,7 +38,7 @@ on:
           Override the build version from what is in the Makefile.
           Use this override to specify a tag for build debugging purposes.
         type: string
-        default: ''
+        default: ""
 
       environment:
         description: |
@@ -84,7 +84,6 @@ jobs:
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
           echo GOLANG_VERSION=$(make -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
           echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo WASM_PACK_VERSION=$(make -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
           echo PKG_CONFIG_PATH="$(make print-fido2-pkg-path)" >> $GITHUB_ENV
 
       - name: Print versions
@@ -93,7 +92,6 @@ jobs:
           echo "node: ${NODE_VERSION}"
           echo "go: ${GOLANG_VERSION}"
           echo "rust: ${RUST_VERSION}"
-          echo "wasm-pack: ${WASM_PACK_VERSION}"
 
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
@@ -113,10 +111,6 @@ jobs:
       - name: Install Rust Toolchain
         run: |
           make ARCH=${ARCH} RUST_VERSION=${RUST_VERSION} rustup-install-target-toolchain
-
-      - name: Install wasm-pack
-        run: |
-          cargo install wasm-pack --version ${WASM_PACK_VERSION}
 
       - name: Setup keychain
         env:

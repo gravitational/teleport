@@ -4,9 +4,8 @@
   "description": "Enterprise version of Gravitational Teleport Web UI",
   "main": "index.js",
   "scripts": {
-    "start": "yarn build-wasm && vite",
-    "build": "yarn build-wasm && vite build",
-    "build-wasm": "yarn workspace @gravitational/teleport build-wasm",
+    "start": "vite",
+    "build": "vite build",
     "test": "npx jest",
     "tdd": "npx jest . --watch"
   },
