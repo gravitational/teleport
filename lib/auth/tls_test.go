@@ -1906,7 +1906,12 @@ func TestGetCertAuthority(t *testing.T) {
 		DomainName: tt.server.ClusterName(),
 		Type:       types.DatabaseCA,
 	}, true)
-	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.DatabaseClientCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
 
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
