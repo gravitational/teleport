@@ -6,10 +6,12 @@ on:
     paths:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
+      - 'gen/proto/js/**'
   merge_group:
     paths:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
+      - 'gen/proto/js/**'
 
 jobs:
   test:
