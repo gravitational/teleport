@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -299,7 +300,7 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			dev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			dev, _, err := a.ValidateMFAAuthResponseWithScope(ctx, mfaResponse, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 			return dev, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
@@ -393,7 +394,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	dev, user, err := a.ValidateMFAAuthResponseWithScope(ctx, mfaResponse, "" /* user */, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)

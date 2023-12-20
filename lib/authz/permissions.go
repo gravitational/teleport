@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -376,7 +377,8 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+	err := a.authorizeAdminAction(ctx, authContext)
+	if err != nil {
 		if trace.IsNotFound(err) {
 			// missing MFA verification should be a noop.
 			return nil
@@ -441,6 +443,16 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// TODO (Joerger): DELETE IN v16.0.0
+	// in v16 the correct challenge scope should be propagated by the client.
+	if mfaResp.Scope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+		mfaResp.Scope = webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION
+	}
+
+	if mfaResp.Scope != webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
+		return trace.BadParameter("mfa challenge has invalid scope %v, expected %v", mfaResp.Scope, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION)
 	}
 
 	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {

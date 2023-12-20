@@ -3182,9 +3182,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 			return trace.Wrap(err)
 		}
 
-		if _, _, err := a.ValidateMFAAuthResponse(
-			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
-		); err != nil {
+		if _, _, err := a.ValidateMFAAuthResponseWithScope(ctx, req.ExistingMFAResponse, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -5811,8 +5809,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	}
 
 	if err := a.WithUserLock(ctx, username, func() error {
-		_, _, err := a.ValidateMFAAuthResponse(
-			ctx, resp, username, false /* passwordless */)
+		_, _, err := a.ValidateMFAAuthResponseWithScope(ctx, resp, username, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES)
 		return err
 	}); err != nil {
 		return false, trace.Wrap(err)
@@ -5821,13 +5818,29 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-// Returns the device used to solve the challenge (if applicable) and the
-// username.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	if resp.Scope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
-		passwordless = true
+// ValidateMFAAuthResponseWithScope validates an MFA or passwordless challenge. This also
+// validates that the given required scope is satisfied by the given MFA challenge and
+// associated stored webauthn credentials (if applicable). Returns the device used to
+// solve the challenge (if applicable) and the username.
+func (a *Server) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredScope webauthnpb.ChallengeScope) (*types.MFADevice, string, error) {
+	// TODO (Joerger): DELETE IN v16.0.0
+	// in v16 the correct challenge scope should be propagated by the client.
+	if resp.Scope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+		resp.Scope = requiredScope
 	}
+
+	if resp.Scope != requiredScope {
+		return nil, "", trace.BadParameter("mfa challenge has invalid scope %v, expected %v", resp.Scope, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES)
+	}
+
+	return a.ValidateMFAAuthResponse(ctx, resp, user, resp.Scope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN)
+}
+
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge. If the challenge
+// response if of type webauthn, this also validates that the challenge response scope
+// is satisfied by the stored webauthn credentials. Returns the device used to solve the
+// challenge (if applicable) and the username.
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {
 		return nil, "", trace.BadParameter("user required")
