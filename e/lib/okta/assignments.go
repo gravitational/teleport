@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AssignmentReconcilerAccessPoint is a client that consists of only the interfaces
@@ -81,9 +82,9 @@ func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Servi
 
 // Start will start the reconciler.
 func (a *assignmentReconciler) start(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
-		Matcher: func(resource types.ResourceWithLabels) bool {
-			return a.matcher(ctx, resource)
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.OktaAssignment]{
+		Matcher: func(assignment types.OktaAssignment) bool {
+			return a.matcher(ctx, assignment)
 		},
 		GetCurrentResources: toResourcesLabelMap(a.getAssignments),
 		GetNewResources:     toResourcesLabelMap(a.getNewAssignments),
@@ -114,7 +115,7 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 }
 
 // reconcile will perform the actual assignment reconciliation.
-func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *services.Reconciler) {
+func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *services.Reconciler[types.OktaAssignment]) {
 	for {
 		select {
 		case _, ok := <-a.reconcileCh:
@@ -220,12 +221,7 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 }
 
 // onCreate will update the Okta API based on newly created Okta assignments.
-func (a *assignmentReconciler) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
-	newAssignment, ok := resource.(types.OktaAssignment)
-	if !ok {
-		return trace.BadParameter("expected types.OktaAssignment, got %T", resource)
-	}
-
+func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types.OktaAssignment) error {
 	if err := a.assignmentProcessor.processAssignment(ctx, newAssignment, false); err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,12 +234,7 @@ func (a *assignmentReconciler) onCreate(ctx context.Context, resource types.Reso
 }
 
 // onUpdate will perform necessary Okta assignment operations based on updated Okta assignments.
-func (a *assignmentReconciler) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
-	updatedAssignment, ok := resource.(types.OktaAssignment)
-	if !ok {
-		return trace.BadParameter("expected types.OktaAssignment, got %T", resource)
-	}
-
+func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment types.OktaAssignment) error {
 	if err := a.assignmentProcessor.processAssignment(ctx, updatedAssignment, false); err != nil {
 		return trace.Wrap(err)
 	}
@@ -257,12 +248,7 @@ func (a *assignmentReconciler) onUpdate(ctx context.Context, resource types.Reso
 
 // onDelete will perform necessary Okta assignment operations based on deleted Okta assignments.
 // NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
-func (a *assignmentReconciler) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	deletedAssignment, ok := resource.(types.OktaAssignment)
-	if !ok {
-		return trace.BadParameter("expected types.OktaAssignment, got %T", resource)
-	}
-
+func (a *assignmentReconciler) onDelete(ctx context.Context, deletedAssignment types.OktaAssignment) error {
 	deletedAssignment.SetCleanupTime(a.clock.Now())
 	if err := a.assignmentProcessor.processAssignment(ctx, deletedAssignment, false); err != nil {
 		return trace.Wrap(err)
@@ -282,8 +268,10 @@ func (a *assignmentReconciler) matcher(ctx context.Context, resource types.Resou
 
 // toResourcesLabelMap is used by the reconciler. It will call a function that returns OktaAssignments
 // and then convert those into a ResourcesWithLabelMap.
-func toResourcesLabelMap(fn func() types.OktaAssignments) func() types.ResourcesWithLabelsMap {
-	return func() types.ResourcesWithLabelsMap { return fn().AsResources().ToMap() }
+func toResourcesLabelMap(fn func() types.OktaAssignments) func() map[string]types.OktaAssignment {
+	return func() map[string]types.OktaAssignment {
+		return utils.FromSlice(fn(), types.OktaAssignment.GetName)
+	}
 }
 
 func copyAssignmentsMapToOktaAssignments(assignments map[string]types.OktaAssignment) types.OktaAssignments {

@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -249,8 +250,8 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 
 // start the reconciler.
 func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc, chan struct{}, error) {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
-		Matcher: func(resource types.ResourceWithLabels) bool {
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.AccessRequest]{
+		Matcher: func(resource types.AccessRequest) bool {
 			return a.matcher(ctx, resource)
 		},
 		GetCurrentResources: a.getAccessRequests,
@@ -284,7 +285,7 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 }
 
 // reconciler will reconcile access requests and transform them into OktaAssignments.
-func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *services.Reconciler) {
+func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *services.Reconciler[types.AccessRequest]) {
 	for {
 		select {
 		case _, ok := <-a.reconcileCh:
@@ -345,19 +346,19 @@ func (a *AccessRequestReconciler) Stop() {
 }
 
 // getAccessRequests returns the list of access requests currently known to the reconciler.
-func (a *AccessRequestReconciler) getAccessRequests() types.ResourcesWithLabelsMap {
+func (a *AccessRequestReconciler) getAccessRequests() map[string]types.AccessRequest {
 	a.accessRequestsMu.RLock()
 	defer a.accessRequestsMu.RUnlock()
 
-	return copyAccessRequestMapToAccessRequests(a.accessRequests).AsResources().ToMap()
+	return utils.FromSlice(copyAccessRequestMapToAccessRequests(a.accessRequests), types.AccessRequest.GetName)
 }
 
 // getNewAccessRequests returns the list of new access requests that the reconciler has yet to act on.
-func (a *AccessRequestReconciler) getNewAccessRequests() types.ResourcesWithLabelsMap {
+func (a *AccessRequestReconciler) getNewAccessRequests() map[string]types.AccessRequest {
 	a.newAccessRequestsMu.RLock()
 	defer a.newAccessRequestsMu.RUnlock()
 
-	return copyAccessRequestMapToAccessRequests(a.newAccessRequests).AsResources().ToMap()
+	return utils.FromSlice(copyAccessRequestMapToAccessRequests(a.newAccessRequests), types.AccessRequest.GetName)
 }
 
 // startResourceWatcher starts watching changes to access request resources and
@@ -407,12 +408,7 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 }
 
 // onCreate will create Okta assignments from access requests.
-func (a *AccessRequestReconciler) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
-	newAccessRequest, ok := resource.(types.AccessRequest)
-	if !ok {
-		return trace.BadParameter("expected types.AccessRequest, got %T", resource)
-	}
-
+func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest types.AccessRequest) error {
 	// Only create an assignment if the access state is approved.
 	if newAccessRequest.GetState() == types.RequestState_APPROVED {
 		assignment, err := a.accessRequestToOktaAssignment(ctx, newAccessRequest, constants.OktaAssignmentStatusPending)
@@ -439,15 +435,10 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, resource types.R
 }
 
 // onUpdate will cleanup Okta assignments from access requests.
-func (a *AccessRequestReconciler) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
-	updatedAccessRequest, ok := resource.(types.AccessRequest)
-	if !ok {
-		return trace.BadParameter("expected types.AccessRequest, got %T", resource)
-	}
-
+func (a *AccessRequestReconciler) onUpdate(ctx context.Context, updatedAccessRequest types.AccessRequest) error {
 	// Only update an Okta assignment if the request state is denied.
 	if updatedAccessRequest.GetState() == types.RequestState_DENIED {
-		assignment, err := a.oktaClient.GetOktaAssignment(ctx, resource.GetName())
+		assignment, err := a.oktaClient.GetOktaAssignment(ctx, updatedAccessRequest.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -467,9 +458,9 @@ func (a *AccessRequestReconciler) onUpdate(ctx context.Context, resource types.R
 }
 
 // onUpdate will cleanup Okta assignments from access requests.
-func (a *AccessRequestReconciler) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
+func (a *AccessRequestReconciler) onDelete(ctx context.Context, request types.AccessRequest) error {
 	// No need to look at access request state, we should clean up the associated Okta assignments.
-	assignment, err := a.oktaClient.GetOktaAssignment(ctx, resource.GetName())
+	assignment, err := a.oktaClient.GetOktaAssignment(ctx, request.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -481,21 +472,17 @@ func (a *AccessRequestReconciler) onDelete(ctx context.Context, resource types.R
 	}
 
 	a.accessRequestsMu.Lock()
-	delete(a.accessRequests, resource.GetName())
+	delete(a.accessRequests, request.GetName())
 	a.accessRequestsMu.Unlock()
 
 	return nil
 }
 
 // matcher will match user groups or applications that are sourced from Okta.
-func (a *AccessRequestReconciler) matcher(ctx context.Context, resource types.ResourceWithLabels) bool {
+func (a *AccessRequestReconciler) matcher(ctx context.Context, accessRequest types.AccessRequest) bool {
 	// Look for all requested resource IDs for any user groups or apps that have an
 	// origin label of types.OriginOkta
 	matches := false
-	accessRequest, ok := resource.(types.AccessRequest)
-	if !ok {
-		return false
-	}
 
 	for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
 		var resource types.ResourceWithLabels
@@ -655,12 +642,7 @@ func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) 
 	// Cycle through all access requests, looking for access requests that belong to the
 	// given user.
 	accessRequests := a.getAccessRequests()
-	for accessRequestName, resource := range accessRequests {
-		accessRequest, ok := resource.(types.AccessRequest)
-		if !ok {
-			return trace.BadParameter("got %T, expected AccessRequest", resource)
-		}
-
+	for accessRequestName, accessRequest := range accessRequests {
 		// This access request is already expired, so no need to process it. Its
 		// corresponding Okta assignment should also be expired.
 		if a.clock.Now().After(accessRequest.Expiry()) {

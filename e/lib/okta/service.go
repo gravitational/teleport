@@ -277,7 +277,7 @@ type Service struct {
 	heartbeats   map[string]*srv.Heartbeat
 
 	// groupsReconciler will reconcile groups discovered in Okta.
-	groupsReconciler *services.Reconciler
+	groupsReconciler *services.Reconciler[types.UserGroup]
 
 	// groups is the current mapping of groups.
 	groupsMu sync.RWMutex
@@ -294,7 +294,7 @@ type Service struct {
 	groupsDeleted []*apievents.OktaResource
 
 	// appsReconciler will reconcile applications discovered in Okta.
-	appsReconciler *services.Reconciler
+	appsReconciler *services.Reconciler[*types.AppV3]
 
 	// apps is the current mapping of apps.
 	appsMu sync.RWMutex

@@ -39,8 +39,8 @@ type userConverter func(*okta.User) (types.User, error)
 
 // fetchOktaUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaUsers(ctx context.Context, oktaClient oktaClient, convertUser userConverter, log logrus.FieldLogger) (types.ResourcesWithLabelsMap, error) {
-	result := types.ResourcesWithLabelsMap{}
+func fetchOktaUsers(ctx context.Context, oktaClient oktaClient, convertUser userConverter, log logrus.FieldLogger) (map[string]types.User, error) {
+	result := map[string]types.User{}
 	err := oktaClient.iterateUsers(ctx, func(ou *okta.User) error {
 		log.Debugf("Processing Okta user %s...", ou.Id)
 		teleportUser, err := convertUser(ou)
@@ -59,8 +59,8 @@ func fetchOktaUsers(ctx context.Context, oktaClient oktaClient, convertUser user
 // listTeleportUsers lists the teleport users that are managed by the Okta
 // integration. Users for individual integrations are differentiated by the
 // `userOrgURL`.
-func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userOrgURL string, log logrus.FieldLogger) (types.ResourcesWithLabelsMap, error) {
-	result := types.ResourcesWithLabelsMap{}
+func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userOrgURL string, log logrus.FieldLogger) (map[string]types.User, error) {
+	result := map[string]types.User{}
 
 	users, err := userSvc.GetUsers(ctx, false)
 	if err != nil {
@@ -114,9 +114,9 @@ func (cfg *userReconcilerConfig) CheckAndSetDefaults() error {
 // creating, updating and deleting Teleport users as necessary.
 type userReconciler struct {
 	cfg           userReconcilerConfig
-	backend       *services.Reconciler
-	teleportUsers types.ResourcesWithLabelsMap
-	oktaUsers     types.ResourcesWithLabelsMap
+	backend       *services.Reconciler[types.User]
+	teleportUsers map[string]types.User
+	oktaUsers     map[string]types.User
 }
 
 // newUserReconciler constructs a new userReconciler from the supplied config.
@@ -133,11 +133,8 @@ func newUserReconciler(cfg userReconcilerConfig) (*userReconciler, error) {
 	}
 
 	userReconciler.backend, err = services.NewReconciler(
-		services.ReconcilerConfig{
-			Matcher: func(r types.ResourceWithLabels) bool {
-				_, ok := r.(types.User)
-				return ok
-			},
+		services.ReconcilerConfig[types.User]{
+			Matcher:             func(r types.User) bool { return true },
 			GetCurrentResources: userReconciler.getTeleportUsers,
 			GetNewResources:     userReconciler.getOktaUsers,
 			OnCreate:            userReconciler.createTeleportUser,
@@ -155,23 +152,18 @@ func newUserReconciler(cfg userReconcilerConfig) (*userReconciler, error) {
 
 // getTeleportUsers supplies the "current" Teleport resources to the inner
 // Reconciler
-func (r *userReconciler) getTeleportUsers() types.ResourcesWithLabelsMap {
+func (r *userReconciler) getTeleportUsers() map[string]types.User {
 	return r.teleportUsers
 }
 
 // getTeleportUsers supplies the "new" Okta-derived user resources to the inner
 // Reconciler
-func (r *userReconciler) getOktaUsers() types.ResourcesWithLabelsMap {
+func (r *userReconciler) getOktaUsers() map[string]types.User {
 	return r.oktaUsers
 }
 
 // createTeleportUser is the `OnCreate` delegate for the inner reconciler
-func (r *userReconciler) createTeleportUser(ctx context.Context, res types.ResourceWithLabels) error {
-	oktaUser, ok := res.(types.User)
-	if !ok {
-		return trace.BadParameter("res must be types.User")
-	}
-
+func (r *userReconciler) createTeleportUser(ctx context.Context, oktaUser types.User) error {
 	_, err := r.cfg.teleportAP.CreateUser(ctx, oktaUser)
 	if err == nil {
 		return nil
@@ -192,12 +184,7 @@ func (r *userReconciler) createTeleportUser(ctx context.Context, res types.Resou
 }
 
 // updateTeleportUser is the `OnUpdate` delegate for the inner reconciler
-func (r *userReconciler) updateTeleportUser(ctx context.Context, res types.ResourceWithLabels) error {
-	user, ok := res.(types.User)
-	if !ok {
-		return trace.BadParameter("res must be types.User")
-	}
-
+func (r *userReconciler) updateTeleportUser(ctx context.Context, user types.User) error {
 	if _, err := r.cfg.teleportAP.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err, "updating user %q", user.GetName())
 	}
@@ -205,12 +192,7 @@ func (r *userReconciler) updateTeleportUser(ctx context.Context, res types.Resou
 }
 
 // deleteTeleportUser is the `OnDelete` delegate for the inner reconciler
-func (r *userReconciler) deleteTeleportUser(ctx context.Context, res types.ResourceWithLabels) error {
-	user, ok := res.(types.User)
-	if !ok {
-		return trace.BadParameter("res must be types.User")
-	}
-
+func (r *userReconciler) deleteTeleportUser(ctx context.Context, user types.User) error {
 	if err := r.cfg.teleportAP.DeleteUser(ctx, user.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,7 +203,7 @@ func (r *userReconciler) deleteTeleportUser(ctx context.Context, res types.Resou
 // updates teleport users to match; creating, updating and deleting teleport
 // users as needed. Reconciliation is strictly one-way; no attempts are made
 // to update the upstream Okta organization.
-func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleportUsers types.ResourcesWithLabelsMap) error {
+func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleportUsers map[string]types.User) error {
 	// Stash the supplied resource maps where the inner reconciler will be able
 	// to find them
 	r.oktaUsers = oktaUsers
@@ -240,21 +222,9 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 	// * The creation info in the candidate record will have a timestamp of
 	//   `now`, while the existing record will have an older timestamp which
 	//   the reconciler will incorrectly interpret as a change
-	for username, teleportResource := range teleportUsers {
-		oktaResource, ok := oktaUsers[username]
+	for username, teleportUser := range teleportUsers {
+		oktaUser, ok := oktaUsers[username]
 		if !ok {
-			continue
-		}
-
-		teleportUser, ok := teleportResource.(types.User)
-		if !ok {
-			r.cfg.log.Warnf("teleport user must be types.User")
-			continue
-		}
-
-		oktaUser, ok := oktaResource.(types.User)
-		if !ok {
-			r.cfg.log.Warnf("okta user must be types.User")
 			continue
 		}
 

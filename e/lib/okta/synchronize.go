@@ -331,7 +331,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s.groupsReconciler, err = services.NewReconciler(services.ReconcilerConfig{
+	s.groupsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.UserGroup]{
 		Matcher:             s.groupMatcher,
 		GetCurrentResources: s.getGroups,
 		GetNewResources:     s.getNewGroups,
@@ -344,7 +344,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig{
+	s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[*types.AppV3]{
 		Matcher:             s.appsMatcher,
 		GetCurrentResources: s.getApps,
 		GetNewResources:     s.getNewApps,
@@ -358,13 +358,13 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 }
 
 // groupMatcher will match groups.
-func (s *Service) groupMatcher(resource types.ResourceWithLabels) bool {
+func (s *Service) groupMatcher(resource types.UserGroup) bool {
 	return resource.GetKind() == types.KindUserGroup && resource.Origin() == types.OriginOkta
 }
 
 // getGroups returns a copy of the current mapping of user groups.
-func (s *Service) getGroups() types.ResourcesWithLabelsMap {
-	groups := types.ResourcesWithLabelsMap{}
+func (s *Service) getGroups() map[string]types.UserGroup {
+	groups := map[string]types.UserGroup{}
 	s.groupsMu.RLock()
 	defer s.groupsMu.RUnlock()
 
@@ -377,8 +377,8 @@ func (s *Service) getGroups() types.ResourcesWithLabelsMap {
 
 // getNewGroups returns a copy of the current mapping of new user groups, unprocessed
 // by the reconciler.
-func (s *Service) getNewGroups() types.ResourcesWithLabelsMap {
-	newGroups := types.ResourcesWithLabelsMap{}
+func (s *Service) getNewGroups() map[string]types.UserGroup {
+	newGroups := map[string]types.UserGroup{}
 	s.newGroupsMu.RLock()
 	defer s.newGroupsMu.RUnlock()
 
@@ -390,14 +390,9 @@ func (s *Service) getNewGroups() types.ResourcesWithLabelsMap {
 }
 
 // onCreateGroup will run when a group is created.
-func (s *Service) onCreateGroup(ctx context.Context, resource types.ResourceWithLabels) error {
+func (s *Service) onCreateGroup(ctx context.Context, group types.UserGroup) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	group, ok := resource.(types.UserGroup)
-	if !ok {
-		return trace.BadParameter("expected type types.UserGroup, got %T", resource)
 	}
 
 	if err := s.accessPoint.CreateUserGroup(ctx, group); err != nil {
@@ -421,14 +416,9 @@ func (s *Service) onCreateGroup(ctx context.Context, resource types.ResourceWith
 }
 
 // onUpdateGroup will run when a group is updated.
-func (s *Service) onUpdateGroup(ctx context.Context, resource types.ResourceWithLabels) error {
+func (s *Service) onUpdateGroup(ctx context.Context, group types.UserGroup) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	group, ok := resource.(types.UserGroup)
-	if !ok {
-		return trace.BadParameter("expected type types.UserGroup, got %T", resource)
 	}
 
 	if err := s.accessPoint.UpdateUserGroup(ctx, group); err != nil {
@@ -452,14 +442,9 @@ func (s *Service) onUpdateGroup(ctx context.Context, resource types.ResourceWith
 }
 
 // onDeleteGroup will run when a group is deleted.
-func (s *Service) onDeleteGroup(ctx context.Context, resource types.ResourceWithLabels) error {
+func (s *Service) onDeleteGroup(ctx context.Context, group types.UserGroup) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	group, ok := resource.(types.UserGroup)
-	if !ok {
-		return trace.BadParameter("expected type types.UserGroup, got %T", resource)
 	}
 
 	// It's okay to delete a user group that isn't found.
@@ -477,13 +462,13 @@ func (s *Service) onDeleteGroup(ctx context.Context, resource types.ResourceWith
 }
 
 // appMatcher will match applications.
-func (s *Service) appsMatcher(resource types.ResourceWithLabels) bool {
+func (s *Service) appsMatcher(resource *types.AppV3) bool {
 	return resource.GetKind() == types.KindApp && resource.Origin() == types.OriginOkta
 }
 
 // getApps returns a copy of the current mapping of apps.
-func (s *Service) getApps() types.ResourcesWithLabelsMap {
-	apps := types.ResourcesWithLabelsMap{}
+func (s *Service) getApps() map[string]*types.AppV3 {
+	apps := map[string]*types.AppV3{}
 	s.appsMu.RLock()
 	defer s.appsMu.RUnlock()
 
@@ -496,8 +481,8 @@ func (s *Service) getApps() types.ResourcesWithLabelsMap {
 
 // getNewApps returns a copy of the current mapping of new apps, unprocessed
 // by the reconciler.
-func (s *Service) getNewApps() types.ResourcesWithLabelsMap {
-	newApps := types.ResourcesWithLabelsMap{}
+func (s *Service) getNewApps() map[string]*types.AppV3 {
+	newApps := map[string]*types.AppV3{}
 	s.newAppsMu.RLock()
 	defer s.newAppsMu.RUnlock()
 
@@ -509,14 +494,9 @@ func (s *Service) getNewApps() types.ResourcesWithLabelsMap {
 }
 
 // onCreateApp will run when an application is created.
-func (s *Service) onCreateApp(ctx context.Context, resource types.ResourceWithLabels) error {
+func (s *Service) onCreateApp(ctx context.Context, app *types.AppV3) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	app, ok := resource.(*types.AppV3)
-	if !ok {
-		return trace.BadParameter("expected type types.Application, got %T", resource)
 	}
 
 	s.appsMu.Lock()
@@ -533,14 +513,9 @@ func (s *Service) onCreateApp(ctx context.Context, resource types.ResourceWithLa
 }
 
 // onUpdateGroup will run when an application is updated.
-func (s *Service) onUpdateApp(ctx context.Context, resource types.ResourceWithLabels) error {
+func (s *Service) onUpdateApp(ctx context.Context, app *types.AppV3) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	app, ok := resource.(*types.AppV3)
-	if !ok {
-		return trace.BadParameter("expected type types.Application, got %T", resource)
 	}
 
 	s.appsMu.Lock()
@@ -553,14 +528,9 @@ func (s *Service) onUpdateApp(ctx context.Context, resource types.ResourceWithLa
 }
 
 // onDeleteApp will run when an application is deleted.
-func (s *Service) onDeleteApp(ctx context.Context, resource types.ResourceWithLabels) error {
+func (s *Service) onDeleteApp(ctx context.Context, app *types.AppV3) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	app, ok := resource.(*types.AppV3)
-	if !ok {
-		return trace.BadParameter("expected type types.Application, got %T", resource)
 	}
 
 	if err := s.stopHeartbeat(app.GetName()); err != nil {

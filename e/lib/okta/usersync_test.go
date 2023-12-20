@@ -145,12 +145,12 @@ func TestReconcileUsers(t *testing.T) {
 		ap.On("CreateUser", someContext, scooby).
 			Return(scooby, nil)
 
-		oktaUsers := types.ResourcesWithLabelsMap{
+		oktaUsers := map[string]types.User{
 			"scooby": scooby,
 			"shaggy": shaggy,
 		}
 
-		teleportUsers := types.ResourcesWithLabelsMap{
+		teleportUsers := map[string]types.User{
 			"shaggy": shaggy,
 		}
 
@@ -173,12 +173,12 @@ func TestReconcileUsers(t *testing.T) {
 		ap.On("CreateUser", someContext, scooby).
 			Return(nil, trace.AlreadyExists("duplicate username"))
 
-		oktaUsers := types.ResourcesWithLabelsMap{
+		oktaUsers := map[string]types.User{
 			"scooby": scooby,
 			"shaggy": shaggy,
 		}
 
-		teleportUsers := types.ResourcesWithLabelsMap{
+		teleportUsers := map[string]types.User{
 			"shaggy": shaggy,
 		}
 
@@ -208,12 +208,12 @@ func TestReconcileUsers(t *testing.T) {
 			"okta/peers": {"fred", "daphne", "shaggy", "scrappy"},
 		})
 
-		oktaUsers := types.ResourcesWithLabelsMap{
+		oktaUsers := map[string]types.User{
 			"scooby": oktaScooby,
 			"shaggy": shaggy,
 		}
 
-		teleportUsers := types.ResourcesWithLabelsMap{
+		teleportUsers := map[string]types.User{
 			"shaggy": shaggy,
 			"scooby": teleportScooby,
 		}
@@ -240,12 +240,12 @@ func TestReconcileUsers(t *testing.T) {
 		scooby := mkOktaUser(t, "scooby", "SCOOBY")
 		scrappy := mkOktaUser(t, "scrappy", "SCRAPPY")
 
-		oktaUsers := types.ResourcesWithLabelsMap{
+		oktaUsers := map[string]types.User{
 			"scooby": scooby,
 			"shaggy": shaggy,
 		}
 
-		teleportUsers := types.ResourcesWithLabelsMap{
+		teleportUsers := map[string]types.User{
 			"shaggy":  shaggy,
 			"scooby":  scooby,
 			"scrappy": scrappy,
@@ -274,13 +274,13 @@ func TestReconcileUsers(t *testing.T) {
 		newScooby := mkOktaUser(t, "5kөөß¥", "SCOOBY")
 		scrappy := mkOktaUser(t, "scrappy", "SCRAPPY")
 
-		oktaUsers := types.ResourcesWithLabelsMap{
+		oktaUsers := map[string]types.User{
 			shaggy.GetName():    shaggy,
 			newScooby.GetName(): newScooby,
 			scrappy.GetName():   scrappy,
 		}
 
-		teleportUsers := types.ResourcesWithLabelsMap{
+		teleportUsers := map[string]types.User{
 			shaggy.GetName():    shaggy,
 			oldScooby.GetName(): oldScooby,
 			scrappy.GetName():   scrappy,
@@ -310,13 +310,13 @@ func TestReconcileUsers(t *testing.T) {
 		scooby := mkOktaUser(t, "scooby", "SCOOBY")
 		velma := mkOktaUser(t, "velma", "VELMA")
 
-		oktaUsers := types.ResourcesWithLabelsMap{
+		oktaUsers := map[string]types.User{
 			scooby.GetName(): scooby,
 			shaggy.GetName(): shaggy,
 			velma.GetName():  velma,
 		}
 
-		teleportUsers := types.ResourcesWithLabelsMap{
+		teleportUsers := map[string]types.User{
 			shaggy.GetName(): shaggy,
 			scooby.GetName(): scooby,
 			velma.GetName():  velma,
