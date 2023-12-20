@@ -102,7 +102,8 @@ func (spec *TeleportRoleSpec) DeepCopyInto(out *TeleportRoleSpec) {
 	}
 }
 
-// StatusConditions returns a pointer to Status.Conditions slice.
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (r *TeleportRole) StatusConditions() *[]metav1.Condition {
 	return &r.Status.Conditions
 }

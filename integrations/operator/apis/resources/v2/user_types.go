@@ -75,6 +75,8 @@ func (u TeleportUser) ToTeleport() types.User {
 	}
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (u *TeleportUser) StatusConditions() *[]metav1.Condition {
 	return &u.Status.Conditions
 }

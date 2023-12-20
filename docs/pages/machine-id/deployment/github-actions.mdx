@@ -61,7 +61,9 @@ Replace `gravitational/example` with the name of the repository that `tbot`
 will run within. You may also choose to change the name of the bot and token
 to more accurately describe your use-case.
 
-<Admonition type="note" title="Using GitHub Enterprise Server?">
+<Admonition type="note" title="Using GitHub Enterprise?">
+**Enterprise Server**
+
 From Teleport 11.1.4, users with Teleport Enterprise are able to permit
 workflows within GitHub Enterprise Server instances to authenticate using the
 GitHub join method.
@@ -78,6 +80,22 @@ spec:
   github:
     enterprise_server_host: ghes.example.com
 ```
+
+**Enterprise Cloud**
+
+If you have enabled `include_enterprise_slug` in your GitHub Enterprise
+Cloud configuration, you will need to set `spec.github.enterprise_slug` to
+the slug of your GitHub Enterprise organization.
+
+For example:
+```yaml
+spec:
+  github:
+    enterprise_slug: my-enterprise
+```
+
+Read more about `include_enterprise_slug` on the the GitHub guide to
+[customizing the issuer value for an enterprise](https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise).
 </Admonition>
 
 Once the resource file has been written, create the token with `tctl`:

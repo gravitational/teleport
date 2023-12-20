@@ -24,12 +24,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -73,6 +73,9 @@ var (
 
 		// TestWithRsync takes ~10 seconds to run
 		"TestWithRsync",
+
+		// TestAdminActionMFA takes longer than 6 seconds to run.
+		"TestAdminActionMFA",
 	}
 )
 

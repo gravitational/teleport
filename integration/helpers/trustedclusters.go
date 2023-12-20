@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -148,7 +149,7 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Ser
 		if err != nil {
 			return false
 		}
-		return cluster.GetTunnelsCount() >= expectedCount
+		return cluster.GetTunnelsCount() >= expectedCount && cluster.GetStatus() == teleport.RemoteClusterStatusOnline
 	},
 		30*time.Second,
 		time.Second,
