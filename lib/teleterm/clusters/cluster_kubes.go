@@ -131,7 +131,6 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string, mfaPr
 	}
 	defer proxyClient.Close()
 
-	var mfaRequired bool
 	key, err := proxyClient.IssueUserCertsWithMFA(
 		ctx, client.ReissueParams{
 			RouteToCluster:    c.clusterClient.SiteName,
@@ -139,7 +138,6 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string, mfaPr
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
 		mfaPrompt,
-		client.WithMFARequired(&mfaRequired),
 	)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
