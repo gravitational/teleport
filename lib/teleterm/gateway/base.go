@@ -275,27 +275,3 @@ func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, er
 
 	return listener, nil
 }
-
-type PromptReasonSessionMFA struct {
-	ServiceType string
-	ServiceName string
-}
-
-func GetPromptReasonSessionMFA(uri uri.ResourceURI) (PromptReasonSessionMFA, error) {
-	switch {
-	case uri.IsDB():
-		return PromptReasonSessionMFA{
-			ServiceType: "database",
-			ServiceName: uri.GetDbName(),
-		}, nil
-
-	case uri.IsKube():
-		return PromptReasonSessionMFA{
-			ServiceType: "Kubernetes cluster",
-			ServiceName: uri.GetKubeName(),
-		}, nil
-
-	default:
-		return PromptReasonSessionMFA{}, trace.NotImplemented("GetPromptReasonSessionMFA does not handle this resource kind %v", uri)
-	}
-}

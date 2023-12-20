@@ -28,6 +28,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // mfaPrompt is a tshd implementation of mfa.Prompt that uses the
@@ -123,4 +124,24 @@ func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateCh
 			TOTP: &proto.TOTPResponse{Code: resp.TotpCode},
 		},
 	}, nil
+}
+
+func WithPromptReasonSessionMFA(uri uri.ResourceURI) (mfa.PromptOpt, error) {
+	var serviceType string
+	var serviceName string
+
+	switch {
+	case uri.IsDB():
+		serviceType = "database"
+		serviceName = uri.GetDbName()
+
+	case uri.IsKube():
+		serviceType = "Kubernetes cluster"
+		serviceName = uri.GetKubeName()
+
+	default:
+		return nil, trace.NotImplemented("WithPromptReasonSessionMFA does not handle this resource kind %v", uri)
+	}
+
+	return mfa.WithPromptReasonSessionMFA(serviceType, serviceName), nil
 }

@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -298,12 +297,12 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	promptReason, err := gateway.GetPromptReasonSessionMFA(params.TargetURI)
+	withPromptReasonOpt, err := WithPromptReasonSessionMFA(targetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mfaPrompt := clusterClient.NewMFAPrompt(
-		mfa.WithPromptReasonSessionMFA(promptReason.ServiceType, promptReason.ServiceName))
+	mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
+
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -351,12 +350,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			return trace.Wrap(err)
 		}
 
-		promptReason, err := gateway.GetPromptReasonSessionMFA(g.TargetURI())
+		withPromptReasonOpt, err := WithPromptReasonSessionMFA(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		mfaPrompt := clusterClient.NewMFAPrompt(
-			mfa.WithPromptReasonSessionMFA(promptReason.ServiceType, promptReason.ServiceName))
+		mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
+
 		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
 		if err != nil {
 			return trace.Wrap(err)
