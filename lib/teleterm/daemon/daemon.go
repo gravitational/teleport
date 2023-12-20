@@ -294,6 +294,16 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	_, clusterClient, err := s.ResolveClusterURI(targetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	promptReason, err := gateway.GetPromptReasonSessionMFA(params.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mfaPrompt := clusterClient.NewMFAPrompt(
+		mfa.WithPromptReasonSessionMFA(promptReason.ServiceType, promptReason.ServiceName))
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -301,6 +311,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
+		MFAPrompt:             mfaPrompt,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
