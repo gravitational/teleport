@@ -43,6 +43,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
@@ -57,6 +58,9 @@ func TestAdminActionMFA(t *testing.T) {
 	t.Run("Bots", s.testBots)
 	t.Run("Roles", s.testRoles)
 	t.Run("UserGroups", s.testUserGroups)
+	t.Run("OIDCConnector", s.testOIDCConnector)
+	t.Run("SAMLConnector", s.testSAMLConnector)
+	t.Run("GithubConnector", s.testGithubConnector)
 }
 
 func (s *adminActionTestSuite) testUsers(t *testing.T) {
@@ -206,6 +210,149 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 	})
 }
 
+func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
+	ctx := context.Background()
+
+	connector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		Display:      "OIDC",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	createOIDCConnector := func() error {
+		_, err := s.authServer.CreateOIDCConnector(ctx, connector)
+		return trace.Wrap(err)
+	}
+
+	getOIDCConnector := func() (types.Resource, error) {
+		return s.authServer.GetOIDCConnector(ctx, connector.GetName(), true)
+	}
+
+	deleteOIDCConnector := func() error {
+		return s.authServer.DeleteOIDCConnector(ctx, connector.GetName())
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:       connector,
+			resourceCreate: createOIDCConnector,
+			resourceDelete: deleteOIDCConnector,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:    getResourceRef(connector),
+			resourceCreate: createOIDCConnector,
+			resourceGet:    getOIDCConnector,
+			resourceDelete: deleteOIDCConnector,
+		})
+	})
+}
+
+func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
+	ctx := context.Background()
+
+	connector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+	})
+	require.NoError(t, err)
+
+	createSAMLConnector := func() error {
+		_, err := s.authServer.CreateSAMLConnector(ctx, connector)
+		return trace.Wrap(err)
+	}
+
+	getSAMLConnector := func() (types.Resource, error) {
+		return s.authServer.GetSAMLConnector(ctx, connector.GetName(), true)
+	}
+
+	deleteSAMLConnector := func() error {
+		return s.authServer.DeleteSAMLConnector(ctx, connector.GetName())
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:       connector,
+			resourceCreate: createSAMLConnector,
+			resourceDelete: deleteSAMLConnector,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:    getResourceRef(connector),
+			resourceCreate: createSAMLConnector,
+			resourceGet:    getSAMLConnector,
+			resourceDelete: deleteSAMLConnector,
+		})
+	})
+}
+
+func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
+	ctx := context.Background()
+
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		Display:      "Github",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "acme",
+				Team:         "users",
+				Roles:        []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	createGithubConnector := func() error {
+		_, err := s.authServer.CreateGithubConnector(ctx, connector)
+		return trace.Wrap(err)
+	}
+
+	getGithubConnector := func() (types.Resource, error) {
+		return s.authServer.GetGithubConnector(ctx, connector.GetName(), true)
+	}
+
+	deleteGithubConnector := func() error {
+		return s.authServer.DeleteGithubConnector(ctx, connector.GetName())
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:       connector,
+			resourceCreate: createGithubConnector,
+			resourceDelete: deleteGithubConnector,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:    getResourceRef(connector),
+			resourceCreate: createGithubConnector,
+			resourceGet:    getGithubConnector,
+			resourceDelete: deleteGithubConnector,
+		})
+	})
+}
+
 type resourceCommandTestCase struct {
 	resource       types.Resource
 	resourceCreate func() error
@@ -289,6 +436,13 @@ type adminActionTestSuite struct {
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	t.Helper()
 	ctx := context.Background()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			OIDC: true,
+			SAML: true,
+		},
+	})
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
