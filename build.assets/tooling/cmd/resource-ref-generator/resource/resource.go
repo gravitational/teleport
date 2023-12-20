@@ -536,6 +536,11 @@ func makeFieldTableInfo(fields []rawField) ([]Field, error) {
 		}
 		desc = strings.Trim(strings.ReplaceAll(desc, "\n", " "), " ")
 
+		// Escape angle brackets so the docs engine handles them as
+		// strings instead of HTML tags.
+		desc = strings.ReplaceAll(desc, "<", `\<`)
+		desc = strings.ReplaceAll(desc, ">", `\>`)
+
 		result = append(result, Field{
 			Description: descriptionWithoutName(desc, field.name),
 			Name:        field.jsonName,
