@@ -261,20 +261,13 @@ func TestGatewayCRUD(t *testing.T) {
 				tt.tcpPortAllocator = &gatewaytest.MockTCPPortAllocator{}
 			}
 
-			homeDir := t.TempDir()
 			mockGatewayCreator := &mockGatewayCreator{
 				t:                t,
 				tcpPortAllocator: tt.tcpPortAllocator,
 			}
 
-			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                homeDir,
-				InsecureSkipVerify: true,
-			})
-			require.NoError(t, err)
-
 			daemon, err := New(Config{
-				Storage:        storage,
+				Storage:        fakeStorage{},
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
