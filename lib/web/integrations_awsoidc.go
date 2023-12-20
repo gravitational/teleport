@@ -441,7 +441,7 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 }
 
 // awsOIDCListSecurityGroups returns a map of required VPC's and its subnets.
-func (h *Handler) awsOIDCRequiredVPCS(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	var req ui.AWSOIDCRequiredVPCSRequest
@@ -472,56 +472,16 @@ func (h *Handler) awsOIDCRequiredVPCS(w http.ResponseWriter, r *http.Request, p 
 }
 
 func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRequest, listDBsClient awsoidc.ListDatabasesClient, clt auth.ClientI) (*ui.AWSOIDCRequiredVPCSResponse, error) {
-	fetchedRDSs := []types.Database{}
-
-	// Get all rds instances.
-	nextToken := ""
-	for {
-		resp, err := awsoidc.ListDatabases(ctx,
-			listDBsClient,
-			awsoidc.ListDatabasesRequest{
-				Region:    req.Region,
-				Engines:   []string{"mysql", "mariadb", "postgres"},
-				RDSType:   "instance",
-				NextToken: nextToken,
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
-		nextToken = resp.NextToken
-
-		if len(nextToken) == 0 {
-			break
-		}
+	resp, err := awsoidc.ListAllDatabases(ctx, listDBsClient, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	// Get all rds clusters.
-	nextToken = ""
-	for {
-		resp, err := awsoidc.ListDatabases(ctx,
-			listDBsClient,
-			awsoidc.ListDatabasesRequest{
-				Region:    req.Region,
-				Engines:   []string{"aurora-mysql", "aurora-postgresql"},
-				RDSType:   "cluster",
-				NextToken: nextToken,
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
-		nextToken = resp.NextToken
-
-		if len(nextToken) == 0 {
-			break
-		}
+	if len(resp.Databases) == 0 {
+		return nil, trace.BadParameter("there are no available RDS instances or clusters found in region %q", req.Region)
 	}
 
 	// Get all database services with ecs/fargate metadata label.
-	nextToken = ""
+	nextToken := ""
 	fetchedDbSvcs := []types.DatabaseService{}
 	for {
 		page, err := client.GetResourcePage[types.DatabaseService](ctx, clt, &proto.ListResourcesRequest{
@@ -543,12 +503,15 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRe
 
 	// Construct map of VPCs and its subnets.
 	vpcLookup := map[string][]string{}
-	for _, db := range fetchedRDSs {
+	for _, db := range resp.Databases {
 		rds := db.GetAWS().RDS
 		vpcId := rds.VPCID
 		if _, found := vpcLookup[vpcId]; !found {
 			vpcLookup[vpcId] = rds.Subnets
+			continue
 		}
+		combinedSubnets := append(vpcLookup[vpcId], rds.Subnets...)
+		vpcLookup[vpcId] = utils.Deduplicate(combinedSubnets)
 	}
 
 	// Start looking for db service matches.
@@ -576,7 +539,7 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRe
 			continue
 		}
 
-		// Match label keys.
+		// Match labels contains the keys we are looking for.
 		matchedLabelKeys := true
 		for key := range wantLabels {
 			vals, found := labelLookup[key]
@@ -593,9 +556,7 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRe
 			// Delete found vpcs
 			vpcs := wantLabels[types.DiscoveryLabelVPCID]
 			for _, vpc := range vpcs {
-				if _, found := vpcLookup[vpc]; found {
-					delete(vpcLookup, vpc)
-				}
+				delete(vpcLookup, vpc)
 			}
 		}
 	}
