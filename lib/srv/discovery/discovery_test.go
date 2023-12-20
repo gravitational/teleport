@@ -525,7 +525,7 @@ func TestDiscoveryServer(t *testing.T) {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-			require.GreaterOrEqual(t, 1, reporter.DiscoveryFetchEventCount())
+			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
 		})
 	}
 }
