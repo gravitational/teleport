@@ -1225,6 +1225,32 @@ func TestMakeFieldTableInfo(t *testing.T) {
 				},
 			},
 		},
+		{
+			description: "pipe in field description",
+			input: []rawField{
+				{
+					packageName: "mypkg",
+					doc:         "Specifies the locking mode (strict|best_effort) to be applied with the role.",
+					kind: yamlCustomType{
+						name: "LockingMode",
+						declarationInfo: PackageInfo{
+							DeclName:    "LockingMode",
+							PackageName: "mypkg",
+						},
+					},
+					name:     "LockingMode",
+					jsonName: "locking_mode",
+					tags:     "json:\"locking_mode\"",
+				},
+			},
+			expected: []Field{
+				{
+					Name:        "locking_mode",
+					Description: `Specifies the locking mode (strict\|best_effort) to be applied with the role.`,
+					Type:        "[LockingMode](#lockingmode)",
+				},
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
