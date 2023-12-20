@@ -59,6 +59,10 @@ required_types:
     package: api/types
 source: "api"
 destination: "docs/pages/includes/resource-reference.mdx"
+excluded_resource_types:
+  - package: "types"
+    name: "ResourceHeader"
+field_assignment_method: "setStaticFields"
 `
 
 func main() {
