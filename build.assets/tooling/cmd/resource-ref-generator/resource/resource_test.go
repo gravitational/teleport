@@ -1136,6 +1136,7 @@ func (stream *streamFunc[T]) Next() bool {
 			// For generating method information
 			allDecls := []DeclarationInfo{}
 			pkgToDecl := make(map[PackageInfo]DeclarationInfo)
+
 			// Assemble a map of PackageInfo to *ast.GenDecl for
 			// source fixtures the test case depends on.
 			for n, dep := range tc.declSources {
