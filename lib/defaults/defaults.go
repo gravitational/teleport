@@ -24,12 +24,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
