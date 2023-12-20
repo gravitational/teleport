@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +40,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
