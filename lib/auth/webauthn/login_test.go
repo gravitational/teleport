@@ -120,7 +120,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			}
 
 			// 1st step of the login ceremony.
-			assertion, err := webLogin.Begin(ctx, user)
+			assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 			require.NoError(t, err)
 			// We care about a few specific settings, for everything else defaults are
 			// OK.
@@ -148,7 +148,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 			// 2nd and last step of the login ceremony.
 			beforeLastUsed := time.Now().Add(-1 * time.Second)
-			loginDevice, err := webLogin.Finish(ctx, user, assertionResp)
+			loginDevice, err := webLogin.Finish(ctx, user, assertionResp, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 			require.NoError(t, err)
 			// Last used time and counter are updated.
 			require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
@@ -222,7 +222,7 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Begin(ctx, test.user)
+			_, err := webLogin.Begin(ctx, test.user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 			require.True(t, test.assertErrType(err), "got err = %v, want BadParameter", err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
@@ -260,7 +260,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		Webauthn: webConfig,
 		Identity: identity,
 	}
-	assertion, err := webLogin.Begin(ctx, user)
+	assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 	require.NoError(t, err)
 	okResp, err := key.SignAssertion(webOrigin, assertion)
 	require.NoError(t, err)
@@ -289,7 +289,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad origin",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				resp, err := key.SignAssertion("https://badorigin.com", assertion)
 				require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad RPID",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = "badrpid.com"
 
@@ -313,7 +313,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion signed by unknown device",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 
 				unknownKey, err := mocku2f.Create()
@@ -330,7 +330,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with invalid signature",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user)
+				assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
 				// signature checking.
@@ -344,7 +344,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Finish(ctx, test.user, test.createResp())
+			_, err := webLogin.Finish(ctx, test.user, test.createResp(), wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 			require.Error(t, err)
 		})
 	}
@@ -568,7 +568,7 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user)
+		_, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 		assert.NoError(t, err, "Begin failed, expected assertion for `dev1`")
 	})
 
@@ -578,13 +578,13 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		assertion, err := webLogin.Begin(ctx, user)
+		assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 		require.NoError(t, err, "Begin failed")
 
 		car, err := dev1Key.SignAssertion(origin, assertion)
 		require.NoError(t, err, "SignAssertion failed")
 
-		mfaDev, err := webLogin.Finish(ctx, user, car)
+		mfaDev, err := webLogin.Finish(ctx, user, car, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 		require.NoError(t, err, "Finish failed")
 		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
 	})
@@ -595,7 +595,7 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user)
+		_, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 		assert.ErrorIs(t, err, wanlib.ErrInvalidCredentials, "Begin error mismatch")
 	})
 
@@ -612,7 +612,7 @@ func TestCredentialRPID(t *testing.T) {
 			Webauthn: webOtherRP,
 			Identity: identity,
 		}
-		assertion, err := webLogin.Begin(ctx, user)
+		assertion, err := webLogin.Begin(ctx, user, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN, false)
 		require.NoError(t, err, "Begin failed, expected assertion for device `other1`")
 
 		// Verify that we got the correct device.
