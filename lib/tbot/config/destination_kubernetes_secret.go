@@ -26,6 +26,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -164,6 +166,13 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 }
 
 func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, data []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"DestinationKubernetesSecret/Write",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
 	if dks.initialized == false {
@@ -191,6 +200,13 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 }
 
 func (dks *DestinationKubernetesSecret) Read(ctx context.Context, name string) ([]byte, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"DestinationKubernetesSecret/Read",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
 	if dks.initialized == false {
