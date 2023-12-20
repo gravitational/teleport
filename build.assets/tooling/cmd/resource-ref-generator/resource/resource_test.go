@@ -1484,6 +1484,31 @@ my_string: "string"
     "string": true
 `,
 		},
+		{
+			description: "sequences of custom types",
+			input: []rawField{
+				rawField{
+					name:     "labels",
+					jsonName: "labels",
+					doc:      "labels is a list of labels",
+					tags:     `json:"labels"`,
+					kind: yamlSequence{
+						elementKind: yamlCustomType{
+							name: "label",
+							declarationInfo: PackageInfo{
+								DeclName:    "label",
+								PackageName: "mypkg",
+							},
+						},
+					},
+				},
+			},
+			expected: `labels:
+- # [...]
+- # [...]
+- # [...]
+`,
+		},
 	}
 
 	for _, c := range cases {
