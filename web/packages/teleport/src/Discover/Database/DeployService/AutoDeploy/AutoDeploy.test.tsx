@@ -172,7 +172,8 @@ function getMockedContexts() {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
       resourceName: 'db1',
-      integration: mocKIntegration,
+      awsRegion: region,
+      awsIntegration: mocKIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
     } as DbMeta,
@@ -197,9 +198,6 @@ function getMockedContexts() {
   };
 
   jest.spyOn(integrationService, 'deployAwsOidcService').mockResolvedValue({
-    clusterArn: 'cluster-arn',
-    serviceArn: 'service-arn',
-    taskDefinitionArn: 'task-definition',
     serviceDashboardUrl: 'dashboard-url',
   });
 

@@ -43,6 +43,7 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
+  AwsOidcDeployDatabaseServicesRequest,
 } from './types';
 
 export const integrationService = {
@@ -79,8 +80,17 @@ export const integrationService = {
     return api.get(cfg.api.thumbprintPath);
   },
 
+  fetchAwsRdsRequiredVpcs(
+    integrationName: string,
+    body: { region: string; accountId: string }
+  ): Promise<Record<string, string[]>> {
+    return api
+      .post(cfg.getAwsRdsDbRequiredVpcsUrl(integrationName), body)
+      .then(resp => resp.vpcMapOfSubnets);
+  },
+
   fetchAwsRdsDatabases(
-    integrationName,
+    integrationName: string,
     rdsEngineIdentifier: RdsEngineIdentifier,
     req: {
       region: AwsOidcListDatabasesRequest['region'];
@@ -130,11 +140,48 @@ export const integrationService = {
       });
   },
 
+  fetchAwsRdsDatabasesForAllEngines(
+    integrationName,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
+  ): Promise<ListAwsRdsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest = {
+      ...req,
+      rdsType: 'instance',
+      engines: [
+        'mysql',
+        'mariadb',
+        'postgres',
+        'aurora-mysql',
+        'aurora-postgresql',
+      ],
+    };
+
+    return api
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
+      .then(json => {
+        const dbs = json?.databases ?? [];
+        return {
+          databases: dbs.map(makeAwsDatabase),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
   deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<AwsOidcDeployServiceResponse> {
     return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
+  },
+
+  deployDatabaseServices(
+    integrationName,
+    req: AwsOidcDeployDatabaseServicesRequest
+  ): Promise<AwsOidcDeployServiceResponse> {
+    return api.post(cfg.getAwsRdsDbsDeployServicesUrl(integrationName), req);
   },
 
   // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.

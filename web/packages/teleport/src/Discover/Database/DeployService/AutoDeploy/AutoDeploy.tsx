@@ -96,37 +96,69 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
       return;
     }
 
-    if (!hasMatchingLabels(dbLabels, labels)) {
-      setShowLabelMatchErr(true);
-      return;
-    }
+    const integrationName = dbMeta.awsIntegration.name;
 
-    setShowLabelMatchErr(false);
-    setAttempt({ status: 'processing' });
-    integrationService
-      .deployAwsOidcService(dbMeta.integration?.name, {
-        deploymentMode: 'database-service',
-        region: dbMeta.selectedAwsRdsDb?.region,
-        subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
-        taskRoleArn,
-        databaseAgentMatcherLabels: labels,
-        securityGroups: selectedSecurityGroups,
-      })
-      // The user is still technically in the "processing"
-      // state, because after this call succeeds, we will
-      // start pinging for the newly registered db
-      // to get picked up by this service we deployed.
-      // So setting the attempt here to "success"
-      // is not necessary.
-      .then(setDeploySvcResp)
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        emitErrorEvent(`deploy request failed: ${err.message}`);
-      });
+    if (wantAutoDiscover) {
+      setAttempt({ status: 'processing' });
+
+      const requiredVpcsAndSubnets =
+        dbMeta.autoDiscovery.requiredVpcsAndSubnets;
+      const vpcIds = Object.keys(requiredVpcsAndSubnets);
+
+      integrationService
+        .deployDatabaseServices(integrationName, {
+          region: dbMeta.awsRegion,
+          taskRoleArn,
+          deployments: vpcIds.map(vpcId => ({
+            vpcId,
+            subnetIds: requiredVpcsAndSubnets[vpcId],
+          })),
+        })
+        .then(resp => {
+          setAttempt({ status: 'success' });
+          setDeploySvcResp(resp);
+          setDeployFinished(true);
+          updateAgentMeta({ ...agentMeta, serviceDeployedMethod: 'auto' });
+        })
+        .catch((err: Error) => {
+          setAttempt({ status: 'failed', statusText: err.message });
+          emitErrorEvent(`auto discover deploy request failed: ${err.message}`);
+        });
+    } else {
+      if (!hasMatchingLabels(dbLabels, labels)) {
+        setShowLabelMatchErr(true);
+        return;
+      }
+
+      setShowLabelMatchErr(false);
+      setAttempt({ status: 'processing' });
+      integrationService
+        .deployAwsOidcService(integrationName, {
+          deploymentMode: 'database-service',
+          region: dbMeta.awsRegion,
+          subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
+          taskRoleArn,
+          databaseAgentMatcherLabels: labels,
+          securityGroups: selectedSecurityGroups,
+        })
+        // The user is still technically in the "processing"
+        // state, because after this call succeeds, we will
+        // start pinging for the newly registered db
+        // to get picked up by this service we deployed.
+        // So setting the attempt here to "success"
+        // is not necessary.
+        .then(setDeploySvcResp)
+        .catch((err: Error) => {
+          setAttempt({ status: 'failed', statusText: err.message });
+          emitErrorEvent(`deploy request failed: ${err.message}`);
+        });
+    }
   }
 
   function handleOnProceed() {
-    nextStep(2); // skip the IAM policy view
+    // Auto discover skips the IAM policy view since
+    // we ask them to configure it as first step.
+    nextStep(2);
     emitEvent(
       { stepStatus: DiscoverEventStatus.Success },
       {
@@ -154,6 +186,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     toggleDeployMethod();
   }
 
+  const wantAutoDiscover = !!dbMeta.autoDiscovery;
   const isProcessing = attempt.status === 'processing' && !!deploySvcResp;
   const isDeploying = isProcessing && !!deploySvcResp;
   const hasError = attempt.status === 'failed';
@@ -166,7 +199,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             <Heading
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
-              region={dbMeta.selectedAwsRdsDb.region}
+              region={dbMeta.awsRegion}
+              wantAutoDiscover={wantAutoDiscover}
             />
 
             {/* step one */}
@@ -178,35 +212,43 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               validator={validator}
             />
 
-            {/* step two */}
+            {/* step two & step three
+             * for auto discover, these steps are disabled atm since
+             * user's can't supply custom label matchers and selecting
+             * security groups is out of scope.
+             */}
+            {!wantAutoDiscover && (
+              <>
+                <StyledBox mb={5}>
+                  <Text bold>Step 2 (Optional)</Text>
+                  <Labels
+                    labels={labels}
+                    setLabels={setLabels}
+                    disableBtns={attempt.status === 'processing'}
+                    showLabelMatchErr={showLabelMatchErr}
+                    dbLabels={dbLabels}
+                    autoFocus={false}
+                    region={dbMeta.selectedAwsRdsDb?.region}
+                  />
+                </StyledBox>
+                {/* step three */}
+                <StyledBox mb={5}>
+                  <Text bold>Step 3(Optional)</Text>
+                  <SelectSecurityGroups
+                    selectedSecurityGroups={selectedSecurityGroups}
+                    setSelectedSecurityGroups={setSelectedSecurityGroups}
+                    dbMeta={dbMeta}
+                    emitErrorEvent={emitErrorEvent}
+                  />
+                </StyledBox>
+              </>
+            )}
+
             <StyledBox mb={5}>
-              <Box>
-                <Text bold>Step 2 (Optional)</Text>
-                <Labels
-                  labels={labels}
-                  setLabels={setLabels}
-                  disableBtns={attempt.status === 'processing'}
-                  showLabelMatchErr={showLabelMatchErr}
-                  dbLabels={dbLabels}
-                  autoFocus={false}
-                  region={dbMeta.selectedAwsRdsDb?.region}
-                />
+              <Text bold>Step {wantAutoDiscover ? 2 : 4}</Text>
+              <Box mb={2}>
+                <Text>Deploy the Teleport Database Service.</Text>
               </Box>
-            </StyledBox>
-
-            {/* step three */}
-            <StyledBox mb={5}>
-              <SelectSecurityGroups
-                selectedSecurityGroups={selectedSecurityGroups}
-                setSelectedSecurityGroups={setSelectedSecurityGroups}
-                dbMeta={dbMeta}
-                emitErrorEvent={emitErrorEvent}
-              />
-            </StyledBox>
-
-            <StyledBox mb={5}>
-              <Text bold>Step 4</Text>
-              <Text mb={2}>Deploy the Teleport Database Service.</Text>
               <ButtonSecondary
                 width="215px"
                 type="submit"
@@ -238,13 +280,17 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               )}
             </StyledBox>
 
-            {isDeploying && (
+            {!wantAutoDiscover && isDeploying && (
               <DeployHints
                 deployFinished={handleDeployFinished}
                 resourceName={(agentMeta as DbMeta).resourceName}
                 abortDeploying={abortDeploying}
                 deploySvcResp={deploySvcResp}
               />
+            )}
+
+            {wantAutoDiscover && deploySvcResp && (
+              <AutoDiscoverDeploySuccess deploySvcResp={deploySvcResp} />
             )}
 
             <ActionButtons
@@ -262,10 +308,12 @@ const Heading = ({
   toggleDeployMethod,
   togglerDisabled,
   region,
+  wantAutoDiscover,
 }: {
   toggleDeployMethod(): void;
   togglerDisabled: boolean;
   region: string;
+  wantAutoDiscover: boolean;
 }) => {
   return (
     <>
@@ -276,14 +324,18 @@ const Heading = ({
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
         You will only need to do this once per geographical region.
-        <br />
-        <br />
-        Want to deploy a database service manually from one of your existing
-        servers?{' '}
-        <AlternateInstructionButton
-          onClick={toggleDeployMethod}
-          disabled={togglerDisabled}
-        />
+        {!wantAutoDiscover && (
+          <>
+            <br />
+            <br />
+            Want to deploy a database service manually from one of your existing
+            servers?{' '}
+            <AlternateInstructionButton
+              onClick={toggleDeployMethod}
+              disabled={togglerDisabled}
+            />
+          </>
+        )}
       </HeaderSubtitle>
     </>
   );
@@ -303,7 +355,7 @@ const CreateAccessRole = ({
   validator: Validator;
 }) => {
   const [scriptUrl, setScriptUrl] = useState('');
-  const { integration, selectedAwsRdsDb } = dbMeta;
+  const { awsIntegration, awsRegion } = dbMeta;
 
   function generateAutoConfigScript() {
     if (!validator.validate()) {
@@ -311,11 +363,11 @@ const CreateAccessRole = ({
     }
 
     const newScriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
-      integrationName: integration.name,
-      region: selectedAwsRdsDb.region,
+      integrationName: awsIntegration.name,
+      region: awsRegion,
       // arn's are formatted as `don-care-about-this-part/role-arn`.
       // We are splitting by slash and getting the last element.
-      awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
+      awsOidcRoleArn: awsIntegration.spec.roleArn.split('/').pop(),
       taskRoleArn,
     });
 
@@ -448,6 +500,23 @@ const DeployHints = ({
     </WaitingInfo>
   );
 };
+
+export function AutoDiscoverDeploySuccess({
+  deploySvcResp,
+}: {
+  deploySvcResp: AwsOidcDeployServiceResponse;
+}) {
+  return (
+    <SuccessBox>
+      The required database services has been successfully deployed. It will
+      take up to a minute to complete discovery. You can visit your AWS{' '}
+      <Link target="_blank" href={deploySvcResp.clusterDashboardUrl}>
+        dashboard
+      </Link>{' '}
+      to see progress details.
+    </SuccessBox>
+  );
+}
 
 const StyledBox = styled(Box)`
   max-width: 1000px;

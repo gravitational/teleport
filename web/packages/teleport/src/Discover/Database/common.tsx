@@ -208,3 +208,34 @@ export function hasMatchingLabels(
 
   return matchLabels(dbLabels, matcherLabels);
 }
+
+export function exactMatchLabels(
+  labels: ResourceLabel[],
+  matcherLabels: Record<string, string[]>
+) {
+  const entries = Object.entries({ ...matcherLabels });
+
+  if (!entries.length || !labels.length || entries.length !== labels.length) {
+    return false;
+  }
+
+  // Create a map for labels for easy lookup.
+  let dbKeyMap = {};
+  labels.forEach(label => {
+    dbKeyMap[label.name] = label.value;
+  });
+
+  for (let i = 0; i < labels.length; i++) {
+    const [key, vals] = entries[i];
+
+    // Match against exact key and value.
+    const dbVal = dbKeyMap[key];
+    if (dbVal && vals.find(val => val === dbVal)) {
+      continue;
+    }
+
+    return false;
+  }
+
+  return true;
+}
