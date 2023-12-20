@@ -274,6 +274,21 @@ type AWSOIDCListSecurityGroupsResponse struct {
 	NextToken string `json:"nextToken,omitempty"`
 }
 
+// AWSOIDCRequiredVPCSRequest is a request to get required (missing) VPC's and its subnets.
+type AWSOIDCRequiredVPCSRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// AccountID is the AWS Account ID.
+	AccountID string `json:"accountId"`
+}
+
+// AWSOIDCRequiredVPCSResponse returns a list of required VPC's and its subnets.
+type AWSOIDCRequiredVPCSResponse struct {
+	// VPCMapOfSubnets is a map of vpc ids and its subnets.
+	// Will be empty if no vpc's are required.
+	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
+}
+
 // AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
 type AWSOIDCListEC2ICERequest struct {
 	// Region is the AWS Region.

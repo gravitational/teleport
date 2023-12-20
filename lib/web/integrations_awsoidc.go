@@ -22,15 +22,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -432,6 +437,171 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 	return ui.AWSOIDCListSecurityGroupsResponse{
 		NextToken:      resp.NextToken,
 		SecurityGroups: resp.SecurityGroups,
+	}, nil
+}
+
+// awsOIDCListSecurityGroups returns a map of required VPC's and its subnets.
+func (h *Handler) awsOIDCRequiredVPCS(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCRequiredVPCSRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, listDBsClient, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRequest, listDBsClient awsoidc.ListDatabasesClient, clt auth.ClientI) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+	fetchedRDSs := []types.Database{}
+
+	// Get all rds instances.
+	nextToken := ""
+	for {
+		resp, err := awsoidc.ListDatabases(ctx,
+			listDBsClient,
+			awsoidc.ListDatabasesRequest{
+				Region:    req.Region,
+				Engines:   []string{"mysql", "mariadb", "postgres"},
+				RDSType:   "instance",
+				NextToken: nextToken,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
+		nextToken = resp.NextToken
+
+		if len(nextToken) == 0 {
+			break
+		}
+	}
+
+	// Get all rds clusters.
+	nextToken = ""
+	for {
+		resp, err := awsoidc.ListDatabases(ctx,
+			listDBsClient,
+			awsoidc.ListDatabasesRequest{
+				Region:    req.Region,
+				Engines:   []string{"aurora-mysql", "aurora-postgresql"},
+				RDSType:   "cluster",
+				NextToken: nextToken,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
+		nextToken = resp.NextToken
+
+		if len(nextToken) == 0 {
+			break
+		}
+	}
+
+	// Get all database services with ecs/fargate metadata label.
+	nextToken = ""
+	fetchedDbSvcs := []types.DatabaseService{}
+	for {
+		page, err := client.GetResourcePage[types.DatabaseService](ctx, clt, &proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.MaxIterationLimit,
+			StartKey:     nextToken,
+			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fetchedDbSvcs = append(fetchedDbSvcs, page.Resources...)
+		nextToken = page.NextKey
+		if len(nextToken) == 0 {
+			break
+		}
+	}
+
+	// Construct map of VPCs and its subnets.
+	vpcLookup := map[string][]string{}
+	for _, db := range fetchedRDSs {
+		rds := db.GetAWS().RDS
+		vpcId := rds.VPCID
+		if _, found := vpcLookup[vpcId]; !found {
+			vpcLookup[vpcId] = rds.Subnets
+		}
+	}
+
+	// Start looking for db service matches.
+	wantLabels := map[string][]string{
+		types.DiscoveryLabelAccountID: {},
+		types.DiscoveryLabelRegion:    {},
+		types.DiscoveryLabelVPCID:     {},
+	}
+
+	for _, svc := range fetchedDbSvcs {
+		// Create a lookup table of labels for easier matching.
+		labelLookup := map[string][]string{}
+		for _, matcher := range svc.GetResourceMatchers() {
+			for key, newVals := range *matcher.Labels {
+				if existingVals, ok := labelLookup[key]; ok {
+					labelLookup[key] = append(existingVals, newVals...)
+					continue
+				}
+				labelLookup[key] = newVals
+			}
+		}
+
+		// Do an exact match, b/c other labels may not match.
+		if len(labelLookup) != len(wantLabels) {
+			continue
+		}
+
+		// Match label keys.
+		matchedLabelKeys := true
+		for key := range wantLabels {
+			vals, found := labelLookup[key]
+			if !found {
+				matchedLabelKeys = false
+				break
+			}
+			wantLabels[key] = vals
+		}
+
+		if matchedLabelKeys &&
+			slices.Contains(wantLabels[types.DiscoveryLabelAccountID], req.AccountID) &&
+			slices.Contains(wantLabels[types.DiscoveryLabelRegion], req.Region) {
+			// Delete found vpcs
+			vpcs := wantLabels[types.DiscoveryLabelVPCID]
+			for _, vpc := range vpcs {
+				if _, found := vpcLookup[vpc]; found {
+					delete(vpcLookup, vpc)
+				}
+			}
+		}
+	}
+
+	return &ui.AWSOIDCRequiredVPCSResponse{
+		VPCMapOfSubnets: vpcLookup,
 	}, nil
 }
 
