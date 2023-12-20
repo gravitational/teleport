@@ -55,7 +55,18 @@ YAML example:
 
 ### Editing source files
 
-<!--TODO mention proto files-->
+The reference generator indicates in the documentation it produces which Go
+source files it used for each reference entry. The generator is only aware of Go
+source files, not protobuf message definitions.
+
+If a source file is based on a protobuf message definition, edit the message
+definition first, then run:
+
+```
+$ make grpc
+```
+
+After that, you can run the reference generator.
 
 ## Configuration
 
@@ -100,6 +111,3 @@ excluded_resource_types:
     name: "ResourceHeader"
 field_assignment_method: "setStaticFields"
 ```
-
-<!--TODO: Any other functionality in the reference to document? Look at the
-source-->
