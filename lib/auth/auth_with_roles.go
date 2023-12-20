@@ -2753,8 +2753,12 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
-		return nil, trace.Wrap(err)
+	// If GenerateUserCerts was called with an MFA response in the request,
+	// we validate the MFA response later during cert generation.
+	if req.MFAResponse == nil {
+		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	identity := a.context.Identity.GetIdentity()
@@ -7009,7 +7013,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
