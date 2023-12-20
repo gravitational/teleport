@@ -2624,43 +2624,18 @@ func TestServer_onCreate(t *testing.T) {
 			Log:         logrus.New(),
 		},
 	}
-	type args struct {
-		resource types.ResourceWithLabels
-		onCreate func(context.Context, types.ResourceWithLabels) error
-	}
-	tests := []struct {
-		name   string
-		args   args
-		verify func(t *testing.T, accessPoint *fakeAccessPoint)
-	}{
-		{
-			name: "onCreate update kube",
-			args: args{
-				resource: mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"),
-				onCreate: s.onKubeCreate,
-			},
-			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
-				require.True(t, accessPoint.updateKube)
-			},
-		},
-		{
-			name: "onCreate update database",
-			args: args{
-				resource: awsRedshiftDB,
-				onCreate: s.onDatabaseCreate,
-			},
-			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
-				require.True(t, accessPoint.updateDatabase)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.args.onCreate(context.Background(), tt.args.resource)
-			require.NoError(t, err)
-			tt.verify(t, accessPoint)
-		})
-	}
+
+	t.Run("onCreate update kube", func(t *testing.T) {
+		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.NoError(t, err)
+		require.True(t, accessPoint.updateKube)
+	})
+
+	t.Run("onCreate update database", func(t *testing.T) {
+		err := s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.NoError(t, err)
+		require.True(t, accessPoint.updateDatabase)
+	})
 }
 
 func TestEmitUsageEvents(t *testing.T) {

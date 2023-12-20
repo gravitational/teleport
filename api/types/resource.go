@@ -678,3 +678,32 @@ func FriendlyName(resource ResourceWithLabels) string {
 
 	return ""
 }
+
+// GetOrigin returns the origin if one can be obtained.
+func GetOrigin(v any) string {
+	switch r := v.(type) {
+	case ResourceWithOrigin:
+		return r.Origin()
+	case ResourceMetadata:
+		meta := r.GetMetadata()
+		if meta.Labels == nil {
+			return ""
+		}
+		return meta.Labels[OriginLabel]
+	}
+
+	return ""
+}
+
+// GetKind returns the kind if one can be obtained.
+func GetKind(v any) string {
+	type kinder interface {
+		GetKind() string
+	}
+
+	if k, ok := v.(kinder); ok {
+		return k.GetKind()
+	}
+
+	return ""
+}
