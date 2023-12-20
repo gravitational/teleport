@@ -36,12 +36,12 @@ import (
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
 // registering and unregistering them as necessary.
 func (s *WindowsService) startDesktopDiscovery() error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
 		// Use a matcher that matches all resources, since our desktops are
 		// pre-filtered by nature of using an LDAP search with filters.
-		Matcher: func(r types.ResourceWithLabels) bool { return true },
+		Matcher: func(d types.WindowsDesktop) bool { return true },
 
-		GetCurrentResources: func() types.ResourcesWithLabelsMap { return s.lastDiscoveryResults },
+		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.upsertDesktop,
@@ -89,7 +89,7 @@ func (s *WindowsService) ldapSearchFilter() string {
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
-func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabelsMap {
+func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	if !s.ldapReady() {
 		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
 		return nil
@@ -120,7 +120,7 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabelsMap {
 
 	s.cfg.Log.Debugf("discovered %d Windows Desktops", len(entries))
 
-	result := make(types.ResourcesWithLabelsMap)
+	result := make(map[string]types.WindowsDesktop)
 	for _, entry := range entries {
 		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
 		if err != nil {
@@ -136,19 +136,11 @@ func (s *WindowsService) getDesktopsFromLDAP() types.ResourcesWithLabelsMap {
 	return result
 }
 
-func (s *WindowsService) upsertDesktop(ctx context.Context, r types.ResourceWithLabels) error {
-	d, ok := r.(types.WindowsDesktop)
-	if !ok {
-		return trace.Errorf("upsert: expected a WindowsDesktop, got %T", r)
-	}
+func (s *WindowsService) upsertDesktop(ctx context.Context, d types.WindowsDesktop) error {
 	return s.cfg.AuthClient.UpsertWindowsDesktop(ctx, d)
 }
 
-func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWithLabels) error {
-	d, ok := r.(types.WindowsDesktop)
-	if !ok {
-		return trace.Errorf("delete: expected a WindowsDesktop, got %T", r)
-	}
+func (s *WindowsService) deleteDesktop(ctx context.Context, d types.WindowsDesktop) error {
 	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, d.GetHostID(), d.GetName())
 }
 
@@ -246,7 +238,7 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
-func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
+func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.WindowsDesktop, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
 	if hostname == "" {
 		attrs := make([]string, len(entry.Attributes))
