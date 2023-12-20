@@ -18,7 +18,7 @@ KUBECONFIG ?=
 TEST_KUBE ?=
 
 OS ?= linux
-ARCH ?= amd64
+ARCH ?= $(shell go env GOARCH)
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -26,7 +26,7 @@ NOROOT := -u $(UID):$(GID)
 
 HOST_ARCH := $(shell uname -m)
 RUNTIME_ARCH_x86_64 := amd64
-# uname returns different value on Linux (aarch64) and MacOS (arm64).
+# uname returns different value on Linux (aarch64) and macOS (arm64).
 RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
@@ -82,12 +82,18 @@ REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cr
 # needed on CI as they start with a fresh state each time.
 PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
 
+# This determines which make target we call in this repo's top level Makefile when
+# make release in this Makefile is called. Currently this supports its default value
+# (release) and release-unix-preserving-webassets. See the release-arm target for
+# more details.
+RELEASE_TARGET ?= release
+
 #
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build
 build: buildbox-centos7 webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
 
 #
@@ -95,7 +101,7 @@ build: buildbox-centos7 webassets
 #
 .PHONY:build-binaries
 build-binaries: buildbox-centos7 webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
 
 #
@@ -103,7 +109,7 @@ build-binaries: buildbox-centos7 webassets
 #
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox-centos7 webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
 
 #
@@ -112,7 +118,7 @@ build-enterprise-binaries: buildbox-centos7 webassets
 #
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-centos7-fips webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
 
 #
@@ -125,7 +131,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 .PHONY:buildbox
 buildbox:
 	$(call PULL_ON_CI,$(BUILDBOX))
-	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -140,6 +146,7 @@ buildbox:
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 		--cache-from $(BUILDBOX) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX) .
 
 # Builds a Docker buildbox for FIPS
@@ -155,39 +162,35 @@ buildbox-fips: buildbox-centos7-fips
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
-	DOCKER_BUILDKIT=1 docker build \
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
-		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-		--build-arg TARGETARCH=$(HOST_ARCH) \
+		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
+		--build-arg BUILDARCH=$(HOST_ARCH) \
+		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--cache-from $(BUILDBOX_CENTOS7) \
-		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
+		--cache-from $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) -f Dockerfile-centos7 .
 
 #
 # Builds a Docker buildbox for CentOS 7 FIPS builds
+# Uses regular CentOS 7 buildbox as base, so limited arguments are needed.
 #
 .PHONY:buildbox-centos7-fips
-buildbox-centos7-fips:
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
-	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-		--build-arg TARGETARCH=$(HOST_ARCH) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
-		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
-		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
+buildbox-centos7-fips: buildbox-centos7
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
+	docker buildx build \
+		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
+		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
+		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
 
 #
 # Builds a Docker buildbox for ARMv7/ARM64 builds
@@ -197,15 +200,15 @@ buildbox-centos7-fips:
 .PHONY:buildbox-arm
 buildbox-arm:
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
-	docker build \
+	docker buildx build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX) \
-		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-from $(BUILDBOX_ARM) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -220,7 +223,7 @@ endif
 .PHONY:buildbox-node
 buildbox-node:
 	$(call PULL_ON_CI,$(BUILDBOX_NODE))
-	DOCKER_BUILDKIT=1 docker build \
+	docker buildx build \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -228,6 +231,7 @@ buildbox-node:
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--cache-from $(BUILDBOX_NODE) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_NODE) -f Dockerfile-node .
 
 #
@@ -373,7 +377,7 @@ enter-root: buildbox
 .PHONY:enter/centos7
 enter/centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) /bin/bash
 
 #
 # Starts a root shell inside the centos7 container
@@ -381,7 +385,23 @@ enter/centos7: buildbox-centos7
 .PHONY:enter-root/centos7
 enter-root/centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -ti \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) /bin/bash
+
+#
+# Starts shell inside the centos7-fips container
+#
+.PHONY:enter/centos7-fips
+enter/centos7-fips: buildbox-centos7-fips
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) /bin/bash
+
+#
+# Starts a root shell inside the centos7-fips container
+#
+.PHONY:enter-root/centos7-fips
+enter-root/centos7-fips: buildbox-centos7-fips
+	docker run $(DOCKERFLAGS) -ti \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) /bin/bash
 
 #
 # Starts a shell inside the grpcbox.
@@ -398,6 +418,11 @@ enter/node: buildbox-node
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
 
+.PHONY:enter/arm
+enter/arm: buildbox-arm
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_ARM) /bin/bash
+
 # #############################################################################
 # Architecture and variant (fips) specific release targets
 # These are aliases used to make build commands uniform.
@@ -406,7 +431,7 @@ enter/node: buildbox-node
 # AMD64 builds are done on CentOS 7 build boxes for broader glibc compatibility.
 .PHONY: release-amd64
 release-amd64:
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes
+	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
 
 .PHONY: release-amd64-fips
 release-amd64-fips:
@@ -418,11 +443,18 @@ release-386:
 
 .PHONY: release-arm64
 release-arm64:
-	$(MAKE) release-centos7 ARCH=arm64 BUILDBOX_CENTOS7=$(BUILDBOX_ARM64)
+	$(MAKE) release-centos7 ARCH=arm64 FIDO2=yes PIV=yes
 
+.PHONY: release-arm64-fips
+release-arm64-fips:
+	$(MAKE) release-centos7-fips ARCH=arm64 FIPS=yes
+
+# We depend on webassets to pre-build them in the buildbox-node container
+# so that we don't need to install node.js and rust on the buildbox-arm container.
+# Therefore we set RELEASE_TARGET to release-unix-preserving-webassets.
 .PHONY: release-arm
-release-arm:
-	$(MAKE) release ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
+release-arm: webassets
+	$(MAKE) release RELEASE_TARGET=release-unix-preserving-webassets ARCH=arm BUILDBOX=$(BUILDBOX_ARM)
 
 # Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
 # TODO(camscale): Remove these when drone no longer calls them.
@@ -452,7 +484,7 @@ BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
 release: $(BUILDBOX_TARGET)
 	@echo "Build Assets Release"
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
+		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 #
 # Create a Teleport FIPS package using the build container.
@@ -462,7 +494,7 @@ release: $(BUILDBOX_TARGET)
 .PHONY:release-fips
 release-fips: buildbox-centos7-fips webassets
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #
@@ -478,7 +510,7 @@ release-fips: buildbox-centos7-fips webassets
 .PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
 	$(REQUIRE_HOST_ARCH)
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
 #
@@ -491,7 +523,7 @@ release-centos7: buildbox-centos7 webassets
 #
 .PHONY:release-centos7-fips
 release-centos7-fips: buildbox-centos7-fips webassets
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
 #
@@ -519,7 +551,7 @@ docsbox:
 
 .PHONY:test-docs
 test-docs: docsbox
-	docker run --platform=linux/amd64 -i $(NOROOT) -v $$(pwd)/..:/src/content $(DOCSBOX) \
+	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content $(DOCSBOX) \
 		/bin/sh -c "yarn markdown-lint-external-links"
 
 #
@@ -562,9 +594,12 @@ print-buildbox-version:
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	docker build \
+	docker buildx build \
+		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg TARGETARCH=$(HOST_ARCH) \
+		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
+		--cache-from $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
 

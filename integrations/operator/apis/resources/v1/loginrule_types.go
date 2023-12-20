@@ -93,6 +93,8 @@ func (l TeleportLoginRule) ToTeleport() *LoginRuleResource {
 	return resource
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (l *TeleportLoginRule) StatusConditions() *[]metav1.Condition {
 	return &l.Status.Conditions
 }

@@ -18,10 +18,10 @@ package aws
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // IsValidAccountID checks whether the accountID is a valid AWS Account ID

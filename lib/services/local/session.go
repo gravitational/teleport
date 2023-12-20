@@ -325,6 +325,11 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 		return nil, trace.Wrap(err)
 	}
 
+	// Make sure the requested user matches the session user.
+	if req.User != session.GetUser() {
+		return nil, trace.NotFound("session not found")
+	}
+
 	return session, trace.Wrap(err)
 }
 

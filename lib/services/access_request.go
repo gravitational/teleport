@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/vulcand/predicate"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
@@ -435,6 +435,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
+	if rev.AssumeStartTime != nil {
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
 	return nil
 }
 
@@ -1668,15 +1671,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *accessRequest
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			accessRequest = &copy
-		}
-		return utils.FastMarshal(accessRequest)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}

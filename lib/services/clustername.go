@@ -83,15 +83,7 @@ func MarshalClusterName(clusterName types.ClusterName, opts ...MarshalOption) ([
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *clusterName
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			clusterName = &copy
-		}
-		return utils.FastMarshal(clusterName)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, clusterName))
 	default:
 		return nil, trace.BadParameter("unrecognized cluster name version %T", clusterName)
 	}

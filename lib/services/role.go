@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -35,7 +36,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -3210,15 +3210,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV6:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *role
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			role = &copy
-		}
-		return utils.FastMarshal(role)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, role))
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}

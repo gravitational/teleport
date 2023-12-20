@@ -22,13 +22,13 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 // TextFormatter is a [logrus.Formatter] that outputs messages in

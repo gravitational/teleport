@@ -18,7 +18,7 @@
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-import { RDPFastPathPDU } from 'teleport/ironrdp/pkg';
+import { RDPFastPathPDU } from 'teleport/ironrdp/pkg/ironrdp';
 
 export type Message = ArrayBuffer;
 

@@ -46,7 +46,7 @@ RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -246,7 +246,7 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 endif # OS == linux
 
@@ -257,7 +257,7 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=exe
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -1216,6 +1216,10 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+.PHONY:enter/centos7-fips
+enter/centos7-fips:
+	make -C build.assets enter/centos7-fips
+
 .PHONY:enter/grpcbox
 enter/grpcbox:
 	make -C build.assets enter/grpcbox
@@ -1223,6 +1227,10 @@ enter/grpcbox:
 .PHONY:enter/node
 enter/node:
 	make -C build.assets enter/node
+
+.PHONY:enter/arm
+enter/arm:
+	make -C build.assets enter/arm
 
 BUF := buf
 
@@ -1470,14 +1478,17 @@ build-ui-e: ensure-js-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
+.PHONY: rustup-set-version
+rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
+rustup-set-version:
+	rustup override set $(RUST_VERSION)
+
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
 # defined in build.assets/Makefile. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
-rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
-rustup-install-target-toolchain:
-	rustup override set $(RUST_VERSION)
+rustup-install-target-toolchain: rustup-set-version
 	rustup target add $(RUST_TARGET_ARCH)
 
 # changelog generates PR changelog between the provided base tag and the tip of

@@ -20,6 +20,7 @@ package config
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"

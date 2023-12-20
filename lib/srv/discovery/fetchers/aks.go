@@ -21,10 +21,10 @@ package fetchers
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -149,6 +149,10 @@ func (a *aksFetcher) ResourceType() string {
 
 func (a *aksFetcher) Cloud() string {
 	return types.CloudAzure
+}
+
+func (a *aksFetcher) FetcherType() string {
+	return types.AzureMatcherKubernetes
 }
 
 func (a *aksFetcher) String() string {

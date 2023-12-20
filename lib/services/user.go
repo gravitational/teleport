@@ -133,15 +133,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 
 	switch user := user.(type) {
 	case *types.UserV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *user
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			user = &copy
-		}
-		return utils.FastMarshal(user)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, user))
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}

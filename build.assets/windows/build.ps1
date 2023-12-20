@@ -345,7 +345,7 @@ function Build-Tsh {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags piv -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         Write-Host "::endgroup::"
 
         Write-Host "::group::Signing tsh..."
