@@ -17,6 +17,11 @@ inputs:
     description: "Git SHA, tag or branch of the revision of OSS Teleport to build"
     required: true
 
+  oss-fetch-depth:
+    description: Number of commits to fetch. 0 indicates all history for all branches and tags.
+    required: false
+    default: 1
+
   edition:
     description: "Edition of Teleport to check out. Either 'oss' or 'enterprise'"
     required: true
@@ -26,6 +31,11 @@ inputs:
       Git SHA, tag or branch of the revision of Enterprise Teleport to build.
       If no value is supplied, the submodule reference in the OSS Teleport
       repository checked-out will be used.
+
+  ent-fetch-depth:
+    description: Number of commits to fetch. 0 indicates all history for all branches and tags.
+    required: false
+    default: 1
 
   path:
     description: "Directory path into which to checkout Teleport"
@@ -114,6 +124,7 @@ runs:
         ref: ${{ inputs.oss-teleport-ref }}
         token: ${{ steps.select-access-token.outputs.token }}
         path: ${{ inputs.path }}
+        fetch-depth: ${{ inputs.oss-fetch-depth }}
 
     - id: determine-enterprise-ref
       if: inputs.edition == 'enterprise'
@@ -132,6 +143,7 @@ runs:
         repository: gravitational/teleport.e
         ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
         path: ${{ inputs.path || '.' }}/e
+        fetch-depth: ${{ inputs.ent-fetch-depth }}
 
     - id: mark-workspace-safe
       name: Mark workspace as git safe.directory
