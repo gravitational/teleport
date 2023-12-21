@@ -2384,6 +2384,13 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 		}
 	}
 
+	if !authz.IsCurrentUser(a.context, req.GetUser()) {
+		// If this request was authorized by allow rules and not ownership, require MFA.
+		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// ensure request ID is set server-side
 	req.SetName(uuid.NewString())
 
@@ -2393,6 +2400,10 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2436,6 +2447,10 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 
 	// Check if the current user is allowed to submit the given access review request.
 	if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2518,6 +2533,11 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
@@ -3095,58 +3115,6 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 
 	identity := a.context.Identity.GetIdentity()
 	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
-}
-
-// CreateBot creates a new certificate renewal bot and returns a join token.
-func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	// Note: this creates a role with role impersonation privileges for all
-	// roles listed in the request and doesn't attempt to verify that the
-	// current user has permissions for those embedded roles. We assume that
-	// "create role" is effectively root already and validate only that.
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.CreateBot(ctx, req)
-}
-
-// DeleteBot removes a certificate renewal bot by name.
-func (a *ServerWithRoles) DeleteBot(ctx context.Context, botName string) error {
-	// Requires read + delete on users and roles. We do verify the user and
-	// role are explicitly associated with a bot before doing anything (must
-	// match bot-$name and have a matching teleport.dev/bot label set).
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.DeleteBot(ctx, botName)
-}
-
-// GetBotUsers fetches all users with bot labels. It does not fetch users with
-// secrets.
-func (a *ServerWithRoles) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.getBotUsers(ctx)
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
