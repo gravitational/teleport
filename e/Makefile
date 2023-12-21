@@ -151,24 +151,24 @@ RELEASE_ENT_MESSAGE := "Building Enterprise with GOOS=$(OS) GOARCH=$(ARCH) and w
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
+ifeq (, $(filter $(ARCH), amd64 arm64))
 # Link static version of libraries (bpf, pcsc) to reduce system dependencies.
 CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
+
+ifeq ("$(ARCH)","arm64")
+
+# If we're not guaranteed to be building natively on an arm64 system,
+# then we'll need to configure the cross compiler.
+CGOFLAG = $(CGOFLAG) $(if $(IS_NATIVE_BUILD),,CC=aarch64-linux-gnu-gcc)
+
+endif
 else ifeq ("$(ARCH)","arm")
 
 # ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 $(if $(IS_CROSS_BUILD),CC=arm-linux-gnueabihf-gcc)
+CGOFLAG = CGO_ENABLED=1 $(if $(IS_NATIVE_BUILD),,CC=arm-linux-gnueabihf-gcc)
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
-
-else ifeq ("$(ARCH)","arm64")
-
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced
-# featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
-# then we'll need to configure the cross compiler.
-
-CGOFLAG = CGO_ENABLED=1 $(if $(IS_NATIVE_BUILD),CC=aarch64-linux-gnu-gcc)
 
 endif
 endif
@@ -323,6 +323,10 @@ release-arm:
 .PHONY: release-arm64
 release-arm64:
 	$(MAKE) release ARCH=arm64
+
+.PHONY: release-arm64-fips
+release-arm64-fips:
+	$(MAKE) release ARCH=arm64 FIPS=yes
 
 include ../darwin-signing.mk
 

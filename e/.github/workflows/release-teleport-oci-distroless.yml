@@ -124,11 +124,13 @@ jobs:
           - release: 'enterprise'
             repo-enterprise-infix: '-ent'
 
-          # FIPS release is currently amd64-only
+          # FIPS release is currently amd64 and arm64-only
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
             dockerfile-suffix: '-fips'
-            architectures: amd64
+            architectures: |
+              amd64
+              arm64
     uses: ./.github/workflows/oci-image-build.yml
     with:
       teleport-release: ${{ matrix.release }}
@@ -180,8 +182,6 @@ jobs:
         exclude:
           - release: 'fips'
             arch: 'arm'
-          - release: 'fips'
-            arch: 'arm64'
     name: "Smoke test ${{ matrix.arch }}/${{ matrix.release }}/${{ matrix.mode }}"
     steps:
       - name: Checkout Teleport

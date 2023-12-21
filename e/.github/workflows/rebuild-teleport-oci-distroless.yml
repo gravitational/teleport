@@ -133,10 +133,12 @@ jobs:
             repo-enterprise-infix: ''
           - release: 'enterprise'
             repo-enterprise-infix: '-ent'            
-          # FIPS release is currently amd64-only
+          # FIPS release is currently amd64 and arm64-only
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
-            architectures: amd64
+            architectures: |
+              amd64
+              arm64
 
     uses: ./.github/workflows/oci-image-build.yml
     with:

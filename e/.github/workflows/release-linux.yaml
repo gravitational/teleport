@@ -230,6 +230,7 @@ jobs:
               teleport-ent-*-linux-amd64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=amd64; v="$fips" ;;
               teleport-ent-*-linux-arm-bin.tar.gz) p=teleport-ent; os=linux; a=arm ;;
               teleport-ent-*-linux-arm64-bin.tar.gz) p=teleport-ent; os=linux; a=arm64 ;;
+              teleport-ent-*-linux-arm64-fips-bin.tar.gz) p=teleport-ent; os=linux; a=arm64; v="$fips" ;;
 
               teleport-*-linux-386-bin.tar.gz) p=teleport; os=linux; a=386 ;;
               teleport-*-linux-amd64-bin.tar.gz) p=teleport; os=linux; a=amd64 ;;
@@ -239,6 +240,7 @@ jobs:
 
               # rpm: teleport-ent-* must be before teleport-*
               teleport-ent-*-fips.x86_64.rpm) p=teleport-ent; os=linux; a=amd64; pkg=RPM; v="$rhel, $fips" ;;
+              teleport-ent-*-fips.arm64.rpm) p=teleport-ent; os=linux; a=arm64; pkg=RPM; v="$rhel, $fips" ;;
               teleport-ent-*.arm.rpm) p=teleport-ent; os=linux; a=arm; pkg=RPM ;;
               teleport-ent-*.arm64.rpm) p=teleport-ent; os=linux; a=arm64; pkg=RPM ;;
               teleport-ent-*.i386.rpm) p=teleport-ent; os=linux; a=386; pkg=RPM ;;
@@ -251,6 +253,7 @@ jobs:
 
               # deb: teleport-ent-* must be before teleport-*
               teleport-ent_*-fips_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB; v="$fips" ;;
+              teleport-ent_*-fips_arm64.deb) p=teleport-ent; os=linux; a=arm64; pkg=DEB; v="$fips" ;;
               teleport-ent_*_amd64.deb) p=teleport-ent; os=linux; a=amd64; pkg=DEB ;;
               teleport-ent_*_arm.deb) p=teleport-ent; os=linux; a=arm; pkg=DEB ;;
               teleport-ent_*_arm64.deb) p=teleport-ent; os=linux; a=arm64; pkg=DEB ;;

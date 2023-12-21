@@ -35,7 +35,7 @@ jobs:
     environment: ${{ inputs.environment }}
     env:
       ARCHITECTURES: 'amd64 arm64 arm'
-      FIPS_ARCHITECTURES: 'amd64'
+      FIPS_ARCHITECTURES: 'amd64 arm64'
       OSS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport:${{ inputs.teleport-version }}
       ENT_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:${{ inputs.teleport-version }}
       FIPS_TAG: ${{ vars.ECR_PRIVATE_REGISTRY }}/gravitational/teleport-ent:${{ inputs.teleport-version }}-fips
@@ -52,6 +52,7 @@ jobs:
           # EOF
           # fips-platforms<<EOF
           # linux/amd64
+          # linux/arm64
           # EOF
           read -ra arches <<<"${ARCHITECTURES}"
           read -ra fips_arches <<<"${FIPS_ARCHITECTURES}"
