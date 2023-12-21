@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
