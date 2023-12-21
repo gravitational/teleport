@@ -68,10 +68,9 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
-	// CloudAWSCredCmdArg is an pointer to a string to be filled by kingpin
-	// when cloud-aws-cred command is called. If this value is nil, then
-	// cloud-aws-cred command isn't enabled.
-	CloudAWSCredCmdArg *string
+	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
+	// This command does nothing in OSS.
+	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -499,10 +498,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
-	// cloud-aws-cred is handled in enterprise code
-	if options.CloudAWSCredCmdArg != nil {
-		cloudAWSCredCmd := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
-		cloudAWSCredCmd.Arg("file", "Credential file to output").Required().StringVar(options.CloudAWSCredCmdArg)
+	if options.EnableCloudAWSCredCmd {
+		app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
 	}
 
 	// parse CLI commands+flags:
