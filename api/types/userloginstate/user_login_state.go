@@ -132,11 +132,6 @@ func (u *UserLoginState) IsBot() bool {
 	return ok
 }
 
-// BotGenerationLabel returns the bot generation label.
-func (u *UserLoginState) BotGenerationLabel() string {
-	return u.GetMetadata().Labels[types.BotGenerationLabel]
-}
-
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
 // and should be removed when possible.
 func (u *UserLoginState) GetMetadata() types.Metadata {

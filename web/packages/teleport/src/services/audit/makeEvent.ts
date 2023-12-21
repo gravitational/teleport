@@ -1364,6 +1364,27 @@ export const formatters: Formatters = {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
     },
   },
+  [eventCodes.BOT_CREATED]: {
+    type: 'bot.create',
+    desc: 'Bot Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Bot [${name}]`;
+    },
+  },
+  [eventCodes.BOT_UPDATED]: {
+    type: 'bot.update',
+    desc: 'Bot Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] modified a Bot [${name}]`;
+    },
+  },
+  [eventCodes.BOT_DELETED]: {
+    type: 'bot.delete',
+    desc: 'Bot Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Bot [${name}]`;
+    },
+  },
   [eventCodes.LOGIN_RULE_CREATE]: {
     type: 'login_rule.create',
     desc: 'Login Rule Created',

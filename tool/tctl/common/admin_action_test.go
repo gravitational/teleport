@@ -34,10 +34,13 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -45,6 +48,7 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -57,6 +61,7 @@ func TestAdminActionMFA(t *testing.T) {
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
 	t.Run("Roles", s.testRoles)
+	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
 	t.Run("UserGroups", s.testUserGroups)
 	t.Run("OIDCConnector", s.testOIDCConnector)
@@ -120,29 +125,39 @@ func (s *adminActionTestSuite) testUsers(t *testing.T) {
 func (s *adminActionTestSuite) testBots(t *testing.T) {
 	ctx := context.Background()
 
-	botReq := &proto.CreateBotRequest{
-		Name:  "bot",
-		Roles: []string{teleport.PresetAccessRoleName},
+	botName := "bot"
+	botReq := &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: botName,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+		},
 	}
 
 	createBot := func() error {
-		_, err := s.authServer.CreateBot(ctx, botReq)
+		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
 		return trace.Wrap(err)
 	}
 
 	deleteBot := func() error {
-		return s.authServer.DeleteBot(ctx, botReq.Name)
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+			BotName: botName,
+		})
+		return trace.Wrap(err)
 	}
 
 	t.Run("BotCommands", func(t *testing.T) {
 		for name, tc := range map[string]adminActionTestCase{
 			"tctl bots add": {
-				command:    fmt.Sprintf("bots add --roles=%v %v", teleport.PresetAccessRoleName, botReq.Name),
+				command:    fmt.Sprintf("bots add --roles=%v %v", teleport.PresetAccessRoleName, botName),
 				cliCommand: &tctl.BotsCommand{},
 				cleanup:    deleteBot,
 			},
 			"tctl bots rm": {
-				command:    fmt.Sprintf("bots rm %v", botReq.Name),
+				command:    fmt.Sprintf("bots rm %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -185,6 +200,99 @@ func (s *adminActionTestSuite) testRoles(t *testing.T) {
 		resourceCreate: createRole,
 		resourceGet:    getRole,
 		resourceDelete: deleteRole,
+	})
+}
+
+func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
+	ctx := context.Background()
+
+	role, err := types.NewRole("telerole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.authServer.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("teleuser")
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+	_, err = s.authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	accessRequest, err := services.NewAccessRequest(user.GetName(), teleport.PresetAccessRoleName)
+	require.NoError(t, err)
+	accessRequest.SetThresholds([]types.AccessReviewThreshold{{
+		Name:    "one",
+		Approve: 1,
+		Deny:    1,
+	}})
+
+	createAccessRequest := func() error {
+		return s.authServer.CreateAccessRequest(ctx, accessRequest)
+	}
+
+	deleteAllAccessRequests := func() error {
+		return s.authServer.DeleteAllAccessRequests(ctx)
+	}
+
+	t.Run("AccessRequestCommands", func(t *testing.T) {
+		for _, tc := range map[string]adminActionTestCase{
+			"tctl requests create": {
+				// creating an access request on behalf of another user requires admin MFA.
+				command:    fmt.Sprintf("requests create --roles=%v %v", teleport.PresetAccessRoleName, user.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests approve": {
+				command:    fmt.Sprintf("requests approve %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests deny": {
+				command:    fmt.Sprintf("requests deny %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests review --approve": {
+				command:    fmt.Sprintf("requests review %v --author=admin --approve", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests review --deny": {
+				command:    fmt.Sprintf("requests review %v --author=admin --deny", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests rm": {
+				command:    fmt.Sprintf("requests rm %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+		} {
+			t.Run(tc.command, func(t *testing.T) {
+				s.testCommand(t, ctx, tc)
+			})
+		}
+
+		// Creating an access request for yourself should not require admin MFA.
+		t.Run("OK owner creating access request without MFA", func(t *testing.T) {
+			err := runTestCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
+				command:    fmt.Sprintf("requests create --roles=%v %v", teleport.PresetAccessRoleName, "admin"),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			})
+			require.NoError(t, err)
+		})
 	})
 }
 
@@ -536,7 +644,8 @@ type adminActionTestSuite struct {
 	// userClientWithMFA supports MFA prompt for admin actions.
 	userClientWithMFA auth.ClientI
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA auth.ClientI
+	userClientNoMFA  auth.ClientI
+	localAdminClient *auth.Client
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
@@ -583,6 +692,12 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 					Resources: []string{types.Wildcard},
 					Verbs:     []string{types.Wildcard},
 				},
+			},
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles: []string{types.Wildcard},
+			},
+			Request: &types.AccessRequestConditions{
+				Roles: []string{types.Wildcard},
 			},
 		},
 	})
@@ -639,10 +754,27 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
+	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	require.NoError(t, err)
+	localAdmin, err := auth.ReadLocalIdentity(
+		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
+		auth.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+	)
+	require.NoError(t, err)
+	localAdminTLS, err := localAdmin.TLSConfig(nil)
+	require.NoError(t, err)
+	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
+		TLS:         localAdminTLS,
+		AuthServers: []utils.NetAddr{*authAddr},
+		Log:         utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+
 	return &adminActionTestSuite{
 		authServer:        authServer,
 		userClientNoMFA:   userClientNoMFA,
 		userClientWithMFA: userClientWithMFA,
+		localAdminClient:  localAdminClient,
 	}
 }
 
