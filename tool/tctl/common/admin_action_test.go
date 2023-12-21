@@ -34,10 +34,13 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -45,6 +48,7 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -57,12 +61,17 @@ func TestAdminActionMFA(t *testing.T) {
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
 	t.Run("Roles", s.testRoles)
+	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
 	t.Run("UserGroups", s.testUserGroups)
 	t.Run("OIDCConnector", s.testOIDCConnector)
 	t.Run("SAMLConnector", s.testSAMLConnector)
 	t.Run("GithubConnector", s.testGithubConnector)
 	t.Run("SAMLIdpServiceProvider", s.testSAMLIdpServiceProvider)
+	t.Run("ClusterAuthPreference", s.testClusterAuthPreference)
+	t.Run("NetworkRestriction", s.testNetworkRestriction)
+	t.Run("NetworkingConfig", s.testNetworkingConfig)
+	t.Run("SessionRecordingConfig", s.testSessionRecordingConfig)
 }
 
 func (s *adminActionTestSuite) testUsers(t *testing.T) {
@@ -111,38 +120,48 @@ func (s *adminActionTestSuite) testUsers(t *testing.T) {
 	}
 
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
-		resource:       user,
-		resourceCreate: createUser,
-		resourceDelete: deleteUser,
+		resource:        user,
+		resourceCreate:  createUser,
+		resourceCleanup: deleteUser,
 	})
 }
 
 func (s *adminActionTestSuite) testBots(t *testing.T) {
 	ctx := context.Background()
 
-	botReq := &proto.CreateBotRequest{
-		Name:  "bot",
-		Roles: []string{teleport.PresetAccessRoleName},
+	botName := "bot"
+	botReq := &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: botName,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+		},
 	}
 
 	createBot := func() error {
-		_, err := s.authServer.CreateBot(ctx, botReq)
+		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
 		return trace.Wrap(err)
 	}
 
 	deleteBot := func() error {
-		return s.authServer.DeleteBot(ctx, botReq.Name)
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+			BotName: botName,
+		})
+		return trace.Wrap(err)
 	}
 
 	t.Run("BotCommands", func(t *testing.T) {
 		for name, tc := range map[string]adminActionTestCase{
 			"tctl bots add": {
-				command:    fmt.Sprintf("bots add --roles=%v %v", teleport.PresetAccessRoleName, botReq.Name),
+				command:    fmt.Sprintf("bots add --roles=%v %v", teleport.PresetAccessRoleName, botName),
 				cliCommand: &tctl.BotsCommand{},
 				cleanup:    deleteBot,
 			},
 			"tctl bots rm": {
-				command:    fmt.Sprintf("bots rm %v", botReq.Name),
+				command:    fmt.Sprintf("bots rm %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -175,16 +194,109 @@ func (s *adminActionTestSuite) testRoles(t *testing.T) {
 	}
 
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
-		resource:       role,
-		resourceCreate: createRole,
-		resourceDelete: deleteRole,
+		resource:        role,
+		resourceCreate:  createRole,
+		resourceCleanup: deleteRole,
 	})
 
 	s.testEditCommand(t, ctx, editCommandTestCase{
-		resourceRef:    getResourceRef(role),
-		resourceCreate: createRole,
-		resourceGet:    getRole,
-		resourceDelete: deleteRole,
+		resourceRef:     getResourceRef(role),
+		resourceCreate:  createRole,
+		resourceGet:     getRole,
+		resourceCleanup: deleteRole,
+	})
+}
+
+func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
+	ctx := context.Background()
+
+	role, err := types.NewRole("telerole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.authServer.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("teleuser")
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+	_, err = s.authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	accessRequest, err := services.NewAccessRequest(user.GetName(), teleport.PresetAccessRoleName)
+	require.NoError(t, err)
+	accessRequest.SetThresholds([]types.AccessReviewThreshold{{
+		Name:    "one",
+		Approve: 1,
+		Deny:    1,
+	}})
+
+	createAccessRequest := func() error {
+		return s.authServer.CreateAccessRequest(ctx, accessRequest)
+	}
+
+	deleteAllAccessRequests := func() error {
+		return s.authServer.DeleteAllAccessRequests(ctx)
+	}
+
+	t.Run("AccessRequestCommands", func(t *testing.T) {
+		for _, tc := range map[string]adminActionTestCase{
+			"tctl requests create": {
+				// creating an access request on behalf of another user requires admin MFA.
+				command:    fmt.Sprintf("requests create --roles=%v %v", teleport.PresetAccessRoleName, user.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests approve": {
+				command:    fmt.Sprintf("requests approve %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests deny": {
+				command:    fmt.Sprintf("requests deny %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests review --approve": {
+				command:    fmt.Sprintf("requests review %v --author=admin --approve", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests review --deny": {
+				command:    fmt.Sprintf("requests review %v --author=admin --deny", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests rm": {
+				command:    fmt.Sprintf("requests rm %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+		} {
+			t.Run(tc.command, func(t *testing.T) {
+				s.testCommand(t, ctx, tc)
+			})
+		}
+
+		// Creating an access request for yourself should not require admin MFA.
+		t.Run("OK owner creating access request without MFA", func(t *testing.T) {
+			err := runTestCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
+				command:    fmt.Sprintf("requests create --roles=%v %v", teleport.PresetAccessRoleName, "admin"),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			})
+			require.NoError(t, err)
+		})
 	})
 }
 
@@ -227,18 +339,18 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       token,
-			resourceCreate: createToken,
-			resourceDelete: deleteToken,
+			resource:        token,
+			resourceCreate:  createToken,
+			resourceCleanup: deleteToken,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(token),
-			resourceCreate: createToken,
-			resourceGet:    getToken,
-			resourceDelete: deleteToken,
+			resourceRef:     getResourceRef(token),
+			resourceCreate:  createToken,
+			resourceGet:     getToken,
+			resourceCleanup: deleteToken,
 		})
 	})
 }
@@ -300,18 +412,18 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       connector,
-			resourceCreate: createOIDCConnector,
-			resourceDelete: deleteOIDCConnector,
+			resource:        connector,
+			resourceCreate:  createOIDCConnector,
+			resourceCleanup: deleteOIDCConnector,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(connector),
-			resourceCreate: createOIDCConnector,
-			resourceGet:    getOIDCConnector,
-			resourceDelete: deleteOIDCConnector,
+			resourceRef:     getResourceRef(connector),
+			resourceCreate:  createOIDCConnector,
+			resourceGet:     getOIDCConnector,
+			resourceCleanup: deleteOIDCConnector,
 		})
 	})
 }
@@ -345,18 +457,18 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       connector,
-			resourceCreate: createSAMLConnector,
-			resourceDelete: deleteSAMLConnector,
+			resource:        connector,
+			resourceCreate:  createSAMLConnector,
+			resourceCleanup: deleteSAMLConnector,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(connector),
-			resourceCreate: createSAMLConnector,
-			resourceGet:    getSAMLConnector,
-			resourceDelete: deleteSAMLConnector,
+			resourceRef:     getResourceRef(connector),
+			resourceCreate:  createSAMLConnector,
+			resourceGet:     getSAMLConnector,
+			resourceCleanup: deleteSAMLConnector,
 		})
 	})
 }
@@ -394,18 +506,18 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       connector,
-			resourceCreate: createGithubConnector,
-			resourceDelete: deleteGithubConnector,
+			resource:        connector,
+			resourceCreate:  createGithubConnector,
+			resourceCleanup: deleteGithubConnector,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(connector),
-			resourceCreate: createGithubConnector,
-			resourceGet:    getGithubConnector,
-			resourceDelete: deleteGithubConnector,
+			resourceRef:     getResourceRef(connector),
+			resourceCreate:  createGithubConnector,
+			resourceGet:     getGithubConnector,
+			resourceCleanup: deleteGithubConnector,
 		})
 	})
 }
@@ -443,26 +555,176 @@ func (s *adminActionTestSuite) testSAMLIdpServiceProvider(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:       sp,
-			resourceCreate: CreateSAMLIdPServiceProvider,
-			resourceDelete: deleteSAMLIdPServiceProvider,
+			resource:        sp,
+			resourceCreate:  CreateSAMLIdPServiceProvider,
+			resourceCleanup: deleteSAMLIdPServiceProvider,
 		})
 	})
 
 	t.Run("EditCommand", func(t *testing.T) {
 		s.testEditCommand(t, ctx, editCommandTestCase{
-			resourceRef:    getResourceRef(sp),
-			resourceCreate: CreateSAMLIdPServiceProvider,
-			resourceGet:    getSAMLIdPServiceProvider,
-			resourceDelete: deleteSAMLIdPServiceProvider,
+			resourceRef:     getResourceRef(sp),
+			resourceCreate:  CreateSAMLIdPServiceProvider,
+			resourceGet:     getSAMLIdPServiceProvider,
+			resourceCleanup: deleteSAMLIdPServiceProvider,
+		})
+	})
+}
+
+func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
+	ctx := context.Background()
+
+	originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	createAuthPref := func() error {
+		// To maintain the current auth preference for each test case, get
+		// the current auth preference from config and change it to dynamic.
+		authPref, err := s.authServer.GetAuthPreference(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authPref.SetOrigin(types.OriginDynamic)
+		return s.authServer.SetAuthPreference(ctx, authPref)
+	}
+
+	getAuthPref := func() (types.Resource, error) {
+		return s.authServer.GetAuthPreference(ctx)
+	}
+
+	resetAuthPref := func() error {
+		return s.authServer.SetAuthPreference(ctx, originalAuthPref)
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:        originalAuthPref,
+			resourceCreate:  createAuthPref,
+			resourceCleanup: resetAuthPref,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:     getResourceRef(originalAuthPref),
+			resourceCreate:  createAuthPref,
+			resourceGet:     getAuthPref,
+			resourceCleanup: resetAuthPref,
+		})
+	})
+}
+
+func (s *adminActionTestSuite) testNetworkRestriction(t *testing.T) {
+	ctx := context.Background()
+
+	netRestrictions := types.NewNetworkRestrictions()
+
+	createNetworkRestrictions := func() error {
+		return s.authServer.SetNetworkRestrictions(ctx, netRestrictions)
+	}
+
+	getNetworkRestrictions := func() (types.Resource, error) {
+		return s.authServer.GetNetworkRestrictions(ctx)
+	}
+
+	resetNetworkRestrictions := func() error {
+		return s.authServer.DeleteNetworkRestrictions(ctx)
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:        netRestrictions,
+			resourceCreate:  createNetworkRestrictions,
+			resourceCleanup: resetNetworkRestrictions,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:     getResourceRef(netRestrictions),
+			resourceCreate:  createNetworkRestrictions,
+			resourceGet:     getNetworkRestrictions,
+			resourceCleanup: resetNetworkRestrictions,
+		})
+	})
+}
+
+func (s *adminActionTestSuite) testNetworkingConfig(t *testing.T) {
+	ctx := context.Background()
+
+	netConfig := types.DefaultClusterNetworkingConfig()
+	netConfig.SetOrigin(types.OriginDynamic)
+
+	createNetConfig := func() error {
+		return s.authServer.SetClusterNetworkingConfig(ctx, netConfig)
+	}
+
+	getNetConfig := func() (types.Resource, error) {
+		return s.authServer.GetClusterNetworkingConfig(ctx)
+	}
+
+	resetNetConfig := func() error {
+		return s.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:        netConfig,
+			resourceCreate:  createNetConfig,
+			resourceCleanup: resetNetConfig,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:     getResourceRef(netConfig),
+			resourceCreate:  createNetConfig,
+			resourceGet:     getNetConfig,
+			resourceCleanup: resetNetConfig,
+		})
+	})
+}
+
+func (s *adminActionTestSuite) testSessionRecordingConfig(t *testing.T) {
+	ctx := context.Background()
+
+	sessionRecordingConfig := types.DefaultSessionRecordingConfig()
+	sessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	createSessionRecordingConfig := func() error {
+		return s.authServer.SetSessionRecordingConfig(ctx, sessionRecordingConfig)
+	}
+
+	getSessionRecordingConfig := func() (types.Resource, error) {
+		return s.authServer.GetSessionRecordingConfig(ctx)
+	}
+
+	resetSessionRecordingConfig := func() error {
+		return s.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	}
+
+	t.Run("ResourceCommands", func(t *testing.T) {
+		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			resource:        sessionRecordingConfig,
+			resourceCreate:  createSessionRecordingConfig,
+			resourceCleanup: resetSessionRecordingConfig,
+		})
+	})
+
+	t.Run("EditCommand", func(t *testing.T) {
+		s.testEditCommand(t, ctx, editCommandTestCase{
+			resourceRef:     getResourceRef(sessionRecordingConfig),
+			resourceCreate:  createSessionRecordingConfig,
+			resourceGet:     getSessionRecordingConfig,
+			resourceCleanup: resetSessionRecordingConfig,
 		})
 	})
 }
 
 type resourceCommandTestCase struct {
-	resource       types.Resource
-	resourceCreate func() error
-	resourceDelete func() error
+	resource        types.Resource
+	resourceCreate  func() error
+	resourceCleanup func() error
 }
 
 func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
@@ -476,7 +738,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("create %v", f.Name()),
 			cliCommand: &tctl.ResourceCommand{},
-			cleanup:    tc.resourceDelete,
+			cleanup:    tc.resourceCleanup,
 		})
 	})
 
@@ -485,7 +747,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			command:    fmt.Sprintf("create -f %v", f.Name()),
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceDelete,
+			cleanup:    tc.resourceCleanup,
 		})
 	})
 
@@ -494,16 +756,16 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			command:    fmt.Sprintf("rm %v", getResourceRef(tc.resource)),
 			cliCommand: &tctl.ResourceCommand{},
 			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceDelete,
+			cleanup:    tc.resourceCleanup,
 		})
 	})
 }
 
 type editCommandTestCase struct {
-	resourceRef    string
-	resourceCreate func() error
-	resourceGet    func() (types.Resource, error)
-	resourceDelete func() error
+	resourceRef     string
+	resourceCreate  func() error
+	resourceGet     func() (types.Resource, error)
+	resourceCleanup func() error
 }
 
 func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context, tc editCommandTestCase) {
@@ -526,7 +788,7 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 					return nil
 				},
 			},
-			cleanup: tc.resourceDelete,
+			cleanup: tc.resourceCleanup,
 		})
 	})
 }
@@ -536,7 +798,8 @@ type adminActionTestSuite struct {
 	// userClientWithMFA supports MFA prompt for admin actions.
 	userClientWithMFA auth.ClientI
 	// userClientWithMFA does not support MFA prompt for admin actions.
-	userClientNoMFA auth.ClientI
+	userClientNoMFA  auth.ClientI
+	localAdminClient *auth.Client
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
@@ -583,6 +846,12 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 					Resources: []string{types.Wildcard},
 					Verbs:     []string{types.Wildcard},
 				},
+			},
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles: []string{types.Wildcard},
+			},
+			Request: &types.AccessRequestConditions{
+				Roles: []string{types.Wildcard},
 			},
 		},
 	})
@@ -639,10 +908,27 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
+	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
+	require.NoError(t, err)
+	localAdmin, err := auth.ReadLocalIdentity(
+		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
+		auth.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+	)
+	require.NoError(t, err)
+	localAdminTLS, err := localAdmin.TLSConfig(nil)
+	require.NoError(t, err)
+	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
+		TLS:         localAdminTLS,
+		AuthServers: []utils.NetAddr{*authAddr},
+		Log:         utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+
 	return &adminActionTestSuite{
 		authServer:        authServer,
 		userClientNoMFA:   userClientNoMFA,
 		userClientWithMFA: userClientWithMFA,
+		localAdminClient:  localAdminClient,
 	}
 }
 
@@ -712,8 +998,8 @@ func runTestCase(t *testing.T, ctx context.Context, client auth.ClientI, tc admi
 
 func getResourceRef(r types.Resource) string {
 	switch kind := r.GetKind(); kind {
-	case types.KindClusterAuthPreference:
-		// single resources are referred to by kind alone.
+	case types.KindClusterAuthPreference, types.KindNetworkRestrictions, types.KindClusterNetworkingConfig, types.KindSessionRecordingConfig:
+		// singleton resources are referred to by kind alone.
 		return kind
 	default:
 		return fmt.Sprintf("%v/%v", r.GetKind(), r.GetName())

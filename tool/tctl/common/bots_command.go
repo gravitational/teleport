@@ -30,13 +30,18 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -69,7 +74,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	c.botsAdd = bots.Command("add", "Add a new certificate renewal bot to the cluster.")
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
-	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").Required().StringVar(&c.botRoles)
+	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").StringVar(&c.botRoles)
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
@@ -103,10 +108,8 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	return true, trace.Wrap(err)
 }
 
-// ListBots writes a listing of the cluster's certificate renewal bots
-// to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
-	// TODO: consider adding a custom column for impersonator roles, locks, ??
+// TODO(noah): DELETE IN 16.0.0
+func (c *BotsCommand) listBotsLegacy(ctx context.Context, client auth.ClientI) error {
 	users, err := client.GetBotUsers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -137,6 +140,48 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
+		}
+	}
+	return nil
+}
+
+// ListBots writes a listing of the cluster's certificate renewal bots
+// to standard out.
+func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
+	var bots []*machineidv1pb.Bot
+	req := &machineidv1pb.ListBotsRequest{}
+	for {
+		resp, err := client.BotServiceClient().ListBots(ctx, req)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				return trace.Wrap(c.listBotsLegacy(ctx, client))
+			}
+			return trace.Wrap(err)
+		}
+
+		bots = append(bots, resp.Bots...)
+		if resp.NextPageToken == "" {
+			break
+		}
+		req.PageToken = resp.NextPageToken
+	}
+
+	if c.format == teleport.Text {
+		if len(bots) == 0 {
+			fmt.Println("No bots found")
+			return nil
+		}
+		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
+		for _, u := range bots {
+			t.AddRow([]string{
+				u.Metadata.Name, u.Status.UserName, strings.Join(u.Spec.GetRoles(), ","),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		err := utils.WriteJSONArray(os.Stdout, bots)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal bots")
 		}
 	}
 	return nil
@@ -181,11 +226,11 @@ Please note:
   - {{.addr}} must be reachable from the new node
 `))
 
-// AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+// TODO(noah): DELETE IN 16.0.0
+func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) error {
 	roles := splitRoles(c.botRoles)
 	if len(roles) == 0 {
-		return trace.BadParameter("at least one role must be specified with --roles")
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 
 	traits := map[string][]string{
@@ -200,7 +245,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		Traits:  traits,
 	})
 	if err != nil {
-		return trace.WrapWithMessage(err, "error while creating bot")
+		return trace.Wrap(err, "creating bot")
 	}
 
 	if c.format == teleport.JSON {
@@ -218,7 +263,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	if len(proxies) == 0 {
-		return trace.Errorf("This cluster does not have any proxy servers running.")
+		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
 	}
 	addr := proxies[0].GetPublicAddr()
 	if addr == "" {
@@ -238,9 +283,158 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	})
 }
 
+// AddBot adds a new certificate renewal bot to the cluster.
+func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+	// Jankily call the endpoint invalidly. This lets us version check and use
+	// the legacy version of this CLI tool if we are talking to an older
+	// server.
+	// DELETE IN 16.0
+	{
+		_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+			Bot: nil,
+		})
+		if trace.IsNotImplemented(err) {
+			return trace.Wrap(c.addBotLegacy(ctx, client))
+		}
+	}
+
+	roles := splitRoles(c.botRoles)
+	if len(roles) == 0 {
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
+	}
+	var token types.ProvisionToken
+	var err error
+	if c.tokenID == "" {
+		// If there's no token specified, generate one
+		tokenName, err := utils.CryptoRandomHex(16)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ttl := c.tokenTTL
+		if ttl == 0 {
+			ttl = defaults.DefaultBotJoinTTL
+		}
+		tokenSpec := types.ProvisionTokenSpecV2{
+			Roles:      types.SystemRoles{types.RoleBot},
+			JoinMethod: types.JoinMethodToken,
+			BotName:    c.botName,
+		}
+		token, err = types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.UpsertToken(ctx, token); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// If there is, check the token matches the potential bot
+		token, err = client.GetToken(ctx, c.tokenID)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
+					c.tokenID, err)
+			}
+			return trace.Wrap(err)
+		}
+		if !token.GetRoles().Include(types.RoleBot) {
+			return trace.BadParameter("token %q is not valid for role %q",
+				c.tokenID, types.RoleBot)
+		}
+		if token.GetBotName() != c.botName {
+			return trace.BadParameter("token %q is valid for bot with name %q, not %q",
+				c.tokenID, token.GetBotName(), c.botName)
+		}
+	}
+
+	bot := &machineidv1pb.Bot{
+		Metadata: &headerv1.Metadata{
+			Name: c.botName,
+		},
+		Spec: &machineidv1pb.BotSpec{
+			Roles: roles,
+			Traits: []*machineidv1pb.Trait{
+				{
+					Name:   constants.TraitLogins,
+					Values: flattenSlice(c.allowedLogins),
+				},
+			},
+		},
+	}
+
+	bot, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: bot,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if c.format == teleport.JSON {
+		tokenTTL := time.Duration(0)
+		if exp := token.Expiry(); !exp.IsZero() {
+			tokenTTL = time.Until(exp)
+		}
+		// This struct is equivalent to a legacy bit of JSON we used to output
+		// when we called an older RPC. We've preserved it here to avoid
+		// breaking customer scripts.
+		response := struct {
+			UserName string        `json:"user_name"`
+			RoleName string        `json:"role_name"`
+			TokenID  string        `json:"token_id"`
+			TokenTTL time.Duration `json:"token_ttl"`
+		}{
+			UserName: bot.Status.UserName,
+			RoleName: bot.Status.RoleName,
+			TokenID:  token.GetName(),
+			TokenTTL: tokenTTL,
+		}
+		out, err := json.MarshalIndent(response, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal CreateBot response")
+		}
+
+		fmt.Println(string(out))
+		return nil
+	}
+
+	proxies, err := client.GetProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(proxies) == 0 {
+		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
+	}
+	addr := proxies[0].GetPublicAddr()
+	if addr == "" {
+		addr = proxies[0].GetAddr()
+	}
+
+	joinMethod := token.GetJoinMethod()
+	if joinMethod == types.JoinMethodUnspecified {
+		joinMethod = types.JoinMethodToken
+	}
+
+	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+		"token":       token.GetName(),
+		"minutes":     int(time.Until(token.Expiry()).Minutes()),
+		"addr":        addr,
+		"join_method": joinMethod,
+	})
+}
+
 func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
-	if err := client.DeleteBot(ctx, c.botName); err != nil {
-		return trace.WrapWithMessage(err, "error deleting bot")
+	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		BotName: c.botName,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			// This falls back to the deprecated RPC.
+			// TODO(noah): DELETE IN 16.0.0
+			if err := client.DeleteBot(ctx, c.botName); err != nil {
+				return trace.Wrap(err, "error deleting bot")
+			}
+		} else {
+			return trace.Wrap(err)
+		}
 	}
 
 	fmt.Printf("Bot %q deleted successfully.\n", c.botName)
@@ -254,7 +448,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(ctx, auth.BotResourceName(c.botName), false)
+	user, err := client.GetUser(ctx, machineidv1.BotResourceName(c.botName), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
