@@ -462,6 +462,8 @@ message AWS {
   // If not, the user must update the AWS profile identity to allow access to the Database.
   // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
   IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
+  // SessionTags is a list of AWS STS session tags.
+  map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
 }
 
 // SecretStore contains secret store configurations.

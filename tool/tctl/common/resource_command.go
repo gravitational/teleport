@@ -1184,6 +1184,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
+		types.KindNetworkRestrictions,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
