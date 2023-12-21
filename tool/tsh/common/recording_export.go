@@ -131,7 +131,7 @@ loop:
 					webProxyAddr,
 					evt.ClusterName,
 					evt.SessionID,
-					lastEmitted)
+					evt.EndTime.Sub(evt.StartTime).Milliseconds())
 				return frameCount, trace.BadParameter("this session can't be exported, please visit %s to view it", url)
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
