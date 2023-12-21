@@ -14,4 +14,8 @@ destination: "testdata/golden.mdx"
 excluded_resource_types:
   - package: "typestest"
     name: "ResourceHeader"
+  # This is an entire resource with a custom unmarshaler, so we should take care
+  # to determine how to document it.
+  - package: "types"
+    name: "MFADevice"
 field_assignment_method: "setStaticFields"
