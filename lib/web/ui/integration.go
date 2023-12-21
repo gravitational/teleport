@@ -213,7 +213,7 @@ type AWSOIDCDeployDatabaseServiceRequest struct {
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
 type DeployDatabaseServiceDeployment struct {
 	// VPCID is the VPCID where the service is going to be deployed.
-	VPCID string `json:"vpcid"`
+	VPCID string `json:"vpcId"`
 
 	// SubnetIDs are the subnets for the network configuration.
 	// They must belong to the VPCID above.
