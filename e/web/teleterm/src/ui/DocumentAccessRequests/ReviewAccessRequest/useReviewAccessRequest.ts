@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useState, useEffect, useCallback } from 'react';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
-import { SubmitReview } from 'e-teleport/Workflow/ReviewRequests/RequestView/types';
+import {
+  SubmitReview,
+  RequestFlags,
+} from 'e-teleport/Workflow/ReviewRequests/RequestView/types';
 
 import { AssumedRequest, LoggedInUser } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -10,107 +12,104 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { makeUiAccessRequest } from '../useAccessRequests';
 
-export default function useReviewAccessRequest({ requestId, goBack }: Props) {
+export function useReviewAccessRequest({
+  requestId,
+  goBack,
+}: {
+  requestId: string;
+  goBack(): void;
+}) {
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
   const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
-  const [request, setRequest] = useState<AccessRequest>(null);
-  const { attempt, run: runGetRequest } = useAttempt('processing');
-  const { attempt: submitReviewAttempt, run: runSubmitReview } = useAttempt('');
-  const { attempt: deleteRequestAttempt, run: runDeleteRequest } =
-    useAttempt('');
-  const { attempt: assumeRoleAttempt, run: runAssumeRole } = useAttempt('');
-  const [flags, setFlags] = useState<Flags>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
 
-  const retry = <T>(action: () => Promise<T>) =>
-    retryWithRelogin(ctx, clusterUri, action);
+  const retry = useCallback(
+    <T>(action: () => Promise<T>) => retryWithRelogin(ctx, clusterUri, action),
+    [clusterUri, ctx]
+  );
 
-  useEffect(() => {
-    runGetRequest(() =>
-      retry(() =>
-        ctx.clustersService
-          .getAccessRequest(rootClusterUri, requestId)
-          .then(r => {
-            const req = makeUiAccessRequest(r);
-            setRequest(req);
-            setFlags(getRequestFlags(req, loggedInUser, assumed));
-          })
-      )
-    );
-  }, []);
+  const [fetchRequestAttempt, runFetchRequest] = useAsync(
+    useCallback(
+      () =>
+        retry(async () => {
+          const request = await ctx.clustersService.getAccessRequest(
+            rootClusterUri,
+            requestId
+          );
+          return makeUiAccessRequest(request);
+        }),
+      [ctx.clustersService, requestId, retry, rootClusterUri]
+    )
+  );
+  const [deleteRequestAttempt, runDeleteRequest] = useAsync(() =>
+    retry(() =>
+      ctx.clustersService.deleteAccessRequest(rootClusterUri, requestId)
+    )
+  );
+  const [assumeRoleAttempt, runAssumeRole] = useAsync(() =>
+    retry(() => ctx.clustersService.assumeRole(rootClusterUri, [requestId], []))
+  );
+  const [submitReviewAttempt, runSubmitReview] = useAsync(
+    (review: SubmitReview) =>
+      retry(async () => {
+        // This should not happen because the UI is hidden when fetching the request is in progress.
+        if (fetchRequestAttempt.status !== 'success') {
+          throw new Error('No access request to review.');
+        }
 
-  useEffect(() => {
-    // if workspace assumed object is updated, we update the flags of the current request
-    updateFlags();
-  }, [assumed]);
+        const updatedAccessRequest =
+          await ctx.clustersService.reviewAccessRequest(rootClusterUri, {
+            state: review.state,
+            reason: review.reason,
+            roles: fetchRequestAttempt.data.roles,
+            id: requestId,
+          });
 
-  function updateFlags() {
-    if (request && loggedInUser) {
-      setFlags(getRequestFlags(request, loggedInUser, assumed));
+        return makeUiAccessRequest(updatedAccessRequest);
+      })
+  );
+
+  function getFlags(request: AccessRequest): RequestFlags {
+    if (loggedInUser) {
+      return getRequestFlags(request, loggedInUser, assumed);
     }
+    return undefined;
   }
 
-  async function submitReview({ state, reason }: SubmitReview) {
-    const req = {
-      state,
-      reason,
-      roles: request.roles,
-      id: request.id,
-    };
-    runSubmitReview(() =>
-      retry(() =>
-        ctx.clustersService.reviewAccessRequest(rootClusterUri, req).then(r => {
-          const req = makeUiAccessRequest(r);
-          setRequest(req);
-        })
-      )
-    );
-  }
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  async function deleteRequest(requestId: string) {
-    runDeleteRequest(() =>
-      retry(() =>
-        ctx.clustersService.deleteAccessRequest(rootClusterUri, requestId)
-      )
-    );
-  }
+  useEffect(() => {
+    if (fetchRequestAttempt.status === '') {
+      runFetchRequest();
+    }
+  }, [fetchRequestAttempt.status, runFetchRequest]);
 
-  function toggleDeleteConfirmation() {
-    setDeleteDialogOpen(!deleteDialogOpen);
-  }
-
-  async function assumeRole() {
-    runAssumeRole(() =>
-      retry(() =>
-        // pass the requestId to the requestIds array on its own, and nothing into the dropids array
-        // since we are only 'assuming' one requestId at a time
-        ctx.clustersService.assumeRole(rootClusterUri, [requestId], [])
-      )
-    );
+  async function deleteRequest(): Promise<void> {
+    const [, error] = await runDeleteRequest();
+    if (!error) {
+      goBack();
+    }
   }
 
   return {
     user: loggedInUser,
-    requestId,
-    request,
-    goBack,
-    flags,
-    assumeRole,
-    attempt,
+    getFlags,
+    assumeRole: runAssumeRole,
+    fetchRequestAttempt,
     submitReviewAttempt,
     assumeRoleAttempt,
     deleteDialogOpen,
     setDeleteDialogOpen,
     deleteRequestAttempt,
     deleteRequest,
-    toggleDeleteConfirmation,
-    submitReview,
+    submitReview: runSubmitReview,
   };
 }
 
@@ -118,7 +117,7 @@ function getRequestFlags(
   request: AccessRequest,
   user: LoggedInUser,
   assumedMap: Record<string, AssumedRequest>
-) {
+): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
   const isAssumed = !!assumedMap[request.id];
@@ -133,10 +132,7 @@ function getRequestFlags(
     : request.state === 'PENDING';
 
   return {
-    // canAssume is a flag to show the assume btn.
     canAssume,
-    // isAssumed is a flag if the assume btn should be disabled or not,
-    // and determines the text that implies if user already has assumed or not.
     isAssumed,
     canDelete,
     canReview: !ownRequest && isPendingState,
@@ -144,10 +140,3 @@ function getRequestFlags(
     ownRequest,
   };
 }
-
-type Flags = ReturnType<typeof getRequestFlags>;
-
-type Props = {
-  requestId: string;
-  goBack: () => void;
-};

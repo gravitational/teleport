@@ -1,6 +1,8 @@
 import React from 'react';
 import { ButtonWarning, ButtonSecondary, Flex, Text, Alert } from 'design';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import historyService from 'teleport/services/history';
+
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -8,27 +10,52 @@ import Dialog, {
   DialogFooter,
 } from 'design/Dialog';
 
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+
 import useTeleportE from 'e-teleport/useTeleportE';
+import cfg from 'e-teleport/config';
 
 import RolesRequested from '../RolesRequested';
 
-import useRequestDelete, { Props } from './useRequestDelete';
+import type { RequestState } from 'e-teleport/services/workflow';
 
-export default function Container(props: Omit<Props, 'ctx'>) {
+interface RequestDeleteProps {
+  requestId: string;
+  requestState: RequestState;
+  user: string;
+  roles: string[];
+  onClose(): void;
+}
+
+export default function Container(props: RequestDeleteProps) {
   const ctx = useTeleportE();
-  const state = useRequestDelete({ ...props, ctx });
-  return <RequestDelete {...state} />;
+
+  const [deleteRequestAttempt, runDeleteRequest] = useAsync(async () => {
+    await ctx.workflowService.deleteAccessRequest(props.requestId);
+    historyService.replace(cfg.getAccessRequestRoute());
+  });
+
+  return (
+    <RequestDelete
+      {...props}
+      deleteRequestAttempt={deleteRequestAttempt}
+      onDelete={runDeleteRequest}
+    />
+  );
 }
 
 export function RequestDelete({
-  attempt,
+  deleteRequestAttempt,
   user,
   roles,
   requestId,
   requestState,
   onClose,
   onDelete,
-}: ReturnType<typeof useRequestDelete>) {
+}: RequestDeleteProps & {
+  deleteRequestAttempt: Attempt<void>;
+  onDelete(): void;
+}) {
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '550px', width: '100%' })}
@@ -40,8 +67,8 @@ export function RequestDelete({
         <DialogTitle>Delete Request?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'failed' && (
-          <Alert kind="danger" children={attempt.statusText} />
+        {deleteRequestAttempt.status === 'error' && (
+          <Alert kind="danger" children={deleteRequestAttempt.statusText} />
         )}
         <Flex flexWrap="wrap" mb={1}>
           <Flex alignItems="baseline">
@@ -75,13 +102,13 @@ export function RequestDelete({
       <DialogFooter>
         <ButtonWarning
           mr="3"
-          disabled={attempt.status === 'processing'}
+          disabled={deleteRequestAttempt.status === 'processing'}
           onClick={onDelete}
         >
           Delete Request
         </ButtonWarning>
         <ButtonSecondary
-          disabled={attempt.status === 'processing'}
+          disabled={deleteRequestAttempt.status === 'processing'}
           onClick={onClose}
         >
           Cancel

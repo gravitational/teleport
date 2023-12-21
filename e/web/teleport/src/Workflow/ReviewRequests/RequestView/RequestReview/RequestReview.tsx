@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import {
   ButtonPrimary,
@@ -8,22 +8,21 @@ import {
   Alert,
   Flex,
   Label,
-  Popover,
 } from 'design';
 import { Warning } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Attempt } from 'shared/hooks/useAsync';
 import { requiredField } from 'shared/components/Validation/rules';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import { AccessList } from 'e-teleport/services/accessmanagement';
 
-import { State as RequestViewState } from '../useRequestView';
-import { LongTermAccess } from '../types';
+import { SubmitReview } from '../types';
 
 type ReviewStateOption = Option<RequestState, React.ReactElement> & {
   disabled?: boolean;
@@ -31,20 +30,33 @@ type ReviewStateOption = Option<RequestState, React.ReactElement> & {
 
 type SuggestedAcessListOption = Option<AccessList, React.ReactElement>;
 
+export interface RequestReviewProps {
+  submitReview(s: SubmitReview): void;
+  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>;
+  shortTermDuration: string;
+  user: string;
+  submitReviewAttempt: Attempt<AccessRequest>;
+  request: AccessRequest;
+}
+
 export default function RequestReview({
-  attempt,
+  submitReviewAttempt,
   submitReview,
   user,
-  longTermAccess,
+  fetchSuggestedAccessListsAttempt,
   shortTermDuration,
   request,
-}: Props) {
+}: RequestReviewProps) {
   const [reviewStateOptions] = useState<ReviewStateOption[]>(() =>
-    makeReviewStateOptions(longTermAccess, shortTermDuration, request)
+    makeReviewStateOptions(
+      fetchSuggestedAccessListsAttempt,
+      shortTermDuration,
+      request
+    )
   );
 
   const [suggestedAccessListOptions] = useState<SuggestedAcessListOption[]>(
-    () => makeSuggestedAccessListOptions(longTermAccess)
+    () => makeSuggestedAccessListOptions(fetchSuggestedAccessListsAttempt)
   );
 
   const [state, setState] = useState<RequestState>(reviewStateOptions[0].value);
@@ -74,7 +86,7 @@ export default function RequestReview({
   }
 
   // After successful submit, don't render.
-  if (attempt.status === 'success') {
+  if (submitReviewAttempt.status === 'success') {
     return null;
   }
 
@@ -93,8 +105,8 @@ export default function RequestReview({
             </Text>
           </Box>
           <Box p={3} bg="levels.elevated">
-            {attempt.status === 'failed' && (
-              <Alert kind="danger" children={attempt.statusText} />
+            {submitReviewAttempt.status === 'error' && (
+              <Alert kind="danger" children={submitReviewAttempt.statusText} />
             )}
             <Box mb={3}>
               <RadioGroup
@@ -163,7 +175,7 @@ export default function RequestReview({
               />
             </Box>
             <ButtonPrimary
-              disabled={attempt.status === 'processing'}
+              disabled={submitReviewAttempt.status === 'processing'}
               onClick={() => onSubmitReview(validator)}
             >
               Submit Review
@@ -175,83 +187,17 @@ export default function RequestReview({
   );
 }
 
-export type Props = {
-  submitReview: RequestViewState['submitReview'];
-  longTermAccess: RequestViewState['longTermAccess'];
-  shortTermDuration: string;
-  user: string;
-  attempt: Attempt;
-  request: AccessRequest;
-};
-
-// TODO(lisa): move this to 'shared/ToolTip' package
-// and refactor ToolTipInfo with this.
-export const ToolTipText: React.FC<
-  PropsWithChildren<{
-    tipContent: React.ReactElement;
-    fontSize?: number;
-  }>
-> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <span
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-      >
-        {children}
-      </span>
-      <Popover
-        modalCss={modalCss}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
-          {tipContent}
-        </StyledOnHover>
-      </Popover>
-    </>
-  );
-};
-
-const modalCss = () => `
-  pointer-events: none;
-`;
-
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  max-width: 350px;
-`;
-
 function makeSuggestedAccessListOptions(
-  longTermAccess: LongTermAccess
+  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>
 ): SuggestedAcessListOption[] {
-  if (!longTermAccess || longTermAccess.error) {
+  if (
+    !fetchSuggestedAccessListsAttempt ||
+    fetchSuggestedAccessListsAttempt.status !== 'success'
+  ) {
     return [];
   }
 
-  return longTermAccess.suggestedAccessLists.map(a => {
+  return fetchSuggestedAccessListsAttempt.data.map(a => {
     const traitsMap = a.grants.traits;
     const grantedTraits = Object.keys(traitsMap).map(key =>
       makeTraitLabel(key, traitsMap[key])
@@ -285,13 +231,13 @@ function makeSuggestedAccessListOptions(
 }
 
 function makeReviewStateOptions(
-  longTermAccess: LongTermAccess,
+  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>,
   shortTermDuration: string,
   request: AccessRequest
 ): ReviewStateOption[] {
   // TODO(lisa): teleterm uses the same components, temporary hack
   // to "disable" promoting for teleterm until feature is ready in teleterm.
-  if (!longTermAccess) {
+  if (!fetchSuggestedAccessListsAttempt) {
     return [
       { value: 'DENIED', label: <>Reject request</> },
       {
@@ -311,24 +257,27 @@ function makeReviewStateOptions(
 
   let promotedContent;
 
-  if (longTermAccess.suggestedAccessLists.length > 0) {
+  if (
+    fetchSuggestedAccessListsAttempt.status === 'success' &&
+    fetchSuggestedAccessListsAttempt.data.length > 0
+  ) {
     promotedContent = <Text>{promotedTxt}</Text>;
   } else {
     let msg = 'No Access Lists will grant the requested resources';
-    if (longTermAccess.error) {
-      msg = `Error: ${longTermAccess.error}`;
+    if (fetchSuggestedAccessListsAttempt.status === 'error') {
+      msg = `Error: ${fetchSuggestedAccessListsAttempt.statusText}`;
     } else if (request.resources.length === 0) {
       msg = 'Only supported for resource based access requests';
     }
     promotedContent = (
-      <ToolTipText tipContent={<>{msg}</>}>
+      <HoverTooltip tipContent={msg}>
         <Flex alignItems="center">
           <Text>{promotedTxt}</Text>
-          {longTermAccess.error && (
+          {fetchSuggestedAccessListsAttempt.status === 'error' && (
             <Warning color="warning.active" ml={1} size={20} />
           )}
         </Flex>
-      </ToolTipText>
+      </HoverTooltip>
     );
   }
 
@@ -346,8 +295,9 @@ function makeReviewStateOptions(
     {
       value: 'PROMOTED',
       disabled:
-        !!longTermAccess.error ||
-        longTermAccess.suggestedAccessLists.length === 0,
+        fetchSuggestedAccessListsAttempt.status === 'error' ||
+        (fetchSuggestedAccessListsAttempt.status === 'success' &&
+          fetchSuggestedAccessListsAttempt.data.length === 0),
       label: <>{promotedContent}</>,
     },
   ];

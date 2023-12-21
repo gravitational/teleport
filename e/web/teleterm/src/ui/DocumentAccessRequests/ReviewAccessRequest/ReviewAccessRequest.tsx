@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 
 import styled from 'styled-components';
 
@@ -8,14 +8,14 @@ import { ArrowBack } from 'design/Icon';
 import { RequestDelete } from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestDelete/RequestDelete';
 import { RequestView } from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestView';
 
-import useReviewAccessRequest from './useReviewAccessRequest';
+import { useReviewAccessRequest } from './useReviewAccessRequest';
 
-export function ReviewAccessRequest(props: Props) {
+export function ReviewAccessRequest(props: {
+  requestId: string;
+  goBack(): void;
+}) {
   const {
-    goBack,
-    request,
-    attempt,
-    requestId,
+    fetchRequestAttempt,
     assumeRole,
     submitReviewAttempt,
     submitReview,
@@ -25,13 +25,34 @@ export function ReviewAccessRequest(props: Props) {
     deleteRequest,
     deleteRequestAttempt,
     user,
-    flags,
+    getFlags,
   } = useReviewAccessRequest(props);
-  useEffect(() => {
-    if (deleteRequestAttempt.status === 'success') {
-      goBack();
+
+  function getDialogDelete() {
+    const hasRequest =
+      fetchRequestAttempt.status === 'success' ||
+      submitReviewAttempt.status === 'success';
+    if (!(deleteDialogOpen && hasRequest)) {
+      return;
     }
-  }, [deleteRequestAttempt]);
+
+    const request =
+      submitReviewAttempt.status === 'success'
+        ? submitReviewAttempt.data
+        : fetchRequestAttempt.data;
+
+    return (
+      <RequestDelete
+        deleteRequestAttempt={deleteRequestAttempt}
+        user={request.user}
+        roles={request.roles}
+        requestId={request.id}
+        requestState={request.state}
+        onClose={() => setDeleteDialogOpen(false)}
+        onDelete={deleteRequest}
+      />
+    );
+  }
 
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
@@ -41,48 +62,33 @@ export function ReviewAccessRequest(props: Props) {
             <ArrowBack
               mr={2}
               size="large"
-              onClick={goBack}
+              onClick={props.goBack}
               style={{ textDecoration: 'none', cursor: 'pointer' }}
             />
-            <Text>{`Request: ${requestId}`}</Text>
+            <Text>{`Request: ${props.requestId}`}</Text>
           </Flex>
         </HeaderTitle>
       </Header>
-      {assumeRoleAttempt.status === 'failed' && (
+      {assumeRoleAttempt.status === 'error' && (
         <Alert kind="danger" children={assumeRoleAttempt.statusText} />
       )}
       <RequestView
         user={user?.name}
-        attempt={attempt}
-        request={request}
-        flags={flags}
+        fetchRequestAttempt={fetchRequestAttempt}
+        getFlags={getFlags}
         confirmDelete={false} // never show the embedded request delete
         toggleConfirmDelete={() => setDeleteDialogOpen(true)}
         submitReview={submitReview}
         assumeRole={assumeRole}
-        reviewAttempt={submitReviewAttempt}
+        assumeRoleAttempt={assumeRoleAttempt}
+        submitReviewAttempt={submitReviewAttempt}
         // TODO(lisa): temporary hack to disable promoting for teleterm.
-        longTermAccess={null}
+        fetchSuggestedAccessListsAttempt={null}
       />
-      {request && deleteDialogOpen && (
-        <RequestDelete
-          attempt={deleteRequestAttempt}
-          user={request?.user}
-          roles={request?.roles}
-          requestId={request?.id}
-          requestState={request?.state}
-          onClose={() => setDeleteDialogOpen(false)}
-          onDelete={() => deleteRequest(request.id)}
-        />
-      )}
+      {getDialogDelete()}
     </Layout>
   );
 }
-
-type Props = {
-  requestId: string;
-  goBack: () => void;
-};
 
 const Header = styled(Flex)`
   flex-shrink: 0;

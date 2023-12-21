@@ -1,8 +1,15 @@
 import React from 'react';
 
+import {
+  makeSuccessAttempt,
+  makeEmptyAttempt,
+  makeProcessingAttempt,
+  makeErrorAttempt,
+} from 'shared/hooks/useAsync';
+
 import { requestRolePending } from 'e-teleport/Workflow/fixtures';
 
-import RequestReview from './RequestReview';
+import RequestReview, { RequestReviewProps } from './RequestReview';
 
 export default {
   title: 'TeleportE/Workflow/RequestReview',
@@ -20,26 +27,25 @@ export const Loaded = () => {
 };
 
 export const Processing = () => {
-  return <RequestReview {...props} attempt={{ status: 'processing' }} />;
+  return (
+    <RequestReview {...props} submitReviewAttempt={makeProcessingAttempt()} />
+  );
 };
 
 export const Failed = () => {
   return (
     <RequestReview
       {...props}
-      attempt={{ status: 'failed', statusText: 'server error' }}
+      submitReviewAttempt={makeErrorAttempt(new Error('server error'))}
     />
   );
 };
 
-const props = {
+const props: RequestReviewProps = {
   user: 'loggedInUsername',
-  attempt: { status: '' as any },
+  submitReviewAttempt: makeEmptyAttempt(),
   submitReview: () => null,
   shortTermDuration: '12 hours',
   request: requestRolePending,
-  longTermAccess: {
-    suggestedAccessLists: [],
-    error: '',
-  },
+  fetchSuggestedAccessListsAttempt: makeSuccessAttempt([]),
 };

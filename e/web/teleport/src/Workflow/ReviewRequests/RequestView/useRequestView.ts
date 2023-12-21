@@ -1,146 +1,105 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router';
-import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { useAsync } from 'shared/hooks/useAsync';
 import history from 'teleport/services/history';
-import { getErrMessage } from 'shared/utils/errorType';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
-import {
-  AccessRequest,
-  PromoteAccessRequest,
-  UpdateAccessRequest,
-} from 'e-teleport/services/workflow';
+import { AccessRequest } from 'e-teleport/services/workflow';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared';
 
-import type { Attempt } from 'shared/hooks/useAttemptNext';
-
-import type { LongTermAccess, SubmitReview } from './types';
+import type { SubmitReview, RequestFlags } from './types';
 
 export default function useRequestView(ctx: TeleportContextE) {
   const { requestId } = useParams<{ requestId: string }>();
 
-  const { attempt, setAttempt } = useAttempt('processing');
-  const reviewAttempt = useAttempt();
+  const [fetchRequestAttempt, runFetchRequest] = useAsync(
+    useCallback(
+      () => ctx.workflowService.fetchAccessRequest(requestId),
+      [ctx.workflowService, requestId]
+    )
+  );
+  const [fetchSuggestedAccessListsAttempt, runFetchSuggestedAccessLists] =
+    useAsync(
+      useCallback(
+        () => accessManagementService.fetchAccessListSuggestions(requestId),
+        [requestId]
+      )
+    );
+  const [submitReviewAttempt, runSubmitReview] = useAsync(
+    async (review: SubmitReview) => {
+      // This should not happen because the UI is hidden when fetching the request is in progress.
+      if (fetchRequestAttempt.status !== 'success') {
+        throw new Error('No access request to review.');
+      }
 
-  const [request, setRequest] = useState<AccessRequest>(null);
-  const [longTermAccess, setLongTermAccess] = useState<LongTermAccess>({
-    suggestedAccessLists: [],
-    error: '',
-  });
+      return review.state === 'PROMOTED' && review.promotedToAccessList
+        ? await ctx.workflowService.promoteAccessRequest(requestId, {
+            accessListName: review.promotedToAccessList.id,
+            reason: review.reason,
+          })
+        : await ctx.workflowService.submitAccessRequestReview({
+            state: review.state,
+            reason: review.reason,
+            roles: fetchRequestAttempt.data.roles,
+            id: requestId,
+          });
+    }
+  );
+  const [assumeRoleAttempt, runAssumeRole] = useAsync(
+    async (request: AccessRequest) => {
+      const expires = await ctx.workflowService.applyPermission({
+        requestId: request.id,
+      });
+      ctx.storeAccessRequests.addAssumed(request, expires);
+      history.reload();
+    }
+  );
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [flags, setFlags] = useState<Flags>(null);
+
+  function getFlags(accessRequest: AccessRequest): RequestFlags {
+    return getRequestFlags(accessRequest, ctx);
+  }
 
   useEffect(() => {
-    async function initialFetch() {
-      try {
-        const fetchedAccessRequest =
-          await ctx.workflowService.fetchAccessRequest(requestId);
-
-        setRequest(fetchedAccessRequest);
-        setFlags(getRequestFlags(fetchedAccessRequest, ctx));
-
-        // Skip fetching access list suggestions for non-pending
-        // requests.
-        if (fetchedAccessRequest.state !== 'PENDING') {
-          setAttempt({ status: 'success' });
-          return;
-        }
-      } catch (err) {
-        const errMsg = getErrMessage(err);
-        setAttempt({ status: 'failed', statusText: errMsg });
-
-        // Don't try to fetch access list suggestions.
-        return;
-      }
-
-      try {
-        const suggestedAccessLists =
-          await accessManagementService.fetchAccessListSuggestions(requestId);
-
-        setLongTermAccess({ suggestedAccessLists, error: '' });
-      } catch (err) {
-        const errMsg = getErrMessage(err);
-        setLongTermAccess({ suggestedAccessLists: [], error: errMsg });
-      }
-
-      setAttempt({ status: 'success' });
+    if (fetchRequestAttempt.status === '') {
+      runFetchRequest();
     }
 
-    initialFetch();
-  }, []);
-
-  async function submitReview({
-    state,
-    reason,
-    promotedToAccessList,
-  }: SubmitReview) {
-    if (state === 'PROMOTED' && promotedToAccessList) {
-      const promoteReq: PromoteAccessRequest = {
-        accessListName: promotedToAccessList.id,
-        reason,
-      };
-
-      reviewAttempt.run(() =>
-        ctx.workflowService
-          .promoteAccessRequest(request.id, promoteReq)
-          .then(req => {
-            setRequest(req);
-            setFlags(getRequestFlags(req, ctx));
-          })
-      );
-
-      return;
+    if (fetchSuggestedAccessListsAttempt.status === '') {
+      runFetchSuggestedAccessLists();
     }
+  }, [
+    fetchRequestAttempt.status,
+    fetchSuggestedAccessListsAttempt.status,
+    runFetchRequest,
+    runFetchSuggestedAccessLists,
+  ]);
 
-    const reviewReq: UpdateAccessRequest = {
-      state,
-      reason,
-      roles: request.roles,
-      id: request.id,
-    };
-
-    reviewAttempt.run(() =>
-      ctx.workflowService.submitAccessRequestReview(reviewReq).then(req => {
-        setRequest(req);
-        setFlags(getRequestFlags(req, ctx));
-      })
-    );
-  }
-
-  function toggleConfirmDelete() {
+  function toggleConfirmDelete(): void {
     setConfirmDelete(!confirmDelete);
-  }
-
-  function assumeRole() {
-    setAttempt({ status: 'processing' });
-    ctx.workflowService
-      .applyPermission({ requestId: request.id })
-      .then(expires => {
-        ctx.storeAccessRequests.addAssumed(request, expires);
-        history.reload();
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
   }
 
   return {
     user: ctx.storeUser.getUsername(),
-    reviewAttempt: reviewAttempt.attempt,
-    attempt,
-    request,
-    flags,
+    fetchRequestAttempt,
+    getFlags,
     confirmDelete,
     toggleConfirmDelete,
-    submitReview,
-    assumeRole,
-    longTermAccess,
+    submitReview: runSubmitReview,
+    submitReviewAttempt,
+    assumeRole: runAssumeRole,
+    assumeRoleAttempt,
+    fetchSuggestedAccessListsAttempt,
   };
 }
 
-function getRequestFlags(request: AccessRequest, ctx: TeleportContextE) {
+function getRequestFlags(
+  request: AccessRequest,
+  ctx: TeleportContextE
+): RequestFlags {
   const flags = getBaseRequestFlags(request, ctx);
   const canDelete = ctx.storeUser.getWorkflowAccess().remove;
 
@@ -158,18 +117,3 @@ function getRequestFlags(request: AccessRequest, ctx: TeleportContextE) {
     canReview: !flags.ownRequest && isPendingState,
   };
 }
-
-type Flags = ReturnType<typeof getRequestFlags>;
-
-export type State = {
-  user: string;
-  reviewAttempt: Attempt;
-  attempt: Attempt;
-  request: AccessRequest;
-  flags: Flags;
-  confirmDelete: boolean;
-  toggleConfirmDelete(): void;
-  submitReview(s: SubmitReview);
-  assumeRole(): void;
-  longTermAccess: LongTermAccess;
-};

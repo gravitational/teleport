@@ -1,6 +1,13 @@
 import React from 'react';
 
 import {
+  makeSuccessAttempt,
+  makeEmptyAttempt,
+  makeProcessingAttempt,
+  makeErrorAttempt,
+} from 'shared/hooks/useAsync';
+
+import {
   AccessList,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -15,7 +22,8 @@ import {
   requestRolePromoted,
 } from '../../fixtures';
 
-import { RequestView } from './RequestView';
+import { RequestView, RequestViewProps } from './RequestView';
+import { RequestFlags } from './types';
 
 export default {
   title: 'TeleportE/Workflow/RequestView',
@@ -23,158 +31,174 @@ export default {
 
 export const LoadedSearchPending = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canReview: true,
     canDelete: true,
   };
   return (
-    <RequestView {...sample} request={requestSearchPending} flags={flags} />
+    <RequestView
+      {...sample}
+      fetchRequestAttempt={makeSuccessAttempt(requestSearchPending)}
+      getFlags={() => flags}
+    />
   );
 };
 
 export const LoadedRolePending = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canReview: true,
     canDelete: true,
   };
-  return <RequestView {...sample} flags={flags} />;
+  return <RequestView {...sample} getFlags={() => flags} />;
 };
 
 export const LoadedRoleDenied = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canDelete: true,
   };
-  return <RequestView {...sample} request={requestRoleDenied} flags={flags} />;
+  return (
+    <RequestView
+      {...sample}
+      fetchRequestAttempt={makeSuccessAttempt(requestRoleDenied)}
+      getFlags={() => flags}
+    />
+  );
 };
 
 export const LoadedRoleApproved = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canDelete: true,
     canAssume: true,
   };
   return (
-    <RequestView {...sample} request={requestRoleApproved} flags={flags} />
+    <RequestView
+      {...sample}
+      fetchRequestAttempt={makeSuccessAttempt(requestRoleApproved)}
+      getFlags={() => flags}
+    />
   );
 };
 
 export const AccessListPromoted = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     isPromoted: true,
   };
   return (
     <RequestView
       {...sample}
-      request={requestRolePromoted}
-      flags={flags}
-      longTermAccess={{
-        suggestedAccessLists,
-        error: '',
-      }}
+      fetchRequestAttempt={makeSuccessAttempt(requestRolePromoted)}
+      getFlags={() => flags}
+      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
+        suggestedAccessLists
+      )}
     />
   );
 };
 
 export const AccessListPromotedOwnRequest = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     isPromoted: true,
     ownRequest: true,
   };
   return (
     <RequestView
       {...sample}
-      request={requestRolePromoted}
-      flags={flags}
-      longTermAccess={{
-        suggestedAccessLists,
-        error: '',
-      }}
+      fetchRequestAttempt={makeSuccessAttempt(requestRolePromoted)}
+      getFlags={() => flags}
+      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
+        suggestedAccessLists
+      )}
     />
   );
 };
 
 export const AccessListPending = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canReview: true,
   };
   return (
     <RequestView
       {...sample}
-      flags={flags}
-      longTermAccess={{
-        suggestedAccessLists,
-        error: '',
-      }}
+      getFlags={() => flags}
+      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
+        suggestedAccessLists
+      )}
     />
   );
 };
 
 export const AccessListPendingWithError = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canReview: true,
   };
   return (
     <RequestView
       {...sample}
-      flags={flags}
-      longTermAccess={{
-        suggestedAccessLists: [],
-        error: 'some kind of error came back from the backend',
-      }}
+      getFlags={() => flags}
+      fetchSuggestedAccessListsAttempt={makeErrorAttempt(
+        new Error('some kind of error came back from the backend')
+      )}
     />
   );
 };
 
 export const LoadedEmpty = () => {
   const flags = {
-    ...sample.flags,
+    ...sampleFlags,
     canAssume: true,
     isAssumed: true,
   };
-  return <RequestView {...sample} request={requestRoleEmpty} flags={flags} />;
+  return (
+    <RequestView
+      {...sample}
+      fetchRequestAttempt={makeSuccessAttempt(requestRoleEmpty)}
+      getFlags={() => flags}
+    />
+  );
 };
 
 export const Processing = () => {
-  return <RequestView {...sample} attempt={{ status: 'processing' }} />;
+  return (
+    <RequestView {...sample} fetchRequestAttempt={makeProcessingAttempt()} />
+  );
 };
 
 export const Failed = () => {
   return (
     <RequestView
       {...sample}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
+      fetchRequestAttempt={makeErrorAttempt(new Error('some error message'))}
     />
   );
 };
 
-const sample = {
+const sample: RequestViewProps = {
   user: 'loggedInUsername',
-  attempt: { status: 'success' as any },
-  reviewAttempt: { status: '' as any },
-  request: requestRolePending,
-  flags: {
-    canAssume: false,
-    isAssumed: false,
-    canDelete: false,
-    canReview: false,
-    ownRequest: false,
-    isPromoted: false,
-  },
+  fetchRequestAttempt: makeSuccessAttempt(requestRolePending),
+  submitReviewAttempt: makeEmptyAttempt(),
+  getFlags: () => sampleFlags,
   confirmDelete: false,
   toggleConfirmDelete: () => null,
   submitReview: () => null,
-  deleteRequest: () => null,
   assumeRole: () => null,
-  longTermAccess: {
-    suggestedAccessLists: [],
-    error: '',
-  },
+  fetchSuggestedAccessListsAttempt: makeSuccessAttempt([]),
+  assumeRoleAttempt: makeEmptyAttempt(),
+};
+
+const sampleFlags: RequestFlags = {
+  canAssume: false,
+  isAssumed: false,
+  canDelete: false,
+  canReview: false,
+  ownRequest: false,
+  isPromoted: false,
 };
 
 const suggestedAccessLists: AccessList[] = [

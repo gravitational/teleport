@@ -1,7 +1,6 @@
 import React from 'react';
 import { MemoryRouter, Route } from 'react-router';
-import { waitFor } from '@testing-library/react';
-import renderHook, { act } from 'design/utils/renderHook';
+import { waitFor, renderHook, act } from '@testing-library/react';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -21,19 +20,25 @@ test('flags for own request', async () => {
   ctx.workflowService.submitAccessRequestReview = () =>
     Promise.resolve({ ...requestRolePending, state: 'APPROVED' });
 
-  const utils = renderHook(() => useRequestView(ctx), {
+  const { result } = renderHook(() => useRequestView(ctx), {
     wrapper: Wrapper,
   });
 
   // test on mount, request and flags are init
-
   await waitFor(() => {
-    expect(utils.current.request.state).toBe('PENDING');
+    const accessRequestState =
+      result.current.fetchRequestAttempt.status === 'success' &&
+      result.current.fetchRequestAttempt.data.state;
+    expect(accessRequestState).toBe('PENDING');
   });
-  expect(utils.current.user).toBe('Sam');
+  expect(result.current.user).toBe('Sam');
 
-  expect(utils.current.request.id).toEqual(requestRolePending.id);
-  expect(utils.current.flags).toEqual({
+  expect(result.current.fetchRequestAttempt.data.id).toEqual(
+    requestRolePending.id
+  );
+  expect(
+    result.current.getFlags(result.current.fetchRequestAttempt.data)
+  ).toEqual({
     canAssume: false,
     isAssumed: false,
     canDelete: true,
@@ -44,12 +49,17 @@ test('flags for own request', async () => {
 
   // test setting of request and flags after request is approved
   await act(() =>
-    utils.current.submitReview({ state: 'APPROVED', reason: '' })
+    result.current.submitReview({ state: 'APPROVED', reason: '' })
   );
   await waitFor(() => {
-    expect(utils.current.request.state).toBe('APPROVED');
+    const accessRequestState =
+      result.current.submitReviewAttempt.status === 'success' &&
+      result.current.submitReviewAttempt.data.state;
+    expect(accessRequestState).toBe('APPROVED');
   });
-  expect(utils.current.flags).toEqual({
+  expect(
+    result.current.getFlags(result.current.submitReviewAttempt.data)
+  ).toEqual({
     canAssume: true,
     isAssumed: false,
     canDelete: true,
@@ -61,11 +71,13 @@ test('flags for own request', async () => {
   // test review isAssumed flag
   ctx.storeAccessRequests.isAssumed = () => true;
   await act(() =>
-    utils.current.submitReview({ state: 'APPROVED', reason: '' })
+    result.current.submitReview({ state: 'APPROVED', reason: '' })
   );
 
   await waitFor(() => {
-    expect(utils.current.flags).toEqual({
+    expect(
+      result.current.getFlags(result.current.submitReviewAttempt.data)
+    ).toEqual({
       canAssume: true,
       isAssumed: true,
       canDelete: true,
@@ -79,12 +91,17 @@ test('flags for own request', async () => {
   ctx.storeAccessRequests.isAssumed = () => false;
   ctx.workflowService.submitAccessRequestReview = () =>
     Promise.resolve({ ...requestRolePending, state: 'DENIED' });
-  await act(() => utils.current.submitReview({ state: 'DENIED', reason: '' }));
+  await act(() => result.current.submitReview({ state: 'DENIED', reason: '' }));
 
   await waitFor(() => {
-    expect(utils.current.request.state).toBe('DENIED');
+    const accessRequestState =
+      result.current.submitReviewAttempt.status === 'success' &&
+      result.current.submitReviewAttempt.data.state;
+    expect(accessRequestState).toBe('DENIED');
   });
-  expect(utils.current.flags).toEqual({
+  expect(
+    result.current.getFlags(result.current.submitReviewAttempt.data)
+  ).toEqual({
     canAssume: false,
     isAssumed: false,
     canDelete: true,
@@ -109,37 +126,43 @@ test('flags for reviewer', async () => {
       reviewers: [{ name: 'alice', state: 'APPROVED' as any }],
     });
 
-  const utils = renderHook(() => useRequestView(ctx), {
+  const { result } = renderHook(() => useRequestView(ctx), {
     wrapper: Wrapper,
   });
 
   // test on mount setting of flags
-  expect(utils.current.user).toBe('alice');
+  expect(result.current.user).toBe('alice');
   await waitFor(() => {
-    expect(utils.current.flags).toEqual({
-      canAssume: false,
-      isAssumed: false,
-      canDelete: true,
-      canReview: true,
-      ownRequest: false,
-      isPromoted: false,
-    });
+    expect(result.current.fetchRequestAttempt.status).toBe('success');
+  });
+  expect(
+    result.current.getFlags(result.current.fetchRequestAttempt.data)
+  ).toEqual({
+    canAssume: false,
+    isAssumed: false,
+    canDelete: true,
+    canReview: true,
+    ownRequest: false,
+    isPromoted: false,
   });
 
   // test once reviewed, can't review again
   await act(() =>
-    utils.current.submitReview({ state: 'APPROVED', reason: '' })
+    result.current.submitReview({ state: 'APPROVED', reason: '' })
   );
 
   await waitFor(() => {
-    expect(utils.current.flags).toEqual({
-      canAssume: false,
-      isAssumed: false,
-      canDelete: true,
-      canReview: false,
-      ownRequest: false,
-      isPromoted: false,
-    });
+    expect(result.current.submitReviewAttempt.status).toBe('success');
+  });
+  expect(
+    result.current.getFlags(result.current.submitReviewAttempt.data)
+  ).toEqual({
+    canAssume: false,
+    isAssumed: false,
+    canDelete: true,
+    canReview: false,
+    ownRequest: false,
+    isPromoted: false,
   });
 });
 

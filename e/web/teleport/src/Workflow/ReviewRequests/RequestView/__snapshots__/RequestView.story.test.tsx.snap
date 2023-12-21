@@ -2154,7 +2154,9 @@ exports[`loaded pending role based request state 1`] = `
                     <span
                       class="c37"
                     >
-                      <span>
+                      <div
+                        class="c0 c1"
+                      >
                         <div
                           class="c0 c6"
                         >
@@ -2164,7 +2166,7 @@ exports[`loaded pending role based request state 1`] = `
                             Approve long-term access via Access List with the requested resources
                           </div>
                         </div>
-                      </span>
+                      </div>
                     </span>
                   </label>
                 </div>
@@ -3180,7 +3182,9 @@ exports[`loaded pending search based request state 1`] = `
                     <span
                       class="c41"
                     >
-                      <span>
+                      <div
+                        class="c0 c1"
+                      >
                         <div
                           class="c0 c6"
                         >
@@ -3190,7 +3194,7 @@ exports[`loaded pending search based request state 1`] = `
                             Approve long-term access via Access List with the requested resources
                           </div>
                         </div>
-                      </span>
+                      </div>
                     </span>
                   </label>
                 </div>

@@ -1,5 +1,11 @@
 import React from 'react';
 
+import {
+  makeEmptyAttempt,
+  makeProcessingAttempt,
+  makeErrorAttempt,
+} from 'shared/hooks/useAsync';
+
 import { RequestDelete } from './RequestDelete';
 
 export default {
@@ -8,7 +14,11 @@ export default {
 
 export const Loaded = () => {
   return (
-    <RequestDelete {...props} requestState="PENDING" attempt={{ status: '' }} />
+    <RequestDelete
+      {...props}
+      requestState="PENDING"
+      deleteRequestAttempt={makeEmptyAttempt()}
+    />
   );
 };
 
@@ -17,7 +27,7 @@ export const Processing = () => {
     <RequestDelete
       {...props}
       requestState="PENDING"
-      attempt={{ status: 'processing' }}
+      deleteRequestAttempt={makeProcessingAttempt()}
     />
   );
 };
@@ -27,7 +37,7 @@ export const Failed = () => {
     <RequestDelete
       {...props}
       requestState="PENDING"
-      attempt={{ status: 'failed', statusText: 'server error' }}
+      deleteRequestAttempt={makeErrorAttempt(new Error('server error'))}
     />
   );
 };
@@ -36,7 +46,7 @@ export const Approved = () => {
   return (
     <RequestDelete
       {...props}
-      attempt={{ status: '' }}
+      deleteRequestAttempt={makeEmptyAttempt()}
       requestState="APPROVED"
     />
   );

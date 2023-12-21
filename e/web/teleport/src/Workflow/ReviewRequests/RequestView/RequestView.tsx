@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import {
   Alert,
@@ -20,12 +20,15 @@ import {
 import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
 
+import { hasFinished, Attempt } from 'shared/hooks/useAsync';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
   AccessRequestReview,
   AccessRequestReviewer,
   RequestState,
   Resource,
+  AccessRequest,
 } from 'e-teleport/services/workflow';
 import { PromotedMessage } from 'e-teleport/Workflow/Shared';
 import { AccessList } from 'e-teleport/services/accessmanagement';
@@ -35,7 +38,12 @@ import { formattedName } from '../formattedName';
 import RequestDelete from './RequestDelete';
 import RequestReview from './RequestReview';
 import RolesRequested from './RolesRequested';
-import useRequestView, { State } from './useRequestView';
+import useRequestView from './useRequestView';
+
+import type {
+  RequestFlags,
+  SubmitReview,
+} from 'e-teleport/Workflow/ReviewRequests/RequestView/types';
 
 export default function Container() {
   const ctx = useTeleportE();
@@ -43,37 +51,57 @@ export default function Container() {
   return <RequestView {...state} />;
 }
 
+export interface RequestViewProps {
+  user: string;
+  getFlags(accessRequest: AccessRequest): RequestFlags;
+  fetchRequestAttempt: Attempt<AccessRequest>;
+  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>;
+  toggleConfirmDelete(): void;
+  confirmDelete: boolean;
+  submitReview(s: SubmitReview): void;
+  submitReviewAttempt: Attempt<AccessRequest>;
+  assumeRole(accessRequest: AccessRequest): void;
+  assumeRoleAttempt: Attempt<void>;
+}
+
 export function RequestView({
   user,
-  attempt,
-  request,
-  flags,
+  fetchRequestAttempt,
+  getFlags,
   confirmDelete,
   toggleConfirmDelete,
   submitReview,
   assumeRole,
-  reviewAttempt,
-  longTermAccess,
-}: State) {
-  // Show indicator as soon as user clicks assume button.
-  const [delayIndicator, setDelayIndicator] = useState(true);
-
-  function onAssumeRole() {
-    setDelayIndicator(false);
-    assumeRole();
-  }
-
-  if (attempt.status === 'processing') {
+  submitReviewAttempt,
+  assumeRoleAttempt,
+  fetchSuggestedAccessListsAttempt,
+}: RequestViewProps) {
+  if (
+    !hasFinished(fetchRequestAttempt) ||
+    (fetchSuggestedAccessListsAttempt !== null
+      ? !hasFinished(fetchSuggestedAccessListsAttempt)
+      : false)
+  ) {
     return (
       <Box textAlign="center" m={10}>
-        <Indicator delay={delayIndicator ? 'short' : 'none'} />
+        <Indicator delay="short" />
       </Box>
     );
   }
 
-  if (attempt.status === 'failed') {
-    return <Alert kind="danger" children={attempt.statusText} />;
+  if (fetchRequestAttempt.status === 'error') {
+    return <Alert kind="danger" children={fetchRequestAttempt.statusText} />;
   }
+
+  if (assumeRoleAttempt.status === 'error') {
+    return <Alert kind="danger" children={assumeRoleAttempt.statusText} />;
+  }
+
+  const request =
+    submitReviewAttempt.status === 'success'
+      ? submitReviewAttempt.data
+      : fetchRequestAttempt.data;
+  const flags = getFlags(request);
 
   return (
     <>
@@ -189,17 +217,20 @@ export function RequestView({
                 <Reviews reviews={request.reviews} />
               )}
               {request.state === 'PENDING' &&
-                longTermAccess?.suggestedAccessLists.length > 0 && (
+                fetchSuggestedAccessListsAttempt?.status === 'success' &&
+                fetchSuggestedAccessListsAttempt.data.length > 0 && (
                   <SuggestedAccessListTimestamp
-                    accessLists={longTermAccess.suggestedAccessLists}
+                    accessLists={fetchSuggestedAccessListsAttempt.data}
                   />
                 )}
               {flags.canReview && (
                 <RequestReview
                   submitReview={submitReview}
                   user={user}
-                  attempt={reviewAttempt}
-                  longTermAccess={longTermAccess}
+                  submitReviewAttempt={submitReviewAttempt}
+                  fetchSuggestedAccessListsAttempt={
+                    fetchSuggestedAccessListsAttempt
+                  }
                   shortTermDuration={request.maxDurationText}
                   request={request}
                 />
@@ -208,8 +239,10 @@ export function RequestView({
           </Box>
           {flags.canAssume && (
             <ButtonPrimary
-              disabled={flags.isAssumed}
-              onClick={onAssumeRole}
+              disabled={
+                flags.isAssumed || assumeRoleAttempt.status === 'processing'
+              }
+              onClick={() => assumeRole(request)}
               mt={4}
             >
               {flags.isAssumed ? 'assumed' : 'assume roles'}
@@ -222,7 +255,7 @@ export function RequestView({
               py={4}
               // TODO(lisa): temp hack to not render the re-login button for
               // teleterm.
-              showWebReloginBtn={!!longTermAccess}
+              showWebReloginBtn={!!fetchSuggestedAccessListsAttempt}
             />
           )}
         </Box>
