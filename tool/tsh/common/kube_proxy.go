@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -592,7 +593,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	if err := checkIfCertsAreAllowedToAccessCluster(
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
 		key,
 		rootClusterName,
 		teleportCluster,
