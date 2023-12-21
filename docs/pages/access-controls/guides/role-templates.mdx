@@ -34,7 +34,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: alice
 spec:
@@ -46,10 +46,9 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
+      - kind: 'pod'
         namespace: '*'
         name: '*'
-        verbs: ['*']
 ---
 kind: role
 version: v7

@@ -235,7 +235,7 @@ Create a file called `sync-kubernetes-rbac.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: sync-kubernetes-rbac
 spec:
@@ -864,7 +864,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v6
 ```
 
 Compare this with the `minikube-pod-reader-app` role, which you can retrieve
@@ -911,7 +911,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v6
 ```
 
 Since role bindings are namespaced, this role only allows access to pods in the

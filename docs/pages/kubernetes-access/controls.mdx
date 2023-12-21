@@ -36,7 +36,7 @@ clusters:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -482,7 +482,7 @@ specific resources in a Kubernetes cluster:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -491,7 +491,6 @@ spec:
       - kind: pod
         namespace: "production"
         name: "webapp"
-        verbs: ['*']
     # ...
 ```
 
@@ -655,7 +654,7 @@ Let's say you have assigned the following three roles to a user:
 kind: role
 metadata:
   name: allow-dev-us-east-2
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -673,7 +672,7 @@ spec:
 kind: role
 metadata:
   name: allow-exec
-  version: v7
+  version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -688,7 +687,7 @@ spec:
 kind: role
 metadata:
   name: deny-redis-exec
-  version: v7
+  version: v6
 spec:
   deny:
     kubernetes_resources:
@@ -740,7 +739,7 @@ registered Kubernetes clusters, but only run `kubectl exec` or `kubectl logs` on
 kind: role
 metadata:
   name: kube-viewer
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -755,7 +754,7 @@ spec:
 kind: role
 metadata:
   name: nginx-exec
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
@@ -801,7 +800,7 @@ group. This group can only view pods in the `default` namespace:
 kind: role
 metadata:
   name: kube-access-1
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:
@@ -820,7 +819,7 @@ only to the `webapp` pod in the `default` namespace:
 ```yaml
 metadata:
   name: kube-access-2
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:
@@ -856,7 +855,7 @@ permissions, restricting the user to pods in the `default` namespace:
 kind: role
 metadata:
   name: kube-access-1
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_groups:
