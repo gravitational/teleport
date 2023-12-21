@@ -43,6 +43,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -68,7 +69,6 @@ import (
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -105,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -2267,7 +2268,13 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	wsrwc := &WebsocketIO{Conn: ws}
+	tdpConn := tdp.NewConn(wsrwc)
+
+	// desktopConnectHandle first needs a ClientScreenSpec message in order to continue.
+	tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: 100, Height: 100})
+
+	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
 	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
@@ -2278,7 +2285,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -4544,20 +4551,21 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
-	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("v99.0.1"))
-	}))
-	defer httpTestServer.Close()
-	versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
 	require.NoError(t, err)
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesVersionURL = versionURL
+	// This version is too high and MUST NOT be used
+	testVersion := "v99.0.1"
+	channels := automaticupgrades.Channels{
+		automaticupgrades.DefaultCloudChannelName: {
+			StaticVersion: testVersion,
+		},
+	}
+	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
+	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
 	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.

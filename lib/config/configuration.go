@@ -35,6 +35,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -1113,9 +1113,6 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.AutomaticUpgradesChannels != nil {
 		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
-		if err := cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "failed to set up automatic update channels")
-		}
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally

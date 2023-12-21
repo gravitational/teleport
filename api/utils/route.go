@@ -16,10 +16,10 @@ package utils
 
 import (
 	"net"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/utils/aws"
 )

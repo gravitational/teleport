@@ -52,5 +52,13 @@ spec:
           - read
           - update
           - delete
+      - resources:
+          - access_list
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
   deny: {}
 version: v7
