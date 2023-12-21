@@ -10744,6 +10744,10 @@ type OIDCConnectorSpecV3 struct {
 	// This list should match the URLs on the provider's side. The URL used for a
 	// given auth request will be chosen to match the requesting Proxy's public
 	// address. If there is no match, the first url in the list will be used.
+	// Example YAML:
+	// - string
+	// - string
+	// - string
 	RedirectURLs github_com_gravitational_teleport_api_types_wrappers.Strings `protobuf:"bytes,14,opt,name=RedirectURLs,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Strings" json:"redirect_url"`
 	// AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
 	AllowUnverifiedEmail bool `protobuf:"varint,15,opt,name=AllowUnverifiedEmail,proto3" json:"allow_unverified_email,omitempty"`
