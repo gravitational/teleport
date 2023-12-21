@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aws
 
@@ -160,29 +162,26 @@ func StatementForListRDSDatabases() *Statement {
 		Actions: []string{
 			"rds:DescribeDBInstances",
 			"rds:DescribeDBClusters",
+			"ec2:DescribeSecurityGroups",
 		},
 		Resources: allResources,
 	}
 }
 
-// ExternalCloudAuditPolicyConfig holds options for the external cloud audit
+// ExternalAuditStoragePolicyConfig holds options for the External Audit Storage
 // IAM policy.
-type ExternalCloudAuditPolicyConfig struct {
+type ExternalAuditStoragePolicyConfig struct {
 	// Partition is the AWS partition to use.
 	Partition string
 	// Region is the AWS region to use.
 	Region string
 	// Account is the AWS account ID to use.
 	Account string
-	// AuditEventsARN is the S3 resource ARN where audit events are stored,
-	// including the bucket name, (optional) prefix, and a trailing wildcard
-	AuditEventsARN string
-	// SessionRecordingsARN is the S3 resource ARN where session recordings are stored,
-	// including the bucket name, (optional) prefix, and a trailing wildcard
-	SessionRecordingsARN string
-	// AthenaResultsARN is the S3 resource ARN where athena results are stored,
-	// including the bucket name, (optional) prefix, and a trailing wildcard
-	AthenaResultsARN string
+	// S3ARNs is a list of all S3 resource ARNs used for audit events, session
+	// recordings, and Athena query results. For each location, it should include an ARN for the
+	// base bucket and another wildcard ARN for all objects within the bucket
+	// and an optional path/prefix.
+	S3ARNs []string
 	// AthenaWorkgroupName is the name of the Athena workgroup used for queries.
 	AthenaWorkgroupName string
 	// GlueDatabaseName is the name of the AWS Glue database.
@@ -191,7 +190,7 @@ type ExternalCloudAuditPolicyConfig struct {
 	GlueTableName string
 }
 
-func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
+func (c *ExternalAuditStoragePolicyConfig) CheckAndSetDefaults() error {
 	if len(c.Partition) == 0 {
 		c.Partition = "aws"
 	}
@@ -201,14 +200,8 @@ func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
 	if len(c.Account) == 0 {
 		return trace.BadParameter("account is required")
 	}
-	if len(c.AuditEventsARN) == 0 {
-		return trace.BadParameter("audit events ARN is required")
-	}
-	if len(c.SessionRecordingsARN) == 0 {
-		return trace.BadParameter("session recordings ARN is required")
-	}
-	if len(c.AthenaResultsARN) == 0 {
-		return trace.BadParameter("athena results ARN is required")
+	if len(c.S3ARNs) < 2 {
+		return trace.BadParameter("at least two distinct S3 ARNs are required")
 	}
 	if len(c.AthenaWorkgroupName) == 0 {
 		return trace.BadParameter("athena workgroup name is required")
@@ -222,9 +215,9 @@ func (c *ExternalCloudAuditPolicyConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// PolicyDocumentForExternalCloudAudit returns a PolicyDocument with the
-// necessary IAM permissions for the External Cloud Audit feature.
-func PolicyDocumentForExternalCloudAudit(cfg *ExternalCloudAuditPolicyConfig) (*PolicyDocument, error) {
+// PolicyDocumentForExternalAuditStorage returns a PolicyDocument with the
+// necessary IAM permissions for the External Audit Storage feature.
+func PolicyDocumentForExternalAuditStorage(cfg *ExternalAuditStoragePolicyConfig) (*PolicyDocument, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,12 +233,16 @@ func PolicyDocumentForExternalCloudAudit(cfg *ExternalCloudAuditPolicyConfig) (*
 					"s3:GetObjectVersion",
 					"s3:ListMultipartUploadParts",
 					"s3:AbortMultipartUpload",
+					"s3:ListBucket",
+					"s3:ListBucketVersions",
+					"s3:ListBucketMultipartUploads",
+					"s3:GetBucketOwnershipControls",
+					"s3:GetBucketPublicAccessBlock",
+					"s3:GetBucketObjectLockConfiguration",
+					"s3:GetBucketVersioning",
+					"s3:GetBucketLocation",
 				},
-				Resources: []string{
-					cfg.AuditEventsARN,
-					cfg.SessionRecordingsARN,
-					cfg.AthenaResultsARN,
-				},
+				Resources: cfg.S3ARNs,
 			},
 			&Statement{
 				StatementID: "AllowAthenaQuery",

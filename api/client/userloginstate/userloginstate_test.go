@@ -154,7 +154,8 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 	uls, err := userloginstate.New(header.Metadata{
 		Name: name,
 	}, userloginstate.Spec{
-		Roles: []string{"role1", "role2"},
+		Roles:          []string{"role1", "role2"},
+		OriginalTraits: trait.Traits{},
 		Traits: trait.Traits{
 			"trait1": []string{"value1", "value2"},
 			"trait2": []string{"value1", "value2"},

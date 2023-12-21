@@ -1,24 +1,25 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package cloud
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
@@ -69,6 +71,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -230,8 +233,11 @@ func newAzureClients() (*azureClients, error) {
 	return azClients, nil
 }
 
+// ClientsOption allows setting options as functional arguments to cloudClients.
+type ClientsOption func(cfg *cloudClients)
+
 // NewClients returns a new instance of cloud clients retriever.
-func NewClients() (Clients, error) {
+func NewClients(opts ...ClientsOption) (Clients, error) {
 	awsSessionsCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 15 * time.Minute,
 	})
@@ -242,7 +248,7 @@ func NewClients() (Clients, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &cloudClients{
+	cloudClients := &cloudClients{
 		awsSessionsCache: awsSessionsCache,
 		gcpClients: gcpClients{
 			gcpSQLAdmin:  newClientCache[gcp.SQLAdminClient](gcp.NewSQLAdminClient),
@@ -250,16 +256,43 @@ func NewClients() (Clients, error) {
 			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(cloudClients)
+	}
+
+	return cloudClients, nil
 }
 
 // cloudClients implements Clients
 var _ Clients = (*cloudClients)(nil)
 
+// WithAWSIntegrationSessionProvider sets an integration session generator for AWS apis.
+// If a client is requested for a specific Integration, instead of using the ambient credentials, this generator is used to fetch the AWS Session.
+func WithAWSIntegrationSessionProvider(sessionProvider AWSIntegrationSessionProvider) func(*cloudClients) {
+	return func(cc *cloudClients) {
+		cc.awsIntegrationSessionProviderFn = sessionProvider
+	}
+}
+
+// AWSIntegrationSessionProvider defines a function that creates an [awssession.Session] from a Region and an Integration.
+// This is used to generate aws sessions for clients that must use an Integration instead of ambient credentials.
+type AWSIntegrationSessionProvider func(ctx context.Context, region string, integration string) (*awssession.Session, error)
+
+type awsSessionCacheKey struct {
+	region      string
+	integration string
+	roleARN     string
+	externalID  string
+}
+
 type cloudClients struct {
 	// awsSessionsCache is a cache of AWS sessions, where the cache key is
-	// either "<region>" or "Region[<region>]:RoleARN[<arn>]:ExternalID[<id>]".
+	// an instance of awsSessionCacheKey.
 	awsSessionsCache *utils.FnCache
+	// awsIntegrationSessionProviderFn is a AWS Session Generator that uses an Integration to generate an AWS Session.
+	awsIntegrationSessionProviderFn AWSIntegrationSessionProvider
 	// instanceMetadata is the cached instance metadata client.
 	instanceMetadata InstanceMetadata
 	// gcpClients contains GCP-specific clients.
@@ -315,6 +348,16 @@ type azureClients struct {
 	azureRunCommandClients azure.ClientMap[azure.RunCommandClient]
 }
 
+// credentialsSource defines where the credentials must come from.
+type credentialsSource int
+
+const (
+	// credentialsSourceAmbient uses the default Cloud SDK method to load the credentials.
+	credentialsSourceAmbient = iota + 1
+	// CredentialsSourceIntegration uses an Integration to load the credentials.
+	credentialsSourceIntegration
+)
+
 // awsAssumeRoleOpts a struct of additional options for assuming an AWS role
 // when construction an underlying AWS session.
 type awsAssumeRoleOpts struct {
@@ -325,6 +368,29 @@ type awsAssumeRoleOpts struct {
 	assumeRoleARN string
 	// assumeRoleExternalID is used to assume an external AWS IAM Role.
 	assumeRoleExternalID string
+
+	// credentialsSource describes which source to use to fetch credentials.
+	credentialsSource credentialsSource
+
+	// integration is the name of the integration to be used to fetch the credentials.
+	integration string
+}
+
+func (a *awsAssumeRoleOpts) checkAndSetDefaults() error {
+	switch a.credentialsSource {
+	case credentialsSourceAmbient:
+		if a.integration != "" {
+			return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+		}
+	case credentialsSourceIntegration:
+		if a.integration == "" {
+			return trace.BadParameter("missing integration name")
+		}
+	default:
+		return trace.BadParameter("missing credentials source (ambient or integration)")
+	}
+
+	return nil
 }
 
 // AWSAssumeRoleOptionFn is an option function for setting additional options
@@ -355,6 +421,33 @@ func WithChainedAssumeRole(session *awssession.Session, roleARN, externalID stri
 	}
 }
 
+// WithCredentialsMaybeIntegration sets the credential source to be
+// - ambient if the integration is an empty string
+// - integration, otherwise
+func WithCredentialsMaybeIntegration(integration string) AWSAssumeRoleOptionFn {
+	if integration != "" {
+		return withIntegrationCredentials(integration)
+	}
+
+	return WithAmbientCredentials()
+}
+
+// withIntegrationCredentials configures options with an Integration that must be used to fetch Credentials to assume a role.
+// This prevents the usage of AWS environment credentials.
+func withIntegrationCredentials(integration string) AWSAssumeRoleOptionFn {
+	return func(options *awsAssumeRoleOpts) {
+		options.credentialsSource = credentialsSourceIntegration
+		options.integration = integration
+	}
+}
+
+// WithAmbientCredentials configures options to use the ambient credentials.
+func WithAmbientCredentials() AWSAssumeRoleOptionFn {
+	return func(options *awsAssumeRoleOpts) {
+		options.credentialsSource = credentialsSourceAmbient
+	}
+}
+
 // GetAWSSession returns AWS session for the specified region, optionally
 // assuming AWS IAM Roles.
 func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (*awssession.Session, error) {
@@ -364,7 +457,7 @@ func (c *cloudClients) GetAWSSession(ctx context.Context, region string, opts ..
 	}
 	var err error
 	if options.baseSession == nil {
-		options.baseSession, err = c.getAWSSessionForRegion(region)
+		options.baseSession, err = c.getAWSSessionForRegion(region, options)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -629,23 +722,55 @@ func (c *cloudClients) Close() (err error) {
 	return trace.Wrap(err)
 }
 
+// awsAmbientSessionProvider loads a new session using the environment variables.
+// Describe in detail here: https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials
+func awsAmbientSessionProvider(ctx context.Context, region string) (*awssession.Session, error) {
+	awsSessionOptions := buildAWSSessionOptions(region, nil /* credentials */)
+
+	session, err := awssession.NewSessionWithOptions(awsSessionOptions)
+	return session, trace.Wrap(err)
+}
+
 // getAWSSessionForRegion returns AWS session for the specified region.
-func (c *cloudClients) getAWSSessionForRegion(region string) (*awssession.Session, error) {
-	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, region, func(ctx context.Context) (*awssession.Session, error) {
-		logrus.Debugf("Initializing AWS session for region %v.", region)
-		session, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-			Config: aws.Config{
-				Region: aws.String(region),
-			},
-		})
+func (c *cloudClients) getAWSSessionForRegion(region string, opts awsAssumeRoleOpts) (*awssession.Session, error) {
+	if err := opts.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cacheKey := awsSessionCacheKey{
+		region:      region,
+		integration: opts.integration,
+	}
+
+	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+		if opts.credentialsSource == credentialsSourceIntegration {
+			if c.awsIntegrationSessionProviderFn == nil {
+				return nil, trace.BadParameter("missing aws integration session provider")
+			}
+
+			logrus.Debugf("Initializing AWS session for region %v with integration %q.", region, opts.integration)
+			session, err := c.awsIntegrationSessionProviderFn(ctx, region, opts.integration)
+			return session, trace.Wrap(err)
+		}
+
+		logrus.Debugf("Initializing AWS session for region %v using environment credentials.", region)
+		session, err := awsAmbientSessionProvider(ctx, region)
 		return session, trace.Wrap(err)
 	})
 }
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
-	cacheKey := fmt.Sprintf("Region[%s]:RoleARN[%s]:ExternalID[%s]", region, options.assumeRoleARN, options.assumeRoleExternalID)
+	if err := options.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cacheKey := awsSessionCacheKey{
+		region:      region,
+		integration: options.integration,
+		roleARN:     options.assumeRoleARN,
+		externalID:  options.assumeRoleExternalID,
+	}
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
 		stsClient := sts.New(options.baseSession)
 		return newSessionWithRole(ctx, stsClient, region, options.assumeRoleARN, options.assumeRoleExternalID)
@@ -860,12 +985,19 @@ func (c *TestCloudClients) GetAWSSession(ctx context.Context, region string, opt
 
 // GetAWSSession returns AWS session for the specified region.
 func (c *TestCloudClients) getAWSSessionForRegion(region string) (*awssession.Session, error) {
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
 	return awssession.NewSession(&aws.Config{
 		Credentials: credentials.NewCredentials(&credentials.StaticProvider{Value: credentials.Value{
 			AccessKeyID:     "fakeClientKeyID",
 			SecretAccessKey: "fakeClientSecret",
 		}}),
-		Region: aws.String(region),
+		Region:                    aws.String(region),
+		EC2MetadataEnableFallback: aws.Bool(false),
+		UseFIPSEndpoint:           useFIPSEndpoint,
 	})
 }
 
@@ -1102,13 +1234,26 @@ func newSessionWithRole(ctx context.Context, svc stscreds.AssumeRoler, region, r
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
+	awsSessionOptions := buildAWSSessionOptions(region, cred)
+
 	// Create a new session with the credentials.
-	roleSession, err := awssession.NewSessionWithOptions(awssession.Options{
+	roleSession, err := awssession.NewSessionWithOptions(awsSessionOptions)
+	return roleSession, trace.Wrap(err)
+}
+
+func buildAWSSessionOptions(region string, cred *credentials.Credentials) awssession.Options {
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
+	return awssession.Options{
 		SharedConfigState: awssession.SharedConfigEnable,
 		Config: aws.Config{
-			Region:      aws.String(region),
-			Credentials: cred,
+			Region:                    aws.String(region),
+			Credentials:               cred,
+			EC2MetadataEnableFallback: aws.Bool(false),
+			UseFIPSEndpoint:           useFIPSEndpoint,
 		},
-	})
-	return roleSession, trace.Wrap(err)
+	}
 }

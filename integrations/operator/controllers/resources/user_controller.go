@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package resources
 
@@ -22,70 +24,50 @@ import (
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
 // userClient implements TeleportResourceClient and offers CRUD methods needed to reconcile users
 type userClient struct {
-	TeleportClientAccessor sidecar.ClientAccessor
+	teleportClient *client.Client
 }
 
 // Get gets the Teleport user of a given name
 func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user, err := teleportClient.GetUser(ctx, name, false /* with secrets*/)
+	user, err := r.teleportClient.GetUser(ctx, name, false /* with secrets*/)
 	return user, trace.Wrap(err)
 }
 
 // Create creates a Teleport user
 func (r userClient) Create(ctx context.Context, user types.User) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = teleportClient.CreateUser(ctx, user)
+	_, err := r.teleportClient.CreateUser(ctx, user)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport user
 func (r userClient) Update(ctx context.Context, user types.User) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = teleportClient.UpdateUser(ctx, user)
+	_, err := r.teleportClient.UpdateUser(ctx, user)
 	return trace.Wrap(err)
 }
 
 // Delete deletes a Teleport user
 func (r userClient) Delete(ctx context.Context, name string) error {
-	teleportClient, err := r.TeleportClientAccessor(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(teleportClient.DeleteUser(ctx, name))
+	return trace.Wrap(r.teleportClient.DeleteUser(ctx, name))
 }
 
-// Mutate ensures the spec.createdBy property is persisted
-func (r userClient) Mutate(newUser, existingUser types.User) {
+// MutateExisting ensures the spec.createdBy property is persisted
+func (r userClient) MutateExisting(newUser, existingUser types.User) {
 	if existingUser != nil {
 		newUser.SetCreatedBy(existingUser.GetCreatedBy())
 	}
 }
 
 // NewUserReconciler instantiates a new Kubernetes controller reconciling user resources
-func NewUserReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
+func NewUserReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
 	userClient := &userClient{
-		TeleportClientAccessor: accessor,
+		teleportClient: tClient,
 	}
 
 	resourceReconciler := NewTeleportResourceReconciler[types.User, *resourcesv2.TeleportUser](

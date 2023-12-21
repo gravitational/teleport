@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events
 
@@ -371,26 +373,41 @@ const (
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
 	GithubConnectorDeletedCode = "T8001I"
+	// GithubConnectorUpdatedCode is the Github connector updated event code.
+	GithubConnectorUpdatedCode = "T80002I"
 
 	// OIDCConnectorCreatedCode is the OIDC connector created event code.
 	OIDCConnectorCreatedCode = "T8100I"
 	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
 	OIDCConnectorDeletedCode = "T8101I"
+	// OIDCConnectorUpdatedCode is the OIDC connector updated event code.
+	OIDCConnectorUpdatedCode = "T8102I"
 
 	// SAMLConnectorCreatedCode is the SAML connector created event code.
 	SAMLConnectorCreatedCode = "T8200I"
 	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
 	SAMLConnectorDeletedCode = "T8201I"
+	// SAMLConnectorUpdatedCode is the SAML connector updated event code.
+	SAMLConnectorUpdatedCode = "T8202I"
 
 	// RoleCreatedCode is the role created event code.
 	RoleCreatedCode = "T9000I"
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
+	// RoleUpdatedCode is the role created event code.
+	RoleUpdatedCode = "T9002I"
 
 	// BotJoinCode is the 'bot.join' event code.
 	BotJoinCode = "TJ001I"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
+
+	// BotCreateCode is the `bot.create` event code.
+	BotCreateCode = "TB001I"
+	// BotUpdateCode is the `bot.update` event code.
+	BotUpdateCode = "TB002I"
+	// BotDeleteCode is the `bot.delete` event code.
+	BotDeleteCode = "TB003I"
 
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"
@@ -533,6 +550,11 @@ const (
 
 	// SecReportsReportRunCode is used when a report in run.
 	SecReportsReportRunCode = "SRE002I"
+
+	// ExternalAuditStorageEnableCode is the External Audit Storage enabled code.
+	ExternalAuditStorageEnableCode = "TEA001I"
+	// ExternalAuditStorageDisableCode is the External Audit Storage disabled code.
+	ExternalAuditStorageDisableCode = "TEA002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

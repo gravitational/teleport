@@ -1,0 +1,6 @@
+tls:
+  existingCASecretName: helm-lint-existing-tls-secret-ca
+
+teleportAddress: "teleport.example.com:3080"
+token: "my-operator-bot"
+teleportClusterName: "teleport.example.com"

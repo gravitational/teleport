@@ -1,0 +1,65 @@
+Teleport's Access Request plugins authenticate to your Teleport cluster as a
+user with permissions to list and read Access Requests. This way, plugins can
+retrieve Access Requests from the Teleport Auth Service and present them to
+reviewers.
+
+Define a user and role called `access-plugin` by adding the following content to
+a file called `access-plugin.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read']
+      - resources: ['access_plugin_data']
+        verbs: ['update']
+
+    # Optional: To display user-friendly names in resource-based Access
+    # Requests instead of resource IDs, the plugin also needs permission
+    # to list the resources being requested. Include this along with the
+    # list-access-request-resources role definition.
+    review_requests:
+      preview_as_roles:
+        - list-access-request-resources
+---
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
+# Optional, for displaying friendly names of resources. Resource types and
+# labels can be further limited to only the resources that access can be
+# requested to.
+kind: role
+version: v5
+metadata:
+  name: list-access-request-resources
+spec:
+  allow:
+    rules:
+      - resources: ['node', 'app', 'db', 'kube_cluster']
+        verbs: ['list', 'read']
+    node_labels:
+      '*': '*'
+    kubernetes_labels:
+      '*': '*'
+    db_labels:
+      '*': '*'
+    app_labels:
+      '*': '*'
+    group_labels:
+      '*': '*'
+```
+
+Create the user and role:
+
+```code
+$ tctl create -f access-plugin.yaml
+```

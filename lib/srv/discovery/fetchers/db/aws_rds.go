@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -48,7 +50,9 @@ func (f *rdsDBInstancesPlugin) ComponentShortName() string {
 // GetDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,12 +91,23 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 // getAllDBInstances fetches all RDS instances using the provided client, up
 // to the specified max number of pages.
 func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, rdsClient, maxPages, rdsInstanceEngines(), rdsEmptyFilter(), log)
+}
+
+// findDBInstancesForDBCluster returns the DBInstances associated with a given DB Cluster Identifier
+func findDBInstancesForDBCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, dbClusterIdentifier string, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, rdsClient, maxPages, auroraEngines(), rdsClusterIDFilter(dbClusterIdentifier), log)
+}
+
+// getAllDBInstancesWithFilters fetches all RDS instances matching the filters using the provided client, up
+// to the specified max number of pages.
+func getAllDBInstancesWithFilters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, engines []string, baseFilters []*rds.Filter, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
 	var instances []*rds.DBInstance
-	err := retryWithIndividualEngineFilters(log, rdsInstanceEngines(), func(filters []*rds.Filter) error {
+	err := retryWithIndividualEngineFilters(log, engines, func(engineFilters []*rds.Filter) error {
 		var pageNum int
 		var out []*rds.DBInstance
 		err := rdsClient.DescribeDBInstancesPagesWithContext(ctx, &rds.DescribeDBInstancesInput{
-			Filters: filters,
+			Filters: append(engineFilters, baseFilters...),
 		}, func(ddo *rds.DescribeDBInstancesOutput, lastPage bool) bool {
 			pageNum++
 			instances = append(instances, ddo.DBInstances...)
@@ -123,7 +138,9 @@ func (f *rdsAuroraClustersPlugin) ComponentShortName() string {
 // GetDatabases returns a list of database resources representing RDS clusters.
 func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
 	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +165,13 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 			continue
 		}
 
-		dbs, err := services.NewDatabasesFromRDSCluster(cluster)
+		rdsDBInstances, err := findDBInstancesForDBCluster(ctx, rdsClient, maxAWSPages, aws.StringValue(cluster.DBClusterIdentifier), cfg.Log)
+		if err != nil || len(rdsDBInstances) == 0 {
+			cfg.Log.Warnf("Could not fetch Member Instance for DB Cluster %q: %v.",
+				aws.StringValue(cluster.DBClusterIdentifier), err)
+		}
+
+		dbs, err := services.NewDatabasesFromRDSCluster(cluster, rdsDBInstances)
 		if err != nil {
 			cfg.Log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 				aws.StringValue(cluster.DBClusterIdentifier), err)
@@ -206,6 +229,19 @@ func rdsEngineFilter(engines []string) []*rds.Filter {
 		Name:   aws.String("engine"),
 		Values: aws.StringSlice(engines),
 	}}
+}
+
+// rdsClusterIDFilter is a helper func to construct an RDS DB Instances for returning Instances of a specific DB Cluster.
+func rdsClusterIDFilter(clusterIdentifier string) []*rds.Filter {
+	return []*rds.Filter{{
+		Name:   aws.String("db-cluster-id"),
+		Values: aws.StringSlice([]string{clusterIdentifier}),
+	}}
+}
+
+// rdsEmptyFilter is a helper func to construct an empty RDS filter.
+func rdsEmptyFilter() []*rds.Filter {
+	return []*rds.Filter{}
 }
 
 // rdsFilterFn is a function that takes RDS filters and performs some operation with them, returning any error encountered.

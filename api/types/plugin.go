@@ -442,6 +442,10 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("org_url must be set")
 	}
 
+	if s.EnableUserSync && s.SsoConnectorId == "" {
+		return trace.BadParameter("sso_connector_id must be set when user sync enabled")
+	}
+
 	return nil
 }
 

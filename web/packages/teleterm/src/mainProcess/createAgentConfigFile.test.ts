@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import childProcess from 'node:child_process';
@@ -35,7 +37,7 @@ beforeEach(() => {
       callback(undefined, '', '');
       return this;
     });
-  jest.spyOn(fs, 'rm').mockResolvedValue();
+  jest.spyOn(fs, 'rm').mockImplementation(() => Promise.resolve());
 });
 
 test('teleport configure is called with proper arguments', async () => {
@@ -45,16 +47,7 @@ test('teleport configure is called with proper arguments', async () => {
   const token = '8f50fd5d-38e8-4e96-baea-e9b882bb433b';
   const proxy = 'cluster.local:3080';
   const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
-  const labels = [
-    {
-      name: 'teleport.dev/connect-my-computer/owner',
-      value: 'testuser@acme.com',
-    },
-    {
-      name: 'env',
-      value: 'dev',
-    },
-  ];
+  const username = 'testuser@acme.com';
 
   await expect(
     createAgentConfigFile(
@@ -66,7 +59,7 @@ test('teleport configure is called with proper arguments', async () => {
         token,
         proxy,
         rootClusterUri,
-        labels,
+        username,
       }
     )
   ).resolves.toBeUndefined();
@@ -80,7 +73,7 @@ test('teleport configure is called with proper arguments', async () => {
       `--data-dir=${userDataDir}/agents/cluster.local/data`,
       `--proxy=${proxy}`,
       `--token=${token}`,
-      `--labels=${labels[0].name}=${labels[0].value},${labels[1].name}=${labels[1].value}`,
+      `--labels=teleport.dev/connect-my-computer/owner=${username}`,
     ],
     {
       timeout: 10_000, // 10 seconds
@@ -102,13 +95,14 @@ test('previous config file is removed before calling teleport configure', async 
         token: '',
         proxy: '',
         rootClusterUri,
-        labels: [],
+        username: 'alice',
       }
     )
   ).resolves.toBeUndefined();
 
   expect(fs.rm).toHaveBeenCalledWith(
-    `${userDataDir}/agents/cluster.local/config.yaml`
+    `${userDataDir}/agents/cluster.local/config.yaml`,
+    { force: true }
   );
 });
 

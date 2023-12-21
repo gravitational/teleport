@@ -48,11 +48,15 @@ const (
 	// CertDuration is a default certificate duration.
 	CertDuration = 12 * time.Hour
 
-	// ServerAnnounceTTL is a period between heartbeats
-	// Median sleep time between node pings is this value / 2 + random
-	// deviation added to this time to avoid lots of simultaneous
-	// heartbeats coming to auth server
-	ServerAnnounceTTL = 600 * time.Second
+	// ServerAnnounceTTL is the default TTL of server presence resources.
+	ServerAnnounceTTL = 10 * time.Minute
+
+	// InstanceHeartbeatTTL is the default TTL of the instance presence resource.
+	InstanceHeartbeatTTL = 20 * time.Minute
+
+	// MaxInstanceHeartbeatInterval is the upper bound of the variable instance
+	// heartbeat interval.
+	MaxInstanceHeartbeatInterval = 18 * time.Minute
 
 	// SessionTrackerTTL defines the default base ttl of a session tracker.
 	SessionTrackerTTL = 30 * time.Minute
@@ -88,13 +92,17 @@ var (
 
 	// serverKeepAliveTTL is a period between server keep-alives,
 	// when servers announce only presence without sending full data
-	serverKeepAliveTTL = 60 * time.Second
+	serverKeepAliveTTL = 1 * time.Minute
 
 	// keepAliveInterval is interval at which Teleport will send keep-alive
 	// messages to the client. The default interval of 5 minutes (300 seconds) is
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
 	keepAliveInterval = 5 * time.Minute
+
+	// minInstanceHeartbeatInterval is the lower bound of the variable instance
+	// heartbeat interval.
+	minInstanceHeartbeatInterval = 3 * time.Minute
 )
 
 func SetTestTimeouts(svrKeepAliveTTL, keepAliveTick time.Duration) {
@@ -103,12 +111,22 @@ func SetTestTimeouts(svrKeepAliveTTL, keepAliveTick time.Duration) {
 
 	serverKeepAliveTTL = svrKeepAliveTTL
 	keepAliveInterval = keepAliveTick
+
+	// maintain the proportional relationship of instance hb interval to
+	// server hb interval.
+	minInstanceHeartbeatInterval = svrKeepAliveTTL * 3
 }
 
 func ServerKeepAliveTTL() time.Duration {
 	moduleLock.RLock()
 	defer moduleLock.RUnlock()
 	return serverKeepAliveTTL
+}
+
+func MinInstanceHeartbeatInterval() time.Duration {
+	moduleLock.RLock()
+	defer moduleLock.RUnlock()
+	return minInstanceHeartbeatInterval
 }
 
 func KeepAliveInterval() time.Duration {

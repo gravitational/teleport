@@ -17,8 +17,9 @@ limitations under the License.
 package types
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
@@ -84,6 +85,9 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 	if slices.Contains(m.Types, AzureMatcherVM) {
 		if m.Params == nil {
 			m.Params = &InstallerParams{}
+		}
+		if m.Params.Azure == nil {
+			m.Params.Azure = &AzureInstallerParams{}
 		}
 
 		switch m.Params.JoinMethod {

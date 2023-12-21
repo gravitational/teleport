@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -27,6 +29,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
@@ -37,6 +40,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -57,6 +62,8 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 type IdentityService struct {
 	backend.Backend
 	log logrus.FieldLogger
+	// desyncedClockForTesting is used in tests to desync the service clock from the backend clock.
+	desyncedClockForTesting clockwork.Clock
 }
 
 // NewIdentityService returns a new instance of IdentityService object
@@ -67,10 +74,156 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 	}
 }
 
+func (s *IdentityService) getClock() clockwork.Clock {
+	if s.desyncedClockForTesting != nil {
+		return s.desyncedClockForTesting
+	}
+	return s.Backend.Clock()
+}
+
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 	startKey := backend.ExactKey(webPrefix, usersPrefix)
 	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+func (s *IdentityService) listUsersWithSecrets(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
+	rangeStart := backend.Key(webPrefix, usersPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	// Artificially inflate the limit to account for user secrets
+	// which have the same prefix.
+	limit := pageSize * 4
+
+	rangeStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
+
+	var (
+		out      []types.User
+		prevUser string
+		items    userItems
+	)
+	for rangeStream.Next() {
+		item := rangeStream.Item()
+
+		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		if prevUser == "" {
+			prevUser = name
+		}
+
+		if name != prevUser {
+			user, err := userFromUserItems(prevUser, items)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			out = append(out, user)
+
+			prevUser = name
+			items = userItems{}
+
+			if len(out) == pageSize {
+				break
+			}
+		}
+
+		items.Set(suffix, item)
+	}
+
+	next := rangeStream.Next()
+
+	if len(out) == 0 {
+		// When there is only a single user the transition logic to detect when a user
+		// is complete will never be hit. If the stream is exhausted and the items have
+		// processed a user resource then return it.
+		if !next && items.complete() {
+			user, err := userFromUserItems(prevUser, items)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			out = append(out, user)
+		}
+	} else {
+		// If there are no more users it is possible that the previous user being processed
+		// was never added to out because there was no additional user to transition to.
+		// Add the user from the collected items and return the full output.
+		if len(out) != pageSize && out[len(out)-1].GetName() != prevUser {
+			user, err := userFromUserItems(prevUser, items)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			out = append(out, user)
+		}
+	}
+
+	var nextToken string
+	// If the stream has more data or while processing the stream the last user
+	// caused a transition but was not added to out we want to send a token so
+	// that the final user may be returned in the next page.
+	if next || len(out) > 0 && out[len(out)-1].GetName() != prevUser {
+		nextToken = nextUserToken(out[len(out)-1])
+	}
+
+	return out, nextToken, trace.Wrap(rangeStream.Done())
+}
+
+// nextUserToken returns the last token for the given user. This
+// allows the listing operation to provide a token which doesn't divulge
+// the next user in the list while still allowing listing to operate
+// without missing any users.
+func nextUserToken(user types.User) string {
+	return string(backend.RangeEnd(backend.ExactKey(user.GetName())))[utf8.RuneLen(backend.Separator):]
+}
+
+// ListUsers returns a page of users.
+func (s *IdentityService) ListUsers(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.User, string, error) {
+	if withSecrets {
+		users, next, err := s.listUsersWithSecrets(ctx, pageSize, pageToken)
+		return users, next, trace.Wrap(err)
+	}
+
+	rangeStart := backend.Key(webPrefix, usersPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	// Artificially inflate the limit to account for user secrets
+	// which have the same prefix.
+	limit := pageSize * 4
+
+	rangeStream := stream.FilterMap(
+		backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit),
+		func(item backend.Item) (backend.Item, bool) {
+			return item, bytes.HasSuffix(item.Key, []byte(paramsPrefix))
+		})
+
+	var err error
+	userStream := stream.MapWhile(rangeStream, func(item backend.Item) (types.User, bool) {
+		var user types.User
+		user, err = services.UnmarshalUser(item.Value, services.WithRevision(item.Revision))
+		return user, err == nil
+	})
+
+	users, more := stream.Take(userStream, pageSize)
+	var nextToken string
+	if more && userStream.Next() {
+		nextToken = nextUserToken(users[len(users)-1])
+	}
+
+	return users, nextToken, trace.NewAggregate(err, userStream.Done())
 }
 
 // GetUsers returns a list of users registered with the local auth server
@@ -162,8 +315,9 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// UpdateUser updates an existing user.
-func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+// LegacyUpdateUser blindly updates an existing user. [IdentityService.UpdateUser] should be
+// used instead so that optimistic locking prevents concurrent resource updates.
+func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,6 +340,38 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		Revision: rev,
 	}
 	lease, err := s.Update(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(ctx, user.GetName(), *auth); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	user.SetRevision(lease.Revision)
+	user.SetResourceID(lease.ID)
+	return user, nil
+}
+
+// UpdateUser updates an existing user if the revisions match.
+func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rev := user.GetRevision()
+	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  user.Expiry(),
+		ID:       user.GetResourceID(),
+		Revision: rev,
+	}
+	lease, err := s.Backend.ConditionalUpdate(ctx, item)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -727,9 +913,21 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	}
 
 	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("webauthn session data is not found")
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if !s.getClock().Now().Before(item.Expires) {
+		// Webauthn session already expired. Some backends do not clean up expired
+		// items in a timely manner, force delete.
+		if err := s.Delete(ctx, item.Key); err != nil && !trace.IsNotFound(err) {
+			s.log.WithError(err).Debug("Failed to delete expired webauthn session")
+		}
+		return nil, trace.NotFound("webauthn session data is not found")
+	}
+
 	sd := &wanpb.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
@@ -967,11 +1165,11 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
-func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
@@ -982,10 +1180,10 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // CreateOIDCConnector creates a new OIDC connector.
@@ -1069,17 +1267,21 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.OIDCConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.OIDCConnector
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling OIDC Connector")
+			continue
 		}
 		if !withSecrets {
 			conn.SetClientSecret("")
 			conn.SetGoogleServiceAccount("")
 		}
-		connectors[i] = conn
+		connectors = append(connectors, conn)
 	}
 	return connectors, nil
 }
@@ -1121,14 +1323,14 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 }
 
 // UpsertSAMLConnector upserts SAML Connector
-func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
@@ -1138,10 +1340,10 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateSAMLConnector updates an existing SAML connector
@@ -1234,11 +1436,15 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.SAMLConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.SAMLConnector
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
 		}
 		if !withSecrets {
 			keyPair := conn.GetSigningKeyPair()
@@ -1247,7 +1453,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 				conn.SetSigningKeyPair(keyPair)
 			}
 		}
-		connectors[i] = conn
+		connectors = append(connectors, conn)
 	}
 	return connectors, nil
 }
@@ -1345,14 +1551,14 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
@@ -1363,15 +1569,15 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateGithubConnector updates an existing Github connector.
 func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)
@@ -1395,7 +1601,7 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 
 // CreateGithubConnector creates a new Github connector.
 func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)
@@ -1423,16 +1629,20 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.GithubConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.GithubConnector
+	for _, item := range result.Items {
 		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling GitHub Connector")
+			continue
 		}
 		if !withSecrets {
 			connector.SetClientSecret("")
 		}
-		connectors[i] = connector
+		connectors = append(connectors, connector)
 	}
 	return connectors, nil
 }

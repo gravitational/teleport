@@ -143,6 +143,7 @@ teleport:
   # because the Database Service always connects to the cluster over a reverse
   # tunnel.
   proxy_server: teleport.example.com:3080
+  auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -185,6 +186,7 @@ teleport:
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address.
   proxy_server: mytenant.teleport.sh:443
+  auth_token: "/tmp/token"
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -281,13 +283,6 @@ Note that you will only be able to see databases your role has access to. See
 our [RBAC](../rbac.mdx) guide for more details.
 
 To retrieve credentials for a database and connect to it:
-
-```code
-$ tsh db connect cloudsql
-```
-
-You can optionally specify the database user and database name to use by default
-when connecting to the database instance:
 
 ```code
 $ tsh db connect --db-user=alice --db-name=mysql cloudsql

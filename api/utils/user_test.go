@@ -33,7 +33,7 @@ func TestCurrentUser(t *testing.T) {
 		return nil, nil
 	}, 10*time.Millisecond)
 	require.Nil(t, u)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.True(t, trace.IsLimitExceeded(err))
 
 	u, err = currentUser(func() (*user.User, error) {

@@ -1,20 +1,24 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
+
+import { RDPFastPathPDU } from 'teleport/ironrdp/pkg/ironrdp';
 
 export type Message = ArrayBuffer;
 
@@ -47,6 +51,9 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
+  RDP_FASTPATH_PDU = 29,
+  RDP_RESPONSE_PDU = 30,
+  RDP_CHANNEL_IDS = 31,
   __LAST, // utility value
 }
 
@@ -88,6 +95,12 @@ export type ClipboardData = {
   data: string;
 };
 
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+export type RDPChannelIDs = {
+  ioChannelId: number;
+  userChannelId: number;
+};
+
 export enum Severity {
   Info = 0,
   Warning = 1,
@@ -117,7 +130,6 @@ export type Notification = {
 
 // | message type (10) | mfa_type byte | message_length uint32 | json []byte
 export type MfaJson = {
-  // TODO(isaiah) make this a type that ensures it's the same as MessageTypeEnum.U2F_CHALLENGE and MessageTypeEnum.WEBAUTHN_CHALLENGE
   mfaType: 'u' | 'n';
   jsonString: string;
 };
@@ -289,8 +301,6 @@ export default class Codec {
   decoder = new window.TextDecoder();
 
   // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
-  // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
-  // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values#code_values_on_windows
   private _keyScancodes = {
     Escape: 0x0001,
     Digit1: 0x0002,
@@ -791,6 +801,22 @@ export default class Codec {
     return buffer;
   }
 
+  // | message type (30) | data_length uint32 | data []byte |
+  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
+    const bufLen = byteLength + uint32Length + responseFrame.byteLength;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.RDP_RESPONSE_PDU);
+    offset += byteLength;
+    view.setUint32(offset, responseFrame.byteLength);
+    offset += uint32Length;
+    new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
+
+    return buffer;
+  }
+
   // decodeClipboardData decodes clipboard data
   decodeClipboardData(buffer: ArrayBuffer): ClipboardData {
     return {
@@ -825,12 +851,17 @@ export default class Codec {
   decodeNotification(buffer: ArrayBuffer): Notification {
     const dv = new DataView(buffer);
     let offset = 0;
+
     offset += byteLength; // eat message type
+
     const messageLength = dv.getUint32(offset);
     offset += uint32Length; // eat messageLength
+
     const message = this.decodeStringMessage(buffer);
     offset += messageLength; // eat message
+
     const severity = dv.getUint8(offset);
+
     return {
       message,
       severity: toSeverity(severity),
@@ -858,8 +889,14 @@ export default class Codec {
   // decodeStringMessage decodes a tdp message of the form
   // | message type (N) | message_length uint32 | message []byte
   private decodeStringMessage(buffer: ArrayBuffer): string {
-    const offset = byteLength + uint32Length; // eat message type and message_length
-    return this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const dv = new DataView(buffer);
+    let offset = byteLength; // eat message type
+    const msgLength = dv.getUint32(offset);
+    offset += uint32Length; // eat messageLength
+
+    return this.decoder.decode(
+      new Uint8Array(buffer.slice(offset, offset + msgLength))
+    );
   }
 
   // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame
@@ -912,6 +949,26 @@ export default class Codec {
     pngFrame.data.src = this.asBase64Url(buffer, offset);
 
     return pngFrame;
+  }
+
+  // | message type (29) | data_length uint32 | data []byte |
+  decodeRDPFastPathPDU(buffer: ArrayBuffer): RDPFastPathPDU {
+    let offset = 0;
+    offset += byteLength; // eat message type
+    offset += uint32Length; // eat data_length
+    const data = buffer.slice(offset);
+    return new RDPFastPathPDU(new Uint8Array(data));
+  }
+
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+  decodeRDPChannelIDs(buffer: ArrayBuffer): RDPChannelIDs {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const ioChannelId = dv.getUint16(offset);
+    offset += uint16Length; // eat io_channel_id
+    const userChannelId = dv.getUint16(offset);
+    return { ioChannelId, userChannelId };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |
@@ -1108,5 +1165,6 @@ export default class Codec {
 }
 
 const byteLength = 1;
+const uint16Length = 2;
 const uint32Length = 4;
 const uint64Length = uint32Length * 2;

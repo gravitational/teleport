@@ -1,17 +1,19 @@
-/**
- * Copyright 2021 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package local_test
@@ -19,10 +21,13 @@ package local_test
 import (
 	"context"
 	"crypto/x509"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +39,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -41,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -242,7 +249,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		require.NoError(t, err)
 		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
-		require.Len(t, attempts, 0)
+		require.Empty(t, attempts)
 	})
 
 	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
@@ -264,7 +271,7 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		require.NoError(t, err)
 		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
-		require.Len(t, attempts, 0)
+		require.Empty(t, attempts)
 	})
 }
 
@@ -464,7 +471,7 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			err := identity.UpsertMFADevice(ctx, user, test.createDev())
-			require.NotNil(t, err)
+			require.Error(t, err)
 			require.Contains(t, err.Error(), test.wantErr)
 		})
 	}
@@ -756,6 +763,34 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 		_, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
 		require.NoError(t, err) // Other keys preserved
 	}
+}
+
+func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+	identity.SetDesyncedClockForTesting(clock)
+
+	ctx := context.Background()
+	sessionData := &wanpb.SessionData{Challenge: []byte("challenge"), UserId: []byte("userid")}
+	err := identity.UpsertWebauthnSessionData(ctx, "user", "login", sessionData)
+	require.NoError(t, err)
+
+	got, err := identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.NoError(t, err)
+	require.Equal(t, sessionData, got)
+
+	// If the session data is expired but not automatically removed from
+	// the backend, it should be manually deleted on retrieval attempt.
+	// Advance the identity service clock and not the backend clock to
+	// emulate this occurrence.
+	clock.Advance(10 * time.Minute)
+	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
+
+	// Another retrieval should result in a not found error since it was deleted during the last get.
+	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 }
 
 func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
@@ -1088,4 +1123,144 @@ func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIdentityService_ListUsers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	password, err := bcrypt.GenerateFromPassword([]byte("insecure"), bcrypt.MinCost)
+	require.NoError(t, err, "creating password failed")
+
+	dev1, err := services.NewTOTPDevice("otp1", base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
+	require.NoError(t, err, "creating otp device failed")
+	dev2, err := services.NewTOTPDevice("otp2", base32.StdEncoding.EncodeToString([]byte("xyz789")), time.Now())
+	require.NoError(t, err, "creating otp device failed")
+
+	// Validate that no users returns an empty page.
+	users, next, err := identity.ListUsers(ctx, 0, "", false)
+	assert.NoError(t, err, "no error returned when no users exist")
+	assert.Empty(t, users, "users returned from listing when no users exist")
+	assert.Empty(t, next, "next page token returned from listing when no users exist")
+
+	users, next, err = identity.ListUsers(ctx, 0, "", true)
+	assert.NoError(t, err, "no error returned when no users exist")
+	assert.Empty(t, users, "users returned from listing when no users exist")
+	assert.Empty(t, next, "next page token returned from listing when no users exist")
+
+	// Validate that listing works when there is only a single user
+	user, err := types.NewUser("fish0")
+	require.NoError(t, err, "creating new user %s", user)
+
+	user, err = identity.CreateUser(ctx, user)
+	require.NoError(t, err, "creating user %s failed", user)
+	expectedUsers := []types.User{user}
+
+	users, next, err = identity.ListUsers(ctx, 0, "", false)
+	assert.NoError(t, err, "no error returned when no users exist")
+	assert.Empty(t, next, "next page token returned from listing when no more users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
+
+	users, next, err = identity.ListUsers(ctx, 0, "", true)
+	assert.NoError(t, err, "no error returned when no users exist")
+	assert.Empty(t, next, "next page token returned from listing when no users exist")
+	assert.Empty(t, cmp.Diff(expectedUsers, users), "not all users returned from listing operation")
+
+	// Create a number of users.
+	usernames := []string{"llama", "alpaca", "fox", "fish", "fish+", "fish2"}
+	for i, name := range usernames {
+		user, err := types.NewUser(name)
+		require.NoError(t, err, "creating new user %s", name)
+
+		// Set varying number of devices so the listing logic
+		// doesn't cleanly land on a user resource.
+		devices := []*types.MFADevice{dev1}
+		switch {
+		case i%2 == 0:
+			devices = append(devices, dev2)
+		case i == 3:
+			devices = nil
+		case i == 1:
+			devices = append(devices, dev2)
+			for j := 0; j < 20; j++ {
+				dev, err := services.NewTOTPDevice(uuid.NewString(), base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
+				require.NoError(t, err, "creating otp device failed")
+				devices = append(devices, dev)
+			}
+		}
+
+		user.SetLocalAuth(&types.LocalAuthSecrets{
+			PasswordHash: password,
+			MFA:          devices,
+		})
+
+		created, err := identity.CreateUser(ctx, user)
+		require.NoError(t, err, "creating user %s failed", user)
+		expectedUsers = append(expectedUsers, created)
+	}
+	slices.SortFunc(expectedUsers, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+
+	// List a few users at a time and validate that all users are eventually returned.
+	var retrieved []types.User
+	for next := ""; ; {
+		users, nextToken, err := identity.ListUsers(ctx, 2, next, false)
+		require.NoError(t, err, "no error returned when no users exist")
+
+		for _, user := range users {
+			assert.Empty(t, user.GetLocalAuth(), "expected no secrets to be returned with user %s", user.GetName())
+		}
+
+		retrieved = append(retrieved, users...)
+		next = nextToken
+		if next == "" {
+			break
+		}
+
+		if len(retrieved) > len(expectedUsers) {
+			t.Fatalf("listing users has accumulated %d users even though only %d users exist", len(retrieved), len(expectedUsers))
+		}
+	}
+
+	slices.SortFunc(retrieved, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+	assert.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
+
+	// Validate that listing all users at once returns all expected users with secrets.
+	users, next, err = identity.ListUsers(ctx, 200, "", true)
+	require.NoError(t, err, "unexpected error listing users")
+	assert.Empty(t, next, "got a next page token when page size was greater than number of items")
+	slices.SortFunc(users, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+
+	devicesSort := func(a *types.MFADevice, b *types.MFADevice) bool { return a.GetName() < b.GetName() }
+
+	require.Empty(t, cmp.Diff(expectedUsers, users, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+
+	// List a few users at a time and validate that all users are eventually returned with their secrets.
+	retrieved = []types.User{}
+	for next := ""; ; {
+		users, nextToken, err := identity.ListUsers(ctx, 2, next, true)
+		require.NoError(t, err, "no error returned when no users exist")
+
+		retrieved = append(retrieved, users...)
+		next = nextToken
+		if next == "" {
+			break
+		}
+
+		if len(retrieved) > len(expectedUsers) {
+			t.Fatalf("listing users has accumulated %d users even though only %d users exist", len(retrieved), len(expectedUsers))
+		}
+	}
+
+	slices.SortFunc(retrieved, func(a, b types.User) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
 }

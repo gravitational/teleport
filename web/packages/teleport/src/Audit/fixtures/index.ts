@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { makeEvent } from 'teleport/services/audit';
 
@@ -266,9 +268,57 @@ export const events = [
     user: 'unimplemented',
   },
   {
+    code: 'T8002I',
+    event: 'github.updated',
+    name: 'new_github_connector',
+    time: '2020-06-05T19:28:28Z',
+    uid: '26f12a67-d593-40df-b3d3-965faee60143',
+    user: 'unimplemented',
+  },
+  {
     code: 'T8100I',
     event: 'oidc.created',
     name: 'new_oidc_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8101I',
+    event: 'oidc.deleted',
+    name: 'new_oidc_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8102I',
+    event: 'oidc.updated',
+    name: 'new_oidc_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8200I',
+    event: 'saml.created',
+    name: 'new_saml_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8201I',
+    event: 'saml.deleted',
+    name: 'new_saml_connector',
+    time: '2020-06-05T19:29:14Z',
+    uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
+    user: 'unimplemented',
+  },
+  {
+    code: 'T8202I',
+    event: 'saml.updated',
+    name: 'new_saml_connector',
     time: '2020-06-05T19:29:14Z',
     uid: '6208b4b9-0077-41aa-967a-f173b6bcc0d3',
     user: 'unimplemented',
@@ -1707,6 +1757,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP00I',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -1727,6 +1778,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP01I',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -1745,6 +1797,7 @@ export const events = [
     cluster_name: 'im-a-cluster-name',
     code: 'TDP00W',
     desktop_addr: '100.104.52.89:3389',
+    desktop_name: 'desktop-name',
     desktop_labels: {
       env: 'prod',
       foo: 'bar',
@@ -3220,6 +3273,28 @@ export const events = [
     uid: 'f44871b9-7247-467b-a760-8159d3f47bac',
     user: 'system',
   },
+  {
+    cluster_name: 'leaf.tele.ottr.sh:443',
+    code: 'TB003I',
+    ei: 0,
+    event: 'bot.delete',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'review2',
+    time: '2023-12-08T09:52:30.579Z',
+    uid: '0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab',
+    user: 'noah',
+  },
+  {
+    cluster_name: 'leaf.tele.ottr.sh:443',
+    code: 'TB001I',
+    ei: 0,
+    event: 'bot.create',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'made-by-noah',
+    time: '2023-12-08T10:53:39.798Z',
+    uid: '0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab',
+    user: 'noah',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
@@ -3283,5 +3358,39 @@ export const eventsSample = [
     data: '{"some": "json"}',
     time: '2019-04-22T19:39:26.676Z',
   },
+  {
+    cluster_name: 'dev',
+    code: 'T9000I',
+    ei: 0,
+    event: 'role.created',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'editor',
+    time: '2023-10-26T16:08:43.426Z',
+    uid: '897e4a84-df4f-4eee-b10e-7d080c128b77',
+    user: 'system',
+  },
+  {
+    cluster_name: 'dev',
+    code: 'T9002I',
+    ei: 0,
+    event: 'role.updated',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'editor',
+    time: '2023-10-26T22:09:23.29Z',
+    uid: '715e10a6-23df-4a92-ba44-b51cb6e9650c',
+    user: 'larry',
+  },
+  {
+    cluster_name: 'dev',
+    code: 'T9001I',
+    ei: 0,
+    event: 'role.deleted',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'editor',
+    time: '2023-10-26T22:10:50.076Z',
+    uid: '0cb8a020-46ee-4938-833a-69bc03a7a831',
+    user: 'moe',
+  },
+
   // Do not add new events to this array, add it to `events` list.
 ].map(makeEvent);

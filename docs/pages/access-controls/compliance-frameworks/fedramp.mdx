@@ -29,7 +29,10 @@ government agencies.
 
 ## Download and install
 
-You can follow the [Installation instructions](../../installation.mdx#installation-instructions) for 
+Teleport Enterprise customers can download the custom FIPS package from their
+[Teleport account](https://teleport.sh). Look for `Linux 64-bit (FedRAMP/FIPS)`.
+
+You also can follow the [Installation instructions](../../installation.mdx#installation-instructions) for 
 Teleport Enterprise edition to download and install the appropriate FIPS-compliant binaries for 
 your operating environment and package manager or from compressed archive (tarball).
 
@@ -197,5 +200,5 @@ is emitted to the Audit Log.
 
 - TLS protocol version is restricted to TLS 1.2.
 - All uses of non-compliant algorithms such as NaCl are removed and replaced with compliant algorithms such as AES-GCM.
-- Teleport is compiled with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/3678)
+- Teleport is compiled with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407).
 - User, host, and CA certificates (and host keys for recording proxy mode) only use 2048-bit RSA private keys.

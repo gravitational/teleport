@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package tbot
 
@@ -45,6 +47,8 @@ func (b *Bot) renewBotIdentityLoop(
 	ctx context.Context,
 	reloadChan <-chan struct{},
 ) error {
+	ctx, span := tracer.Start(ctx, "Bot/renewBotIdentityLoop")
+	defer span.End()
 	b.log.Infof(
 		"Beginning bot identity renewal loop: ttl=%s interval=%s",
 		b.cfg.CertificateTTL,
@@ -109,6 +113,9 @@ func (b *Bot) renewBotIdentity(
 	ctx context.Context,
 	botDestination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(ctx, "Bot/renewBotIdentity")
+	defer span.End()
+
 	currentIdentity := b.ident()
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
@@ -134,7 +141,7 @@ func (b *Bot) renewBotIdentity(
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
-		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
+		newIdentity, err = botIdentityFromToken(ctx, b.log, b.cfg)
 		if err != nil {
 			return trace.Wrap(err, "renewing identity with token")
 		}
@@ -160,7 +167,10 @@ func botIdentityFromAuth(
 	client auth.ClientI,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
+	ctx, span := tracer.Start(ctx, "Bot/botIdentityFromAuth")
+	defer span.End()
 	log.Info("Fetching bot identity using existing bot identity.")
+
 	if ident == nil || client == nil {
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
@@ -178,7 +188,6 @@ func botIdentityFromAuth(
 	newIdentity, err := identity.ReadIdentityFromStore(
 		ident.Params(),
 		certs,
-		identity.BotKinds()...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading renewed identity")
@@ -189,7 +198,10 @@ func botIdentityFromAuth(
 
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
-func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
+func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
+	_, span := tracer.Start(ctx, "Bot/botIdentityFromToken")
+	defer span.End()
+
 	log.Info("Fetching bot identity using token.")
 	addr, err := utils.ParseAddr(cfg.AuthServer)
 	if err != nil {
@@ -241,6 +253,6 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 		PrivateKeyBytes: tlsPrivateKey,
 		PublicKeyBytes:  sshPublicKey,
 		TokenHashBytes:  []byte(tokenHash),
-	}, certs, identity.BotKinds()...)
+	}, certs)
 	return ident, trace.Wrap(err)
 }

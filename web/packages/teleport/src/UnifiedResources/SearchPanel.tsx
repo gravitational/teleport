@@ -1,31 +1,30 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Text, Flex } from 'design';
-import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
+import { Flex } from 'design';
 
-import Toggle from 'teleport/components/Toggle';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import useServersideSearchPanel, {
   SearchPanelState,
   HookProps,
 } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
-import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
 import { SearchInput } from './SearchInput';
 
@@ -49,22 +48,12 @@ export function SearchPanel({
   return (
     <Flex as="form" className="SearchPanel" onSubmit={onSubmitSearch} mb={3}>
       <SearchInput searchValue={searchString} setSearchValue={setSearchString}>
-        <ToggleWrapper>
-          <Toggle isToggled={isAdvancedSearch} onToggle={onToggle} />
-          <Text typography="paragraph2">Advanced</Text>
-          <Tooltip>
-            <PredicateDoc />
-          </Tooltip>
-        </ToggleWrapper>
+        <AdvancedSearchToggle
+          isToggled={isAdvancedSearch}
+          onToggle={onToggle}
+          px={4}
+        />
       </SearchInput>
     </Flex>
   );
 }
-
-const ToggleWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-inline: ${props => props.theme.space[4]}px;
-  width: 120px;
-`;

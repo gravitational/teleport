@@ -42,8 +42,9 @@ spec:
       {{- if .Values.hostAliases }}
       hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
       {{- end }}
-      securityContext:
-        fsGroup: 9807
+      {{- if .Values.podSecurityContext }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8}}
+      {{- end }}
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
@@ -142,6 +143,8 @@ spec:
           {{- if .Values.updater.enabled }}
           - name: TELEPORT_EXT_UPGRADER
             value: kube
+          - name: TELEPORT_EXT_UPGRADER_VERSION
+            value: {{ include "teleport-kube-agent.version" . }}
           {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE

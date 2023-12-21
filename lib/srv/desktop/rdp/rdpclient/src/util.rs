@@ -1,20 +1,23 @@
-// Copyright 2022 Gravitational, Inc
+// Teleport
+// Copyright (C) 2023  Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::errors::invalid_data_error;
-use rdp::model::error::RdpResult;
-use std::convert::TryFrom;
+use ironrdp_pdu::{other_err, PduResult};
+use std::ffi::CStr;
+use std::os::raw::c_char;
+use std::slice;
 use utf16string::{WString, LE};
 
 /// According to [MS-RDPEFS] 1.1 Glossary:
@@ -35,27 +38,57 @@ pub fn to_unicode(s: &str, with_null_term: bool) -> Vec<u8> {
 }
 
 #[allow(clippy::bind_instead_of_map)]
-pub fn from_unicode(s: Vec<u8>) -> RdpResult<String> {
+pub fn from_unicode(s: Vec<u8>) -> PduResult<String> {
     let mut with_null_terminator = WString::from_utf16le(s)
-        .or_else(|_| Err(invalid_data_error("invalid Unicode")))?
+        .or_else(|_| Err(other_err!("invalid Unicode")))?
         .to_utf8();
     with_null_terminator.pop();
     let without_null_terminator = with_null_terminator;
     Ok(without_null_terminator)
 }
 
-/// Converts a &str into a null-terminated UTF-8 encoded Vec<u8>
-pub fn to_utf8(s: &str) -> Vec<u8> {
-    format!("{s}\x00").into_bytes()
-}
-
-/// Takes a Rust string slice and calculates it's unicode size in bytes.
-pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
-    u32::try_from(to_unicode(s, with_null_term).len()).unwrap()
+pub fn from_utf8(s: Vec<u8>) -> PduResult<String> {
+    let mut with_null_terminator =
+        String::from_utf8(s).map_err(|_| other_err!("invalid Unicode"))?;
+    with_null_terminator.pop();
+    let without_null_terminator = with_null_terminator;
+    Ok(without_null_terminator)
 }
 
 pub fn vec_u8_debug(v: &[u8]) -> String {
     format!("&[u8] of length {}", v.len())
+}
+
+pub fn str_debug(s: &str) -> String {
+    format!("&str of length {}", s.len())
+}
+
+/// # Safety
+///
+/// s must be a C-style null terminated string.
+/// s is cloned here, and the caller is responsible for
+/// ensuring its memory is freed.
+pub unsafe fn from_c_string(s: *const c_char) -> String {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+    CStr::from_ptr(s).to_string_lossy().into_owned()
+}
+
+/// Creates a Vec from a Go (C) array without a copy.
+///
+/// # Safety
+///
+/// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
+pub unsafe fn from_go_array<T: Clone>(data: *const T, len: u32) -> Vec<T> {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+    slice::from_raw_parts(data, len as usize).to_vec()
 }
 
 #[cfg(test)]

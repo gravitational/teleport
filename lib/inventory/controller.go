@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package inventory
 
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -75,13 +76,18 @@ const (
 	serverKeepAliveKey
 )
 
+// instanceHBStepSize is the step size used for the variable instance hearbteat duration. This value is
+// basically arbitrary. It was selected because it produces a scaling curve that makes a fairly reasonable
+// tradeoff between heartbeat availability and load scaling. See test coverage in the 'interval' package
+// for a demonstration of the relationship between step sizes and interval/duration scaling.
+const instanceHBStepSize = 1024
+
 type controllerOptions struct {
 	serverKeepAlive    time.Duration
 	instanceHBInterval time.Duration
 	testEvents         chan testEvent
 	maxKeepAliveErrs   int
 	authID             string
-	instanceHeartbeats bool
 }
 
 func (options *controllerOptions) SetDefaults() {
@@ -93,12 +99,7 @@ func (options *controllerOptions) SetDefaults() {
 	}
 
 	if options.instanceHBInterval == 0 {
-		// instance heartbeat interval defaults to ~9x the server keepalive ttl. The instance
-		// resource is intended to be a low-impact and lazily intitialized value. We use a multiple
-		// of server keepalive rather than a constant because the base server keepalive value is
-		// dynamically modified during tests in order to create a teleport cluster with a generally
-		// higher presence tick-rate.
-		options.instanceHBInterval = baseKeepAlive * 9
+		options.instanceHBInterval = apidefaults.MinInstanceHeartbeatInterval()
 	}
 
 	if options.maxKeepAliveErrs == 0 {
@@ -113,13 +114,6 @@ type ControllerOption func(c *controllerOptions)
 func WithAuthServerID(serverID string) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.authID = serverID
-	}
-}
-
-// WithInstanceHeartbeats enables heartbeating of the instance resource.
-func WithInstanceHeartbeats(enabled bool) ControllerOption {
-	return func(opts *controllerOptions) {
-		opts.instanceHeartbeats = enabled
 	}
 }
 
@@ -144,22 +138,20 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 // Controller manages the inventory control streams registered with a given auth instance. Incoming
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
-	store              *Store
-	serviceCounter     *serviceCounter
-	auth               Auth
-	authID             string
-	serverKeepAlive    time.Duration
-	serverTTL          time.Duration
-	instanceTTL        time.Duration
-	instanceHBEnabled  bool
-	instanceHBInterval time.Duration
-	maxKeepAliveErrs   int
-	usageReporter      usagereporter.UsageReporter
-	testEvents         chan testEvent
-	closeContext       context.Context
-	cancel             context.CancelFunc
-
-	firstInstanceHBJitter retryutils.Jitter
+	store                      *Store
+	serviceCounter             *serviceCounter
+	auth                       Auth
+	authID                     string
+	serverKeepAlive            time.Duration
+	serverTTL                  time.Duration
+	instanceTTL                time.Duration
+	instanceHBEnabled          bool
+	instanceHBVariableDuration *interval.VariableDuration
+	maxKeepAliveErrs           int
+	usageReporter              usagereporter.UsageReporter
+	testEvents                 chan testEvent
+	closeContext               context.Context
+	cancel                     context.CancelFunc
 }
 
 // NewController sets up a new controller instance.
@@ -170,43 +162,46 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	}
 	options.SetDefaults()
 
+	instanceHBVariableDuration := interval.NewVariableDuration(interval.VariableDurationConfig{
+		MinDuration: options.instanceHBInterval,
+		MaxDuration: apidefaults.MaxInstanceHeartbeatInterval,
+		Step:        instanceHBStepSize,
+	})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
-		store:              NewStore(),
-		serviceCounter:     &serviceCounter{},
-		serverKeepAlive:    options.serverKeepAlive,
-		serverTTL:          apidefaults.ServerAnnounceTTL,
-		instanceTTL:        apidefaults.ServerAnnounceTTL * 2,
-		instanceHBEnabled:  options.instanceHeartbeats || instanceHeartbeatsEnabledEnv(),
-		instanceHBInterval: options.instanceHBInterval,
-		maxKeepAliveErrs:   options.maxKeepAliveErrs,
-		auth:               auth,
-		authID:             options.authID,
-		testEvents:         options.testEvents,
-		usageReporter:      usageReporter,
-		closeContext:       ctx,
-		cancel:             cancel,
-
-		// apply a ramping modifier to the first 600 incoming connections s.t. their initial instance hbs happen
-		// sooner (the first 100 within the firt 1m, the first 300 within the first 5m, and so on). Long-term we want
-		// to have a dynamically scaling hb rate, but this is a decent way to get some of the benefits of that in a
-		// simple manner (namely, improving time-to-visibility in small clusters).
-		firstInstanceHBJitter: ninthRampingJitter(600, fullJitter),
+		store:                      NewStore(),
+		serviceCounter:             &serviceCounter{},
+		serverKeepAlive:            options.serverKeepAlive,
+		serverTTL:                  apidefaults.ServerAnnounceTTL,
+		instanceTTL:                apidefaults.InstanceHeartbeatTTL,
+		instanceHBEnabled:          !instanceHeartbeatsDisabledEnv(),
+		instanceHBVariableDuration: instanceHBVariableDuration,
+		maxKeepAliveErrs:           options.maxKeepAliveErrs,
+		auth:                       auth,
+		authID:                     options.authID,
+		testEvents:                 options.testEvents,
+		usageReporter:              usageReporter,
+		closeContext:               ctx,
+		cancel:                     cancel,
 	}
 }
 
 // RegisterControlStream registers a new control stream with the controller.
 func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) {
+	// increment the concurrent connection counter that we use to calculate the variable
+	// instance heartbeat duration.
+	c.instanceHBVariableDuration.Inc()
 	// set up ticker with instance HB sub-interval. additional sub-intervals are added as needed.
 	// note that we are using fullJitter on the first duration to spread out initial instance heartbeats
 	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
 	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
 	// service.
 	ticker := interval.NewMulti(interval.SubInterval[intervalKey]{
-		Key:           instanceHeartbeatKey,
-		Duration:      c.instanceHBInterval,
-		FirstDuration: c.firstInstanceHBJitter(c.instanceHBInterval),
-		Jitter:        seventhJitter,
+		Key:              instanceHeartbeatKey,
+		VariableDuration: c.instanceHBVariableDuration,
+		FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
+		Jitter:           seventhJitter,
 	})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
@@ -260,6 +255,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 
 	defer func() {
+		c.instanceHBVariableDuration.Dec()
 		for _, service := range handle.hello.Services {
 			c.serviceCounter.decrement(service)
 		}
@@ -335,12 +331,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 }
 
-// instanceHeartbeatsEnabledEnv checks if instance heartbeats have been enabled via unstable
-// env var. This is a placeholder until we've sufficiently improved instance heartbeat
-// backend performance to reenable them by default.
-// TODO(tross,fspmarshal): remove this once issues with etcd stability are resolved.
-func instanceHeartbeatsEnabledEnv() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_ENABLE_INSTANCE_HB") == "yes"
+// instanceHeartbeatsDisabledEnv checks if instance heartbeats have been explicitly disabled
+// via environment variable.
+func instanceHeartbeatsDisabledEnv() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_INSTANCE_HB") == "yes"
 }
 
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package keystore
 
@@ -163,11 +165,13 @@ func TestKeyStore(t *testing.T) {
 
 	yubiSlotNumber := 0
 	backends := []struct {
-		desc        string
-		config      Config
-		isSoftware  bool
-		shouldSkip  func() bool
-		fakeKeyHack func([]byte) []byte
+		desc       string
+		config     Config
+		isSoftware bool
+		shouldSkip func() bool
+		// unusedRawKey should return passable raw key identifier for this
+		// backend that would not actually exist in the backend.
+		unusedRawKey func(t *testing.T) []byte
 	}{
 		{
 			desc: "software",
@@ -178,6 +182,11 @@ func TestKeyStore(t *testing.T) {
 			},
 			isSoftware: true,
 			shouldSkip: func() bool { return false },
+			unusedRawKey: func(t *testing.T) []byte {
+				rawKey, _, err := native.GenerateKeyPair()
+				require.NoError(t, err)
+				return rawKey
+			},
 		},
 		{
 			desc:   "softhsm",
@@ -188,6 +197,14 @@ func TestKeyStore(t *testing.T) {
 					return true
 				}
 				return false
+			},
+			unusedRawKey: func(t *testing.T) []byte {
+				rawKey, err := keyID{
+					HostID: softHSMConfig.PKCS11.HostUUID,
+					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+				}.marshal()
+				require.NoError(t, err)
+				return rawKey
 			},
 		},
 		{
@@ -207,6 +224,14 @@ func TestKeyStore(t *testing.T) {
 				}
 				return false
 			},
+			unusedRawKey: func(t *testing.T) []byte {
+				rawKey, err := keyID{
+					HostID: hostUUID,
+					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+				}.marshal()
+				require.NoError(t, err)
+				return rawKey
+			},
 		},
 		{
 			desc: "cloudhsm",
@@ -225,6 +250,14 @@ func TestKeyStore(t *testing.T) {
 				}
 				return false
 			},
+			unusedRawKey: func(t *testing.T) []byte {
+				rawKey, err := keyID{
+					HostID: hostUUID,
+					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+				}.marshal()
+				require.NoError(t, err)
+				return rawKey
+			},
 		},
 		{
 			desc: "gcp kms",
@@ -234,14 +267,10 @@ func TestKeyStore(t *testing.T) {
 			shouldSkip: func() bool {
 				return false
 			},
-			fakeKeyHack: func(key []byte) []byte {
-				// GCP KMS keys are never really deleted, their state is just
-				// set to destroyed, so this hack modifies a key to make it
-				// unrecognizable
-				kmsKey, err := parseGCPKMSKeyID(key)
-				require.NoError(t, err)
-				kmsKey.keyVersionName += "fake"
-				return kmsKey.marshal()
+			unusedRawKey: func(t *testing.T) []byte {
+				return gcpKMSKeyID{
+					keyVersionName: gcpKMSConfig.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
+				}.marshal()
 			},
 		},
 	}
@@ -431,13 +460,9 @@ func TestKeyStore(t *testing.T) {
 			}
 
 			// Make sure key deletion is aborted when one of the active keys
-			// cannot be found.
-			// Use rawKeys[1] as a fake active key, it was just deleted in the
-			// previous step.
-			fakeActiveKey := rawKeys[1]
-			if tc.fakeKeyHack != nil {
-				fakeActiveKey = tc.fakeKeyHack(fakeActiveKey)
-			}
+			// cannot be found. This makes sure that we don't accidentally
+			// delete current active keys in case the ListKeys operation fails.
+			fakeActiveKey := tc.unusedRawKey(t)
 			err = keyStore.DeleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
 			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 

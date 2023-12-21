@@ -10,7 +10,7 @@
   },
   "license": "Apache-2.0",
   "scripts": {
-    "start": "webpack serve --config webpack.renderer.dev.config.js --progress",
+    "start": "yarn build-native-deps && webpack serve --config webpack.renderer.dev.config.js --progress",
     "start-main": "webpack build --config webpack.main.config.js --mode=development --progress --watch",
     "start-electron": "electron build/app/dist/main/main.js",
     "build": "yarn build-main && yarn build-renderer",
@@ -30,7 +30,7 @@
   "dependencies": {
     "@types/tar-fs": "^2.0.1",
     "emittery": "^1.0.1",
-    "node-pty": "0.11.0-beta29",
+    "node-pty": "1.1.0-beta5",
     "strip-ansi": "^7.1.0",
     "tar-fs": "^3.0.3"
   },
@@ -44,7 +44,7 @@
     "@types/whatwg-url": "^11.0.1",
     "clean-webpack-plugin": "4.0.0",
     "cross-env": "5.0.5",
-    "electron": "25.9.0",
+    "electron": "28.0.0",
     "electron-notarize": "^1.2.1",
     "eslint-import-resolver-webpack": "0.13.2",
     "eslint-loader": "3.0.3",

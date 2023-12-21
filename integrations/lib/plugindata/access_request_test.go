@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package plugindata
 
@@ -33,7 +37,7 @@ var sampleAccessRequestData = AccessRequestData{
 
 func TestEncodeAccessRequestData(t *testing.T) {
 	dataMap, err := EncodeAccessRequestData(sampleAccessRequestData)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, dataMap, 8)
 	assert.Equal(t, "user-foo", dataMap["user"])
 	assert.Equal(t, "role-foo,role-bar", dataMap["roles"])
@@ -56,13 +60,13 @@ func TestDecodeAccessRequestData(t *testing.T) {
 		"resolve_reason":      "foo ok",
 		"suggested_reviewers": "[\"foouser\"]",
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessRequestData, pluginData)
 }
 
 func TestEncodeEmptyAccessRequestData(t *testing.T) {
 	dataMap, err := EncodeAccessRequestData(AccessRequestData{})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, dataMap, 7)
 	for key, value := range dataMap {
 		assert.Emptyf(t, value, "value at key %q must be empty", key)
@@ -71,9 +75,9 @@ func TestEncodeEmptyAccessRequestData(t *testing.T) {
 
 func TestDecodeEmptyAccessRequestData(t *testing.T) {
 	decoded, err := DecodeAccessRequestData(nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, decoded)
 	decoded, err = DecodeAccessRequestData(make(map[string]string))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, decoded)
 }

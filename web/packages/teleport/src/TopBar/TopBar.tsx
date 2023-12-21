@@ -1,28 +1,30 @@
-/*
-Copyright 2019-2020 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React, { Suspense, useState, lazy } from 'react';
-import styled, { useTheme } from 'styled-components';
+import React, { lazy, Suspense, useState } from 'react';
+import styled from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 
 import { matchPath, useHistory } from 'react-router';
 
-import { BrainIcon, OpenAIIcon } from 'design/SVGIcon';
+import { BrainIcon } from 'design/SVGIcon';
 
-import { useLocalStorage } from 'shared/hooks/useLocalStorage';
+import { ArrowLeft } from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -32,18 +34,8 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import cfg from 'teleport/config';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
-
-import { KeysEnum } from 'teleport/services/localStorage';
-import {
-  Popup,
-  PopupButton,
-  PopupFooter,
-  PopupLogos,
-  PopupLogosSpacer,
-  PopupTitle,
-  PopupTitleBackground,
-  TeleportIcon,
-} from 'teleport/Assist/Popup/Popup';
+import { KeysEnum } from 'teleport/services/storageService';
+import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import ClusterSelector from './ClusterSelector';
 import { Notifications } from './Notifications';
@@ -51,40 +43,12 @@ import { ButtonIconContainer } from './Shared';
 
 const Assist = lazy(() => import('teleport/Assist'));
 
-const AssistButtonContainer = styled.div`
-  position: relative;
-`;
-
-const Background = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 98;
-  background: rgba(0, 0, 0, 0.6);
-`;
-
-type TopBarProps = {
-  // hidePopup indicates if the popup should be hidden based on parent component states.
-  // if true, another modal is present; and we do not want to display the assist popup.
-  // if false or absent, display as pre normal logical rules.
-  hidePopup?: boolean;
-};
-
-export function TopBar({ hidePopup = false }: TopBarProps) {
-  const theme = useTheme();
-
+export function TopBar() {
   const ctx = useTeleport();
   const history = useHistory();
   const features = useFeatures();
 
   const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
-
-  const [showAssistPopup, setShowAssistPopup] = useLocalStorage(
-    KeysEnum.SHOW_ASSIST_POPUP,
-    assistEnabled
-  );
 
   const [showAssist, setShowAssist] = useState(false);
 
@@ -112,6 +76,8 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
     // When we switch clusters (to leaf or root), we remove the item and perform the check again by pushing
     // to the resource (new default view).
     window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
+    // we also need to reset the pinned resources flag when we switch clusters to try again
+    window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
     const legacyResourceRoutes = [
       cfg.getNodesRoute(clusterId),
       cfg.getAppsRoute(clusterId),
@@ -147,6 +113,15 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
       })
     );
 
+  function handleBack() {
+    const firstRouteForCategory = getFirstRouteForCategory(
+      features,
+      feature.category
+    );
+
+    history.push(firstRouteForCategory);
+  }
+
   const title = feature?.route?.title || '';
 
   // instead of re-creating an expensive react-select component,
@@ -156,7 +131,12 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
   };
 
   return (
-    <TopBarContainer>
+    <TopBarContainer navigationHidden={feature?.hideNavigation}>
+      {feature?.hideNavigation && (
+        <ButtonIconContainer onClick={handleBack}>
+          <ArrowLeft size="medium" />
+        </ButtonIconContainer>
+      )}
       {!hasClusterUrl && (
         <Text fontSize="18px" bold data-testid="title">
           {title}
@@ -174,34 +154,9 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
       />
       <Flex ml="auto" height="100%" alignItems="center">
         {!hasDockedElement && assistEnabled && (
-          <AssistButtonContainer>
-            <ButtonIconContainer onClick={() => setShowAssist(true)}>
-              <BrainIcon />
-            </ButtonIconContainer>
-            {showAssistPopup && !hidePopup && (
-              <>
-                <Background />
-                <Popup data-testid="assistPopup">
-                  <PopupTitle>
-                    <PopupTitleBackground>New!</PopupTitleBackground>
-                  </PopupTitle>{' '}
-                  Try out Teleport Assist, a GPT-4-powered AI assistant that
-                  leverages your infrastructure
-                  <PopupFooter>
-                    <PopupLogos>
-                      <OpenAIIcon size={30} />
-                      <PopupLogosSpacer>+</PopupLogosSpacer>
-                      <TeleportIcon light={theme.type === 'light'} />
-                    </PopupLogos>
-
-                    <PopupButton onClick={() => setShowAssistPopup(false)}>
-                      Close
-                    </PopupButton>
-                  </PopupFooter>
-                </Popup>
-              </>
-            )}
-          </AssistButtonContainer>
+          <ButtonIconContainer onClick={() => setShowAssist(true)}>
+            <BrainIcon />
+          </ButtonIconContainer>
         )}
         <Notifications />
         <UserMenuNav username={ctx.storeUser.state.username} />
@@ -219,7 +174,7 @@ export function TopBar({ hidePopup = false }: TopBarProps) {
 export const TopBarContainer = styled(TopNav)`
   height: 72px;
   background-color: inherit;
-  padding-left: ${({ theme }) => `${theme.space[6]}px`};
+  padding-left: ${p => `${p.theme.space[p.navigationHidden ? 2 : 6]}px`};
   overflow-y: initial;
   flex-shrink: 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};

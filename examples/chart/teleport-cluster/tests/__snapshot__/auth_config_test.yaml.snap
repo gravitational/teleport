@@ -1,6 +1,7 @@
 adds a proxy token by default:
   1: |
     |
+      ---
       kind: token
       version: v2
       metadata:

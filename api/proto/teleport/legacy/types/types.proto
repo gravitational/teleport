@@ -688,6 +688,9 @@ message InstanceSpecV1 {
   // ExternalUpgrader identifies the external upgrader that the instance is configured to
   // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
   string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
+
+  // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+  string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -1257,6 +1260,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
   // GCP allows the configuration of options specific to the "gcp" join method.
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
+  // Spacelift allows the configuration of options specific to the "spacelift" join method.
+  ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1299,6 +1304,17 @@ message ProvisionTokenSpecV2GitHub {
   // include the scheme or a path. The instance must be accessible over HTTPS
   // at this hostname and the certificate must be trusted by the Auth Server.
   string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
+  // EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be
+  // included in the expected issuer of the OIDC tokens. This is for
+  // compatibility with the `include_enterprise_slug` option in GHE.
+  //
+  // This field should be set to the slug of your enterprise if this is enabled. If
+  // this is not enabled, then this field must be left empty. This field cannot
+  // be specified if `enterprise_server_host` is specified.
+  //
+  // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+  // for more information about customised issuer values.
+  string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
 }
 
 // ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
@@ -1308,9 +1324,17 @@ message ProvisionTokenSpecV2GitLab {
     // Sub roughly uniquely identifies the workload. Example:
     // `project_path:mygroup/my-project:ref_type:branch:ref:main`
     // project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // Ref allows access to be limited to jobs triggered by a specific git ref.
     // Ensure this is used in combination with ref_type.
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Ref = 2 [(gogoproto.jsontag) = "ref,omitempty"];
     // RefType allows access to be limited to jobs triggered by a specific git
     // ref type. Example:
@@ -1320,10 +1344,18 @@ message ProvisionTokenSpecV2GitLab {
     // projects.
     // Example:
     // `mygroup`
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string NamespacePath = 4 [(gogoproto.jsontag) = "namespace_path,omitempty"];
     // ProjectPath is used to limit access to jobs belonging to an individual
     // project. Example:
     // `mygroup/myproject`
+    //
+    // This field supports simple "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string ProjectPath = 5 [(gogoproto.jsontag) = "project_path,omitempty"];
     // PipelineSource limits access by the job pipeline source type.
     // https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
@@ -1332,6 +1364,34 @@ message ProvisionTokenSpecV2GitLab {
     // Environment limits access by the environment the job deploys to
     // (if one is associated)
     string Environment = 7 [(gogoproto.jsontag) = "environment,omitempty"];
+    // UserLogin is the username of the user executing the job
+    string UserLogin = 8 [(gogoproto.jsontag) = "user_login,omitempty"];
+    // UserID is the ID of the user executing the job
+    string UserID = 9 [(gogoproto.jsontag) = "user_id,omitempty"];
+    // UserEmail is the email of the user executing the job
+    string UserEmail = 10 [(gogoproto.jsontag) = "user_email,omitempty"];
+    // RefProtected is true if the Git ref is protected, false otherwise.
+    BoolValue RefProtected = 11 [
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "ref_protected,omitempty",
+      (gogoproto.customtype) = "BoolOption"
+    ];
+    // EnvironmentProtected is true if the Git ref is protected, false otherwise.
+    BoolValue EnvironmentProtected = 12 [
+      (gogoproto.nullable) = true,
+      (gogoproto.jsontag) = "environment_protected,omitempty",
+      (gogoproto.customtype) = "BoolOption"
+    ];
+    // CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
+    string CIConfigSHA = 13 [(gogoproto.jsontag) = "ci_config_sha,omitempty"];
+    // CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
+    // gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+    string CIConfigRefURI = 14 [(gogoproto.jsontag) = "ci_config_ref_uri,omitempty"];
+    // DeploymentTier is the deployment tier of the environment the job specifies
+    string DeploymentTier = 15 [(gogoproto.jsontag) = "deployment_tier,omitempty"];
+    // ProjectVisibility is the visibility of the project where the pipeline is running.
+    // Can be internal, private, or public.
+    string ProjectVisibility = 16 [(gogoproto.jsontag) = "project_visibility,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
@@ -1353,6 +1413,31 @@ message ProvisionTokenSpecV2CircleCI {
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
   string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id,omitempty"];
+}
+
+// ProvisionTokenSpecV2Spacelift contains the Spacelift-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2Spacelift {
+  message Rule {
+    // SpaceID is the ID of the space in which the run that owns the token was
+    // executed.
+    string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
+    // CallerID is the ID of the caller, ie. the stack or module that generated
+    // the run.
+    string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
+    // CallerType is the type of the caller, ie. the entity that owns the run -
+    // either `stack` or `module`.
+    string CallerType = 3 [(gogoproto.jsontag) = "caller_type,omitempty"];
+    // Scope is the scope of the token - either `read` or `write`.
+    // See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
+    string Scope = 4 [(gogoproto.jsontag) = "scope,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Hostname is the hostname of the Spacelift tenant that tokens
+  // will originate from. E.g `example.app.spacelift.io`
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname,omitempty"];
 }
 
 // ProvisionTokenSpecV2Kubernetes contains the Kubernetes-specific part of the
@@ -2119,6 +2204,13 @@ message AccessReview {
   // AccessList is the access list that this request was promoted to.
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -2285,6 +2377,13 @@ message AccessRequestSpecV3 {
   // was promoted to. Used by WebUI to display the title of the access list.
   // This field is only populated when the request is in the PROMOTED state.
   PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 21 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2469,10 +2568,13 @@ enum CreateHostUserMode {
   HOST_USER_MODE_UNSPECIFIED = 0;
   // HOST_USER_MODE_OFF disables host user creation.
   HOST_USER_MODE_OFF = 1;
-  // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
-  HOST_USER_MODE_DROP = 2;
+  reserved 2; // HOST_USER_MODE_DROP replaced by HOST_USER_MODE_INSECURE_DROP.
+  reserved "HOST_USER_MODE_DROP";
   // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
   HOST_USER_MODE_KEEP = 3;
+  // HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
+  // users at session end.
+  HOST_USER_MODE_INSECURE_DROP = 4;
 }
 
 // CreateDatabaseUserMode determines whether database user creation should be
@@ -3520,11 +3622,12 @@ message WebSessionV2 {
 message WebSessionSpecV2 {
   // User is the identity of the user to which the web session belongs.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Pub is the SSH certificate for the user.
+  // Pub is the SSH certificate for the user, marshaled in the authorized key
+  // format.
   bytes Pub = 2 [(gogoproto.jsontag) = "pub"];
   // Priv is the SSH private key for the user.
   bytes Priv = 3 [(gogoproto.jsontag) = "priv,omitempty"];
-  // TLSCert is the TLS certificate for the user.
+  // TLSCert is the X.509 certificate for the user (PEM-encoded).
   bytes TLSCert = 4 [(gogoproto.jsontag) = "tls_cert,omitempty"];
   // BearerToken is a token that is paired with the session cookie for
   // authentication. It is periodically rotated so a stolen cookie itself
@@ -5527,6 +5630,9 @@ message PluginOktaSettings {
 
   // EnableUserSync controls the user sync in the Okta integration service.
   bool enable_user_sync = 2;
+
+  // SSOConnectorID
+  string sso_connector_id = 3;
 }
 
 // Defines a set of discord channel IDs
@@ -5689,10 +5795,27 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
-  // EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
-  // the entity ID in the entity descriptor at upsert time to avoid having to parse the
-  // XML blob in the entity descriptor every time we need to use this resource.
+  // EntityID is the entity ID for the entity descriptor. If entity descriptor is provided,
+  // this value is checked that it matches the entity ID in the entity descriptor
+  // at upsert time to avoid having to parse the XML blob in the entity descriptor
+  // every time we need to use this resource.
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
+  // ACSURL is the endpoint where SAML authentication response will be redirected.
+  string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
+  // AttributeMapping is used to map Service Provider requested attributes to
+  // username, role and traits in Teleport.
+  repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+}
+
+// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// name, format and its values.
+message SAMLAttributeMapping {
+  //  name is an attribute name.
+  string name = 1 [(gogoproto.jsontag) = "name"];
+  //  name_format is an attribute name format.
+  string name_format = 2 [(gogoproto.jsontag) = "name_format"];
+  //  value is an attribute value definable with predicate expression.
+  string value = 3 [(gogoproto.jsontag) = "value"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.
@@ -6219,6 +6342,9 @@ message AWSMatcher {
   // SSM provides options to use when sending a document command to
   // an EC2 node
   AWSSSM SSM = 6 [(gogoproto.jsontag) = "ssm,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role

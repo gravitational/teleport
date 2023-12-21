@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package postgres
 
@@ -30,13 +32,24 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
+func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
+	// Log into GetAdminUser().DefaultDatabase if specified, otherwise use
+	// database name from db route.
+	loginDatabase := sessionCtx.DatabaseName
+	if sessionCtx.Database.GetAdminUser().DefaultDatabase != "" {
+		loginDatabase = sessionCtx.Database.GetAdminUser().DefaultDatabase
+	}
+	conn, err := e.pgxConnect(ctx, sessionCtx.WithUserAndDatabase(sessionCtx.Database.GetAdminUser().Name, loginDatabase))
+	return conn, trace.Wrap(err)
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
+	conn, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,7 +85,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
+	conn, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -90,17 +103,11 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 
 // DeleteUser deletes the database user.
 func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) error {
-	// TODO support DeleteUser for Redshift
-	if sessionCtx.Database.IsRedshift() {
-		e.Log.Debug("DeleteUser is not supported for Redshift yet, it was disabled instead.")
-		return trace.Wrap(e.DeactivateUser(ctx, sessionCtx))
-	}
-
 	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
 	}
 
-	conn, err := e.pgxConnect(ctx, sessionCtx.WithUser(sessionCtx.Database.GetAdminUser().Name))
+	conn, err := e.connectAsAdmin(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -109,14 +116,19 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	e.Log.Infof("Deleting PostgreSQL user %q.", sessionCtx.DatabaseUser)
 
 	var state string
-	err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
+	switch {
+	case sessionCtx.Database.IsRedshift():
+		err = e.deleteUserRedshift(ctx, sessionCtx, conn, &state)
+	default:
+		err = conn.QueryRow(ctx, deleteQuery, sessionCtx.DatabaseUser).Scan(&state)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch state {
 	case common.SQLStateUserDropped:
-		e.Log.Debug("User %q deleted successfully.", sessionCtx.DatabaseUser)
+		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
 		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
 	default:
@@ -124,6 +136,30 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 
 	return nil
+}
+
+// deleteUserRedshift deletes the Redshift database user.
+//
+// Failures inside Redshift default procedures are always rethrown exceptions if
+// the exception handler completes successfully. Given this, we need to assert
+// into the returned error instead of doing this on state returned (like regular
+// PostgreSQL).
+func (e *Engine) deleteUserRedshift(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn, state *string) error {
+	_, err := conn.Exec(ctx, deleteQuery, sessionCtx.DatabaseUser)
+	if err == nil {
+		*state = common.SQLStateUserDropped
+		return nil
+	}
+
+	// Redshift returns SQLSTATE 55006 (object_in_use) when DROP USER fails due
+	// to user owning resources.
+	// https://docs.aws.amazon.com/redshift/latest/dg/r_DROP_USER.html#r_DROP_USER-notes
+	if strings.Contains(err.Error(), "55006") {
+		*state = common.SQLStateUserDeactivated
+		return nil
+	}
+
+	return trace.Wrap(err)
 }
 
 // initAutoUsers installs procedures for activating and deactivating users and
@@ -240,6 +276,8 @@ var (
 	redshiftActivateProc string
 	//go:embed sql/redshift-deactivate-user.sql
 	redshiftDeactivateProc string
+	//go:embed sql/redshift-delete-user.sql
+	redshiftDeleteProc string
 
 	procs = map[string]string{
 		activateProcName:   activateProc,
@@ -249,5 +287,6 @@ var (
 	redshiftProcs = map[string]string{
 		activateProcName:   redshiftActivateProc,
 		deactivateProcName: redshiftDeactivateProc,
+		deleteProcName:     redshiftDeleteProc,
 	}
 )

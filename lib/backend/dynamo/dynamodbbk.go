@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package dynamo
 
@@ -29,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -43,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
 
@@ -234,22 +238,29 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		clock:  clockwork.NewRealClock(),
 		buf:    buf,
 	}
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
+
+	// determine if the FIPS endpoints should be used
+	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	if modules.GetModules().IsBoringBinary() {
+		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+	}
+
+	awsConfig := aws.Config{
+		EC2MetadataEnableFallback: aws.Bool(false),
+	}
+	if cfg.Region != "" {
+		awsConfig.Region = aws.String(cfg.Region)
+	}
+	if cfg.AccessKey != "" || cfg.SecretKey != "" {
+		awsConfig.Credentials = credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
+	}
+
 	b.session, err = session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
+		Config:            awsConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	// override the default environment (region + credentials) with the values
-	// from the YAML file:
-	if cfg.Region != "" {
-		b.session.Config.Region = aws.String(cfg.Region)
-	}
-	if cfg.AccessKey != "" || cfg.SecretKey != "" {
-		creds := credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
-		b.session.Config.Credentials = creds
 	}
 
 	// Increase the size of the connection pool. This substantially improves the
@@ -265,7 +276,14 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	b.session.Config.HTTPClient = httpClient
 
 	// create DynamoDB service:
-	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session))
+	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session, &aws.Config{
+		// Setting this on the individual service instead of the session, as DynamoDB Streams
+		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
+		// is available (or whenever AWS adds the missing FIPS endpoints).
+		UseFIPSEndpoint: useFIPSEndpoint,
+	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -926,8 +944,15 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 		input.SetConditionExpression("attribute_exists(FullPath)")
 	case modePut:
 	case modeConditionalUpdate:
-		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
-		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+		// If the revision is empty, then the resource existed prior to revision support. Instead of validating that
+		// the revisions match, validate that the revision attribute does not exist. Otherwise, validate that the revision
+		// attribute matches the item revision.
+		if item.Revision == "" {
+			input.SetConditionExpression("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+		} else {
+			input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(item.Revision)}})
+			input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+		}
 	default:
 		return "", trace.BadParameter("unrecognized mode")
 	}

@@ -1,0 +1,24 @@
+<!--
+  - Teleport
+  - Copyright (C) 2023  Gravitational, Inc.
+  -
+  - This program is free software: you can redistribute it and/or modify
+  - it under the terms of the GNU Affero General Public License as published by
+  - the Free Software Foundation, either version 3 of the License, or
+  - (at your option) any later version.
+  -
+  - This program is distributed in the hope that it will be useful,
+  - but WITHOUT ANY WARRANTY; without even the implied warranty of
+  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  - GNU Affero General Public License for more details.
+  -
+  - You should have received a copy of the GNU Affero General Public License
+  - along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M15.5305 2.46951L2.46978 15.5302C2.17689 15.8231 2.17689 16.298 2.46978 16.5909L7.40914 21.5302C7.70204 21.8231 8.17691 21.8231 8.46981 21.5302L21.5305 8.46953C21.8234 8.17664 21.8234 7.70177 21.5305 7.40887L16.5911 2.46951C16.2983 2.17662 15.8234 2.17662 15.5305 2.46951Z" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  <path d="M12 6L15 9" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  <path d="M9 9L12 12" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  <path d="M6 12L9 15" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+</svg>

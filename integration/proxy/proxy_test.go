@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -33,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -266,10 +270,10 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	suite := newSuite(t,
+	_ = newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
@@ -280,13 +284,9 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withStandardRoleMapping(),
 	)
 
-	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, helpers.WaitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-
-	require.Greater(t, ph.Count(), 0, "proxy did not intercept any connection")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.NotZero(t, ph.Count())
+	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
 // TestMultiPortHTTPSProxy tests if the reverse tunnel uses http_proxy
@@ -307,10 +307,10 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
-	suite := newSuite(t,
+	_ = newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
@@ -321,13 +321,9 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 		withStandardRoleMapping(),
 	)
 
-	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, helpers.WaitForClusters(suite.root.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, helpers.WaitForClusters(suite.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-
-	require.Greater(t, ph.Count(), 0, "proxy did not intercept any connection")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.NotZero(t, ph.Count())
+	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
@@ -386,7 +382,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+	require.Len(t, resp.Items, 3, "pods item length mismatch")
 
 	// Simulate how tsh uses a kube local proxy to send kube requests to
 	// Teleport Proxy with a L7 LB in front.
@@ -583,6 +579,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				Log:         utils.NewLoggerForTests(),
 			}
 			tconf := servicecfg.MakeDefaultConfig()
+			tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
 			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
 				cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -590,7 +587,6 @@ func TestKubePROXYProtocol(t *testing.T) {
 				cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
 				tconf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				tconf.Proxy.DisableALPNSNIListener = true
-				tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &cfg.Fds))
 			}
 
 			testCluster := helpers.NewInstance(t, cfg)
@@ -611,7 +607,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				helpers.NewListener(t, service.ListenerKube, &tconf.FileDescriptors))
 
 			// Force Proxy kube server multiplexer to check required PROXY lines on all connections
-			tconf.Options = []servicecfg.Option{servicecfg.WithKubeMultiplexerIgnoreSelfConnectionsOption()}
+			tconf.Testing.KubeMultiplexerIgnoreSelfConnections = true
 
 			kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 			require.NoError(t, err)
@@ -624,41 +620,43 @@ func TestKubePROXYProtocol(t *testing.T) {
 				require.NoError(t, testCluster.StopAll())
 			})
 
-			targetAddr := testCluster.Config.Proxy.WebAddr
-			if tt.proxyListenerMode == types.ProxyListenerMode_Separate {
-				targetAddr = testCluster.Config.Proxy.Kube.ListenAddr
+			checkForTargetAddr := func(targetAddr utils.NetAddr) {
+				// If PROXY protocol is required, create load balancer in front of Teleport cluster
+				if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
+					frontend := *utils.MustParseAddr("127.0.0.1:0")
+					lb, err := utils.NewLoadBalancer(context.Background(), frontend)
+					require.NoError(t, err)
+					lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
+					lb.AddBackend(targetAddr)
+					err = lb.Listen()
+					require.NoError(t, err)
+
+					go lb.Serve()
+					t.Cleanup(func() { require.NoError(t, lb.Close()) })
+					targetAddr = *utils.MustParseAddr(lb.Addr().String())
+				}
+
+				// Create kube client that we'll use to test that connection is working correctly.
+				k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+					T:                   testCluster,
+					Username:            kubeRoleSpec.Allow.Logins[0],
+					KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
+					KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+					CustomTLSServerName: kubeCluster,
+					TargetAddress:       targetAddr,
+					RouteToCluster:      testCluster.Secrets.SiteName,
+				})
+				require.NoError(t, err)
+
+				resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+				require.NoError(t, err)
+				require.Len(t, resp.Items, 3, "pods item length mismatch")
 			}
 
-			// If PROXY protocol is required, create load balancer in front of Teleport cluster
-			if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
-				frontend := *utils.MustParseAddr("127.0.0.1:0")
-				lb, err := utils.NewLoadBalancer(context.Background(), frontend)
-				require.NoError(t, err)
-				lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
-				lb.AddBackend(targetAddr)
-				err = lb.Listen()
-				require.NoError(t, err)
-
-				go lb.Serve()
-				t.Cleanup(func() { require.NoError(t, lb.Close()) })
-				targetAddr = *utils.MustParseAddr(lb.Addr().String())
+			checkForTargetAddr(testCluster.Config.Proxy.Kube.ListenAddr)
+			if tt.proxyListenerMode == types.ProxyListenerMode_Multiplex {
+				checkForTargetAddr(testCluster.Config.Proxy.WebAddr)
 			}
-
-			// Create kube client that we'll use to test that connection is working correctly.
-			k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
-				T:                   testCluster,
-				Username:            kubeRoleSpec.Allow.Logins[0],
-				KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
-				KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
-				CustomTLSServerName: kubeCluster,
-				TargetAddress:       targetAddr,
-				RouteToCluster:      testCluster.Secrets.SiteName,
-			})
-			require.NoError(t, err)
-
-			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 		})
 	}
 }
@@ -783,7 +781,7 @@ func TestKubeIPPinning(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
+			require.Len(t, resp.Items, 3, "pods item length mismatch")
 		})
 	}
 }
@@ -1201,7 +1199,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		require.Error(t, err)
 		var x509Err x509.CertificateInvalidError
 		require.ErrorAs(t, err, &x509Err)
-		require.Equal(t, x509Err.Reason, x509.Expired)
+		require.Equal(t, x509.Expired, x509Err.Reason)
 		require.Contains(t, x509Err.Detail, "is after")
 
 		// Open a new connection
@@ -1500,7 +1498,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	addr, err := helpers.GetLocalIP()
+	addr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	instanceCfg := helpers.InstanceConfig{
@@ -1579,7 +1577,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	// We need to use the non-loopback address for our Teleport cluster, as the
 	// Go HTTP library will recognize requests to the loopback address and
 	// refuse to use the HTTP proxy, which will invalidate the test.
-	rcAddr, err := helpers.GetLocalIP()
+	rcAddr, err := apihelpers.GetLocalIP()
 	require.NoError(t, err)
 
 	log.Info("Creating Teleport instance...")

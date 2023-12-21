@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package interval
 
@@ -20,6 +22,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
@@ -56,6 +60,9 @@ type Config struct {
 	// for this parameter, since periodic operations are typically costly and the
 	// effect of the jitter is cumulative.
 	Jitter retryutils.Jitter
+
+	// Clock is the clock to use to control the interval.
+	Clock clockwork.Clock
 }
 
 // NewNoop creates a new interval that will never fire.
@@ -73,6 +80,11 @@ func New(cfg Config) *Interval {
 		panic(errors.New("non-positive interval for interval.New"))
 	}
 
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
 	interval := &Interval{
 		ch:    make(chan time.Time, 1),
 		cfg:   cfg,
@@ -88,7 +100,7 @@ func New(cfg Config) *Interval {
 
 	// start the timer in this goroutine to improve
 	// consistency of first tick.
-	timer := time.NewTimer(firstDuration)
+	timer := clock.NewTimer(firstDuration)
 
 	go interval.run(timer)
 
@@ -137,7 +149,7 @@ func (i *Interval) duration() time.Duration {
 	return i.cfg.Jitter(i.cfg.Duration)
 }
 
-func (i *Interval) run(timer *time.Timer) {
+func (i *Interval) run(timer clockwork.Timer) {
 	defer timer.Stop()
 
 	// we take advantage of the fact that sends on nil channels never complete,
@@ -146,7 +158,7 @@ func (i *Interval) run(timer *time.Timer) {
 	var ch chan<- time.Time
 	for {
 		select {
-		case tick = <-timer.C:
+		case tick = <-timer.Chan():
 			// timer has fired, reset to next duration and ensure that
 			// output channel is set.
 			timer.Reset(i.duration())
@@ -154,7 +166,7 @@ func (i *Interval) run(timer *time.Timer) {
 		case <-i.reset:
 			// stop and drain timer
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 			// re-set the timer
 			timer.Reset(i.duration())
@@ -163,7 +175,7 @@ func (i *Interval) run(timer *time.Timer) {
 		case <-i.fire:
 			// stop and drain timer
 			if !timer.Stop() {
-				<-timer.C
+				<-timer.Chan()
 			}
 			// re-set the timer
 			timer.Reset(i.duration())

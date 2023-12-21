@@ -1,29 +1,33 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
 	"image/jpeg"
 	"image/png"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/icza/mjpeg"
@@ -54,30 +58,39 @@ func onExportRecording(cf *CLIConf) error {
 	authClient := proxyClient.CurrentCluster()
 	defer authClient.Close()
 
-	fname := cf.OutFile
-	if fname == "" {
-		fname = cf.SessionID + ".avi"
+	filenamePrefix := cf.SessionID
+	if cf.OutFile != "" {
+		// trim the extension if it was provided (we'll add it later on)
+		filenamePrefix = strings.TrimSuffix(
+			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	frames, err := writeMovie(cf.Context, authClient, session.ID(cf.SessionID), fname)
-	// there may be a partial file, even if we encountered an error,
-	// so we indicate to the user when we wrote something
-	if frames > 0 {
-		fmt.Printf("wrote recording to %v\n", fname)
-	}
-
+	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf)
 	return trace.Wrap(err)
 }
 
-// writeMovie writes streams the events for the specified session into a movie file
-// identified by fname. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, fname string) (int, error) {
+func makeAVIFileName(prefix string, currentFile int) string {
+	if currentFile == 0 {
+		return prefix + ".avi"
+	}
+
+	return fmt.Sprintf("%v-%d.avi", prefix, currentFile)
+}
+
+// writeMovie writes the events for the specified session into one or more movie files
+// beginning with the specified prefix. It returns the number of frames that were written and an error.
+func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
+	write func(format string, args ...any) (int, error)) (frames int, err error) {
+
 	var screen *image.NRGBA
 	var movie mjpeg.AviWriter
 
 	lastEmitted := int64(-1)
 	buf := new(bytes.Buffer)
-	frameCount := 0
+
+	var frameCount, fileCount int
+	var width, height int32
+	currentFilename := makeAVIFileName(prefix, fileCount)
 
 	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
 loop:
@@ -85,12 +98,16 @@ loop:
 		select {
 		case err := <-errs:
 			if movie != nil {
-				movie.Close()
+				if err := movie.Close(); err == nil && write != nil && frames > 0 {
+					write("wrote %v\n", currentFilename)
+				}
 			}
 			return frameCount, trace.Wrap(err)
 		case <-ctx.Done():
 			if movie != nil {
-				movie.Close()
+				if err := movie.Close(); err == nil && write != nil && frames > 0 {
+					write("wrote %v\n", currentFilename)
+				}
 			}
 			return frameCount, ctx.Err()
 		case evt, more := <-evts:
@@ -123,12 +140,13 @@ loop:
 					// the window during a session. If this changes, we'd have to
 					// find the maximum window size first.
 					log.Debugf("allocating %dx%d screen", msg.Width, msg.Height)
+					width, height = int32(msg.Width), int32(msg.Height)
 					screen = image.NewNRGBA(image.Rectangle{
 						Min: image.Pt(0, 0),
 						Max: image.Pt(int(msg.Width), int(msg.Height)),
 					})
 
-					movie, err = mjpeg.New(fname, int32(msg.Width), int32(msg.Height), framesPerSecond)
+					movie, err = mjpeg.New(currentFilename, width, height, framesPerSecond)
 					if err != nil {
 						return frameCount, trace.Wrap(err)
 					}
@@ -170,7 +188,27 @@ loop:
 						return frameCount, trace.Wrap(err)
 					}
 					for i := 0; i < int(framesToEmit); i++ {
-						if err := movie.AddFrame(buf.Bytes()); err != nil {
+						err := movie.AddFrame(buf.Bytes())
+						if errors.Is(err, mjpeg.ErrTooLarge) {
+							// this file can't get any larger - time to open a new file
+							if err := movie.Close(); err != nil {
+								return frameCount, trace.WrapWithMessage(err, "failed to write partial recording")
+							}
+							if write != nil {
+								write("wrote %v\n", currentFilename)
+							}
+							fileCount++
+							currentFilename = makeAVIFileName(prefix, fileCount)
+							movie, err = mjpeg.New(currentFilename, width, height, framesPerSecond)
+							if err != nil {
+								return frameCount, trace.Wrap(err)
+							}
+
+							// write the frame to the new file
+							if err := movie.AddFrame(buf.Bytes()); err != nil {
+								return frameCount, trace.Wrap(err)
+							}
+						} else if err != nil {
 							return frameCount, trace.Wrap(err)
 						}
 						frameCount++
@@ -190,7 +228,12 @@ loop:
 		return 0, trace.BadParameter("operation canceled")
 	}
 
-	return frameCount, trace.Wrap(movie.Close())
+	err = movie.Close()
+	if err == nil && write != nil {
+		write("wrote %v\n", currentFilename)
+	}
+
+	return frameCount, trace.Wrap(err)
 }
 
 func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {

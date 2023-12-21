@@ -1,31 +1,33 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent, act } from 'design/utils/testing';
+import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import {
   AwsRdsDatabase,
   Integration,
   IntegrationKind,
+  integrationService,
   IntegrationStatusCode,
   Regions,
-  integrationService,
 } from 'teleport/services/integrations';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
@@ -43,6 +45,8 @@ import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
+
+import { userEventService } from 'teleport/services/userEvent';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -78,52 +82,13 @@ const mocKIntegration: Integration = {
 describe('test AutoDeploy.tsx', () => {
   jest.useFakeTimers();
 
-  const teleCtx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db1',
-      integration: mocKIntegration,
-      selectedAwsRdsDb: mockAwsRdsDb,
-      agentMatcherLabels: mockDbLabels,
-    } as DbMeta,
-    currentStep: 0,
-    nextStep: jest.fn(x => x),
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.AuroraMysql,
-      },
-    } as any,
-    viewConfig: null,
-    exitFlow: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: jest.fn(x => x),
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   beforeEach(() => {
-    jest.spyOn(integrationService, 'deployAwsOidcService').mockResolvedValue({
-      clusterArn: 'cluster-arn',
-      serviceArn: 'service-arn',
-      taskDefinitionArn: 'task-definition',
-      serviceDashboardUrl: 'dashboard-url',
-    });
-
-    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
-      agents: [],
-    });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   test('init: labels are rendered, command is not rendered yet', () => {
+    const { teleCtx, discoverCtx } = getMockedContexts();
+
     renderAutoDeploy(teleCtx, discoverCtx);
 
     expect(screen.getByText(/env: prod/i)).toBeInTheDocument();
@@ -132,6 +97,8 @@ describe('test AutoDeploy.tsx', () => {
   });
 
   test('clicking button renders command', () => {
+    const { teleCtx, discoverCtx } = getMockedContexts();
+
     renderAutoDeploy(teleCtx, discoverCtx);
 
     fireEvent.click(screen.getByText(/generate command/i));
@@ -145,6 +112,8 @@ describe('test AutoDeploy.tsx', () => {
   });
 
   test('invalid role name', () => {
+    const { teleCtx, discoverCtx } = getMockedContexts();
+
     renderAutoDeploy(teleCtx, discoverCtx);
 
     expect(
@@ -166,6 +135,8 @@ describe('test AutoDeploy.tsx', () => {
   });
 
   test('deploy hint states', async () => {
+    const { teleCtx, discoverCtx } = getMockedContexts();
+
     renderAutoDeploy(teleCtx, discoverCtx);
 
     fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
@@ -195,6 +166,53 @@ describe('test AutoDeploy.tsx', () => {
 });
 
 const TEST_PING_INTERVAL = 1000 * 60 * 5; // 5 minutes
+
+function getMockedContexts() {
+  const teleCtx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'db1',
+      integration: mocKIntegration,
+      selectedAwsRdsDb: mockAwsRdsDb,
+      agentMatcherLabels: mockDbLabels,
+    } as DbMeta,
+    currentStep: 0,
+    nextStep: jest.fn(x => x),
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {
+      dbMeta: {
+        location: DatabaseLocation.Aws,
+        engine: DatabaseEngine.AuroraMysql,
+      },
+    } as any,
+    viewConfig: null,
+    exitFlow: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: jest.fn(x => x),
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
+
+  jest.spyOn(integrationService, 'deployAwsOidcService').mockResolvedValue({
+    clusterArn: 'cluster-arn',
+    serviceArn: 'service-arn',
+    taskDefinitionArn: 'task-definition',
+    serviceDashboardUrl: 'dashboard-url',
+  });
+
+  jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+    agents: [],
+  });
+
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(undefined as never);
+
+  return { teleCtx, discoverCtx };
+}
 
 function renderAutoDeploy(
   ctx: TeleportContext,

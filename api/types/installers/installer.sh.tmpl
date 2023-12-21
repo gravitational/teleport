@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# shellcheck disable=SC1083,SC2215,SC2288 # caused by Go templating, and shellcheck won't parse if the lines are excluded individually
 
 set -eu
 
@@ -50,8 +51,9 @@ on_gcp() {
     sudo apt-get install -y ${PACKAGE_LIST}
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
-      VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
+      VERSION_ID=${VERSION_ID//\.*/} # convert version numbers like '7.2' to only include the major version
     fi
+    sudo yum install -y yum-utils
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo yum install -y ${PACKAGE_LIST}
@@ -59,7 +61,7 @@ on_gcp() {
     if [ "$ID" = "opensuse-tumbleweed" ]; then
       VERSION_ID="15" # tumbleweed uses dated VERSION_IDs like 20230702
     else
-      VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
+      VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
     fi
     sudo rpm --import "https://zypper.releases.teleport.dev/gpg"
     sudo zypper --non-interactive addrepo "$(rpm --eval "https://zypper.releases.teleport.dev/sles/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
@@ -110,7 +112,9 @@ on_gcp() {
   sudo /usr/local/bin/teleport node configure \
     --proxy="{{ .PublicProxyAddr }}" \
     --join-method=${JOIN_METHOD} \
+    {{- if .AzureClientID }}
     --azure-client-id="{{ .AzureClientID }}" \
+    {{ end -}}
     --token="$1" \
     --output=file \
     --labels="${LABELS}"

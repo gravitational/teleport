@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -94,18 +96,25 @@ func TestReconcileLabels(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update the server's labels.
-	labels := map[string]string{"a": "1", "b": "2"}
-	serverInfo, err := types.NewServerInfo(types.Metadata{
-		Name:   "aws-my-account-my-instance",
-		Labels: labels,
-	}, types.ServerInfoSpecV1{})
+	awsServerInfo, err := types.NewServerInfo(types.Metadata{
+		Name: types.ServerInfoNameFromAWS("my-account", "my-instance"),
+	}, types.ServerInfoSpecV1{
+		NewLabels: map[string]string{"a": "1", "b": "2"},
+	})
 	require.NoError(t, err)
-	serverInfo.SetSubKind(types.SubKindCloudInfo)
-	require.NoError(t, pack.a.UpsertServerInfo(ctx, serverInfo))
+	require.NoError(t, pack.a.UpsertServerInfo(ctx, awsServerInfo))
+
+	regularServerInfo, err := types.NewServerInfo(types.Metadata{
+		Name: types.ServerInfoNameFromNodeName(serverName),
+	}, types.ServerInfoSpecV1{
+		NewLabels: map[string]string{"b": "3", "c": "4"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, pack.a.UpsertServerInfo(ctx, regularServerInfo))
 
 	go pack.a.ReconcileServerInfos(ctx)
 	// Wait until the reconciler finishes processing the serverinfo.
 	clock.BlockUntil(1)
 	// Check that labels were received downstream.
-	require.Equal(t, labels, upstream.updatedLabels)
+	require.Equal(t, map[string]string{"a": "1", "b": "3", "c": "4"}, upstream.updatedLabels)
 }

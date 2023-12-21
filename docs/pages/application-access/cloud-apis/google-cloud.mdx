@@ -191,7 +191,7 @@ $ gcloud compute instances create teleport-app-service \
    --service-account=teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
    --scopes=cloud-platform \
    --zone=<Var name="google-cloud-zone" /> \
-   --image=https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2210-kinetic-arm64-v20230113
+   --image=https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/debian-11-bullseye-v20231212
 ```
 
 You must use the `service-account` and `scopes` flags as we list them here,
@@ -645,3 +645,8 @@ command.
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and
   [`gsutil`](https://cloud.google.com/storage/docs/gsutil).
+- For full details on how Teleport populates the `internal` and `external`
+  traits we illustrated in the Teleport roles within this guide, see
+  the [Teleport Access Controls
+  Reference](../../access-controls/reference.mdx).
+

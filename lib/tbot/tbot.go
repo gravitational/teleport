@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package tbot
 
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -43,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
 type Bot struct {
 	cfg     *config.BotConfig
@@ -94,6 +99,9 @@ func (b *Bot) markStarted() error {
 }
 
 func (b *Bot) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "Bot/Run")
+	defer span.End()
+
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,6 +220,9 @@ func (b *Bot) Run(ctx context.Context) error {
 
 // initialize returns an unlock function which must be deferred.
 func (b *Bot) initialize(ctx context.Context) (func() error, error) {
+	ctx, span := tracer.Start(ctx, "Bot/initialize")
+	defer span.End()
+
 	if b.cfg.AuthServer == "" {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
@@ -285,7 +296,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		// If using a non-renewable join method, or we weren't able to load an
 		// identity from the store, let's get a new identity using the
 		// configured token.
-		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
+		newIdentity, err = botIdentityFromToken(ctx, b.log, b.cfg)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
@@ -322,7 +333,10 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 // It checks this loaded identity against the configured onboarding profile
 // and ignores the loaded identity if there has been a configuration change.
 func (b *Bot) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
+	ctx, span := tracer.Start(ctx, "Bot/loadIdentityFromStore")
+	defer span.End()
 	b.log.WithField("store", store).Info("Loading existing bot identity from store.")
+
 	loadedIdent, err := identity.LoadIdentity(ctx, store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -431,18 +445,26 @@ func (b *Bot) checkIdentity(ident *identity.Identity) error {
 // attempt to connect via the proxy and therefore requires both SSH and TLS
 // credentials.
 func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
+	ctx, span := tracer.Start(ctx, "Bot/AuthenticatedUserClientFromIdentity")
+	defer span.End()
+
 	if id.SSHCert == nil || id.X509Cert == nil {
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
+	// TODO(noah): Eventually we'll want to reuse this facade across the bot
+	// rather than recreating it. Right now the blocker to that is handling the
+	// generation field on the certificate.
+	facade := identity.NewFacade(
+		b.cfg.FIPS,
+		b.cfg.Insecure,
+		id,
+	)
+	tlsConfig, err := facade.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Pass through the Insecure mode flag so that the webapi/find call works with a self-signed certificate as expected.
-	tlsConfig.InsecureSkipVerify = b.cfg.Insecure
-
-	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
+	sshConfig, err := facade.SSHClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -457,6 +479,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		SSH:         sshConfig,
 		AuthServers: []utils.NetAddr{*authAddr},
 		Log:         b.log,
+		Insecure:    b.cfg.Insecure,
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)

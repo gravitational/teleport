@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package helpers
 
@@ -276,7 +280,7 @@ type TeleInstance struct {
 	// Log specifies the instance logger
 	Log utils.Logger
 	InstanceListeners
-	Fds []servicecfg.FileDescriptor
+	Fds []*servicecfg.FileDescriptor
 }
 
 // InstanceConfig is an instance configuration
@@ -298,7 +302,7 @@ type InstanceConfig struct {
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
 
-	Fds []servicecfg.FileDescriptor
+	Fds []*servicecfg.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -436,7 +440,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	}
 	tconf.Log = i.Log
 	tconf.DataDir = dataDir
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
@@ -677,7 +681,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 	}
 
 	tconf.SetToken("token")
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = servicecfg.CachePolicy{
 		Enabled: true,
 	}
@@ -732,7 +736,7 @@ func (i *TeleInstance) StartApp(conf *servicecfg.Config) (*service.TeleportProce
 		Addr:        i.Web,
 	})
 	conf.SetToken("token")
-	conf.UploadEventsC = i.UploadEventsC
+	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 
@@ -782,7 +786,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 				Addr:        i.Web,
 			})
 			cfg.SetToken("token")
-			cfg.UploadEventsC = i.UploadEventsC
+			cfg.Testing.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 
@@ -844,7 +848,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 		Addr:        i.Web,
 	})
 	conf.SetToken("token")
-	conf.UploadEventsC = i.UploadEventsC
+	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Databases.Enabled = true
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -906,7 +910,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterN
 		Addr:        i.Web,
 	})
 	conf.SetToken("token")
-	conf.UploadEventsC = i.UploadEventsC
+	conf.Testing.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.Apps.Enabled = false
@@ -956,7 +960,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
 	tconf.CachePolicy = servicecfg.CachePolicy{
 		Enabled: true,
@@ -1031,7 +1035,7 @@ type ProxyConfig struct {
 	// Disable ALPN routing
 	DisableALPNSNIListener bool
 	// FileDescriptors holds FDs to be injected into the Teleport process
-	FileDescriptors []servicecfg.FileDescriptor
+	FileDescriptors []*servicecfg.FileDescriptor
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
@@ -1049,7 +1053,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.SetAuthServerAddress(*authServer)
 	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
-	tconf.UploadEventsC = i.UploadEventsC
+	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
 	tconf.SetToken("token")

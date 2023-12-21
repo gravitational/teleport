@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -20,12 +22,11 @@ import { useHistory, useLocation } from 'react-router';
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
-
-import { getPlatform, Platform } from 'design/theme/utils';
+import { getPlatform, Platform } from 'design/platform';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
-import { Acl } from 'teleport/services/user';
+import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
 import {
   Header,
   HeaderSubtitle,
@@ -38,6 +39,7 @@ import {
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
+import { storageService } from 'teleport/services/storageService';
 
 import {
   ClusterResource,
@@ -57,9 +59,14 @@ interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
 }
 
+type UrlLocationState = {
+  entity: SearchResource; // entity takes precedence over search keywords
+  searchKeywords: string;
+};
+
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const location = useLocation<{ entity: SearchResource }>();
+  const location = useLocation<UrlLocationState>();
   const history = useHistory();
   const { preferences } = useUser();
 
@@ -89,11 +96,18 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   useEffect(() => {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
-    const { acl } = userContext;
+    const { acl, authType } = userContext;
+    const platform = getPlatform();
 
+    const resources = addHasAccessField(
+      acl,
+      filterResources(platform, authType, RESOURCES)
+    );
+    const onboardDiscover = storageService.getOnboardDiscover();
     const sortedResources = sortResources(
-      makeResourcesWithHasAccessField(acl),
-      preferences
+      resources,
+      preferences,
+      onboardDiscover
     );
     setDefaultResources(sortedResources);
 
@@ -115,6 +129,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
+      return;
+    }
+
+    const searchKeywordSpecifiedByUrlLoc = location.state?.searchKeywords;
+    if (searchKeywordSpecifiedByUrlLoc) {
+      onSearch(searchKeywordSpecifiedByUrlLoc, sortedResources);
       return;
     }
 
@@ -290,6 +310,10 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       return acl.nodes.list;
     case ResourceKind.SamlApplication:
       return acl.samlIdpServiceProvider.create;
+    case ResourceKind.ConnectMyComputer:
+      // This is probably already true since without this permission the user wouldn't be able to
+      // add any other resource, but let's just leave it for completeness sake.
+      return acl.tokens.create;
     default:
       return false;
   }
@@ -335,67 +359,135 @@ function sortResourcesByKind(
   return sorted;
 }
 
+const aBeforeB = -1;
+const aAfterB = 1;
+const aEqualsB = 0;
+
+/**
+ * Evaluates the predicate and prioritizes the element matching the predicate over the element that
+ * doesn't.
+ *
+ * @example
+ * comparePredicate({color: 'green'}, {color: 'red'}, (el) => el.color === 'green') // => -1 (a before b)
+ * comparePredicate({color: 'red'}, {color: 'green'}, (el) => el.color === 'green') // => 1  (a after  b)
+ * comparePredicate({color: 'blue'}, {color: 'pink'}, (el) => el.color === 'green') // => 0  (both are equal)
+ */
+function comparePredicate<ElementType>(
+  a: ElementType,
+  b: ElementType,
+  predicate: (resource: ElementType) => boolean
+): -1 | 0 | 1 {
+  const aMatches = predicate(a);
+  const bMatches = predicate(b);
+
+  if (aMatches && !bMatches) {
+    return aBeforeB;
+  }
+
+  if (bMatches && !aMatches) {
+    return aAfterB;
+  }
+
+  return aEqualsB;
+}
+
 export function sortResources(
   resources: ResourceSpec[],
-  preferences: UserPreferences
+  preferences: UserPreferences,
+  onboardDiscover: OnboardDiscover | undefined
 ) {
   const { preferredResources, hasPreferredResources } =
     getPrioritizedResources(preferences);
+  const platform = getPlatform();
 
   const sortedResources = [...resources];
   const accessible = sortedResources.filter(r => r.hasAccess);
   const restricted = sortedResources.filter(r => !r.hasAccess);
 
-  // Sort accessible resources by 1. os 2. preferred 3. guided and 4. alphabetically
-  accessible.sort((a, b) => {
-    let aPreferred,
-      bPreferred = false;
-    if (hasPreferredResources) {
-      aPreferred = preferredResources.includes(
-        resourceKindToPreferredResource(a.kind)
-      );
-      bPreferred = preferredResources.includes(
-        resourceKindToPreferredResource(b.kind)
-      );
-    }
+  const hasNoResources = onboardDiscover && !onboardDiscover.hasResource;
+  const prefersServers =
+    hasPreferredResources &&
+    preferredResources.includes(
+      resourceKindToPreferredResource(ResourceKind.Server)
+    );
+  const prefersServersOrNoPreferences =
+    prefersServers || !hasPreferredResources;
+  const shouldShowConnectMyComputerFirst =
+    hasNoResources &&
+    prefersServersOrNoPreferences &&
+    isConnectMyComputerAvailable(accessible);
 
-    let platform: string;
-    const platformType = getPlatform();
-    if (platformType.isMac) {
-      platform = Platform.PLATFORM_MACINTOSH;
-    }
-    if (platformType.isLinux) {
-      platform = Platform.PLATFORM_LINUX;
-    }
-    if (platformType.isWin) {
-      platform = Platform.PLATFORM_WINDOWS;
+  // Sort accessible resources by:
+  // 1. os
+  // 2. preferred
+  // 3. guided
+  // 4. alphabetically
+  //
+  // When available on the given platform, Connect My Computer is put either as the first resource
+  // if the user has no resources, otherwise it's at the end of the guided group.
+  accessible.sort((a, b) => {
+    const compareAB = (predicate: (r: ResourceSpec) => boolean) =>
+      comparePredicate(a, b, predicate);
+    const areBothGuided = !a.unguidedLink && !b.unguidedLink;
+
+    // Special cases for Connect My Computer.
+    // Show Connect My Computer tile as the first resource.
+    if (shouldShowConnectMyComputerFirst) {
+      const prioritizeConnectMyComputer = compareAB(
+        r => r.kind === ResourceKind.ConnectMyComputer
+      );
+      if (prioritizeConnectMyComputer) {
+        return prioritizeConnectMyComputer;
+      }
+
+      // Within the guided group, deprioritize server tiles of the current user platform if Connect
+      // My Computer is available.
+      //
+      // If the user has no resources available in the cluster, we want to nudge them towards
+      // Connect My Computer rather than, say, standalone macOS setup.
+      //
+      // Only do this if the user doesn't explicitly prefer servers. If they prefer servers, we
+      // want the servers for their platform to be displayed in their usual place so that the user
+      // doesn't miss that Teleport supports them.
+      if (!prefersServers && areBothGuided) {
+        const deprioritizeServerForUserPlatform = compareAB(
+          r => !(r.kind == ResourceKind.Server && r.platform === platform)
+        );
+        if (deprioritizeServerForUserPlatform) {
+          return deprioritizeServerForUserPlatform;
+        }
+      }
+    } else if (areBothGuided) {
+      // Show Connect My Computer tile as the last guided resource if the user already added some
+      // resources or they prefer other kinds of resources than servers.
+      const deprioritizeConnectMyComputer = compareAB(
+        r => r.kind !== ResourceKind.ConnectMyComputer
+      );
+      if (deprioritizeConnectMyComputer) {
+        return deprioritizeConnectMyComputer;
+      }
     }
 
     // Display platform resources first
-    if (a.platform === platform && b.platform !== platform) {
-      return -1;
-    }
-    if (a.platform !== platform && b.platform === platform) {
-      return 1;
+    const prioritizeUserPlatform = compareAB(r => r.platform === platform);
+    if (prioritizeUserPlatform) {
+      return prioritizeUserPlatform;
     }
 
     // Display preferred resources second
-    if (aPreferred && !bPreferred) {
-      return -1;
-    }
-    if (!aPreferred && bPreferred) {
-      return 1;
+    if (hasPreferredResources) {
+      const prioritizePreferredResource = compareAB(r =>
+        preferredResources.includes(resourceKindToPreferredResource(r.kind))
+      );
+      if (prioritizePreferredResource) {
+        return prioritizePreferredResource;
+      }
     }
 
     // Display guided resources third
-    if (!a.unguidedLink && !b.unguidedLink) {
-      return a.name.localeCompare(b.name);
-    }
-    if (!b.unguidedLink) {
-      return 1;
-    }
-    if (!a.unguidedLink) {
-      return -1;
+    const prioritizeGuided = compareAB(r => !r.unguidedLink);
+    if (prioritizeGuided) {
+      return prioritizeGuided;
     }
 
     // Alpha
@@ -411,6 +503,14 @@ export function sortResources(
   // top of the list, so it is more visible to
   // the user.
   return [...accessible, ...restricted];
+}
+
+function isConnectMyComputerAvailable(
+  accessibleResources: ResourceSpec[]
+): boolean {
+  return !!accessibleResources.find(
+    resource => resource.kind === ResourceKind.ConnectMyComputer
+  );
 }
 
 /**
@@ -453,8 +553,29 @@ function getPrioritizedResources(
   };
 }
 
-function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
-  return RESOURCES.map(r => {
+export function filterResources(
+  platform: Platform,
+  authType: AuthType,
+  resources: ResourceSpec[]
+) {
+  return resources.filter(resource => {
+    const resourceSupportsPlatform =
+      !resource.supportedPlatforms?.length ||
+      resource.supportedPlatforms.includes(platform);
+
+    const resourceSupportsAuthType =
+      !resource.supportedAuthTypes?.length ||
+      resource.supportedAuthTypes.includes(authType);
+
+    return resourceSupportsPlatform && resourceSupportsAuthType;
+  });
+}
+
+function addHasAccessField(
+  acl: Acl,
+  resources: ResourceSpec[]
+): ResourceSpec[] {
+  return resources.map(r => {
     const hasAccess = checkHasAccess(acl, r.kind);
     switch (r.kind) {
       case ResourceKind.Database:

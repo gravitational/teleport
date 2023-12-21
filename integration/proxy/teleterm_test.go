@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -18,6 +22,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +34,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -36,6 +42,10 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -50,12 +60,14 @@ import (
 // testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
 // cost of setting up clusters in tests.
 func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
+	ctx := context.Background()
+
 	t.Run("root cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testDBGatewayCertRenewal(t, pack, "", databaseURI)
+		testDBGatewayCertRenewal(ctx, t, pack, "", databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
@@ -64,7 +76,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 			AppendLeafCluster(leafClusterName).
 			AppendDB(pack.Leaf.MysqlService.Name)
 
-		testDBGatewayCertRenewal(t, pack, "", databaseURI)
+		testDBGatewayCertRenewal(ctx, t, pack, "", databaseURI)
 	})
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -78,35 +90,47 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testDBGatewayCertRenewal(t, pack, albProxy.Addr().String(), databaseURI)
+		testDBGatewayCertRenewal(ctx, t, pack, albProxy.Addr().String(), databaseURI)
 	})
 }
 
-func testDBGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
+func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
 	t.Helper()
 
 	testGatewayCertRenewal(
+		ctx,
 		t,
-		pack.Root.Cluster,
-		pack.Root.User.GetName(),
-		albAddr,
-		daemon.CreateGatewayParams{
-			TargetURI:  databaseURI.String(),
-			TargetUser: pack.Root.User.GetName(),
+		gatewayCertRenewalParams{
+			inst:     pack.Root.Cluster,
+			username: pack.Root.User.GetName(),
+			albAddr:  albAddr,
+			createGatewayParams: daemon.CreateGatewayParams{
+				TargetURI:  databaseURI.String(),
+				TargetUser: pack.Root.User.GetName(),
+			},
+			testGatewayConnectionFunc: mustConnectDatabaseGateway,
 		},
-		mustConnectDatabaseGateway,
 	)
 }
 
 type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
 
-func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, albAddr string, params daemon.CreateGatewayParams, testConnection testGatewayConnectionFunc) {
+type gatewayCertRenewalParams struct {
+	inst                      *helpers.TeleInstance
+	username                  string
+	albAddr                   string
+	createGatewayParams       daemon.CreateGatewayParams
+	testGatewayConnectionFunc testGatewayConnectionFunc
+	webauthnLogin             libclient.WebauthnLoginFunc
+}
+
+func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
 	t.Helper()
 
-	tc, err := inst.NewClient(helpers.ClientConfig{
-		Login:   username,
-		Cluster: inst.Secrets.SiteName,
-		ALBAddr: albAddr,
+	tc, err := params.inst.NewClient(helpers.ClientConfig{
+		Login:   params.username,
+		Cluster: params.inst.Secrets.SiteName,
+		ALBAddr: params.albAddr,
 	})
 	require.NoError(t, err)
 
@@ -114,13 +138,40 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 	err = tc.SaveProfile(false /* makeCurrent */)
 	require.NoError(t, err)
 
+	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
+
+	var webauthLoginCalls atomic.Uint32
+	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		t.Helper()
+
+		updatedWebauthnLoginCalls := webauthLoginCalls.Add(1)
+
+		// Ensure that the mfa prompt in lib/teleterm has sent a message to the Electron app.
+		// This simulates a flow where the user was notified about the need to tap the key through the
+		// UI and then taps the key.
+		//
+		// This also makes sure that the goroutine which handles hardware key taps doesn't finish
+		// before the goroutine that sends the message to the Electron app, allowing us to assert later
+		// in tests that PromptMFA on tshd events service has been called.
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			// Each call to webauthnLogin should have an equivalent call to PromptMFA and there should be
+			// no multiple concurrent calls.
+			assert.Equal(t, updatedWebauthnLoginCalls, tshdEventsService.promptMFACallCount.Load(),
+				"Expected each call to webauthnLogin to have an equivalent call to PromptMFA")
+		}, 5*time.Second, 50*time.Millisecond)
+
+		resp, credentialUser, err := params.webauthnLogin(ctx, origin, assertion, prompt, opts)
+		return resp, credentialUser, err
+	}
+
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
-		Clock: fakeClock,
+		Clock:         fakeClock,
+		WebauthnLogin: webauthnLogin,
 	})
 	require.NoError(t, err)
 
@@ -138,29 +189,28 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 		daemonService.Stop()
 	})
 
-	// Create a mock tshd events service server and have the daemon connect to it,
-	// like it would during normal initialization of the app.
-	tshdEventsService, tshEventsServerAddr := newMockTSHDEventsServiceServer(t, tc, inst, username)
-	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshEventsServerAddr)
+	// Connect the daemon to the tshd events service, like it would
+	// during normal initialization of the app.
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshdEventsService.addr)
 	require.NoError(t, err)
 
 	// Here the test setup ends and actual test code starts.
-	gateway, err := daemonService.CreateGateway(context.Background(), params)
+	gateway, err := daemonService.CreateGateway(ctx, params.createGatewayParams)
 	require.NoError(t, err, trace.DebugReport(err))
 
-	testConnection(t, daemonService, gateway)
+	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
 	// Advance the fake clock to simulate the db cert expiry inside the middleware.
 	fakeClock.Advance(time.Hour * 48)
 
 	// Overwrite user certs with expired ones to simulate the user cert expiry.
 	expiredCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  inst.Process,
-		Username: username,
+		Process:  params.inst.Process,
+		Username: params.username,
 		TTL:      -time.Hour,
 	})
 	require.NoError(t, err)
-	err = helpers.SetupUserCreds(tc, inst.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	err = helpers.SetupUserCreds(tc, params.inst.Config.Proxy.SSHAddr.Addr, *expiredCreds)
 	require.NoError(t, err)
 
 	// Open a new connection.
@@ -168,35 +218,44 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 	// and then it will attempt to reissue the user cert using an expired user cert.
 	// The mocked tshdEventsClient will issue a valid user cert, save it to disk, and the middleware
 	// will let the connection through.
-	testConnection(t, daemonService, gateway)
+	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
-	require.Equal(t, 1, tshdEventsService.callCounts["Relogin"],
+	require.Equal(t, uint32(1), tshdEventsService.reloginCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
-	require.Equal(t, 0, tshdEventsService.callCounts["SendNotification"],
+	require.Equal(t, uint32(0), tshdEventsService.sendNotificationCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
+	if params.webauthnLogin != nil {
+		// There are two calls, one to issue the certs when creating the gateway and then another to
+		// reissue them after relogin.
+		require.Equal(t, uint32(2), tshdEventsService.promptMFACallCount.Load(),
+			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
+	}
 }
 
 type mockTSHDEventsService struct {
 	*api.UnimplementedTshdEventsServiceServer
 
-	tc         *libclient.TeleportClient
-	inst       *helpers.TeleInstance
-	username   string
-	callCounts map[string]int
+	tc                        *libclient.TeleportClient
+	inst                      *helpers.TeleInstance
+	username                  string
+	addr                      string
+	reloginCallCount          atomic.Uint32
+	sendNotificationCallCount atomic.Uint32
+	promptMFACallCount        atomic.Uint32
 }
 
-func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService, addr string) {
+func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService) {
 	t.Helper()
-
-	tshdEventsService := &mockTSHDEventsService{
-		tc:         tc,
-		inst:       inst,
-		username:   username,
-		callCounts: make(map[string]int),
-	}
 
 	ls, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+
+	tshdEventsService := &mockTSHDEventsService{
+		tc:       tc,
+		inst:     inst,
+		username: username,
+		addr:     ls.Addr().String(),
+	}
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
@@ -218,13 +277,13 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 		}
 	})
 
-	return tshdEventsService, ls.Addr().String()
+	return tshdEventsService
 }
 
 // Relogin simulates the act of the user logging in again in the Electron app by replacing the user
 // cert on disk with a valid one.
 func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
-	c.callCounts["Relogin"]++
+	c.reloginCallCount.Add(1)
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  c.inst.Process,
 		Username: c.username,
@@ -241,8 +300,16 @@ func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*
 }
 
 func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
-	c.callCounts["SendNotification"]++
+	c.sendNotificationCallCount.Add(1)
 	return &api.SendNotificationResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) PromptMFA(context.Context, *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
+	c.promptMFACallCount.Add(1)
+
+	// PromptMFAResponse returns the TOTP code, so PromptMFA itself
+	// needs to be implemented only once we implement TOTP MFA.
+	return nil, trace.NotImplemented("mockTSHDEventsService does not implement PromptMFA")
 }
 
 // TestTeletermKubeGateway tests making kube API calls against Teleterm kube
@@ -254,6 +321,7 @@ func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotif
 func TestTeletermKubeGateway(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
+	ctx := context.Background()
 
 	const (
 		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
@@ -306,12 +374,18 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("root", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:   suite,
+			kubeURI: kubeURI,
+		})
 	})
 	t.Run("leaf", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:   suite,
+			kubeURI: kubeURI,
+		})
 	})
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -324,20 +398,66 @@ func TestTeletermKubeGateway(t *testing.T) {
 		profileName := mustGetProfileName(t, albProxy.Addr().String())
 
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
-		testKubeGatewayCertRenewal(t, suite, albProxy.Addr().String(), kubeURI)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:   suite,
+			kubeURI: kubeURI,
+			albAddr: albProxy.Addr().String(),
+		})
+	})
+
+	// MFA tests.
+	// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
+
+	t.Run("root with per-session MFA", func(t *testing.T) {
+		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
+
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:         suite,
+			kubeURI:       kubeURI,
+			webauthnLogin: webauthnLogin,
+		})
+	})
+	t.Run("leaf with per-session MFA", func(t *testing.T) {
+		// Set up MFA in the leaf cluster too so that MFA is required, but use webauthnLogin from the
+		// root cluster since we're connecting through the root cluster.
+		webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), kubeRole, username)
+		setupUserMFA(ctx, t, suite.leaf.Process.GetAuthServer(), kubeRole, username)
+
+		profileName := mustGetProfileName(t, suite.root.Web)
+		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
+			suite:         suite,
+			kubeURI:       kubeURI,
+			webauthnLogin: webauthnLogin,
+		})
 	})
 }
 
-func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kubeURI uri.ResourceURI) {
+type kubeGatewayCertRenewalParams struct {
+	suite         *Suite
+	kubeURI       uri.ResourceURI
+	albAddr       string
+	webauthnLogin libclient.WebauthnLoginFunc
+}
+
+func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGatewayCertRenewalParams) {
 	t.Helper()
 
 	var client *kubernetes.Clientset
 	var clientOnce sync.Once
 
-	kubeCluster := kubeURI.GetKubeName()
-	teleportCluster := suite.root.Secrets.SiteName
-	if kubeURI.GetLeafClusterName() != "" {
-		teleportCluster = kubeURI.GetLeafClusterName()
+	kubeCluster := params.kubeURI.GetKubeName()
+	teleportCluster := params.suite.root.Secrets.SiteName
+	if params.kubeURI.GetLeafClusterName() != "" {
+		teleportCluster = params.kubeURI.GetLeafClusterName()
 	}
 
 	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
@@ -357,14 +477,18 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 	}
 
 	testGatewayCertRenewal(
+		ctx,
 		t,
-		suite.root,
-		suite.username,
-		albAddr,
-		daemon.CreateGatewayParams{
-			TargetURI: kubeURI.String(),
+		gatewayCertRenewalParams{
+			inst:     params.suite.root,
+			username: params.suite.username,
+			albAddr:  params.albAddr,
+			createGatewayParams: daemon.CreateGatewayParams{
+				TargetURI: params.kubeURI.String(),
+			},
+			testGatewayConnectionFunc: testKubeConnection,
+			webauthnLogin:             params.webauthnLogin,
 		},
-		testKubeConnection,
 	)
 }
 
@@ -373,5 +497,82 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 
 	cmd, err := daemonService.GetGatewayCLICommand(gw)
 	require.NoError(t, err)
-	require.Equal(t, cmd.Env, []string{"KUBECONFIG=" + wantKubeconfigPath})
+	require.Equal(t, []string{"KUBECONFIG=" + wantKubeconfigPath}, cmd.Env)
+}
+
+// setupUserMFA upserts role so that it requires per-session MFA and configures the user account to
+// support MFA. Assumes that user already holds role. Returns WebauthnLoginFunc that can be passed
+// to the client.
+//
+// Based on setupUserMFA from e/tool/tsh/tsh_test.go.
+func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, role types.Role, username string) libclient.WebauthnLoginFunc {
+	t.Helper()
+
+	// Enable optional MFA.
+	err := authServer.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Configure role.
+	options := role.GetOptions()
+	options.RequireMFAType = types.RequireMFAType_SESSION
+	role.SetOptions(options)
+	_, err = authServer.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Configure user account.
+	const origin = "https://localhost"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	tokenID := token.GetName()
+	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID: tokenID,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion(origin, assertion)
+		if err != nil {
+			return nil, "", err
+		}
+
+		carProto := wantypes.CredentialAssertionResponseToProto(car)
+
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: carProto,
+			},
+		}, "", nil
+	}
+
+	return webauthnLogin
 }

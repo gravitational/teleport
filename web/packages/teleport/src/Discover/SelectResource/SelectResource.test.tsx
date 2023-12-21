@@ -1,20 +1,22 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Platform } from 'design/theme/utils';
+import { Platform, UserAgent } from 'design/platform';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
@@ -22,14 +24,18 @@ import {
   ClusterResource,
   OnboardUserPreferences,
 } from 'teleport/services/userPreferences/types';
+import { OnboardDiscover } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared';
+import { resourceKindToPreferredResource } from '../Shared/ResourceKind';
 
-import { sortResources } from './SelectResource';
+import { filterResources, sortResources } from './SelectResource';
 import { ResourceSpec } from './types';
 
 const setUp = () => {
-  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+  jest
+    .spyOn(window.navigator, 'userAgent', 'get')
+    .mockReturnValue(UserAgent.macOS);
 };
 
 const makeResourceSpec = (
@@ -48,6 +54,25 @@ const makeResourceSpec = (
   );
 };
 
+/**
+ * If the user has resources, Connect My Computer is not prioritized when sorting resources.
+ */
+const onboardDiscoverWithResources: OnboardDiscover = {
+  hasResource: true,
+  notified: true,
+  hasVisited: true,
+};
+/**
+ * If the user does not have resources, Connect My Computer is prioritized as long as it was not
+ * filtered out based on supported platforms and auth types and the user either has no preferences
+ * or prefers servers.
+ */
+const onboardDiscoverNoResources: OnboardDiscover = {
+  hasResource: false,
+  notified: true,
+  hasVisited: false,
+};
+
 test('sortResources without preferred resources, sorts resources alphabetically with guided resources first', () => {
   setUp();
   const mockIn: ResourceSpec[] = [
@@ -62,7 +87,11 @@ test('sortResources without preferred resources, sorts resources alphabetically 
     makeResourceSpec({ name: 'costco' }),
   ];
 
-  const actual = sortResources(mockIn, makeDefaultUserPreferences());
+  const actual = sortResources(
+    mockIn,
+    makeDefaultUserPreferences(),
+    onboardDiscoverWithResources
+  );
 
   expect(actual).toMatchObject([
     // guided and alpha
@@ -317,7 +346,11 @@ describe('preferred resources', () => {
   test.each(testCases)('$name', testCase => {
     const preferences = makeDefaultUserPreferences();
     preferences.onboard.preferredResources = testCase.preferred;
-    const actual = sortResources(kindBasedList, preferences);
+    const actual = sortResources(
+      kindBasedList,
+      preferences,
+      onboardDiscoverWithResources
+    );
 
     expect(actual).toMatchObject(testCase.expected);
   });
@@ -518,7 +551,11 @@ describe('marketing params', () => {
   test.each(testCases)('$name', testCase => {
     const preferences = makeDefaultUserPreferences();
     preferences.onboard = testCase.preferred;
-    const actual = sortResources(kindBasedList, preferences);
+    const actual = sortResources(
+      kindBasedList,
+      preferences,
+      onboardDiscoverWithResources
+    );
 
     expect(actual).toMatchObject(testCase.expected);
   });
@@ -528,18 +565,18 @@ const osBasedList: ResourceSpec[] = [
   makeResourceSpec({ name: 'Aaaa' }),
   makeResourceSpec({
     name: 'no-linux-1',
-    platform: Platform.PLATFORM_LINUX,
+    platform: Platform.Linux,
     hasAccess: false,
   }),
-  makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
-  makeResourceSpec({ name: 'linux-2', platform: Platform.PLATFORM_LINUX }),
+  makeResourceSpec({ name: 'win', platform: Platform.Windows }),
+  makeResourceSpec({ name: 'linux-2', platform: Platform.Linux }),
   makeResourceSpec({
     name: 'no-mac',
-    platform: Platform.PLATFORM_MACINTOSH,
+    platform: Platform.macOS,
     hasAccess: false,
   }),
-  makeResourceSpec({ name: 'mac', platform: Platform.PLATFORM_MACINTOSH }),
-  makeResourceSpec({ name: 'linux-1', platform: Platform.PLATFORM_LINUX }),
+  makeResourceSpec({ name: 'mac', platform: Platform.macOS }),
+  makeResourceSpec({ name: 'linux-1', platform: Platform.Linux }),
 ];
 
 describe('os sorted resources', () => {
@@ -551,104 +588,104 @@ describe('os sorted resources', () => {
 
   const testCases: {
     name: string;
-    platform: Platform;
+    userAgent: UserAgent;
     expected: ResourceSpec[];
   }[] = [
     {
       name: 'running mac',
-      platform: Platform.PLATFORM_MACINTOSH,
+      userAgent: UserAgent.macOS,
       expected: [
         // preferred first
         makeResourceSpec({
           name: 'mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
         }),
         // alpha
         makeResourceSpec({ name: 'Aaaa' }),
         makeResourceSpec({
           name: 'linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'linux-2',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
-        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        makeResourceSpec({ name: 'win', platform: Platform.Windows }),
         // no access, alpha
         makeResourceSpec({
           name: 'no-linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
           hasAccess: false,
         }),
         makeResourceSpec({
           name: 'no-mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
           hasAccess: false,
         }),
       ],
     },
     {
       name: 'running linux',
-      platform: Platform.PLATFORM_LINUX,
+      userAgent: UserAgent.Linux,
       expected: [
         // preferred first
         makeResourceSpec({
           name: 'linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'linux-2',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         // alpha
         makeResourceSpec({ name: 'Aaaa' }),
         makeResourceSpec({
           name: 'mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
         }),
-        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        makeResourceSpec({ name: 'win', platform: Platform.Windows }),
         // no access, alpha
         makeResourceSpec({
           name: 'no-linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
           hasAccess: false,
         }),
         makeResourceSpec({
           name: 'no-mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
           hasAccess: false,
         }),
       ],
     },
     {
       name: 'running windows',
-      platform: Platform.PLATFORM_WINDOWS,
+      userAgent: UserAgent.Windows,
       expected: [
         // preferred first
-        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        makeResourceSpec({ name: 'win', platform: Platform.Windows }),
         // alpha
         makeResourceSpec({ name: 'Aaaa' }),
         makeResourceSpec({
           name: 'linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'linux-2',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
         }),
         makeResourceSpec({
           name: 'mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
         }),
         // no access, alpha
         makeResourceSpec({
           name: 'no-linux-1',
-          platform: Platform.PLATFORM_LINUX,
+          platform: Platform.Linux,
           hasAccess: false,
         }),
         makeResourceSpec({
           name: 'no-mac',
-          platform: Platform.PLATFORM_MACINTOSH,
+          platform: Platform.macOS,
           hasAccess: false,
         }),
       ],
@@ -656,9 +693,13 @@ describe('os sorted resources', () => {
   ];
 
   test.each(testCases)('$name', testCase => {
-    OS.mockReturnValue(testCase.platform);
+    OS.mockReturnValue(testCase.userAgent);
 
-    const actual = sortResources(osBasedList, makeDefaultUserPreferences());
+    const actual = sortResources(
+      osBasedList,
+      makeDefaultUserPreferences(),
+      onboardDiscoverWithResources
+    );
     expect(actual).toMatchObject(testCase.expected);
   });
 
@@ -666,19 +707,23 @@ describe('os sorted resources', () => {
     const mockIn: ResourceSpec[] = [
       makeResourceSpec({
         name: 'macOs',
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
         hasAccess: false,
       }),
       makeResourceSpec({ name: 'Aaaa' }),
     ];
-    OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
+    OS.mockReturnValue(UserAgent.macOS);
 
-    const actual = sortResources(mockIn, makeDefaultUserPreferences());
+    const actual = sortResources(
+      mockIn,
+      makeDefaultUserPreferences(),
+      onboardDiscoverWithResources
+    );
     expect(actual).toMatchObject([
       makeResourceSpec({ name: 'Aaaa' }),
       makeResourceSpec({
         name: 'macOs',
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
         hasAccess: false,
       }),
     ]);
@@ -688,7 +733,7 @@ describe('os sorted resources', () => {
     makeResourceSpec({
       name: 'no access but super matches',
       hasAccess: false,
-      platform: Platform.PLATFORM_MACINTOSH,
+      platform: Platform.macOS,
       kind: ResourceKind.Server,
     }),
     makeResourceSpec({ name: 'guided' }),
@@ -696,16 +741,18 @@ describe('os sorted resources', () => {
     makeResourceSpec({ name: 'unguidedB', unguidedLink: 'test.com' }),
     makeResourceSpec({
       name: 'platform match',
-      platform: Platform.PLATFORM_MACINTOSH,
+      platform: Platform.macOS,
     }),
     makeResourceSpec({ name: 'preferred', kind: ResourceKind.Server }),
   ];
 
   test('all logic together', () => {
-    OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
+    OS.mockReturnValue(UserAgent.macOS);
     const preferences = makeDefaultUserPreferences();
     preferences.onboard = {
-      preferredResources: [2],
+      preferredResources: [
+        resourceKindToPreferredResource(ResourceKind.Server),
+      ],
       marketingParams: {
         campaign: '',
         source: '',
@@ -714,12 +761,16 @@ describe('os sorted resources', () => {
       },
     };
 
-    const actual = sortResources(oneOfEachList, preferences);
+    const actual = sortResources(
+      oneOfEachList,
+      preferences,
+      onboardDiscoverWithResources
+    );
     expect(actual).toMatchObject([
       // 1. OS
       makeResourceSpec({
         name: 'platform match',
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
       }),
       // 2. preferred
       makeResourceSpec({ name: 'preferred', kind: ResourceKind.Server }),
@@ -732,9 +783,420 @@ describe('os sorted resources', () => {
       makeResourceSpec({
         name: 'no access but super matches',
         hasAccess: false,
-        platform: Platform.PLATFORM_MACINTOSH,
+        platform: Platform.macOS,
         kind: ResourceKind.Server,
       }),
     ]);
+  });
+});
+
+describe('sorting Connect My Computer', () => {
+  let OS: jest.SpyInstance;
+
+  beforeEach(() => {
+    OS = jest.spyOn(window.navigator, 'userAgent', 'get');
+  });
+
+  const connectMyComputer = makeResourceSpec({
+    kind: ResourceKind.ConnectMyComputer,
+    name: 'Connect My Computer',
+  });
+  const noAccessServerForMatchingPlatform = makeResourceSpec({
+    name: 'no access but platform matches',
+    hasAccess: false,
+    platform: Platform.macOS,
+    kind: ResourceKind.Server,
+  });
+  const guidedA = makeResourceSpec({ name: 'guided' });
+  const guidedB = makeResourceSpec({ name: 'guidedB' });
+  const unguidedA = makeResourceSpec({
+    name: 'unguidedA',
+    unguidedLink: 'test.com',
+  });
+  const unguidedB = makeResourceSpec({
+    name: 'unguidedB',
+    unguidedLink: 'test.com',
+  });
+  const platformMatch = makeResourceSpec({
+    name: 'platform match',
+    platform: Platform.macOS,
+  });
+  const server = makeResourceSpec({
+    name: 'server',
+    kind: ResourceKind.Server,
+  });
+
+  const oneOfEachList = [
+    noAccessServerForMatchingPlatform,
+    guidedB,
+    unguidedB,
+    guidedA,
+    unguidedA,
+    platformMatch,
+    server,
+    connectMyComputer,
+  ];
+
+  describe('prioritizing Connect My Computer', () => {
+    it('puts the Connect My Computer resource as the first resource if the user has no preferences', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const actual = sortResources(
+        oneOfEachList,
+        makeDefaultUserPreferences(),
+        onboardDiscoverNoResources
+      );
+
+      expect(actual).toMatchObject([
+        // 1. Connect My Computer
+        connectMyComputer,
+        // 2. OS
+        platformMatch,
+        // 3. guided
+        guidedA,
+        guidedB,
+        server,
+        // 4. alpha
+        unguidedA,
+        unguidedB,
+        // 5. no access
+        noAccessServerForMatchingPlatform,
+      ]);
+    });
+
+    it('puts the Connect My Computer resource as the first resource if the user prefers servers', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const preferences = makeDefaultUserPreferences();
+      preferences.onboard = {
+        preferredResources: [
+          resourceKindToPreferredResource(ResourceKind.Server),
+        ],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: '',
+          intent: '',
+        },
+      };
+
+      const actual = sortResources(
+        oneOfEachList,
+        preferences,
+        onboardDiscoverNoResources
+      );
+
+      expect(actual).toMatchObject([
+        // 1. Connect My Computer
+        connectMyComputer,
+        // 2. OS
+        platformMatch,
+        // 3. preferred
+        server,
+        // 4. guided
+        guidedA,
+        guidedB,
+        // 5. alpha
+        unguidedA,
+        unguidedB,
+        // 6. no access is last
+        noAccessServerForMatchingPlatform,
+      ]);
+    });
+
+    it('deprioritizes other server tiles of the matching platform within the guided resources if the user does not prefer servers', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const guidedServerForMatchingPlatformA = makeResourceSpec({
+        name: 'guided server for matching platform A',
+        kind: ResourceKind.Server,
+        platform: Platform.macOS,
+      });
+      const guidedServerForMatchingPlatformB = makeResourceSpec({
+        name: 'guided server for matching platform B',
+        kind: ResourceKind.Server,
+        platform: Platform.macOS,
+      });
+      const guidedServerForAnotherPlatform = makeResourceSpec({
+        name: 'guided server for another platform',
+        kind: ResourceKind.Server,
+        platform: Platform.Linux,
+      });
+
+      const actual = sortResources(
+        [
+          unguidedA,
+          guidedServerForMatchingPlatformB,
+          guidedServerForMatchingPlatformA,
+          guidedServerForAnotherPlatform,
+          connectMyComputer,
+        ],
+        makeDefaultUserPreferences(),
+        onboardDiscoverNoResources
+      );
+
+      expect(actual).toMatchObject([
+        connectMyComputer,
+        guidedServerForAnotherPlatform,
+        guidedServerForMatchingPlatformA,
+        guidedServerForMatchingPlatformB,
+        unguidedA,
+      ]);
+    });
+
+    it('does not deprioritize server tiles of the matching platform if the user prefers servers,', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const guidedServerForMatchingPlatformA = makeResourceSpec({
+        name: 'guided server for matching platform A',
+        kind: ResourceKind.Server,
+        platform: Platform.macOS,
+      });
+      const guidedServerForMatchingPlatformB = makeResourceSpec({
+        name: 'guided server for matching platform B',
+        kind: ResourceKind.Server,
+        platform: Platform.macOS,
+      });
+      const guidedServerForAnotherPlatform = makeResourceSpec({
+        name: 'guided server for another platform',
+        kind: ResourceKind.Server,
+        platform: Platform.Linux,
+      });
+
+      const preferences = makeDefaultUserPreferences();
+      preferences.onboard = {
+        preferredResources: [
+          resourceKindToPreferredResource(ResourceKind.Server),
+        ],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: '',
+          intent: '',
+        },
+      };
+
+      const actual = sortResources(
+        [
+          unguidedA,
+          guidedServerForMatchingPlatformB,
+          guidedServerForMatchingPlatformA,
+          guidedServerForAnotherPlatform,
+          connectMyComputer,
+        ],
+        preferences,
+        onboardDiscoverNoResources
+      );
+
+      expect(actual).toMatchObject([
+        connectMyComputer,
+        guidedServerForMatchingPlatformA,
+        guidedServerForMatchingPlatformB,
+        guidedServerForAnotherPlatform,
+        unguidedA,
+      ]);
+    });
+  });
+
+  describe('deprioritizing Connect My Computer', () => {
+    it('puts the Connect My Computer resource as the last guided resource if the user has resources', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const actual = sortResources(
+        oneOfEachList,
+        makeDefaultUserPreferences(),
+        onboardDiscoverWithResources
+      );
+
+      expect(actual).toMatchObject([
+        // 1. OS
+        platformMatch,
+        // 2. guided
+        guidedA,
+        guidedB,
+        server,
+        // 3. Connect My Computer
+        connectMyComputer,
+        // 4. alpha
+        unguidedA,
+        unguidedB,
+        // 5. no access
+        noAccessServerForMatchingPlatform,
+      ]);
+    });
+
+    it('puts the Connect My Computer resource as the last guided resource if the user has resources, even if the user prefers servers', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const preferences = makeDefaultUserPreferences();
+      preferences.onboard = {
+        preferredResources: [
+          resourceKindToPreferredResource(ResourceKind.Server),
+        ],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: '',
+          intent: '',
+        },
+      };
+
+      const actual = sortResources(
+        oneOfEachList,
+        preferences,
+        onboardDiscoverWithResources
+      );
+
+      expect(actual).toMatchObject([
+        // 1. OS
+        platformMatch,
+        // 2. preferred
+        server,
+        // 2. guided
+        guidedA,
+        guidedB,
+        // 3. Connect My Computer,
+        connectMyComputer,
+        // 4. alpha
+        unguidedA,
+        unguidedB,
+        // 6. no access is last
+        noAccessServerForMatchingPlatform,
+      ]);
+    });
+
+    it('puts the Connect My Computer resource as the last guided resource if the user has no resources but they prefer other resources than servers', () => {
+      OS.mockReturnValue(UserAgent.macOS);
+
+      const databaseForAnotherPlatform = makeResourceSpec({
+        name: 'database for another platform',
+        kind: ResourceKind.Database,
+        platform: Platform.Linux,
+      });
+
+      const preferences = makeDefaultUserPreferences();
+      preferences.onboard = {
+        preferredResources: [
+          resourceKindToPreferredResource(ResourceKind.Database),
+        ],
+        marketingParams: {
+          campaign: '',
+          source: '',
+          medium: '',
+          intent: '',
+        },
+      };
+
+      const actual = sortResources(
+        [...oneOfEachList, databaseForAnotherPlatform],
+        preferences,
+        onboardDiscoverNoResources
+      );
+
+      expect(actual).toMatchObject([
+        // 1. OS
+        platformMatch,
+        // 2. preferred
+        databaseForAnotherPlatform,
+        // 2. guided
+        guidedA,
+        guidedB,
+        server,
+        // 3. Connect My Computer,
+        connectMyComputer,
+        // 4. alpha
+        unguidedA,
+        unguidedB,
+        // 6. no access is last
+        noAccessServerForMatchingPlatform,
+      ]);
+    });
+  });
+});
+
+describe('filterResources', () => {
+  it('filters out resources based on supportedPlatforms', () => {
+    const winAndLinux = makeResourceSpec({
+      name: 'Filtered out with many supported platforms',
+      supportedPlatforms: [Platform.Windows, Platform.Linux],
+    });
+    const win = makeResourceSpec({
+      name: 'Filtered out with one supported platform',
+      supportedPlatforms: [Platform.Windows],
+    });
+    const macosAndLinux = makeResourceSpec({
+      name: 'Kept with many supported platforms',
+      supportedPlatforms: [Platform.macOS, Platform.Linux],
+    });
+    const macos = makeResourceSpec({
+      name: 'Kept with one supported platform',
+      supportedPlatforms: [Platform.macOS],
+    });
+
+    const result = filterResources(Platform.macOS, 'local', [
+      winAndLinux,
+      win,
+      macosAndLinux,
+      macos,
+    ]);
+
+    expect(result).toContain(macosAndLinux);
+    expect(result).toContain(macos);
+    expect(result).not.toContain(winAndLinux);
+    expect(result).not.toContain(win);
+  });
+
+  it('does not filter out resources with supportedPlatforms and supportedAuthTypes that are missing or empty', () => {
+    const result = filterResources(Platform.macOS, 'local', [
+      makeResourceSpec({
+        name: 'Empty supportedPlatforms',
+        supportedPlatforms: [],
+      }),
+      makeResourceSpec({
+        name: 'Missing supportedPlatforms',
+        supportedPlatforms: undefined,
+      }),
+      makeResourceSpec({
+        name: 'Empty supportedAuthTypes',
+        supportedAuthTypes: [],
+      }),
+      makeResourceSpec({
+        name: 'Missing supportedAuthTypes',
+        supportedAuthTypes: undefined,
+      }),
+    ]);
+
+    expect(result).toHaveLength(4);
+  });
+
+  it('filters out resources based on supportedAuthTypes', () => {
+    const ssoAndPasswordless = makeResourceSpec({
+      name: 'Filtered out with many supported auth types',
+      supportedAuthTypes: ['sso', 'passwordless'],
+    });
+    const sso = makeResourceSpec({
+      name: 'Filtered out with one supported auth type',
+      supportedAuthTypes: ['sso'],
+    });
+    const localAndPasswordless = makeResourceSpec({
+      name: 'Kept with many supported auth types',
+      supportedAuthTypes: ['local', 'passwordless'],
+    });
+    const local = makeResourceSpec({
+      name: 'Kept with one supported auth type',
+      supportedAuthTypes: ['local'],
+    });
+
+    const result = filterResources(Platform.macOS, 'local', [
+      ssoAndPasswordless,
+      sso,
+      localAndPasswordless,
+      local,
+    ]);
+
+    expect(result).toContain(localAndPasswordless);
+    expect(result).toContain(local);
+    expect(result).not.toContain(ssoAndPasswordless);
+    expect(result).not.toContain(sso);
   });
 });

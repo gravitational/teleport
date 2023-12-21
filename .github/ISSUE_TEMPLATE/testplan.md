@@ -478,6 +478,15 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] Test receiving a message via Teleport Slackbot
 - [ ] Test receiving a new Jira Ticket via Teleport Jira
 
+### Teleport Operator
+
+- [ ] Test deploying a Teleport cluster with the `teleport-cluster` Helm chart and the operator enabled
+- [ ] Test deploying a standalone operator against Teleport Cloud
+- [ ] Test that operator can reconcile
+  - [ ] TeleportUser
+  - [ ] TeleportRole
+  - [ ] TeleportProvisionToken
+
 ### AWS Node Joining
 [Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
 - [ ] On EC2 instance with `ec2:DescribeInstances` permissions for local account:
@@ -488,7 +497,8 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
 
 ### Kubernetes Node Joining
-- [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
+- [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes in-cluster ProvisionToken
+- [ ] Join a tbot instance running in a different Kubernetes cluster as Teleport with a Kubernetes JWKS ProvisionToken
 
 ### Azure Node Joining
 [Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
@@ -585,7 +595,7 @@ tsh ssh node-that-requires-device-trust
 > ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 # Register the device.
-# Get the serial number from "Apple -> About This Mac".
+# Get the serial number from `tsh device asset-tag`.
 tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
 
 # Enroll the device.
@@ -607,8 +617,14 @@ tsh ssh node-that-requires-device-trust
   - [ ] Create enrollment token using asset tag (`tctl devices enroll`)
 
 - [ ] Device enrollment
-  - [ ] Enroll device on macOS (`tsh device enroll`)
-  - [ ] Enroll device on Windows (`tsh device enroll`)
+  - [ ] Enroll/authn device on macOS (`tsh device enroll`)
+  - [ ] Enroll/authn device on Windows (`tsh device enroll`)
+  - [ ] Enroll/authn device on Linux (`tsh device enroll`)
+
+    Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
+    to assign yourself to the `tss` group. See
+    https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.
+
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
@@ -655,9 +671,10 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authorization applies to Database access (all items above)
   - [ ] Device authorization applies to Kubernetes access (all items above)
 
-  - [ ] Device authorization __does not__ apply to App access
-        (both cluster-wide and role)
-  - [ ] Device authorization __does not__ apply to Windows Desktop access
+  - [ ] Cluster-wide device authorization __does not apply__ to App access
+  - [ ] Role-based device authorization __applies__ to App access
+
+  - [ ] Device authorization __does not apply__ to Windows Desktop access
         (both cluster-wide and role)
 
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
@@ -676,6 +693,8 @@ tsh ssh node-that-requires-device-trust
   - [ ] `tsh device asset-tag` (macOS)
   - [ ] `tsh device collect`   (Windows)
   - [ ] `tsh device asset-tag` (Windows)
+  - [ ] `tsh device collect`   (Linux)
+  - [ ] `tsh device asset-tag` (Linux)
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -892,7 +911,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres
+  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -934,8 +953,14 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Oracle.
   - [ ] ClickHouse.
 - [ ] Verify auto user provisioning.
+  Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
+  - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MariaDB.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS RDS Postgres.
+  - [ ] AWS RDS MySQL.
+  - [ ] AWS RDS MariaDB.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -943,6 +968,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify RBAC.
   - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
   - [ ] Can only connect as users from `db_users`.
+  - [ ] Can only connect as Teleport username, for auto-user-provisioning-enabled databases.
   - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
     - [ ] `db.session.start` is emitted when connection attempt is denied.
   - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
@@ -953,6 +979,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Can register a new database using `tctl create`.
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
+  - [ ] Can register a database using Teleport's terraform provider.
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
@@ -974,7 +1001,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users
-- [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
+- [ ] Test Databases screen in the web UI (filter by "Database" type in unified view):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
@@ -1034,7 +1061,8 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] OpenSearch.
     - [ ] Cassandra/ScyllaDB.
     - [ ] Oracle.
-  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh proxy db` with a GUI client.
+  - [ ] Verify connecting to a database through Teleport Connect.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -1042,7 +1070,8 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
-  - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+  - [ ] Verify kubernetes access through proxy running in `multiplex` mode, using `tsh`
+  - [ ] Verify kubernetes access through Teleport Connect
 - [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
   - [ ] Agent can join through Proxy and maintain reverse tunnel
   - [ ] `tsh login` and `tctl`
@@ -1054,10 +1083,16 @@ tsh bench web sessions --max=5000 --web user ls
 ## Desktop Access
 
 - Direct mode (set `listen_addr`):
-  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - IoT mode (reverse tunnel through proxy):
-  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
   verify that connections to desktops on different AD domains works. (Attempt to
@@ -1086,6 +1121,7 @@ tsh bench web sessions --max=5000 --web user ls
     Version, DNS hostname.
   - [ ] Regexp-based host labeling applies across all desktops, regardless of
     origin.
+  - [ ] Labels from `static_hosts` are applied to correct desktops
 - RBAC
   - [ ] RBAC denies access to a Windows desktop due to labels
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
@@ -1198,11 +1234,31 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
-## Binaries compatibility
+## Binaries / OS compatibility
 
-- Verify `tsh` runs on:
-  - [ ] Windows 10
-  - [ ] MacOS
+Verify that our software runs on the minimum supported OS versions as per
+https://goteleport.com/docs/installation/#operating-system-support
+
+### Windows
+
+- [ ] `tsh` runs on the minimum supported Windows version
+- [ ] Teleport Connect runs on the minimum supported Windows version
+
+### macOS
+
+- [ ] `tsh` runs on the minimum supported macOS version
+- [ ] `tctl` runs on the minimum supported macOS version
+- [ ] `teleport` runs on the minimum supported macOS version
+- [ ] `tbot` runs on the minimum supported macOS version
+- [ ] Teleport Connect runs on the minimum supported macOS version
+
+### Linux
+
+- [ ] `tsh` runs on the minimum supported Linux version
+- [ ] `tctl` runs on the minimum supported Linux version
+- [ ] `teleport` runs on the minimum supported Linux version
+- [ ] `tbot` runs on the minimum supported Linux version
+- [ ] Teleport Connect runs on the minimum supported Linux version
 
 ## Machine ID
 

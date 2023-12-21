@@ -1,18 +1,21 @@
 /*
-Copyright 2015 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package service
 
 import (
@@ -54,11 +57,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -431,6 +436,12 @@ func TestServiceInitExternalLog(t *testing.T) {
 	for _, tt := range tts {
 		backend, err := memory.New(memory.Config{})
 		require.NoError(t, err)
+		process := &TeleportProcess{
+			Supervisor: &LocalSupervisor{
+				exitContext: context.Background(),
+			},
+			backend: backend,
+		}
 
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
@@ -442,7 +453,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
+			loggers, err := process.initAuthExternalAuditLog(auditConfig, nil /* externalAuditStorage */)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -459,42 +470,114 @@ func TestServiceInitExternalLog(t *testing.T) {
 }
 
 func TestAthenaAuditLogSetup(t *testing.T) {
-	sampleValidConfig := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	ctx := context.Background()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
+
+	sampleAthenaURI := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	sampleFileURI := "file:///tmp/teleport-test/events"
+
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	process := &TeleportProcess{
+		Supervisor: &LocalSupervisor{
+			exitContext: context.Background(),
+		},
+		backend: backend,
+		log:     utils.NewLoggerForTests(),
+	}
+
+	integrationSvc, err := local.NewIntegrationsService(backend)
+	require.NoError(t, err)
+	oidcIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "aws-integration-1"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "role1",
+		},
+	)
+	require.NoError(t, err)
+	_, err = integrationSvc.CreateIntegration(ctx, oidcIntegration)
+	require.NoError(t, err)
+
+	ecaSvc := local.NewExternalAuditStorageService(backend)
+	_, err = ecaSvc.GenerateDraftExternalAuditStorage(ctx, "aws-integration-1", "us-west-2")
+	require.NoError(t, err)
+
+	statusService := local.NewStatusService(process.backend)
+
+	externalAuditStorageDisabled, err := externalauditstorage.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
+	require.NoError(t, err)
+	err = ecaSvc.PromoteToClusterExternalAuditStorage(ctx)
+	require.NoError(t, err)
+	externalAuditStorageEnabled, err := externalauditstorage.NewConfigurator(ctx, ecaSvc, integrationSvc, statusService)
+	require.NoError(t, err)
+
 	tests := []struct {
-		name   string
-		uri    string
-		wantFn func(*testing.T, events.AuditLogger, error)
+		name          string
+		uris          []string
+		externalAudit *externalauditstorage.Configurator
+		expectErr     error
+		wantFn        func(*testing.T, events.AuditLogger)
 	}{
 		{
-			name: "valid athena config",
-			uri:  sampleValidConfig,
-			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
-				require.NoError(t, err)
+			name:          "valid athena config",
+			uris:          []string{sampleAthenaURI},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
 				require.True(t, ok, "invalid logger type, got %T", v)
 			},
 		},
 		{
-			name: "config with rate limit - should use events.SearchEventsLimiter",
-			uri:  sampleValidConfig + "&limiterRefillAmount=3&limiterBurst=2",
-			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
-				require.NoError(t, err)
+			name:          "config with rate limit - should use events.SearchEventsLimiter",
+			uris:          []string{sampleAthenaURI + "&limiterRefillAmount=3&limiterBurst=2"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				_, ok := alog.(*events.SearchEventsLimiter)
 				require.True(t, ok, "invalid logger type, got %T", alog)
 			},
 		},
+		{
+			name:          "multilog",
+			uris:          []string{sampleAthenaURI, sampleFileURI},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				_, ok := alog.(*events.MultiLog)
+				require.True(t, ok, "invalid logger type, got %T", alog)
+			},
+		},
+		{
+			name:          "external audit storage without athena uri",
+			uris:          []string{sampleFileURI},
+			externalAudit: externalAuditStorageEnabled,
+			expectErr:     externalAuditMissingAthenaError,
+		},
+		{
+			name:          "external audit storage with multiple uris",
+			uris:          []string{sampleAthenaURI, sampleFileURI},
+			externalAudit: externalAuditStorageEnabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				_, ok := alog.(*externalauditstorage.ErrorCountingLogger)
+				require.True(t, ok, "invalid logger type, got %T", alog)
+			},
+		},
 	}
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-				AuditEventsURI:   []string{tt.uri},
+				AuditEventsURI:   tt.uris,
 				AuditSessionsURI: "s3://testbucket/sessions-rec",
 			})
 			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
-			tt.wantFn(t, log, err)
+			log, err := process.initAuthExternalAuditLog(auditConfig, tt.externalAudit)
+			require.ErrorIs(t, err, tt.expectErr)
+			if tt.expectErr != nil {
+				return
+			}
+			tt.wantFn(t, log)
 		})
 	}
 }
@@ -821,8 +904,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.SSH.Enabled = true
 	cfg.MaxRetryPeriod = 5 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.ConnectFailureC = make(chan time.Duration, 5)
-	cfg.ClientTimeout = time.Millisecond
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
+	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
@@ -842,7 +925,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
 		select {
-		case duration := <-process.Config.ConnectFailureC:
+		case duration := <-process.Config.Testing.ConnectFailureC:
 			stepMin := step * time.Duration(i) / 2
 			stepMax := step * time.Duration(i+1)
 
@@ -916,7 +999,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	currentVersion, err := semver.NewVersion(teleport.Version)
 	require.NoError(t, err)
 	currentVersion.Major++
-	nodeCfg.TeleportVersion = currentVersion.String()
+	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
 		testVersionCheck(t, nodeCfg, false)
@@ -1474,8 +1557,8 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, mode, test.mode)
-			require.Equal(t, addr.FullAddress(), test.wantAddr)
+			require.Equal(t, test.mode, mode)
+			require.Equal(t, test.wantAddr, addr.FullAddress())
 		})
 	}
 }

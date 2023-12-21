@@ -1,6 +1,6 @@
 ---
 authors: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com), Rafał Cieślak (rafal.cieslak@goteleport.com)
-state: draft
+state: implemented (14.1)
 ---
 
 # RFD 133 - Connect My Computer
@@ -44,7 +44,7 @@ sharing sessions.
 
 ## Details
 
-After signing into a Team plan cluster, which currently has no connected nodes, the user sees a
+After signing into a cluster, which currently has no connected nodes, the user sees a
 prompt in the server resource table encouraging them to use CMC (screenshot 1 below). Interacting
 with the CTA opens a new tab which explains what happens during the setup and lets the user start
 the setup (screenshot 2 below).
@@ -71,7 +71,7 @@ agent. It also lets the user remove the agent completely.
 
 ### Initial setup
 
-Let’s assume that we have a Team plan cluster at acme.teleport.sh with a user robert@acme.com.
+Let’s assume that we have a cluster at acme.teleport.sh with a user robert@acme.com.
 robert@acme.com uses bob as the system username on their computer.
 
 Once the user begins the setup, Connect performs all steps without further user interaction. Each
@@ -480,12 +480,6 @@ we’re willing to accept in the MVP over adding more complexity to handle this 
 
 The feature is supported only on macOS and Linux because the Teleport SSH agent does not work on
 Windows.
-
-Additionally, CMC is meant to be available only for Teleport Team plan users. To achieve this, the
-app fetches the `WebConfig` of the cluster and checks if the [`isUsageBasedBilling`](https://github.com/gravitational/teleport/blob/53b0118cff73fd5e9788a397d3b8a0aadc75d63a/web/packages/teleport/src/config.ts#L43-L44)
-flag is `true`. [The Web UI temporarily uses this flag](https://github.com/gravitational/teleport/blob/53b0118cff73fd5e9788a397d3b8a0aadc75d63a/web/packages/teleport/src/teleportContext.tsx#L66-L76)
-to show certain CTAs and intends to switch to using cluster features instead. However, for CMC this
-flag should be sufficient. CMC in itself is not going to be considered a cluster feature.
 
 ### Security
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services_test
 
@@ -564,7 +566,7 @@ func TestDatabaseWatcher(t *testing.T) {
 	// Initially there are no databases so watcher should send an empty list.
 	select {
 	case changeset := <-w.DatabasesC:
-		require.Len(t, changeset, 0)
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -663,7 +665,7 @@ func TestAppWatcher(t *testing.T) {
 	// Initially there are no apps so watcher should send an empty list.
 	select {
 	case changeset := <-w.AppsC:
-		require.Len(t, changeset, 0)
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -910,7 +912,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 	// Add some servers.
 	nodes := make([]types.Server, 0, 5)
 	for i := 0; i < 5; i++ {
-		node := newNodeServer(t, fmt.Sprintf("node%d", i), "127.0.0.1:2023", i%2 == 0)
+		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
 		nodes = append(nodes, node)
@@ -922,9 +924,9 @@ func TestNodeWatcherFallback(t *testing.T) {
 	got := w.GetNodes(ctx, func(n services.Node) bool {
 		return true
 	})
-	require.Equal(t, len(nodes), len(got))
+	require.Len(t, nodes, len(got))
 
-	require.Equal(t, len(nodes), w.NodeCount())
+	require.Len(t, nodes, w.NodeCount())
 	require.False(t, w.IsInitialized())
 }
 
@@ -962,7 +964,7 @@ func TestNodeWatcher(t *testing.T) {
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
 	for i := 0; i < 5; i++ {
-		node := newNodeServer(t, fmt.Sprintf("node%d", i), "127.0.0.1:2023", i%2 == 0)
+		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
 		nodes = append(nodes, node)
@@ -989,10 +991,11 @@ func TestNodeWatcher(t *testing.T) {
 	require.Empty(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
 }
 
-func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
+func newNodeServer(t *testing.T, name, hostname, addr string, tunnel bool) types.Server {
 	s, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
 		Addr:      addr,
 		UseTunnel: tunnel,
+		Hostname:  hostname,
 	})
 	require.NoError(t, err)
 	return s
@@ -1139,7 +1142,7 @@ func TestAccessRequestWatcher(t *testing.T) {
 	// Initially there are no access requests so watcher should send an empty list.
 	select {
 	case changeset := <-w.AccessRequestsC:
-		require.Len(t, changeset, 0)
+		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -1253,7 +1256,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 	// Initially there are no assignments so watcher should send an empty list.
 	select {
 	case changeset := <-w.CollectorChan():
-		require.Len(t, changeset, 0, "initial assignment list should be empty")
+		require.Empty(t, changeset, "initial assignment list should be empty")
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):

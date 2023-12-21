@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package discord
 
@@ -27,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -106,9 +110,21 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// Broadcast posts request info to Discord.
-func (b DiscordBot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
-	var data common.SentMessages
+// SupportedApps are the apps supported by this bot.
+func (b DiscordBot) SupportedApps() []common.App {
+	return []common.App{
+		accessrequest.NewApp(b),
+	}
+}
+
+// SendReviewReminders will send a review reminder that an access list needs to be reviewed.
+func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+	return trace.NotImplemented("access list review reminder is not yet implemented")
+}
+
+// BroadcastAccessRequestMessage posts request info to Discord.
+func (b DiscordBot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (accessrequest.SentMessages, error) {
+	var data accessrequest.SentMessages
 	var errors []error
 
 	for _, recipient := range recipients {
@@ -125,7 +141,7 @@ func (b DiscordBot) Broadcast(ctx context.Context, recipients []common.Recipient
 			errors = append(errors, trace.Wrap(err))
 			continue
 		}
-		data = append(data, common.MessageData{ChannelID: recipient.ID, MessageID: result.DiscordID})
+		data = append(data, accessrequest.MessageData{ChannelID: recipient.ID, MessageID: result.DiscordID})
 
 	}
 
@@ -138,7 +154,7 @@ func (b DiscordBot) PostReviewReply(ctx context.Context, channelID, timestamp st
 }
 
 // UpdateMessages updates already posted Discord messages
-func (b DiscordBot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, messagingData common.SentMessages, reviews []types.AccessReview) error {
+func (b DiscordBot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, messagingData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
 	for _, msg := range messagingData {
 		_, err := b.client.NewRequest().
@@ -161,7 +177,7 @@ func (b DiscordBot) discordEmbeds(reviews []types.AccessReview) []DiscordEmbed {
 	reviewEmbeds := make([]DiscordEmbed, len(reviews))
 	for i, review := range reviews {
 		if review.Reason != "" {
-			review.Reason = lib.MarkdownEscape(review.Reason, common.ReviewReasonLimit)
+			review.Reason = lib.MarkdownEscape(review.Reason, accessrequest.ReviewReasonLimit)
 		}
 
 		var color int
@@ -194,18 +210,18 @@ func (b DiscordBot) discordEmbeds(reviews []types.AccessReview) []DiscordEmbed {
 
 func (b DiscordBot) discordMsgText(reqID string, reqData pd.AccessRequestData) string {
 	return "You have a new Role Request:\n" +
-		common.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL) +
-		common.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
+		accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL) +
+		accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 }
 
-func (b DiscordBot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	// Discord does not support resolving email addresses with bot permissions
 	// This bot does not implement channel name resolving yet, this is doable but will require caching
 	// as the endpoint returns all channels at the same time and is rate-limited.
 	// FetchRecipient currently only supports creating recipients from ChannelIDs.
 	return &common.Recipient{
-		Name: recipient,
-		ID:   recipient,
+		Name: name,
+		ID:   name,
 		Kind: "Channel",
 		Data: nil,
 	}, nil

@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -33,6 +35,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -42,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -59,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -180,6 +185,8 @@ type TerminalHandlerConfig struct {
 	Tracker types.SessionTracker
 	// PresenceChecker used for presence checking.
 	PresenceChecker PresenceChecker
+	// Clock allows interaction with time.
+	Clock clockwork.Clock
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -220,6 +227,10 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.TracerProvider == nil {
 		t.TracerProvider = tracing.DefaultProvider()
+	}
+
+	if t.Clock == nil {
+		t.Clock = clockwork.NewRealClock()
 	}
 
 	t.tracer = t.TracerProvider.Tracer("webterminal")
@@ -288,6 +299,9 @@ type TerminalHandler struct {
 	// closedByClient indicates if the websocket connection was closed by the
 	// user (closing the browser tab, exiting the session, etc).
 	closedByClient atomic.Bool
+
+	// clock used to interact with time.
+	clock clockwork.Clock
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -429,6 +443,17 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	t.log.Debug("Closing websocket stream")
 }
 
+// SSHSessionLatencyStats contain latency measurements for both
+// legs of an ssh connection established via the Web UI.
+type SSHSessionLatencyStats struct {
+	// WebSocket measures the round trip time for a ping/pong via the websocket
+	// established between the client and the Proxy.
+	WebSocket int64 `json:"ws"`
+	// SSH measures the round trip time for a keepalive@openssh.com request via the
+	// connection established between the Proxy and the target host.
+	SSH int64 `json:"ssh"`
+}
+
 type stderrWriter struct {
 	stream *TerminalStream
 }
@@ -536,12 +561,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: t.authProvider,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		PromptMFA: func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 			span.AddEvent("prompting user with mfa challenge")
-			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, chal)
+			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{}).Run(ctx, chal)
 			span.AddEvent("user completed mfa challenge")
 			return assertion, trace.Wrap(err)
-		},
+		}),
 		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq: mfaRequiredReq,
 		CertsReq:       certsReq,
@@ -560,8 +585,8 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(stream *WSStream, codec mfaCodec) client.PromptMFAFunc {
-	return func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+func promptMFAChallenge(stream *WSStream, codec mfaCodec) mfa.Prompt {
+	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
@@ -580,7 +605,7 @@ func promptMFAChallenge(stream *WSStream, codec mfaCodec) client.PromptMFAFunc {
 
 		resp, err := stream.readChallengeResponse(codec)
 		return resp, trace.Wrap(err)
-	}
+	})
 }
 
 type connectWithMFAFn = func(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
@@ -681,6 +706,36 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	}
 }
 
+func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *WSStream, sshClient *tracessh.Client) error {
+	wsPinger, err := latency.NewWebsocketPinger(clock, stream.ws)
+	if err != nil {
+		return trace.Wrap(err, "creating websocket pinger")
+	}
+
+	sshPinger, err := latency.NewSSHPinger(sshClient)
+	if err != nil {
+		return trace.Wrap(err, "creating ssh pinger")
+	}
+
+	monitor, err := latency.NewMonitor(latency.MonitorConfig{
+		ClientPinger: wsPinger,
+		ServerPinger: sshPinger,
+		Reporter: latency.ReporterFunc(func(ctx context.Context, statistics latency.Statistics) error {
+			return trace.Wrap(stream.writeLatency(SSHSessionLatencyStats{
+				WebSocket: statistics.Client,
+				SSH:       statistics.Server,
+			}))
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating latency monitor")
+	}
+
+	monitor.Run(ctx)
+	return nil
+}
+
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
@@ -707,6 +762,14 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 			}
 		}
 	}
+
+	monitorCtx, monitorCancel := context.WithCancel(ctx)
+	defer monitorCancel()
+	go func() {
+		if err := monitorSessionLatency(monitorCtx, t.clock, t.stream.WSStream, nc.Client); err != nil {
+			t.log.WithError(err).Warn("failure monitoring session latency")
+		}
+	}()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
@@ -907,7 +970,7 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) *TerminalStream {
+func NewTerminalStream(ctx context.Context, ws WSConn, log logrus.FieldLogger) *TerminalStream {
 	t := &TerminalStream{
 		sessionReadyC: make(chan struct{}),
 	}
@@ -1207,6 +1270,34 @@ func (t *WSStream) writeAuditEvent(event []byte) error {
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketAudit,
+		Payload: encodedPayload,
+	}
+
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send bytes over the websocket to the web client.
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+func (t *WSStream) writeLatency(latency SSHSessionLatencyStats) error {
+	data, err := json.Marshal(latency)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	encodedPayload, err := t.encoder.String(string(data))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketLatency,
 		Payload: encodedPayload,
 	}
 

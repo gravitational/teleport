@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"encoding/asn1"
 	"net"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -26,13 +27,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -131,10 +132,6 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 // insecureCredentials implements [client.Credentials] and is used by tests
 // to connect to the Auth server without mTLS.
 type insecureCredentials struct{}
-
-func (mc insecureCredentials) Dialer(client.Config) (client.ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
-}
 
 func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
@@ -276,6 +273,8 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
+					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
 					interceptors.GRPCClientUnaryErrorInterceptor,
@@ -283,6 +282,8 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
+					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
 					interceptors.GRPCClientStreamErrorInterceptor,
@@ -415,4 +416,16 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 	}
 
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
+}
+
+// Ping measures the round trip latency of sending a message to the Proxy.
+func (c *Client) Ping(ctx context.Context) error {
+	// TODO(tross): Update to call Ping when it is added to the transport service.
+	// For now we don't really care what method is used we just want to measure
+	// how long it takes to get a reply. This will always fail with a not implemented
+	// error since the Proxy gRPC server doesn't serve the auth service proto. However,
+	// we use it because it's already imported in the api package.
+	clt := authpb.NewAuthServiceClient(c.grpcConn)
+	_, _ = clt.Ping(ctx, &authpb.PingRequest{})
+	return nil
 }

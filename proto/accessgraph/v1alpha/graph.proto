@@ -1,0 +1,51 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// Node is a node in the access graph.
+message Node {
+  // ID is the unique ID of the node.
+  string id = 1;
+  // Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
+  string kind = 2;
+  // SubKind is the subkind of the node, ex: "ssh", "db", "k8s", etc.
+  string sub_kind = 3;
+  // Name is the name of the node.
+  string name = 4;
+  // Labels is a set of labels for the resource.
+  map<string, string> labels = 5;
+  // Hostname is the hostname of the node.
+  string hostname = 6;
+  // Properties is a set of properties for the resource.
+  map<string, string> properties = 7;
+}
+
+// Edge is an edge in the access graph.
+message Edge {
+  // from is the ID of the node the edge is from.
+  string from = 1;
+  // to is the ID of the node the edge is to.
+  string to = 2;
+  // edge_type is the type of the edge, e.g. "member_of", "belongs_to", etc.
+  string edge_type = 3;
+}

@@ -181,6 +181,16 @@ spec:
                       must be accessible over HTTPS at this hostname and the certificate
                       must be trusted by the Auth Server.
                     type: string
+                  enterprise_slug:
+                    description: EnterpriseSlug allows the slug of a GitHub Enterprise
+                      organisation to be included in the expected issuer of the OIDC
+                      tokens. This is for compatibility with the `include_enterprise_slug`
+                      option in GHE.  This field should be set to the slug of your
+                      enterprise if this is enabled. If this is not enabled, then
+                      this field must be left empty. This field cannot be specified
+                      if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+                      for more information about customised issuer values.
+                    type: string
                 type: object
               gitlab:
                 description: GitLab allows the configuration of options specific to
@@ -192,19 +202,37 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
+                        ci_config_ref_uri:
+                          type: string
+                        ci_config_sha:
+                          type: string
+                        deployment_tier:
+                          type: string
                         environment:
                           type: string
+                        environment_protected:
+                          type: boolean
                         namespace_path:
                           type: string
                         pipeline_source:
                           type: string
                         project_path:
                           type: string
+                        project_visibility:
+                          type: string
                         ref:
                           type: string
+                        ref_protected:
+                          type: boolean
                         ref_type:
                           type: string
                         sub:
+                          type: string
+                        user_email:
+                          type: string
+                        user_id:
+                          type: string
+                        user_login:
                           type: string
                       type: object
                     nullable: true
@@ -257,6 +285,32 @@ spec:
                   type: string
                 nullable: true
                 type: array
+              spacelift:
+                description: Spacelift allows the configuration of options specific
+                  to the "spacelift" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        caller_id:
+                          type: string
+                        caller_type:
+                          type: string
+                        scope:
+                          type: string
+                        space_id:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  hostname:
+                    description: Hostname is the hostname of the Spacelift tenant
+                      that tokens will originate from. E.g `example.app.spacelift.io`
+                    type: string
+                type: object
               suggested_agent_matcher_labels:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true

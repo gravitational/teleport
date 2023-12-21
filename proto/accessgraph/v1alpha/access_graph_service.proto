@@ -1,0 +1,91 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "accessgraph/v1alpha/graph.proto";
+import "accessgraph/v1alpha/resources.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AccessGraphService is a service for interacting the access graph service.
+service AccessGraphService {
+  // Query queries the access graph.
+  // Currently only used by WebUI.
+  rpc Query(QueryRequest) returns (QueryResponse);
+  // GetFile gets a static UI file from the access graph container.
+  rpc GetFile(GetFileRequest) returns (GetFileResponse);
+
+  // EventsStream is a stream of commands to the access graph service.
+  // Teleport Auth server creates a stream to the access graph service
+  // and pushes all resources and following events to it.
+  // This stream is used to sync the access graph with the Teleport database state.
+  // Once Teleport finishes syncing the current state, it sends a sync command
+  // to the access graph service and resumes sending events.
+  rpc EventsStream(stream EventsStreamRequest) returns (EventsStreamResponse);
+}
+
+// QueryRequest is a request to query the access graph.
+message QueryRequest {
+  // query is a SQL query.
+  string query = 1;
+}
+
+// QueryResponse is a response to a query.
+message QueryResponse {
+  // nodes is a list of nodes returned by the query. The response may contain only nodes.
+  repeated Node nodes = 1;
+  // edges is a list of edges returned by the query.
+  repeated Edge edges = 2;
+}
+
+// GetFileRequest is a request to get a file.
+message GetFileRequest {
+  // filepath is a path to the file.
+  string filepath = 1;
+}
+
+// GetFileResponse is a response to a file request.
+message GetFileResponse {
+  // data is a raw file content.
+  bytes data = 1;
+}
+
+// EventsStreamRequest is a request to send commands to the access graph.
+// This command is used to sync the access graph with the Teleport database state.
+message EventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    SyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    ResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    ResourceHeaderList delete = 3;
+  }
+}
+
+// SyncOperation is a command that Teleport sends to the access graph service
+// at the end of the sync process.
+message SyncOperation {}
+
+// EventsStreamResponse is the response from EventsStream.
+message EventsStreamResponse {}

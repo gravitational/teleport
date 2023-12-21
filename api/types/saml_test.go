@@ -31,13 +31,13 @@ func TestSAMLSecretsStrip(t *testing.T) {
 		SigningKeyPair:           &AsymmetricKeyPair{PrivateKey: "test"},
 		EncryptionKeyPair:        &AsymmetricKeyPair{PrivateKey: "test"},
 	})
-	require.Nil(t, err)
-	require.Equal(t, connector.GetSigningKeyPair().PrivateKey, "test")
-	require.Equal(t, connector.GetEncryptionKeyPair().PrivateKey, "test")
+	require.NoError(t, err)
+	require.Equal(t, "test", connector.GetSigningKeyPair().PrivateKey)
+	require.Equal(t, "test", connector.GetEncryptionKeyPair().PrivateKey)
 
 	withoutSecrets := connector.WithoutSecrets().(*SAMLConnectorV2)
-	require.Equal(t, withoutSecrets.GetSigningKeyPair().PrivateKey, "")
-	require.Equal(t, withoutSecrets.GetEncryptionKeyPair().PrivateKey, "")
+	require.Empty(t, withoutSecrets.GetSigningKeyPair().PrivateKey)
+	require.Empty(t, withoutSecrets.GetEncryptionKeyPair().PrivateKey)
 }
 
 // TestSAMLAcsUriHasConnector tests that the ACS URI has the connector ID as the last part if IdP-initiated login is enabled.

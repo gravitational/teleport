@@ -364,16 +364,7 @@ spec:
 <TabItem label="GitHub">
 
 ```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-  webauthn:
-    # Replace with the address of your Teleport cluster
-    rp_id: 'example.teleport.sh'
-version: v2
-
+(!/examples/resources/github.yaml!)
 ```
 
 </TabItem>
@@ -597,4 +588,12 @@ spec:
       'env': 'dev'
 version: v5
 ```
+
+## Next steps
+
+The roles we illustrated in this guide use `external` traits,
+which Teleport replaces with values from the single sign-on provider that the
+user used to authenticate with Teleport. For full details on how variable
+expansion works in Teleport roles, see the  [Teleport Access Controls
+Reference](../access-controls/reference.mdx).
 

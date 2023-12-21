@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package servicenow
 
@@ -36,11 +38,11 @@ import (
 )
 
 const (
-	NotifyServiceName       = "Teleport Notifications"
-	NotifyServiceAnnotation = types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel
-	ResponderName1          = "ResponderID1"
-	ResponderName2          = "RespondeID2"
-	ResponderName3          = "RespondeID3"
+	ScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationSchedulesLabel
+	Schedule           = "someRotaID"
+	ResponderName1     = "ResponderID1"
+	ResponderName2     = "RespondeID2"
+	ResponderName3     = "RespondeID3"
 )
 
 type ServiceNowSuite struct {
@@ -48,22 +50,22 @@ type ServiceNowSuite struct {
 	appConfig        Config
 	currentRequestor string
 	userNames        struct {
-		ruler     string
-		reviewer1 string
-		reviewer2 string
-		requestor string
-		approver  string
-		racer1    string
-		racer2    string
-		plugin    string
+		ruler                  string
+		reviewer1              string
+		reviewer2              string
+		requestor              string
+		requestorWithSchedules string
+		approver               string
+		racer1                 string
+		racer2                 string
+		plugin                 string
 	}
 	raceNumber     int
 	fakeServiceNow *FakeServiceNow
 
-	snNotifyResponder string
-	snResponder1      string
-	snResponder2      string
-	snResponder3      string
+	snResponder1 string
+	snResponder2 string
+	snResponder3 string
 
 	clients          map[string]*integration.Client
 	teleportFeatures *proto.Features
@@ -117,9 +119,6 @@ func (s *ServiceNowSuite) SetupSuite() {
 	conditions := types.RoleConditions{
 		Request: &types.AccessRequestConditions{
 			Roles: []string{"editor"},
-			Annotations: wrappers.Traits{
-				NotifyServiceAnnotation: []string{NotifyServiceName},
-			},
 		},
 	}
 	if teleportFeatures.AdvancedAccessWorkflows {
@@ -132,6 +131,23 @@ func (s *ServiceNowSuite) SetupSuite() {
 	user, err := bootstrap.AddUserWithRoles(me.Username+"@example.com", role.GetName())
 	require.NoError(t, err)
 	s.userNames.requestor = user.GetName()
+
+	// Set up user who can request the access to role "editor" but with schedule annotation.
+	conditionsWithSchedule := types.RoleConditions{
+		Request: &types.AccessRequestConditions{
+			Roles: []string{"editor"},
+			Annotations: wrappers.Traits{
+				ScheduleAnnotation: []string{Schedule},
+			},
+		},
+	}
+	// This is the role for testing notification incident creation With schedule.
+	roleWithSchedule, err := bootstrap.AddRole("fooWithSchedule", types.RoleSpecV6{Allow: conditionsWithSchedule})
+	require.NoError(t, err)
+
+	userWithSchedule, err := bootstrap.AddUserWithRoles(me.Username+"-schedule@example.com", roleWithSchedule.GetName())
+	require.NoError(t, err)
+	s.userNames.requestorWithSchedules = userWithSchedule.GetName()
 
 	if teleportFeatures.AdvancedAccessWorkflows {
 		// Set up TWO users who can review access requests to role "editor".
@@ -152,13 +168,13 @@ func (s *ServiceNowSuite) SetupSuite() {
 		s.userNames.reviewer2 = user.GetName()
 
 		// This is the role that needs exactly one approval review for an access request to be approved.
-		// It's handy to test auto-approval scenarios so we also put "servicenow_services" annotation.
+		// It's handy to test auto-approval scenarios so we also set the schedule annotation.
 		role, err = bootstrap.AddRole("bar", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"editor"},
 					Annotations: wrappers.Traits{
-						NotifyServiceAnnotation: []string{ResponderName1, ResponderName2},
+						ScheduleAnnotation: []string{Schedule},
 					},
 				},
 			},
@@ -169,16 +185,11 @@ func (s *ServiceNowSuite) SetupSuite() {
 		require.NoError(t, err)
 		s.userNames.approver = user.GetName()
 
-		// This is the role with a maximum possible setup: both "servicenow_notify_service" and
-		// "servicenow_services" annotations and threshold.
 		role, err = bootstrap.AddRole("foo-bar", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					Roles: []string{"editor"},
-					Annotations: wrappers.Traits{
-						NotifyServiceAnnotation: []string{NotifyServiceName},
-					},
-					Thresholds: []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}},
+					Roles:      []string{"editor"},
+					Thresholds: []types.AccessReviewThreshold{{Approve: 2, Deny: 2}},
 				},
 			},
 		})
@@ -224,6 +235,10 @@ func (s *ServiceNowSuite) SetupSuite() {
 	s.clients[s.userNames.requestor] = client
 
 	if teleportFeatures.AdvancedAccessWorkflows {
+		client, err = teleport.NewClient(ctx, auth, s.userNames.requestorWithSchedules)
+		require.NoError(t, err)
+		s.clients[s.userNames.requestorWithSchedules] = client
+
 		client, err = teleport.NewClient(ctx, auth, s.userNames.approver)
 		require.NoError(t, err)
 		s.clients[s.userNames.approver] = client
@@ -259,11 +274,10 @@ func (s *ServiceNowSuite) SetupTest() {
 	err := logger.Setup(logger.Config{Severity: "debug"})
 	require.NoError(t, err)
 
-	fakeServiceNow := NewFakeServiceNow(s.raceNumber)
+	fakeServiceNow := NewFakeServiceNow(s.raceNumber, s.userNames.requestorWithSchedules)
 	t.Cleanup(fakeServiceNow.Close)
 	s.fakeServiceNow = fakeServiceNow
 
-	s.snNotifyResponder = s.fakeServiceNow.StoreResponder(s.Context(), NotifyServiceName)
 	s.snResponder1 = s.fakeServiceNow.StoreResponder(s.Context(), ResponderName1)
 	s.snResponder2 = s.fakeServiceNow.StoreResponder(s.Context(), ResponderName2)
 	s.snResponder3 = s.fakeServiceNow.StoreResponder(s.Context(), ResponderName3)
@@ -309,9 +323,6 @@ func (s *ServiceNowSuite) newAccessRequest() types.AccessRequest {
 	t.Helper()
 
 	req, err := types.NewAccessRequest(uuid.New().String(), s.currentRequestor, "editor")
-	req.SetSystemAnnotations(map[string][]string{
-		NotifyServiceAnnotation: {NotifyServiceName},
-	})
 	require.NoError(s.T(), err)
 	return req
 }
@@ -375,7 +386,7 @@ func (s *ServiceNowSuite) TestApproval() {
 	require.Contains(t, incident.Description, "submitted access request")
 	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: okay")
-	assert.Equal(t, incident.CloseCode, "resolved")
+	assert.Equal(t, "resolved", incident.CloseCode)
 }
 
 func (s *ServiceNowSuite) TestDenial() {
@@ -544,4 +555,24 @@ func (s *ServiceNowSuite) TestDenialByReview() {
 	assert.Contains(t, incident.CloseNotes, "Access request has been resolved")
 	assert.Contains(t, incident.CloseNotes, "Reason: finally not okay")
 	assert.Equal(t, "resolved", incident.CloseCode)
+}
+
+func (s *ServiceNowSuite) TestAutoApproval() {
+	t := s.T()
+
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
+		t.Skip("Doesn't work in OSS version")
+	}
+
+	s.startApp()
+
+	s.currentRequestor = s.userNames.requestorWithSchedules
+	_ = s.createAccessRequest()
+
+	_, err := s.fakeServiceNow.CheckNewIncident(s.Context())
+	require.NoError(t, err, "no new incidents stored")
+
+	incident, err := s.fakeServiceNow.CheckIncidentUpdate(s.Context())
+	require.NoError(t, err)
+	assert.Contains(t, incident.WorkNotes, "Resolution: APPROVED")
 }

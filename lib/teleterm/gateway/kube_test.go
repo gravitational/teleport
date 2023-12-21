@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package gateway
 
@@ -23,15 +25,16 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,8 +73,7 @@ func TestKubeGateway(t *testing.T) {
 			Clock:          clock,
 			TargetName:     kubeClusterName,
 			TargetURI:      uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
-			CertPath:       proxy.clientCertPath(),
-			KeyPath:        proxy.clientKeyPath(),
+			Cert:           proxy.clientCert,
 			WebProxyAddr:   proxy.webProxyAddr,
 			ClusterName:    teleportClusterName,
 			Username:       identity.Username,
@@ -79,8 +81,11 @@ func TestKubeGateway(t *testing.T) {
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},
-			OnExpiredCert: func(_ context.Context, gateway Gateway) error {
-				return trace.Wrap(gateway.ReloadCert())
+			OnExpiredCert: func(ctx context.Context, g Gateway) (tls.Certificate, error) {
+				// We first "rotate" the cert with proxy.mustRotateClientCert which makes the cert used by
+				// the gateway invalid. Then the gateway executes this function which makes it use the new
+				// cert held by the proxy.
+				return proxy.clientCert, nil
 			},
 		},
 	)
@@ -101,7 +106,7 @@ func TestKubeGateway(t *testing.T) {
 
 	// Let proxy "rotate" client cert. Request should fail as the gateway is
 	// still using the old cert.
-	proxy.mustIssueClientCert(t, identity)
+	proxy.mustRotateClientCert(t, identity)
 	sendRequestToKubeLocalProxyAndFail(t, kubeClient)
 
 	// Expire the cert so reissue flow is triggered:
@@ -119,7 +124,7 @@ func sendRequestToKubeLocalProxyAndSucceed(t *testing.T, client *kubernetes.Clie
 	t.Helper()
 	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, len(resp.Items), 1)
+	require.Len(t, resp.Items, 1)
 	require.Equal(t, "kube-pod-name", resp.Items[0].GetName())
 }
 func sendRequestToKubeLocalProxyAndFail(t *testing.T, client *kubernetes.Clientset) {
@@ -156,30 +161,27 @@ type mockProxyWithKubeAPI struct {
 	webProxyAddr string
 	key          *keys.PrivateKey
 	ca           *tlsca.CertAuthority
-	dir          string
+	// clientCert is used to verify the cert of the incoming connection. The cert sent by the gateway
+	// must be equal to clientCert for the verification to pass.
+	clientCert tls.Certificate
 }
 
-func (m *mockProxyWithKubeAPI) clientCertPath() string {
-	return path.Join(m.dir, "cert.pem")
-}
-func (m *mockProxyWithKubeAPI) clientKeyPath() string {
-	return path.Join(m.dir, "key.pem")
-}
-
-func (m *mockProxyWithKubeAPI) mustIssueClientCert(t *testing.T, identity tlsca.Identity) {
+func (m *mockProxyWithKubeAPI) mustRotateClientCert(t *testing.T, identity tlsca.Identity) tls.Certificate {
 	t.Helper()
-	gatewaytest.MustGenCertSignedWithCAAndSaveToPaths(t, m.ca, identity, m.clientCertPath(), m.clientKeyPath())
+	cert := gatewaytest.MustGenCertSignedWithCA(t, m.ca, identity)
+	m.clientCert = cert
+	return cert
 }
 
 func (m *mockProxyWithKubeAPI) verifyConnection(state tls.ConnectionState) error {
 	if len(state.PeerCertificates) != 1 {
 		return trace.BadParameter("expecting one client cert")
 	}
-	wantCert, err := utils.ReadCertificatesFromPath(m.clientCertPath())
+	wantCert, err := utils.TLSCertLeaf(m.clientCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !bytes.Equal(state.PeerCertificates[0].Raw, wantCert[0].Raw) {
+	if !bytes.Equal(state.PeerCertificates[0].Raw, wantCert.Raw) {
 		return trace.AccessDenied("client cert is invalid")
 	}
 	return nil
@@ -208,9 +210,8 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 		webProxyAddr: netListener.Addr().String(),
 		key:          key,
 		ca:           serverCA,
-		dir:          t.TempDir(),
 	}
-	m.mustIssueClientCert(t, identity)
+	m.mustRotateClientCert(t, identity)
 
 	tlsListener := tls.NewListener(netListener, &tls.Config{
 		Certificates:     []tls.Certificate{serverTLSCert},
@@ -218,7 +219,12 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 		ClientAuth:       tls.RequireAndVerifyClientCert,
 		ClientCAs:        m.certPool(),
 	})
-	go http.Serve(tlsListener, mockKubeAPIHandler())
+	go func() {
+		err := http.Serve(tlsListener, mockKubeAPIHandler(t))
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			assert.NoError(t, err)
+		}
+	}()
 	return m
 }
 
@@ -246,11 +252,11 @@ func mustGenCAForProxyKubeAddr(t *testing.T, key *keys.PrivateKey, hostAddr stri
 	return tlsCert, ca
 }
 
-func mockKubeAPIHandler() http.Handler {
+func mockKubeAPIHandler(t *testing.T) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/namespaces/default/pods", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(rw).Encode(&v1.PodList{
+		err := json.NewEncoder(rw).Encode(&v1.PodList{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "PodList",
 				APIVersion: "v1",
@@ -264,6 +270,7 @@ func mockKubeAPIHandler() http.Handler {
 				},
 			},
 		})
+		assert.NoError(t, err)
 	})
 	return mux
 }

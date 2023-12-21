@@ -12,6 +12,7 @@ resource "aws_instance" "cluster" {
     "data.tpl",
     {
       region                   = var.region
+      teleport_auth_type       = var.teleport_auth_type
       cluster_name             = var.cluster_name
       email                    = var.email
       domain_name              = var.route53_domain

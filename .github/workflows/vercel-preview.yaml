@@ -9,7 +9,7 @@ env:
 on:
   pull_request:
     paths: ['docs/**']
-    types: [opened, reopened, edited, synchronize]
+    types: [opened, reopened, synchronize]
   workflow_dispatch:
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
           vercel deploy --archive=tgz --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
           preview_url="$(cat deployment-url.txt)"
           echo "PREVIEW_URL=$preview_url" >> $GITHUB_OUTPUT
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({

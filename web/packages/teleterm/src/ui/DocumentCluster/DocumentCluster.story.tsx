@@ -1,17 +1,19 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useEffect } from 'react';
@@ -28,6 +30,8 @@ import {
   makeLoggedInUser,
   makeRootCluster,
   makeServer,
+  makeDatabase,
+  makeKube,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ResourcesService } from 'teleterm/ui/services/resources';
@@ -35,6 +39,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import * as docTypes from 'teleterm/ui/services/workspacesService/documentsService/types';
 import * as tsh from 'teleterm/services/tshd/types';
+import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import DocumentCluster from './DocumentCluster';
 import { ResourcesContextProvider } from './resourcesContext';
@@ -43,19 +48,15 @@ export default {
   title: 'Teleterm/DocumentCluster',
 };
 
-const rootClusterDoc = {
-  kind: 'doc.cluster' as const,
-  clusterUri: '/clusters/localhost' as const,
-  uri: '/docs/123' as const,
-  title: 'sample',
-};
+const rootClusterDoc = makeDocumentCluster({
+  clusterUri: '/clusters/localhost',
+  uri: '/docs/123',
+});
 
-const leafClusterDoc = {
-  kind: 'doc.cluster' as const,
-  clusterUri: '/clusters/localhost/leaves/foo' as const,
-  uri: '/docs/456' as const,
-  title: 'sample',
-};
+const leafClusterDoc = makeDocumentCluster({
+  clusterUri: '/clusters/localhost/leaves/foo',
+  uri: '/docs/456',
+});
 
 export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
   const state = createClusterServiceState();
@@ -83,11 +84,12 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     state,
     doc: rootClusterDoc,
     platform: 'darwin',
-    fetchServersPromise: Promise.resolve({
-      agentsList: [],
-      totalCount: 0,
-      startKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
   });
 };
 
@@ -118,11 +120,12 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       state,
       doc: rootClusterDoc,
       platform: 'win32',
-      fetchServersPromise: Promise.resolve({
-        agentsList: [],
-        totalCount: 0,
-        startKey: '',
-      }),
+      listUnifiedResources: () =>
+        Promise.resolve({
+          resources: [],
+          totalCount: 0,
+          nextKey: '',
+        }),
     });
   };
 
@@ -150,11 +153,12 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: Promise.resolve({
-      agentsList: [],
-      totalCount: 0,
-      startKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [],
+        totalCount: 0,
+        nextKey: '',
+      }),
   });
 };
 
@@ -167,21 +171,21 @@ export const OnlineLoadingResources = () => {
     })
   );
 
-  let rejectPromise: () => void;
+  let rejectPromise: (error: Error) => void;
   const promiseRejectedOnUnmount = new Promise<any>((resolve, reject) => {
     rejectPromise = reject;
   });
 
   useEffect(() => {
     return () => {
-      rejectPromise();
+      rejectPromise(new Error('Aborted'));
     };
   }, [rejectPromise]);
 
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: promiseRejectedOnUnmount,
+    listUnifiedResources: () => promiseRejectedOnUnmount,
   });
 };
 
@@ -197,18 +201,27 @@ export const OnlineLoadedResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: Promise.resolve({
-      agentsList: [
-        makeServer(),
-        makeServer({
-          uri: '/clusters/foo/servers/1234',
-          hostname: 'bar',
-          tunnel: true,
-        }),
-      ],
-      totalCount: 2,
-      startKey: '',
-    }),
+    listUnifiedResources: () =>
+      Promise.resolve({
+        resources: [
+          {
+            kind: 'server',
+            resource: makeServer(),
+          },
+          {
+            kind: 'server',
+            resource: makeServer({
+              uri: '/clusters/foo/servers/1234',
+              hostname: 'bar',
+              tunnel: true,
+            }),
+          },
+          { kind: 'database', resource: makeDatabase() },
+          { kind: 'kube', resource: makeKube() },
+        ],
+        totalCount: 4,
+        nextKey: '',
+      }),
   });
 };
 
@@ -224,9 +237,8 @@ export const OnlineErrorLoadingResources = () => {
   return renderState({
     state,
     doc: rootClusterDoc,
-    fetchServersPromise: Promise.reject(
-      new Error('Whoops, something went wrong, sorry!')
-    ),
+    listUnifiedResources: () =>
+      Promise.reject(new Error('Whoops, something went wrong, sorry!')),
   });
 };
 
@@ -257,12 +269,12 @@ export const Notfound = () => {
 function renderState({
   state,
   doc,
-  fetchServersPromise,
+  listUnifiedResources,
   platform = 'darwin',
 }: {
   state: ClustersServiceState;
   doc: docTypes.DocumentCluster;
-  fetchServersPromise?: ReturnType<ResourcesService['fetchServers']>;
+  listUnifiedResources?: ResourcesService['listUnifiedResources'];
   platform?: NodeJS.Platform;
   userType?: tsh.UserType;
 }) {
@@ -280,19 +292,21 @@ function renderState({
     };
   });
 
-  appContext.resourcesService.fetchServers = () =>
-    fetchServersPromise || Promise.reject('No fetchServersPromise passed');
+  appContext.resourcesService.listUnifiedResources = (params, abortSignal) =>
+    listUnifiedResources
+      ? listUnifiedResources(params, abortSignal)
+      : Promise.reject('No fetchServersPromise passed');
 
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
-          <ResourcesContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={rootClusterUri}>
             <Wrapper>
               <DocumentCluster visible={true} doc={doc} />
             </Wrapper>
-          </ResourcesContextProvider>
-        </ConnectMyComputerContextProvider>
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );

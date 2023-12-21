@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -22,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -33,6 +37,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	runtimetrace "runtime/trace"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +53,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 
@@ -82,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -139,6 +144,8 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// AssumeStartTimeRaw format is RFC3339
+	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
@@ -488,6 +495,10 @@ type CLIConf struct {
 
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot string
+
+	// SSHLogDir is the directory to log the output of multiple SSH commands to.
+	// If not set, no logs will be created.
+	SSHLogDir string
 }
 
 // Stdout returns the stdout writer.
@@ -614,9 +625,9 @@ func initLogger(cf *CLIConf) {
 	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
 	cf.Debug = cf.Debug || isDebug
 	if cf.Debug {
-		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	} else {
-		utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 	}
 }
 
@@ -723,6 +734,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -941,6 +953,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate.")
 
+	// latency
+	latency := app.Command("latency", "Run latency diagnostics.").Hidden()
+
+	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
+	latencySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1027,12 +1046,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
+	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
+	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
@@ -1230,6 +1251,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
+	case latencySSH.FullCommand():
+		err = onSSHLatency(&cf)
 	case benchSSH.FullCommand():
 		err = onBenchmark(
 			&cf,
@@ -1419,6 +1442,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():
 		err = deviceCmd.activateCredential.run(&cf)
+	case deviceCmd.dmiRead.FullCommand():
+		err = deviceCmd.dmiRead.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
@@ -2498,6 +2523,19 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
 	}
 
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
+		if err != nil {
+			return nil, trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+			return nil, trace.BadParameter("assume-start-time too far in future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		req.SetAssumeStartTime(assumeStartTime)
+	}
+
 	return req, nil
 }
 
@@ -2803,7 +2841,11 @@ type databaseWithUsers struct {
 }
 
 func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUsers {
-	users := accessChecker.EnumerateDatabaseUsers(db)
+	users, err := accessChecker.EnumerateDatabaseUsers(db)
+	if err != nil {
+		log.Warnf("Failed to EnumerateDatabaseUsers for database %v: %v.", db.GetName(), err)
+		return &dbUsers{}
+	}
 	var denied []string
 	allowed := users.Allowed()
 	if users.WildcardAllowed() {
@@ -2857,7 +2899,7 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) string {
+func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) (users string) {
 	// may happen if fetching the role set failed for any reason.
 	if accessChecker == nil {
 		return "(unknown)"
@@ -2866,6 +2908,18 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	dbUsers := getDBUsers(database, accessChecker)
 	if len(dbUsers.Allowed) == 0 {
 		return "(none)"
+	}
+
+	// Add a note for auto-provisioned user.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		autoUser, _, err := accessChecker.CheckDatabaseRoles(database)
+		if err != nil {
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+		} else if autoUser.IsEnabled() {
+			defer func() {
+				users = users + " (Auto-provisioned)"
+			}()
+		}
 	}
 
 	if len(dbUsers.Denied) == 0 {
@@ -3237,6 +3291,47 @@ func retryWithAccessRequest(
 	// Clear the original exit status.
 	tc.ExitStatus = 0
 	return trace.Wrap(fn())
+}
+
+func onSSHLatency(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	}
+
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+
+	nodeClient, err := tc.ConnectToNode(
+		cf.Context,
+		clt,
+		client.NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		tc.Config.HostLogin,
+	)
+	if err != nil {
+		tc.ExitStatus = 1
+		return trace.Wrap(err)
+	}
+	defer nodeClient.Close()
+
+	targetPinger, err := latency.NewSSHPinger(nodeClient.Client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
 }
 
 // onSSH executes 'tsh ssh' command
@@ -3649,9 +3744,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
 		}
 		if proxyRegexp.MatchString(c.WebProxyAddr) {
-			for k, v := range proxyHeaders.Headers {
-				c.ExtraProxyHeaders[k] = v
-			}
+			maps.Copy(c.ExtraProxyHeaders, proxyHeaders.Headers)
 		}
 	}
 
@@ -3784,6 +3877,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.Reason = cf.Reason
 	c.Invited = cf.Invited
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
+	c.SSHLogDir = cf.SSHLogDir
 	return c, nil
 }
 

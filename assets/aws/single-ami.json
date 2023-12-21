@@ -16,7 +16,7 @@
   },
   "builders": [{
     "name": "teleport-aws-linux",
-    "ami_description": "Gravitational Teleport using AWS Linux AMI",
+    "ami_description": "Gravitational Teleport using Amazon Linux 2 AMI",
     "type": "amazon-ebs",
     "region": "{{user `aws_region`}}",
     "source_ami_filter": {
@@ -49,7 +49,8 @@
       "BuildType": "production"
     },
     "run_tags": {
-      "Name": "{{user `ami_name`}}"
+      "Name": "{{user `ami_name`}}",
+      "teleport.dev/is_public": "true"
     },
     "run_volume_tags": {
       "Name": "{{user `ami_name`}}"
@@ -59,7 +60,7 @@
     }
   },{
     "name": "teleport-aws-linux-fips",
-    "ami_description": "Gravitational Teleport with FIPS support using AWS Linux AMI",
+    "ami_description": "Gravitational Teleport with FIPS support using Amazon Linux 2 AMI",
     "type": "amazon-ebs",
     "region": "{{user `aws_region`}}",
     "source_ami_filter": {
@@ -92,7 +93,8 @@
       "BuildType": "production-fips"
     },
     "run_tags": {
-      "Name": "{{user `fips_ami_name`}}"
+      "Name": "{{user `fips_ami_name`}}",
+      "teleport.dev/is_public": "true"
     },
     "run_volume_tags": {
       "Name": "{{user `fips_ami_name`}}"

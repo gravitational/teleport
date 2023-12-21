@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package discord
 
@@ -34,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -240,14 +245,14 @@ func (s *DiscordSuite) createAccessRequest() types.AccessRequest {
 	return out
 }
 
-func (s *DiscordSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
+func (s *DiscordSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 
 	for {
 		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "discord", reqID)
 		require.NoError(t, err)
-		data, err := common.DecodePluginData(rawData)
+		data, err := accessrequest.DecodePluginData(rawData)
 		require.NoError(t, err)
 		if cond(data) {
 			return data
@@ -269,7 +274,7 @@ func (s *DiscordSuite) TestMessagePosting() {
 	s.startApp()
 	request := s.createAccessRequest()
 
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -279,7 +284,7 @@ func (s *DiscordSuite) TestMessagePosting() {
 	for i := 0; i < 2; i++ {
 		msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
 		require.NoError(t, err)
-		messageSet.Add(common.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
 		messages = append(messages, msg)
 	}
 
@@ -298,8 +303,8 @@ func (s *DiscordSuite) TestMessagePosting() {
 
 	t.Logf("%q", messages[0].Text)
 	matches := requestReasonRegexp.FindAllStringSubmatch(messages[0].Text, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
@@ -387,7 +392,7 @@ func (s *DiscordSuite) TestReviewUpdates() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -446,7 +451,7 @@ func (s *DiscordSuite) TestApprovalByReview() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -504,7 +509,7 @@ func (s *DiscordSuite) TestDenialByReview() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -558,7 +563,7 @@ func (s *DiscordSuite) TestExpiration() {
 
 	request := s.createAccessRequest()
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -566,7 +571,7 @@ func (s *DiscordSuite) TestExpiration() {
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -641,7 +646,7 @@ func (s *DiscordSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
+			threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
 			if _, loaded := threadMsgIDs.LoadOrStore(threadMsgKey, struct{}{}); loaded {
 				return setRaceErr(trace.Errorf("thread %v already stored", threadMsgKey))
 			}
@@ -682,7 +687,7 @@ func (s *DiscordSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			threadMsgKey := common.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
+			threadMsgKey := accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID}
 			var newCounter int32
 			val, _ := msgUpdateCounters.LoadOrStore(threadMsgKey, &newCounter)
 			counterPtr := val.(*int32)

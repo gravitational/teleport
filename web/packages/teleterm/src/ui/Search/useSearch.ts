@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { useCallback } from 'react';
@@ -20,8 +22,8 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import {
-  ClusterSearchFilter,
-  ResourceTypeSearchFilter,
+  isResourceTypeSearchFilter,
+  isClusterSearchFilter,
   SearchFilter,
   LabelMatch,
   mainResourceField,
@@ -30,6 +32,7 @@ import {
   searchableFields,
   ResourceSearchResult,
   FilterSearchResult,
+  ResourceTypeFilter,
 } from './searchResult';
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
@@ -39,6 +42,12 @@ export type CrossClusterResourceSearchResult = {
   errors: resourcesServiceTypes.ResourceSearchError[];
   search: string;
 };
+
+const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
+  'node',
+  'db',
+  'kube_cluster',
+];
 
 /**
  * useResourceSearch returns a function which searches for the given list of space-separated keywords across
@@ -53,9 +62,14 @@ export function useResourceSearch() {
   return useCallback(
     async (
       search: string,
-      filters: SearchFilter[]
+      filters: SearchFilter[],
+      advancedSearchEnabled: boolean
     ): Promise<CrossClusterResourceSearchResult> => {
-      const searchMode = getResourceSearchMode(search, filters);
+      const searchMode = getResourceSearchMode(
+        search,
+        filters,
+        advancedSearchEnabled
+      );
       let limit = 100;
 
       switch (searchMode) {
@@ -87,12 +101,10 @@ export function useResourceSearch() {
         }
       }
 
-      const clusterSearchFilter = filters.find(
-        s => s.filter === 'cluster'
-      ) as ClusterSearchFilter;
-      const resourceTypeSearchFilter = filters.find(
-        s => s.filter === 'resource-type'
-      ) as ResourceTypeSearchFilter;
+      const clusterSearchFilter = filters.find(isClusterSearchFilter);
+      const resourceTypeSearchFilters = filters.filter(
+        isResourceTypeSearchFilter
+      );
 
       const connectedClusters = clustersService
         .getClusters()
@@ -111,7 +123,7 @@ export function useResourceSearch() {
             resourcesService.searchResources({
               clusterUri: cluster.uri,
               search,
-              filter: resourceTypeSearchFilter,
+              filters: resourceTypeSearchFilters.map(f => f.resourceType),
               limit,
             })
           )
@@ -180,14 +192,20 @@ export function useFilterSearch() {
         });
       };
       const getResourceType = () => {
-        let resourceTypes = [
-          'servers' as const,
-          'databases' as const,
-          'kubes' as const,
-        ];
+        let resourceTypes = SUPPORTED_RESOURCE_TYPES.filter(resourceType => {
+          const isFilterForResourceTypeAdded = filters.some(searchFilter => {
+            return (
+              searchFilter.filter === 'resource-type' &&
+              searchFilter.resourceType === resourceType
+            );
+          });
+          return !isFilterForResourceTypeAdded;
+        });
         if (search) {
           resourceTypes = resourceTypes.filter(resourceType =>
-            resourceType.toLowerCase().includes(search.toLowerCase())
+            resourceTypeToReadableName[resourceType]
+              .toLowerCase()
+              .includes(search.toLowerCase())
           );
         }
         return resourceTypes.map(resourceType => ({
@@ -199,22 +217,14 @@ export function useFilterSearch() {
       };
 
       const shouldReturnClusters = !filters.some(r => r.filter === 'cluster');
-      const shouldReturnResourceTypes = !filters.some(
-        r => r.filter === 'resource-type'
-      );
 
-      const results = [
-        shouldReturnResourceTypes && getResourceType(),
-        shouldReturnClusters && getClusters(),
-      ]
+      return [getResourceType(), shouldReturnClusters && getClusters()]
         .filter(Boolean)
         .flat()
         .sort((a, b) => {
           // Highest score first.
           return b.score - a.score;
         });
-
-      return results;
     },
     [clustersService, workspacesService]
   );
@@ -359,8 +369,13 @@ type ResourceSearchMode = 'no-search' | 'preview' | 'full-search';
 
 function getResourceSearchMode(
   search: string,
-  filters: SearchFilter[]
+  filters: SearchFilter[],
+  advancedSearchEnabled: boolean
 ): ResourceSearchMode {
+  // the scoring algorithm doesn't support advanced search
+  if (advancedSearchEnabled) {
+    return 'no-search';
+  }
   // Trim the search to avoid sending requests with limit set to 100 if the user just pressed some
   // spaces.
   const trimmedSearch = search.trim();
@@ -379,3 +394,9 @@ function getResourceSearchMode(
 function getLengthScore(searchTerm: string, matchedValue: string): number {
   return Math.floor((searchTerm.length / matchedValue.length) * 100);
 }
+
+export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
+  db: 'databases',
+  node: 'servers',
+  kube_cluster: 'kubes',
+};

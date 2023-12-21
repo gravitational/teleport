@@ -1,23 +1,25 @@
 /*
-Copyright 2016 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -37,8 +40,9 @@ import (
 )
 
 func TestHelperFunctions(t *testing.T) {
-	require.Equal(t, nodeName("one"), "one")
-	require.Equal(t, nodeName("one:22"), "one")
+	assert.Equal(t, "one", nodeName(targetNode{addr: "one"}))
+	assert.Equal(t, "one", nodeName(targetNode{addr: "one:22"}))
+	assert.Equal(t, "example.com", nodeName(targetNode{addr: "one", hostname: "example.com"}))
 }
 
 func TestNewSession(t *testing.T) {
@@ -52,12 +56,12 @@ func TestNewSession(t *testing.T) {
 	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
-	require.Equal(t, ses.NodeClient(), nc)
-	require.Equal(t, ses.namespace, nc.Namespace)
+	require.Equal(t, nc, ses.NodeClient())
+	require.Equal(t, nc.Namespace, ses.namespace)
 	require.NotNil(t, ses.env)
-	require.Equal(t, ses.terminal.Stderr(), os.Stderr)
-	require.Equal(t, ses.terminal.Stdout(), os.Stdout)
-	require.Equal(t, ses.terminal.Stdin(), os.Stdin)
+	require.Equal(t, os.Stderr, ses.terminal.Stderr())
+	require.Equal(t, os.Stdout, ses.terminal.Stdout())
+	require.Equal(t, os.Stdin, ses.terminal.Stdin())
 
 	// pass environ map
 	env := map[string]string{
@@ -68,7 +72,7 @@ func TestNewSession(t *testing.T) {
 	require.NotNil(t, ses)
 	require.Empty(t, cmp.Diff(ses.env, env))
 	// the session ID must be taken from tne environ map, if passed:
-	require.Equal(t, string(ses.id), "session-id")
+	require.Equal(t, "session-id", string(ses.id))
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
@@ -297,4 +301,61 @@ func newWrappedListener(acceptCh chan struct{}) (*wrappedListener, error) {
 func (l wrappedListener) Accept() (net.Conn, error) {
 	close(l.acceptCh)
 	return l.Listener.Accept()
+}
+
+func TestLineLabeledWriter(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		inputs   []string
+		expected string
+	}{
+		{
+			name:     "typical input",
+			inputs:   []string{"this is\nsome test\ninput"},
+			expected: "[label] this is\n[label] some test\n[label] input",
+		},
+		{
+			name:     "don't add empty line at end",
+			inputs:   []string{"dangling newline\n"},
+			expected: "[label] dangling newline\n",
+		},
+		{
+			name:     "blank lines in middle",
+			inputs:   []string{"this\n\nis\n\nsome input"},
+			expected: "[label] this\n[label] \n[label] is\n[label] \n[label] some input",
+		},
+		{
+			name:     "line break between writes",
+			inputs:   []string{"line 1\n", "line 2\n"},
+			expected: "[label] line 1\n[label] line 2\n",
+		},
+		{
+			name:     "line break immediately on second write",
+			inputs:   []string{"line 1", "\nline 2"},
+			expected: "[label] line 1\n[label] line 2",
+		},
+		{
+			name:     "line continues between writes",
+			inputs:   []string{"this is all ", "one continuous line"},
+			expected: "[label] this is all one continuous line",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			w := newLineLabeledWriter(&buf, "label")
+
+			totalBytes := 0
+			expectedBytes := 0
+			for _, line := range tc.inputs {
+				n, err := w.Write([]byte(line))
+				assert.NoError(t, err)
+				totalBytes += n
+				expectedBytes += len(line)
+			}
+			assert.Equal(t, expectedBytes, totalBytes)
+			assert.Equal(t, tc.expected, buf.String())
+		})
+	}
 }

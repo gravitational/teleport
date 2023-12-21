@@ -78,6 +78,7 @@ crdgen: ## Generate CRDs
 
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
+	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
 .PHONY: manifests
@@ -128,7 +129,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go namespace.go
+	go build -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

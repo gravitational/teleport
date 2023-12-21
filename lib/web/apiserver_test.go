@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -41,6 +43,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -62,12 +65,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -89,6 +90,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -103,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -1228,7 +1231,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 0)
+	require.Empty(t, res.Items)
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1551,7 +1554,7 @@ func TestNewTerminalHandler(t *testing.T) {
 
 	for _, testCase := range invalidCases {
 		_, err := NewTerminal(ctx, testCase.cfg)
-		require.Equal(t, err.Error(), testCase.expectedErr)
+		require.Equal(t, testCase.expectedErr, err.Error())
 	}
 
 	validNode := types.ServerV2{}
@@ -2094,23 +2097,23 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 			// Wait for websocket authn challenge event.
 			ty, raw, err := ws.ReadMessage()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, websocket.BinaryMessage, ty)
 			var env Envelope
-			require.Nil(t, proto.Unmarshal(raw, &env))
+			require.NoError(t, proto.Unmarshal(raw, &env))
 
 			chal := &client.MFAAuthenticateChallenge{}
-			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chal))
+			require.NoError(t, json.Unmarshal([]byte(env.Payload), &chal))
 
 			// Send response over ws.
 			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
 			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(t, chal, dev))
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Test we can write.
 			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
-			require.Nil(t, err)
-			require.Nil(t, waitForOutput(stream, "teleport"))
+			require.NoError(t, err)
+			require.NoError(t, waitForOutput(stream, "teleport"))
 		})
 	}
 }
@@ -2265,7 +2268,13 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	wsrwc := &WebsocketIO{Conn: ws}
+	tdpConn := tdp.NewConn(wsrwc)
+
+	// desktopConnectHandle first needs a ClientScreenSpec message in order to continue.
+	tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: 100, Height: 100})
+
+	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
 	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
@@ -2276,7 +2285,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -2548,7 +2557,7 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 	event := events[0].(*apievents.UserLogin)
-	require.Equal(t, true, event.Success)
+	require.True(t, event.Success)
 	require.Equal(t, ua, event.UserAgent)
 	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
@@ -2925,12 +2934,14 @@ func TestMultipleConnectors(t *testing.T) {
 	}
 	o, err := types.NewOIDCConnector("foo", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o)
+	upserted, err := s.server.Auth().UpsertOIDCConnector(s.ctx, o)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	o2, err := types.NewOIDCConnector("bar", oidcConnectorSpec)
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
+	upserted, err = s.server.Auth().UpsertOIDCConnector(s.ctx, o2)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 
 	// set the auth preferences to oidc with no connector name
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -3217,10 +3228,6 @@ func TestGetClusterDetails(t *testing.T) {
 	require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.Status)
 	require.NotNil(t, cluster.LastConnected)
 	require.Equal(t, teleport.Version, cluster.AuthVersion)
-
-	nodes, err := s.proxyClient.GetNodes(s.ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, nodes, cluster.NodeCount)
 }
 
 func TestTokenGeneration(t *testing.T) {
@@ -3625,7 +3632,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	require.NoError(t, env.server.Auth().DeleteNode(ctx, env.node.GetNamespace(), env.node.ID()))
 	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
 	require.NoError(t, err)
-	require.Len(t, n, 0)
+	require.Empty(t, n)
 
 	// Double check we start of with no resources.
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
@@ -3656,7 +3663,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteWindowsDesktop(ctx, "hostid", "test-desktop"))
 				wds, err := env.server.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 				require.NoError(t, err)
-				require.Len(t, wds, 0)
+				require.Empty(t, wds)
 			},
 		},
 		{
@@ -3671,7 +3678,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteNode(ctx, apidefaults.Namespace, "test-node"))
 				nodes, err := env.server.Auth().GetNodes(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, nodes, 0)
+				require.Empty(t, nodes)
 			},
 		},
 		{
@@ -3700,7 +3707,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteApplicationServer(ctx, apidefaults.Namespace, "hostid", "test-app"))
 				apps, err := env.server.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, apps, 0)
+				require.Empty(t, apps)
 			},
 		},
 		{
@@ -3721,7 +3728,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteDatabaseServer(ctx, apidefaults.Namespace, "test-hostID", "test-db"))
 				dbs, err := env.server.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
-				require.Len(t, dbs, 0)
+				require.Empty(t, dbs)
 			},
 		},
 		{
@@ -3738,7 +3745,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				require.NoError(t, env.server.Auth().DeleteKubernetesServer(ctx, "test-kube", "test-kube-name"))
 				kubes, err := env.server.Auth().GetKubernetesServers(ctx)
 				require.NoError(t, err)
-				require.Len(t, kubes, 0)
+				require.Empty(t, kubes)
 			},
 		},
 	}
@@ -4454,7 +4461,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
-	require.Len(t, collectAppSessions(context.Background()), 0)
+	require.Empty(t, collectAppSessions(context.Background()))
 }
 
 func TestGetWebConfig(t *testing.T) {
@@ -4487,7 +4494,7 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertGithubConnector(ctx, github)
+	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
 	expectedCfg := webclient.WebConfig{
@@ -4544,10 +4551,22 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
+	require.NoError(t, err)
+	// This version is too high and MUST NOT be used
+	testVersion := "v99.0.1"
+	channels := automaticupgrades.Channels{
+		automaticupgrades.DefaultCloudChannelName: {
+			StaticVersion: testVersion,
+		},
+	}
+	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
+
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AssistEnabled = true
+	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
+	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4581,6 +4600,56 @@ func TestGetWebConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, expectedCfg, cfg)
+}
+
+func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ProductType:                modules.ProductTypeTeam,
+			IdentityGovernanceSecurity: true,
+			AccessList: modules.AccessListFeature{
+				CreateLimit: 5,
+			},
+			AccessMonitoring: modules.AccessMonitoringFeature{
+				MaxReportRangeLimit: 10,
+			},
+		},
+	})
+
+	expectedCfg := webclient.WebConfig{
+		Auth: webclient.WebConfigAuthSettings{
+			SecondFactor:     constants.SecondFactorOff,
+			LocalAuthEnabled: true,
+			AuthType:         constants.Local,
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		},
+		CanJoinSessions:  true,
+		ProxyClusterName: env.server.ClusterName(),
+		FeatureLimits: webclient.FeatureLimits{
+			AccessListCreateLimit:               5,
+			AccessMonitoringMaxReportRangeLimit: 10,
+		},
+		IsTeam:       true,
+		IsIGSEnabled: true,
+	}
+
+	// Make a request.
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
 	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
 	require.NoError(t, err)
 	require.Equal(t, expectedCfg, cfg)
@@ -4825,7 +4894,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
-	require.Len(t, devices, 0)
+	require.Empty(t, devices)
 }
 
 func TestCreateAuthenticateChallenge(t *testing.T) {
@@ -5508,7 +5577,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		initialConnectorName string
 		resultConnectorName  string
 	}{{
-		name:                 "first cloud sign-in changes connector to `passwordless`",
+		name:                 "first cloud sign-in changes connector to passwordless",
 		cloud:                true,
 		numberOfUsers:        1,
 		authPreferenceType:   constants.Local,
@@ -5546,107 +5615,109 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 	}}
 
 	for _, tc := range tt {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestFeatures: modules.Features{
-				Cloud: tc.cloud,
-			},
-		})
-
-		const RPID = "localhost"
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:          tc.authPreferenceType,
-				ConnectorName: tc.initialConnectorName,
-				SecondFactor:  constants.SecondFactorOn,
-				Webauthn: &types.Webauthn{
-					RPID: RPID,
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
 				},
-			},
-		})
-
-		// user and role
-		users := make([]types.User, tc.numberOfUsers)
-
-		for i := 0; i < tc.numberOfUsers; i++ {
-			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
-			require.NoError(t, err)
-
-			user.SetCreatedBy(types.CreatedBy{
-				User: types.UserRef{Name: "other_user"},
 			})
 
-			role := services.RoleForUser(user)
+			const RPID = "localhost"
 
-			role, err = s.server.Auth().UpsertRole(s.ctx, role)
+			s := newWebSuiteWithConfig(t, webSuiteConfig{
+				authPreferenceSpec: &types.AuthPreferenceSpecV2{
+					Type:          tc.authPreferenceType,
+					ConnectorName: tc.initialConnectorName,
+					SecondFactor:  constants.SecondFactorOn,
+					Webauthn: &types.Webauthn{
+						RPID: RPID,
+					},
+				},
+			})
+
+			// user and role
+			users := make([]types.User, tc.numberOfUsers)
+
+			for i := 0; i < tc.numberOfUsers; i++ {
+				user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+				require.NoError(t, err)
+
+				user.SetCreatedBy(types.CreatedBy{
+					User: types.UserRef{Name: "other_user"},
+				})
+
+				role := services.RoleForUser(user)
+
+				role, err = s.server.Auth().UpsertRole(s.ctx, role)
+				require.NoError(t, err)
+
+				user.AddRole(role.GetName())
+
+				user, err = s.server.Auth().CreateUser(s.ctx, user)
+				require.NoError(t, err)
+
+				users[i] = user
+			}
+
+			initialUser := users[0]
+
+			clt := s.client(t)
+
+			// create register challenge
+			token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+				Name: initialUser.GetName(),
+			})
 			require.NoError(t, err)
 
-			user.AddRole(role.GetName())
-
-			user, err = s.server.Auth().CreateUser(s.ctx, user)
+			res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+				TokenID:     token.GetName(),
+				DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			})
 			require.NoError(t, err)
 
-			users[i] = user
-		}
+			cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
-		initialUser := users[0]
+			// use passwordless as auth method
+			device, err := mocku2f.Create()
+			require.NoError(t, err)
 
-		clt := s.client(t)
+			device.SetPasswordless()
 
-		// create register challenge
-		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
-			Name: initialUser.GetName(),
+			ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+			require.NoError(t, err)
+
+			// send sign-in response to server
+			body, err := json.Marshal(changeUserAuthenticationRequest{
+				WebauthnCreationResponse: ccr,
+				TokenID:                  token.GetName(),
+				DeviceName:               "passwordless-device",
+				Password:                 tc.password,
+			})
+			require.NoError(t, err)
+
+			req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			csrfToken, err := csrf.GenerateToken()
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, csrfToken)
+			req.Header.Set(csrf.HeaderName, csrfToken)
+			req.Header.Set("Content-Type", "application/json")
+
+			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, re.Code())
+
+			// check if auth preference connectorName is set
+			authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.resultConnectorName, authPreference.GetConnectorName(), "Found unexpected auth connector name")
 		})
-		require.NoError(t, err)
-
-		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
-			TokenID:     token.GetName(),
-			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-		})
-		require.NoError(t, err)
-
-		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
-
-		// use passwordless as auth method
-		device, err := mocku2f.Create()
-		require.NoError(t, err)
-
-		device.SetPasswordless()
-
-		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
-		require.NoError(t, err)
-
-		// send sign-in response to server
-		body, err := json.Marshal(changeUserAuthenticationRequest{
-			WebauthnCreationResponse: ccr,
-			TokenID:                  token.GetName(),
-			DeviceName:               "passwordless-device",
-			Password:                 tc.password,
-		})
-		require.NoError(t, err)
-
-		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
-		require.NoError(t, err)
-
-		csrfToken, err := csrf.GenerateToken()
-		require.NoError(t, err)
-		addCSRFCookieToReq(req, csrfToken)
-		req.Header.Set(csrf.HeaderName, csrfToken)
-		req.Header.Set("Content-Type", "application/json")
-
-		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-			return clt.Client.HTTPClient().Do(req)
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, re.Code(), http.StatusOK)
-
-		// check if auth preference connectorName is set
-		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
-		require.NoError(t, err)
-
-		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
 	}
 }
 
@@ -5852,7 +5923,7 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "token", resetToken.GetName()), url.Values{})
 	require.NoError(t, err)
-	require.Equal(t, resp.Code(), http.StatusOK)
+	require.Equal(t, http.StatusOK, resp.Code())
 
 	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
 	require.True(t, trace.IsNotFound(err))
@@ -5899,8 +5970,8 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
+	require.Equal(t, diagName, receivedConnectionDiagnostic.ID)
+	require.Equal(t, "success for cd0", receivedConnectionDiagnostic.Message)
 
 	diag, err := env.server.Auth().GetConnectionDiagnostic(ctx, diagName)
 	require.NoError(t, err)
@@ -5921,11 +5992,11 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "after update")
+	require.Equal(t, diagName, receivedConnectionDiagnostic.ID)
+	require.Equal(t, "after update", receivedConnectionDiagnostic.Message)
 	require.Len(t, receivedConnectionDiagnostic.Traces, 1)
 	require.NotNil(t, receivedConnectionDiagnostic.Traces[0])
-	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
+	require.Equal(t, "some details", receivedConnectionDiagnostic.Traces[0].Details)
 }
 
 func TestDiagnoseSSHConnection(t *testing.T) {
@@ -6004,6 +6075,8 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		roles           []types.Role
 		resourceName    string
 		nodeUser        string
+		nodeOS          string
+		setupMethod     string
 		stopNode        bool
 		expectedSuccess bool
 		expectedMessage string
@@ -6041,11 +6114,12 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			},
 		},
 		{
-			name:            "node not found",
-			roles:           roleWithFullAccess("nodenotfound", osUsername),
-			teleportUser:    "nodenotfound",
+			name:            "Linux node not found",
+			roles:           roleWithFullAccess("nodenotfound-linux", osUsername),
+			teleportUser:    "nodenotfound-linux",
 			resourceName:    "notanode",
 			nodeUser:        osUsername,
+			nodeOS:          constants.LinuxOS,
 			expectedSuccess: false,
 			expectedMessage: "failed",
 			expectedTraces: []types.ConnectionDiagnosticTrace{
@@ -6053,6 +6127,43 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Error:   "direct dialing to nodes not found in inventory is not supported",
+				},
+			},
+		},
+		{
+			name:            "Darwin node not found",
+			roles:           roleWithFullAccess("nodenotfound-darwin", osUsername),
+			teleportUser:    "nodenotfound-darwin",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			nodeOS:          constants.DarwinOS,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "launchctl print 'system/Teleport Service'".`,
+					Error:   "direct dialing to nodes not found in inventory is not supported",
+				},
+			},
+		},
+		{
+			name:            "Connect My Computer node not found",
+			roles:           roleWithFullAccess("nodenotfound-connect-my-computer", osUsername),
+			teleportUser:    "nodenotfound-connect-my-computer",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			nodeOS:          constants.DarwinOS,
+			setupMethod:     conntest.SSHNodeSetupMethodConnectMyComputer,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running.`,
 					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
@@ -6110,7 +6221,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			},
 		},
 		{
-			name:            "principal doesnt exist in target host",
+			name:            "principal does not exist in target host",
 			teleportUser:    "principaldoesnotexist",
 			roles:           roleWithPrincipal("principaldoesnotexist", "nonvalidlinuxuser"),
 			resourceName:    nodeName,
@@ -6121,8 +6232,26 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user:`,
+					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid login in the target node. Output from Node: Failed to launch: user:`,
 					Error:   "Process exited with status 255",
+				},
+			},
+		},
+		{
+			name:            "principal does not exist in target Connect My Computer host",
+			teleportUser:    "principaldoesnotexist-connect-my-computer",
+			roles:           roleWithPrincipal("principaldoesnotexist-connect-my-computer", "nonvaliduser"),
+			resourceName:    nodeName,
+			nodeUser:        "nonvaliduser",
+			setupMethod:     conntest.SSHNodeSetupMethodConnectMyComputer,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Invalid user`,
+					Error:   `The role "connect-my-computer-principaldoesnotexist-connect-my-computer" includes only the login "nonvaliduser" and "nonvaliduser" is not a valid principal for this node`,
 				},
 			},
 		},
@@ -6141,9 +6270,11 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
 
 			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
-				ResourceKind: types.KindNode,
-				ResourceName: tt.resourceName,
-				SSHPrincipal: tt.nodeUser,
+				ResourceKind:       types.KindNode,
+				ResourceName:       tt.resourceName,
+				SSHPrincipal:       tt.nodeUser,
+				SSHNodeOS:          tt.nodeOS,
+				SSHNodeSetupMethod: tt.setupMethod,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
@@ -6855,7 +6986,7 @@ func TestCreateDatabase(t *testing.T) {
 		resp, err := pack.clt.PostJSON(ctx, createDatabaseEndpoint, tt.req)
 		tt.errAssert(t, err)
 
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+		require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 
 		if err != nil {
 			continue
@@ -6865,9 +6996,9 @@ func TestCreateDatabase(t *testing.T) {
 		database, err := env.proxies[0].client.GetDatabase(ctx, tt.req.Name)
 		require.NoError(t, err)
 
-		require.Equal(t, database.GetName(), tt.req.Name)
-		require.Equal(t, database.GetProtocol(), tt.req.Protocol)
-		require.Equal(t, database.GetURI(), tt.req.URI)
+		require.Equal(t, tt.req.Name, database.GetName())
+		require.Equal(t, tt.req.Protocol, database.GetProtocol())
+		require.Equal(t, tt.req.URI, database.GetURI())
 
 		// At least the provided labels exist in the database resource
 		databaseLabels := database.GetAllLabels()
@@ -6880,7 +7011,7 @@ func TestCreateDatabase(t *testing.T) {
 		if tt.expectedStatus == http.StatusOK {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
-			require.Equal(t, result, ui.Database{
+			expected := ui.Database{
 				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
@@ -6890,7 +7021,8 @@ func TestCreateDatabase(t *testing.T) {
 				DatabaseUsers: []string{"user1"},
 				DatabaseNames: []string{"name1"},
 				URI:           "someuri:3306",
-			})
+			}
+			require.Equal(t, expected, result)
 		}
 	}
 }
@@ -6993,7 +7125,7 @@ func TestUpdateDatabase_Errors(t *testing.T) {
 			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
 			tt.errAssert(t, err)
 
-			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+			require.Equal(t, tt.expectedStatus, resp.Code(), "invalid status code received")
 		})
 	}
 }
@@ -7796,25 +7928,20 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 
 	sshGRPCServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			interceptors.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			interceptors.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.ChainStreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 		grpc.Creds(creds),
 	)
 	t.Cleanup(sshGRPCServer.Stop)
 
 	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-		AccessPoint: client,
-		LockWatcher: proxyLockWatcher,
-		Clock:       clock,
-		ServerID:    proxyID,
-		Emitter:     client,
-		Logger:      log,
+		AccessPoint:    client,
+		LockWatcher:    proxyLockWatcher,
+		Clock:          clock,
+		ServerID:       proxyID,
+		Emitter:        client,
+		EmitterContext: ctx,
+		Logger:         log,
 	})
 	require.NoError(t, err)
 
@@ -9347,8 +9474,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, promptMFA client.PromptMFAFunc, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, promptMFA, client.WithPresenceClock(presenceClock)))
+		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...client.PresenceOption) error {
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaPrompt, client.WithPresenceClock(presenceClock)))
 		},
 	})
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -29,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +47,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1205,7 +1207,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party)
+		err = session.join(party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1581,6 +1583,9 @@ func exitCode(err error) (errMsg, code string) {
 			return
 		}
 		errMsg = kubeStatusErr.ErrStatus.Message
+		if errMsg == "" {
+			errMsg = string(kubeStatusErr.ErrStatus.Reason)
+		}
 		code = strconv.Itoa(int(kubeStatusErr.ErrStatus.Code))
 	} else if errors.As(err, &kubeExecErr) {
 		if kubeExecErr.Err != nil {
@@ -1691,7 +1696,9 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	}
 
 	f.setSession(session.id, session)
-	err = session.join(party)
+	// When Teleport attaches the original session creator terminal streams to the
+	// session, we don't wan't to emmit session.join event since it won't be required.
+	err = session.join(party, false /* emitSessionJoinEvent */)
 	if err != nil {
 		// This error must be forwarded to SPDY error stream, otherwise the client
 		// will hang waiting for the response.
@@ -2211,6 +2218,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		ServerID:              s.parent.cfg.HostID,
 		Entry:                 s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
+		EmitterContext:        s.parent.ctx,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)

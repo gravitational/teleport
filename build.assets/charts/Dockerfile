@@ -1,10 +1,6 @@
 # Stage to build the image, without FIPS entrypoint argument
 FROM ubuntu:20.04 AS teleport
 
-# Copy the deb archive
-ARG DEB_PATH
-COPY ${DEB_PATH?} /tmp/teleport.deb
-
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
 # signals and orphaned processes are are handled correctly. The ca-certificate
 # package is installed because the base Ubuntu image does not come with any
@@ -50,12 +46,25 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y net-tools iputils-ping inetutils-telnet netcat tcpdump busybox && \
     busybox --install -s && \
     update-ca-certificates && \
-    # Install Teleport
-    dpkg -i /tmp/teleport.deb && \
     # Cleanup
     apt-get -y clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf /tmp/*
+    rm -rf /var/lib/apt/lists/*
+
+# DEB_PATH speficies the path to the Teleport .deb file under
+# the build context. If not specified, DEB_BASE specifies the path
+# prefix to the Teleport .deb file without the architecture and
+# `.deb` on the end. DEB_BASE is used for multi-architecture builds.
+# DEB_PATH is deprecated and will be removed.
+ARG DEB_PATH
+ARG DEB_BASE
+ARG TARGETARCH
+
+# Note --mount=target=/ctx which mounts the docker build context on /ctx
+# providing access to the .deb file to install without needing to COPY it
+# in, saving space in the image.
+RUN --mount=target=/ctx \
+    # Install Teleport
+    dpkg -i /ctx/${DEB_PATH:-${DEB_BASE}_${TARGETARCH}.deb}
 
 # Used to track whether a Teleport agent was installed using this method.
 ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true

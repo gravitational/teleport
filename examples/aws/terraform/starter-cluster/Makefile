@@ -47,7 +47,7 @@ TF_VAR_enable_postgres_listener ?= false
 TF_VAR_s3_bucket_name ?=
 
 # AWS instance type to provision for running this Teleport cluster
-TF_VAR_cluster_instance_type = "t3.micro"
+TF_VAR_cluster_instance_type = t3.micro
 
 # Email of your support org, used for Let's Encrypt cert registration process.
 TF_VAR_email ?=
@@ -70,6 +70,15 @@ TF_VAR_use_acm ?= false
 # This setting is automatically set to "true" when using ACM with the starter-cluster Terraform
 # and will be ignored.
 TF_VAR_use_tls_routing ?= true
+
+# (optional) Change the default authentication type used for the Teleport cluster.
+# See https://goteleport.com/docs/reference/authentication for more information.
+# This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
+# or GitHub connector configured in DynamoDB. The default if not set is "local".
+# Teleport Community Edition supports "local" or "github"
+# Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
+# Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
+TF_VAR_teleport_auth_type ?= "local"
 
 export
 

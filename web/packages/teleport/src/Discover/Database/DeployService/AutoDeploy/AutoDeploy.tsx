@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -21,6 +23,7 @@ import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { requiredIamRoleName } from 'shared/components/Validation/rules';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
@@ -330,7 +333,7 @@ const CreateAccessRole = ({
       <FieldInput
         mb={4}
         disabled={disabled}
-        rule={roleArnMatcher}
+        rule={requiredIamRoleName}
         label="Name a Task Role ARN"
         autoFocus
         value={taskRoleArn}
@@ -452,21 +455,3 @@ const StyledBox = styled(Box)`
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
 `;
-
-// ROLE_ARN_REGEX uses the same regex matcher used in the backend:
-// https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
-//
-// Regex checks for alphanumerics and select few characters.
-export const ROLE_ARN_REGEX = /^[\w+=,.@-]+$/;
-const roleArnMatcher = value => () => {
-  const isValid = value.match(ROLE_ARN_REGEX);
-  if (!isValid) {
-    return {
-      valid: false,
-      message: 'name can only contain characters @ = , . + - and alphanumerics',
-    };
-  }
-  return {
-    valid: true,
-  };
-};

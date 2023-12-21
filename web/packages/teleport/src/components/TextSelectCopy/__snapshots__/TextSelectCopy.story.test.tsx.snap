@@ -1,7 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`bash set to false does not render $ sign 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding: 8px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c4 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -27,45 +40,38 @@ exports[`bash set to false does not render $ sign 1`] = `
   padding: 0px 24px;
 }
 
-.c2:hover,
-.c2:focus {
+.c4:hover,
+.c4:focus {
   background: #B29DFF;
 }
 
-.c2:active {
+.c4:active {
   background: #C5B6FF;
 }
 
-.c2:disabled {
+.c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding: 8px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 8px;
+.c3 {
   display: flex;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
     color="light"
   >
     <div
-      class="c1"
+      class="c2 c3"
       style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
     >
       <div>
@@ -73,7 +79,7 @@ exports[`bash set to false does not render $ sign 1`] = `
       </div>
     </div>
     <button
-      class="c2"
+      class="c4"
       kind="primary"
       style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
     >
@@ -84,12 +90,25 @@ exports[`bash set to false does not render $ sign 1`] = `
 `;
 
 exports[`default, renders $ sign 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding: 8px;
+  color: #FFFFFF;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
 .c2 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c4 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c3 {
+.c5 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -115,49 +134,42 @@ exports[`default, renders $ sign 1`] = `
   padding: 0px 24px;
 }
 
-.c3:hover,
-.c3:focus {
+.c5:hover,
+.c5:focus {
   background: #B29DFF;
 }
 
-.c3:active {
+.c5:active {
   background: #C5B6FF;
 }
 
-.c3:disabled {
+.c5:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding: 8px;
-  color: #FFFFFF;
-  background-color: #010B1C;
-  border-radius: 4px;
+.c1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c1 {
-  box-sizing: border-box;
-  margin-right: 8px;
+.c3 {
   display: flex;
 }
 
 <div>
   <div
-    class="c0"
+    class="c0 c1"
     color="light"
   >
     <div
-      class="c1"
+      class="c2 c3"
       style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
     >
       <div
-        class="c2"
+        class="c4"
         style="user-select: none;"
       >
         $
@@ -167,7 +179,7 @@ exports[`default, renders $ sign 1`] = `
       </div>
     </div>
     <button
-      class="c3"
+      class="c5"
       kind="primary"
       style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
     >

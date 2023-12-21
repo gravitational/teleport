@@ -1,26 +1,32 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-// package servicecfg contains the runtime configuration for Teleport services
+// Package servicecfg contains the runtime configuration for Teleport services
 package servicecfg
 
 import (
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -182,33 +188,19 @@ type Config struct {
 	// endpoint extended with additional /debug handlers
 	Debug bool
 
-	// UploadEventsC is a channel for upload events
-	// used in tests
-	UploadEventsC chan events.UploadEvent `json:"-"`
-
 	// FileDescriptors is an optional list of file descriptors for the process
 	// to inherit and use for listeners, used for in-process updates.
-	FileDescriptors []FileDescriptor
+	FileDescriptors []*FileDescriptor
 
 	// PollingPeriod is set to override default internal polling periods
 	// of sync agents, used to speed up integration tests.
 	PollingPeriod time.Duration
-
-	// ClientTimeout is set to override default client timeouts
-	// used by internal clients, used to speed up integration tests.
-	ClientTimeout time.Duration
-
-	// ShutdownTimeout is set to override default shutdown timeout.
-	ShutdownTimeout time.Duration
 
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
 
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
-
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
@@ -223,8 +215,12 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// Log optionally specifies the logger
+	// Log optionally specifies the logger.
+	// Deprecated: use Logger instead.
 	Log utils.Logger
+	// Logger outputs messages using slog. The underlying handler respects
+	// the user supplied logging config.
+	Logger *slog.Logger
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -235,9 +231,6 @@ type Config struct {
 
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
-
-	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
-	ConnectFailureC chan time.Duration
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -255,17 +248,11 @@ type Config struct {
 	// InstanceMetadataClient specifies the instance metadata client.
 	InstanceMetadataClient cloud.InstanceMetadata
 
-	// OpenAIConfig contains the optional OpenAI client configuration used by
-	// auth and proxy. When it's not set (the default, we don't offer a way to
-	// set it when executing the regular Teleport binary) we use the default
-	// configuration with auth tokens passed from Auth.AssistAPIKey or
-	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
-	// the real OpenAI API.
-	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
-	OpenAIConfig *openai.ClientConfig
+	// Testing is a group of properties that are used in tests.
+	Testing ConfigTesting
 
-	// Options provide a way to customize behavior of service initialization.
-	Options []Option
+	// AccessGraph represents AccessGraph server config
+	AccessGraph AccessGraphConfig
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -289,22 +276,51 @@ type Config struct {
 	authServers []utils.NetAddr
 }
 
-// Option allows to customize default behavior of service initialization defined by Config
-type Option interface {
-	Apply(any) error
+type ConfigTesting struct {
+	// ConnectFailureC is a channel to notify of failures to connect to auth (used in tests).
+	ConnectFailureC chan time.Duration
+
+	// UploadEventsC is a channel for upload events used in tests
+	UploadEventsC chan events.UploadEvent `json:"-"`
+
+	// ClientTimeout is set to override default client timeouts
+	// used by internal clients, used to speed up integration tests.
+	ClientTimeout time.Duration
+
+	// ShutdownTimeout is set to override default shutdown timeout.
+	ShutdownTimeout time.Duration
+
+	// TeleportVersion is used to control the Teleport version in tests.
+	TeleportVersion string
+
+	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
+	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
+	// connections there.
+	KubeMultiplexerIgnoreSelfConnections bool
+
+	// OpenAIConfig contains the optional OpenAI client configuration used by
+	// auth and proxy. When it's not set (the default, we don't offer a way to
+	// set it when executing the regular Teleport binary) we use the default
+	// configuration with auth tokens passed from Auth.AssistAPIKey or
+	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
+	// the real OpenAI API.
+	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
+	OpenAIConfig *openai.ClientConfig
 }
 
-// KubeMultiplexerIgnoreSelfConnectionsOption signals that Proxy TLS server's listener should
-// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
-// connections there.
-type KubeMultiplexerIgnoreSelfConnectionsOption struct{}
+// AccessGraphConfig represents TAG server config
+type AccessGraphConfig struct {
+	// Enabled Access Graph reporting enabled
+	Enabled bool
 
-func (k KubeMultiplexerIgnoreSelfConnectionsOption) Apply(input any) error {
-	return nil
-}
+	// Addr of the Access Graph service addr
+	Addr string
 
-func WithKubeMultiplexerIgnoreSelfConnectionsOption() KubeMultiplexerIgnoreSelfConnectionsOption {
-	return KubeMultiplexerIgnoreSelfConnectionsOption{}
+	// CA is the path to the CA certificate file
+	CA string
+
+	// Insecure is true if the connection to the Access Graph service should be insecure
+	Insecure bool
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -495,6 +511,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.Log = utils.NewLogger()
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -572,13 +592,15 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
-	cfg.ConnectFailureC = make(chan time.Duration, 1)
+	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
 // FileDescriptor is a file descriptor associated
 // with a listener
 type FileDescriptor struct {
+	once sync.Once
+
 	// Type is a listener type, e.g. auth:ssh
 	Type string
 	// Address is an address of the listener, e.g. 127.0.0.1:3025
@@ -587,12 +609,22 @@ type FileDescriptor struct {
 	File *os.File
 }
 
+func (fd *FileDescriptor) Close() error {
+	var err error
+	fd.once.Do(func() {
+		err = fd.File.Close()
+	})
+	return trace.Wrap(err)
+}
+
 func (fd *FileDescriptor) ToListener() (net.Listener, error) {
 	listener, err := net.FileListener(fd.File)
 	if err != nil {
 		return nil, err
 	}
-	fd.File.Close()
+	if err := fd.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return listener, nil
 }
 
@@ -643,6 +675,10 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 
 	if cfg.PollingPeriod == 0 {

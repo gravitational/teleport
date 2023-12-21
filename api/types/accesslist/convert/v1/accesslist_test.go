@@ -42,12 +42,17 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 			Name:             "dne",
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST,
 		},
+		{
+			Name:             "unspecified",
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED,
+		},
 	}
 
 	owners := []accesslist.Owner{
 		{Name: "expired"},
 		{Name: "missing"},
 		{Name: "dne"},
+		{Name: "unspecified"},
 	}
 	al := &accesslist.AccessList{
 		Spec: accesslist.Spec{
@@ -72,6 +77,10 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 			Name:             "dne",
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(),
 		},
+		{
+			Name:             "unspecified",
+			IneligibleStatus: "",
+		},
 	}))
 }
 
@@ -86,61 +95,87 @@ func TestRoundtrip(t *testing.T) {
 
 // Make sure that we don't panic if any of the message fields are missing.
 func TestFromProtoNils(t *testing.T) {
-	// Spec is nil
-	accessList := ToProto(newAccessList(t, "access-list"))
-	accessList.Spec = nil
+	t.Run("spec", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec = nil
 
-	_, err := FromProto(accessList)
-	require.Error(t, err)
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
 
-	// Owners is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.Owners = nil
+	t.Run("owners", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.Owners = nil
 
-	_, err = FromProto(accessList)
-	require.Error(t, err)
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
 
-	// Audit is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.Audit = nil
+	t.Run("audit", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.Audit = nil
 
-	_, err = FromProto(accessList)
-	require.Error(t, err)
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
 
-	// Recurrence is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.Audit.Recurrence = nil
+	t.Run("recurrence", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.Audit.Recurrence = nil
 
-	_, err = FromProto(accessList)
-	require.NoError(t, err)
+		_, err := FromProto(accessList)
+		require.NoError(t, err)
+	})
 
-	// Notifications is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.Audit.Notifications = nil
+	t.Run("notifications", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.Audit.Notifications = nil
 
-	_, err = FromProto(accessList)
-	require.NoError(t, err)
+		_, err := FromProto(accessList)
+		require.NoError(t, err)
+	})
 
-	// MembershipRequires is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.MembershipRequires = nil
+	t.Run("membership-requires", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.MembershipRequires = nil
 
-	_, err = FromProto(accessList)
-	require.Error(t, err)
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
 
-	// OwnershipRequires is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.OwnershipRequires = nil
+	t.Run("ownership-requires", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.OwnershipRequires = nil
 
-	_, err = FromProto(accessList)
-	require.Error(t, err)
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
 
-	// Grants is nil
-	accessList = ToProto(newAccessList(t, "access-list"))
-	accessList.Spec.Grants = nil
+	t.Run("grants", func(t *testing.T) {
+		accessList := ToProto(newAccessList(t, "access-list"))
+		accessList.Spec.Grants = nil
 
-	_, err = FromProto(accessList)
-	require.Error(t, err)
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
+
+	t.Run("membership", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Spec.Membership = ""
+
+		uut, err := FromProto(msg)
+		require.NoError(t, err)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
+	})
+
+	t.Run("ownership", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Spec.Ownership = ""
+
+		uut, err := FromProto(msg)
+		require.NoError(t, err)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
+	})
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {

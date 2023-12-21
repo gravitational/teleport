@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -103,6 +105,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromProvisionToken(r)
 	case types.Lock:
 		item, err = itemFromLock(r)
+	case types.ClusterNetworkingConfig:
+		item, err = itemFromClusterNetworkingConfig(r)
+	case types.AuthPreference:
+		item, err = itemFromAuthPreference(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -113,6 +119,47 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	items = append(items, *item)
 	items = append(items, extItems...)
 	return items, nil
+}
+
+// itemFromClusterNetworkingConfig attempts to encode the supplied cluster_networking_config as an
+// instance of `backend.Item` suitable for storage.
+func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backend.Item, error) {
+	if err := services.CheckAndSetDefaults(cnc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalClusterNetworkingConfig(cnc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Value:    value,
+		ID:       cnc.GetResourceID(),
+		Revision: cnc.GetRevision(),
+	}
+	return item, nil
+}
+
+// itemFromAuthPreference attempts to encode the supplied cluster_auth_preference as an
+// instance of `backend.Item` suitable for storage.
+func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
+	if err := services.CheckAndSetDefaults(ap); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalAuthPreference(ap)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := &backend.Item{
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		ID:       ap.GetResourceID(),
+		Revision: ap.GetRevision(),
+	}
+
+	return item, nil
 }
 
 // itemFromUser attempts to encode the supplied user as an
@@ -178,7 +225,7 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 // itemFromProvisionToken attempts to encode the supplied provision token
 // as an instance of `backend.Item` suitable for storage.
 func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
-	if err := p.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := p.GetRevision()
@@ -199,7 +246,7 @@ func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
 // itemFromTrustedCluster attempts to encode the supplied trusted cluster
 // as an instance of `backend.Item` suitable for storage.
 func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
-	if err := tc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := tc.GetRevision()
@@ -220,7 +267,7 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 // itemFromGithubConnector attempts to encode the supplied github connector
 // as an instance of `backend.Item` suitable for storage.
 func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
-	if err := gc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(gc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := gc.GetRevision()
@@ -372,7 +419,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 // itemFromLock attempts to encode the supplied lock as an
 // instance of `backend.Item` suitable for storage.
 func itemFromLock(l types.Lock) (*backend.Item, error) {
-	if err := l.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(l); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := l.GetRevision()
