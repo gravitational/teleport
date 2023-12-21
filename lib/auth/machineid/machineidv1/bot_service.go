@@ -163,8 +163,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	switch {
-	case req.BotName == "":
+	if req.BotName == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
@@ -586,8 +585,7 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	switch {
-	case req.BotName == "":
+	if req.BotName == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
