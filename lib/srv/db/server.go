@@ -356,10 +356,10 @@ func (m *monitoredDatabases) isResource(database types.Database) bool {
 	return false
 }
 
-func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
+func (m *monitoredDatabases) get() map[string]types.Database {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return append(append(m.static, m.resources...), m.cloud...).AsResources().ToMap()
+	return utils.FromSlice(append(append(m.static, m.resources...), m.cloud...), types.Database.GetName)
 }
 
 // New returns a new database server.

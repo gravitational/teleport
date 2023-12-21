@@ -71,6 +71,7 @@ const cfg = {
   featureLimits: {
     accessListCreateLimit: 0,
     accessMonitoringMaxReportRangeLimit: 0,
+    AccessRequestMonthlyRequestLimit: 0,
   },
 
   ui: {
@@ -193,7 +194,7 @@ const cfg = {
     desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',

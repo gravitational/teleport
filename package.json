@@ -5,6 +5,7 @@
     "build-ui": "yarn build-ui-oss && yarn build-ui-e",
     "build-ui-oss": "yarn workspace @gravitational/teleport build",
     "build-ui-e": "yarn workspace @gravitational/teleport.e build",
+    "build-wasm": "yarn workspace @gravitational/teleport build-wasm",
     "start-teleport": "yarn workspace @gravitational/teleport start",
     "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
     "build-term": "yarn workspace @gravitational/teleterm build",

@@ -64,6 +64,12 @@ func (t *templateTLS) render(
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateTLS/render",
+	)
+	defer span.End()
+
 	cas, err := bot.GetCertAuthorities(ctx, t.caCertType)
 	if err != nil {
 		return trace.Wrap(err)

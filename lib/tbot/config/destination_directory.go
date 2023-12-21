@@ -29,6 +29,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -203,11 +205,25 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(_ context.Context, name string, data []byte) error {
+func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationDirectory/Write",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(_ context.Context, name string) ([]byte, error) {
+func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationDirectory/Read",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)

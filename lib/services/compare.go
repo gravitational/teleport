@@ -24,16 +24,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // CompareResources compares two resources by all significant fields.
-func CompareResources(resA, resB types.Resource) int {
+func CompareResources[T any](resA, resB T) int {
 	equal := cmp.Equal(resA, resB,
 		ignoreProtoXXXFields(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 		cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 		cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
+		cmpopts.IgnoreUnexported(headerv1.Metadata{}),
 		cmpopts.EquateEmpty(),
 	)
 	if equal {
