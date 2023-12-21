@@ -63,7 +63,7 @@ const (
 	// KindUser is a user resource
 	KindUser = "user"
 
-	// KindBot is a bot resource
+	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
 
 	// KindHostCert is a host certificate
