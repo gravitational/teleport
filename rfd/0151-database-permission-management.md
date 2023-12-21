@@ -224,12 +224,12 @@ predefined attributes:
 ```protobuf
 // DatabaseObjectSpec is the spec for the database object.
 message DatabaseObjectSpec {
-  string Protocol = 1 [(gogoproto.jsontag) = "protocol,omitempty"];
-  string DatabaseServiceName = 2 [(gogoproto.jsontag) = "db_service_name,omitempty"];
-  string ObjectKind = 3 [(gogoproto.jsontag) = "object_kind,omitempty"];
-  string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
-  string Schema = 5 [(gogoproto.jsontag) = "schema,omitempty"];
-  string Name = 6 [(gogoproto.jsontag) = "name,omitempty"];
+  string protocol = 1;
+  string database_service_name = 2;
+  string object_kind = 3;
+  string database = 4;
+  string schema = 5;
+  string name = 6;
 }
 ```
 
