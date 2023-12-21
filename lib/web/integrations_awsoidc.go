@@ -192,7 +192,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 }
 
 // awsOIDCDeployDatabaseService deploys a Database Service in Amazon ECS.
-func (h *Handler) awsOIDCDeployDatabaseService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	var req ui.AWSOIDCDeployDatabaseServiceRequest
@@ -215,7 +215,7 @@ func (h *Handler) awsOIDCDeployDatabaseService(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	teleportVersionTag := "14.2.3" //teleport.Version
+	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.ClusterFeatures) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
