@@ -179,6 +179,10 @@ func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
 	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.DeleteUser(ctx, user.GetName()))
+	})
+
 	identityFilePath := filepath.Join(t.TempDir(), "identity")
 
 	t.Run("AuthCommands", func(t *testing.T) {
@@ -250,6 +254,11 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 	user.SetRoles([]string{role.GetName()})
 	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.DeleteUser(ctx, user.GetName()))
+		require.NoError(t, s.authServer.DeleteRole(ctx, role.GetName()))
+	})
 
 	accessRequest, err := services.NewAccessRequest(user.GetName(), teleport.PresetAccessRoleName)
 	require.NoError(t, err)
