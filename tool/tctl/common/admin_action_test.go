@@ -45,6 +45,7 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -57,6 +58,7 @@ func TestAdminActionMFA(t *testing.T) {
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
 	t.Run("Roles", s.testRoles)
+	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
 	t.Run("UserGroups", s.testUserGroups)
 	t.Run("OIDCConnector", s.testOIDCConnector)
@@ -185,6 +187,99 @@ func (s *adminActionTestSuite) testRoles(t *testing.T) {
 		resourceCreate: createRole,
 		resourceGet:    getRole,
 		resourceDelete: deleteRole,
+	})
+}
+
+func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
+	ctx := context.Background()
+
+	role, err := types.NewRole("telerole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.authServer.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser("teleuser")
+	require.NoError(t, err)
+	user.SetRoles([]string{role.GetName()})
+	_, err = s.authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	accessRequest, err := services.NewAccessRequest(user.GetName(), teleport.PresetAccessRoleName)
+	require.NoError(t, err)
+	accessRequest.SetThresholds([]types.AccessReviewThreshold{{
+		Name:    "one",
+		Approve: 1,
+		Deny:    1,
+	}})
+
+	createAccessRequest := func() error {
+		return s.authServer.CreateAccessRequest(ctx, accessRequest)
+	}
+
+	deleteAllAccessRequests := func() error {
+		return s.authServer.DeleteAllAccessRequests(ctx)
+	}
+
+	t.Run("AccessRequestCommands", func(t *testing.T) {
+		for _, tc := range map[string]adminActionTestCase{
+			"tctl requests create": {
+				// creating an access request on behalf of another user requires admin MFA.
+				command:    fmt.Sprintf("requests create --roles=%v %v", teleport.PresetAccessRoleName, user.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests approve": {
+				command:    fmt.Sprintf("requests approve %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests deny": {
+				command:    fmt.Sprintf("requests deny %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests review --approve": {
+				command:    fmt.Sprintf("requests review %v --author=admin --approve", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests review --deny": {
+				command:    fmt.Sprintf("requests review %v --author=admin --deny", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+			"tctl requests rm": {
+				command:    fmt.Sprintf("requests rm %v", accessRequest.GetName()),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			},
+		} {
+			t.Run(tc.command, func(t *testing.T) {
+				s.testCommand(t, ctx, tc)
+			})
+		}
+
+		// Creating an access request for yourself should not require admin MFA.
+		t.Run("OK owner creating access request without MFA", func(t *testing.T) {
+			err := runTestCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
+				command:    fmt.Sprintf("requests create --roles=%v %v", teleport.PresetAccessRoleName, "admin"),
+				cliCommand: &tctl.AccessRequestCommand{},
+				setup:      createAccessRequest,
+				cleanup:    deleteAllAccessRequests,
+			})
+			require.NoError(t, err)
+		})
 	})
 }
 
@@ -583,6 +678,12 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 					Resources: []string{types.Wildcard},
 					Verbs:     []string{types.Wildcard},
 				},
+			},
+			ReviewRequests: &types.AccessReviewConditions{
+				Roles: []string{types.Wildcard},
+			},
+			Request: &types.AccessRequestConditions{
+				Roles: []string{types.Wildcard},
 			},
 		},
 	})
