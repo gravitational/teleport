@@ -106,10 +106,7 @@ export function EnrollRdsDatabase() {
 
   const [wantAutoDiscover, setWantAutoDiscover] = useState(true);
   const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
-  const [vpc, setVpc] = useState<{
-    map: Record<string, string[]>;
-    nextPageToken?: string;
-  }>({ map: {} });
+  const [requiredVpcs, setRequiredVpcs] = useState<Record<string, string[]>>();
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -198,117 +195,6 @@ export function EnrollRdsDatabase() {
     }
   }
 
-  /**
-   * getAllVpcIdsAndSubnets will page through all RDS's for all engines
-   * given region, and collect unique vpc id's and its subnets.
-   * Collecting of vpc id's is required for two reasons:
-   *   1. lookup existing db services that can proxy all the rds's
-   *      by matching labels for region, account-id, and vpc-id
-   *   2. if no db services exists, setup the correct network access for
-   *      new db services using the collected vpc id's
-   *
-   * Will only pass through a page once. Failure at a page
-   * will resume at the failed page at the next attempt.
-   */
-  async function getAllVpcIdsAndSubnets() {
-    if (Object.keys(vpc.map).length > 0 && !vpc.nextPageToken) {
-      return Promise.resolve(vpc);
-    }
-
-    const { awsIntegration } = agentMeta;
-    const vpcMap: Record<string, string[]> = vpc.map;
-
-    let nextPageToken = vpc.nextPageToken;
-    try {
-      // Loop until no next page token.
-      for (;;) {
-        const { databases, nextToken } =
-          await integrationService.fetchAwsRdsDatabasesForAllEngines(
-            awsIntegration.name,
-            {
-              region: tableData.currRegion,
-              nextToken: nextPageToken,
-            }
-          );
-        nextPageToken = nextToken;
-
-        // Collect unique vpc id's from queried result.
-        for (let i = 0; i < databases.length; i++) {
-          const d = databases[i];
-
-          if (d.status !== 'available') {
-            continue;
-          }
-          if (vpcMap[d.vpcId]) {
-            continue;
-          }
-
-          vpcMap[d.vpcId] = d.subnets;
-        }
-
-        if (!nextToken) {
-          break;
-        }
-      }
-      setVpc({ map: vpcMap });
-      return Promise.resolve({ map: vpcMap });
-    } catch (err) {
-      handleAndEmitRequestError(err, {
-        preErrMsg: 'failed collecting vpc ids and its subnets: ',
-        setAttempt: setAutoDiscoverAttempt,
-      });
-      // preserve what we've collected so far
-      // to resume at the spot we failed at
-      setVpc({ map: vpcMap, nextPageToken });
-      throw err;
-    }
-  }
-
-  /**
-   * createAutoDiscoveryConfig will only run once even
-   * if called repeatedly during the current flow.
-   */
-  async function createAutoDiscoveryConfig() {
-    // Create a discovery config for the discovery service.
-    let discoveryConfig = autoDiscoveryCfg;
-    try {
-      if (!discoveryConfig) {
-        discoveryConfig = await createDiscoveryConfig(clusterId, {
-          name: crypto.randomUUID(),
-          discoveryGroup: DISCOVERY_GROUP_CLOUD,
-          aws: [
-            {
-              types: ['rds'],
-              regions: [tableData.currRegion],
-              tags: { '*': ['*'] },
-              integration: agentMeta.awsIntegration.name,
-            },
-          ],
-        });
-        setAutoDiscoveryCfg(discoveryConfig);
-      }
-      return Promise.resolve(discoveryConfig);
-    } catch (err) {
-      handleAndEmitRequestError(err, {
-        preErrMsg: 'failed to create discovery config: ',
-        setAttempt: setAutoDiscoverAttempt,
-      });
-      throw err;
-    }
-  }
-
-  async function getDatabaseServices() {
-    try {
-      return await ctx.databaseService.fetchDatabaseServices(clusterId);
-    } catch (err) {
-      handleAndEmitRequestError(err, {
-        preErrMsg: 'failed to fetch database services: ',
-        setAttempt: setAutoDiscoverAttempt,
-      });
-      throw err;
-    }
-  }
-
   function handleAndEmitRequestError(
     err: Error,
     cfg: { preErrMsg?: string; setAttempt?(attempt: Attempt): void }
@@ -323,37 +209,70 @@ export function EnrollRdsDatabase() {
     emitErrorEvent(`${cfg.preErrMsg}${message}`);
   }
 
-  function enableAutoDiscovery() {
+  async function enableAutoDiscovery() {
     setAutoDiscoverAttempt({ status: 'processing' });
-    // Each promise has it's own error handler,
-    // so no need to catch them here.
-    Promise.all([
-      getAllVpcIdsAndSubnets(),
-      getDatabaseServices(),
-      createAutoDiscoveryConfig(),
-    ]).then(result => {
-      setAutoDiscoverAttempt({ status: 'success' });
 
-      const vpcMap = result[0].map;
-      const dbSvcs = result[1].services;
-      const discoveryConfig = result[2];
+    let requiredVpcsAndSubnets = requiredVpcs;
+    if (!requiredVpcsAndSubnets) {
+      try {
+        const { spec, name: integrationName } = agentMeta.awsIntegration;
+        const accountId = spec.roleArn
+          .split('arn:aws:iam::')[1]
+          .substring(0, 12);
+        requiredVpcsAndSubnets =
+          await integrationService.fetchAwsRdsRequiredVpcs(integrationName, {
+            region: tableData.currRegion,
+            accountId,
+          });
 
-      const { roleArn } = agentMeta.awsIntegration.spec;
-      const accountId = roleArn.split('arn:aws:iam::')[1].substring(0, 12);
+        setRequiredVpcs(requiredVpcsAndSubnets);
+      } catch (err) {
+        handleAndEmitRequestError(err, {
+          preErrMsg: 'failed collecting vpc ids and its subnets: ',
+          setAttempt: setAutoDiscoverAttempt,
+        });
+        return;
+      }
+    }
 
-      const foundService = foundRequiredDatabaseServices(
-        vpcMap,
-        tableData.currRegion,
-        accountId,
-        dbSvcs
-      );
+    // Only create a discovery config after successfully fetching
+    // required vpcs. This is to avoid creating a unused auto discovery
+    // config if user quits in the middle of things not working.
+    let discoveryConfig = autoDiscoveryCfg;
+    if (!discoveryConfig) {
+      try {
+        discoveryConfig = await createDiscoveryConfig(clusterId, {
+          name: crypto.randomUUID(),
+          discoveryGroup: DISCOVERY_GROUP_CLOUD,
+          aws: [
+            {
+              types: ['rds'],
+              regions: [tableData.currRegion],
+              tags: { '*': ['*'] },
+              integration: agentMeta.awsIntegration.name,
+            },
+          ],
+        });
+        setAutoDiscoveryCfg(discoveryConfig);
+      } catch (err) {
+        handleAndEmitRequestError(err, {
+          preErrMsg: 'failed to create discovery config: ',
+          setAttempt: setAutoDiscoverAttempt,
+        });
+        return;
+      }
+    }
 
-      updateAgentMeta({
-        ...(agentMeta as DbMeta),
-        autoDiscoveryConfig: discoveryConfig,
-        serviceDeployedMethod: foundService ? undefined : 'skipped',
-        awsRegion: tableData.currRegion,
-      });
+    setAutoDiscoverAttempt({ status: 'success' });
+    updateAgentMeta({
+      ...(agentMeta as DbMeta),
+      autoDiscovery: {
+        config: discoveryConfig,
+        requiredVpcsAndSubnets,
+      },
+      serviceDeployedMethod:
+        Object.keys(requiredVpcsAndSubnets).length > 0 ? undefined : 'skipped',
+      awsRegion: tableData.currRegion,
     });
   }
 
@@ -413,6 +332,7 @@ export function EnrollRdsDatabase() {
         close={() => setAutoDiscoverAttempt({ status: '' })}
         retry={handleOnProceed}
         region={tableData.currRegion}
+        skipDeployment={requiredVpcs && Object.keys(requiredVpcs).length === 0}
       />
     );
   }

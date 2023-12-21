@@ -111,17 +111,19 @@ export const WithTraitsAwsPostgresAutoEnroll = () => {
       agentMeta={
         {
           ...meta,
-          autoDiscoveryConfig: {
-            name: 'some-name',
-            discoveryGroup: 'some-group',
-            aws: [
-              {
-                types: ['rds'],
-                regions: ['us-east-1'],
-                tags: {},
-                integration: 'some-integration',
-              },
-            ],
+          autoDiscovery: {
+            config: {
+              name: 'some-name',
+              discoveryGroup: 'some-group',
+              aws: [
+                {
+                  types: ['rds'],
+                  regions: ['us-east-1'],
+                  tags: {},
+                  integration: 'some-integration',
+                },
+              ],
+            },
           },
         } as any
       }

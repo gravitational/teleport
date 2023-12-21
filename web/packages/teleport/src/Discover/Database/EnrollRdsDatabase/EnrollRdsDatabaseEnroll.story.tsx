@@ -81,6 +81,9 @@ InstanceList.parameters = {
       rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
+      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcMapOfSubnets: {} }))
+      ),
     ],
   },
 };
@@ -112,6 +115,9 @@ InstanceListForCloud.parameters = {
       ),
       rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
         res(ctx.json({}))
+      ),
+      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcMapOfSubnets: { 'vpc-1': ['subnet1'] } }))
       ),
     ],
   },

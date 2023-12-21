@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -103,7 +102,7 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	}
 
 	if p.TeleportVersion == "" {
-		p.TeleportVersion = "v" + teleport.Version
+		p.TeleportVersion = "v" + "14.2.3"
 	}
 
 	if p.TeleportFlavor == "" {

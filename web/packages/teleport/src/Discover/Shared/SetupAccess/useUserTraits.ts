@@ -52,7 +52,7 @@ export function useUserTraits() {
   const isSsoUser = ctx.storeUser.state.authType === 'sso';
   const canEditUser = ctx.storeUser.getUserAccess().edit;
   const dynamicTraits = initUserTraits(user);
-  const wantAutoDiscover = !!agentMeta.autoDiscoveryConfig;
+  const wantAutoDiscover = !!agentMeta.autoDiscovery;
 
   // Filter out static traits from the resource that we
   // queried in a prior step where we discovered the newly connected resource.

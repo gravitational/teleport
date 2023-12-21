@@ -71,7 +71,10 @@ export const InitWithAutoEnroll = () => {
       resourceKind={ResourceKind.Database}
       agentMeta={{
         ...getDbMeta(),
-        autoDiscoveryConfig: { name: '', discoveryGroup: '', aws: [] },
+        autoDiscovery: {
+          config: { name: '', discoveryGroup: '', aws: [] },
+          requiredVpcsAndSubnets: {},
+        },
       }}
       resourceSpec={getDbResourceSpec(
         DatabaseEngine.Postgres,
@@ -89,6 +92,15 @@ InitWithAutoEnroll.parameters = {
         cfg.getListSecurityGroupsUrl('test-integration'),
         (req, res, ctx) =>
           res(ctx.json({ securityGroups: securityGroupsResponse }))
+      ),
+      rest.post(
+        cfg.getAwsRdsDbsDeployServicesUrl('test-integration'),
+        (req, res, ctx) =>
+          res(
+            ctx.json({
+              clusterDashboardUrl: 'some-cluster-dashboard-url',
+            })
+          )
       ),
     ],
   },
