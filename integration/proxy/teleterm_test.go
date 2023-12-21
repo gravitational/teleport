@@ -225,9 +225,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	require.Equal(t, uint32(0), tshdEventsService.sendNotificationCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 	if params.webauthnLogin != nil {
-		// There are two calls, one to issue the certs when creating the gateway and then another to
-		// reissue them after relogin.
-		require.Equal(t, uint32(2), tshdEventsService.promptMFACallCount.Load(),
+		// There are four calls, one to issue the certs and MFA verified certs when creating the gateway
+		// and then another two to reissue them after relogin.
+		require.Equal(t, uint32(4), tshdEventsService.promptMFACallCount.Load(),
 			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -293,16 +294,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	_, clusterClient, err := s.ResolveClusterURI(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	withPromptReasonOpt, err := WithPromptReasonSessionMFA(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
-
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -310,7 +301,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
-		MFAPrompt:             mfaPrompt,
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -350,12 +341,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			return trace.Wrap(err)
 		}
 
-		withPromptReasonOpt, err := WithPromptReasonSessionMFA(g.TargetURI())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
-
+		mfaPrompt := clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", g.TargetURI().GetDbName()))
 		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
 		if err != nil {
 			return trace.Wrap(err)
