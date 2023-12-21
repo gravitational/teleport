@@ -52,7 +52,8 @@ type fakeAuthorizer struct {
 
 func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	return &authz.Context{
-		Checker: f.checker,
+		Checker:               f.checker,
+		AdminActionAuthorized: true,
 	}, nil
 }
 

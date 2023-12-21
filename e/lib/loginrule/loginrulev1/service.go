@@ -7,7 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport/api/defaults"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -17,7 +16,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	oss "github.com/gravitational/teleport/lib/loginrule"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // ServiceConfig holds configuration options for the login rule gRPC service.
@@ -59,7 +57,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 // CreateLoginRule creates a login rule if one with the same name does not
 // already exist, else it returns an error.
 func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -78,7 +81,12 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 // UpsertLoginRule creates a login rule if one with the same name does not
 // already exist, else it replaces the existing login rule.
 func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -96,7 +104,7 @@ func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLo
 
 // GetLoginRule retrieves a login rule described by the given request.
 func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
+	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -106,7 +114,7 @@ func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRul
 
 // ListLoginRules lists all login rules.
 func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLoginRulesRequest) (*loginrulepb.ListLoginRulesResponse, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbList, types.VerbRead); err != nil {
+	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -123,7 +131,12 @@ func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLogin
 
 // DeleteLoginRule deletes an existing login rule.
 func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLoginRuleRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbDelete); err != nil {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -131,7 +144,7 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 		return nil, trace.Wrap(err)
 	}
 
-	err := s.storage.DeleteLoginRule(ctx, req.Name)
+	err = s.storage.DeleteLoginRule(ctx, req.Name)
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
@@ -139,7 +152,7 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 // to test that the output matches expectations prior to them being enforced and
 // potentially locking out users.
 func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginRuleRequest) (*loginrulepb.TestLoginRuleResponse, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbList, types.VerbRead); err != nil {
+	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -182,26 +195,6 @@ func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginR
 	}
 
 	return &loginrulepb.TestLoginRuleResponse{Traits: out}, nil
-}
-
-func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ruleCtx := &services.Context{
-		User: authCtx.User,
-	}
-	errs := make([]error, len(verbs))
-	for i, verb := range verbs {
-		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, types.KindLoginRule, verb, false /* silent */)
-	}
-	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
-	if err := trace.NewAggregate(errs...); err != nil {
-		return trace.AccessDenied(err.Error())
-	}
-	return nil
 }
 
 func (s *Service) emitCreateEvent(ctx context.Context, rule *loginrulepb.LoginRule) error {
