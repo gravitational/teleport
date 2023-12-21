@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
@@ -849,6 +850,18 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	// try filtering the entity descriptor. if it can't be filtered down to a useable looking state, reject
+	// the creation attempt.
+	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
 		return trace.Wrap(err)
 	}
 
