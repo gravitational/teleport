@@ -13,7 +13,7 @@ By default, `tsh`, Teleport Connect, and other Teleport clients store a user's k
 on their filesystem. If a user's filesystem is compromised, any of their active Teleport user keys and certificates
 would also be compromised.
 
-You can configure [per-session MFA](per-session-mfa.mdx) to require a second factor authentication check 
+You can configure [per-session MFA](per-session-mfa.mdx) to require a multi-factor authentication check 
 when users start new sessions with Teleport services, such as the SSH Service, Kubernetes Service, Database Service, and so on. 
 However, per-session MFA doesn't prevent compromised session credentials from taking other actions, such as 
 running administrative commands with `tctl`. 
