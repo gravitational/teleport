@@ -3979,8 +3979,8 @@ func TestRoleVersions(t *testing.T) {
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
 	originalLabels := map[string]string{"env": "staging"}
-	newRole := func(version string, spec types.RoleSpecV6) types.Role {
-		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, version, spec)
 		meta := role.GetMetadata()
 		meta.Labels = maps.Clone(originalLabels)
 		role.SetMetadata(meta)
@@ -3988,7 +3988,7 @@ func TestRoleVersions(t *testing.T) {
 		return role
 	}
 
-	role := newRole(types.V7, types.RoleSpecV6{
+	role := newRole("test_role_1", types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels:               wildcardLabels,
 			AppLabels:                wildcardLabels,
@@ -4003,6 +4003,7 @@ func TestRoleVersions(t *testing.T) {
 					Kind:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Name:      types.Wildcard,
+					Verbs:     []string{types.VerbList},
 				},
 			},
 		},
@@ -4021,7 +4022,41 @@ func TestRoleVersions(t *testing.T) {
 		},
 	})
 
-	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
+	roleV7Wildcard := newRole("test_role_2", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels:               wildcardLabels,
+			AppLabels:                wildcardLabels,
+			AppLabelsExpression:      `labels["env"] == "staging"`,
+			DatabaseLabelsExpression: `labels["env"] == "staging"`,
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+			KubernetesLabels: wildcardLabels,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			KubernetesLabels:               types.Labels{"env": {"prod"}},
+			ClusterLabels:                  types.Labels{"env": {"prod"}},
+			ClusterLabelsExpression:        `labels["env"] == "prod"`,
+			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
+		},
+	})
+
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role, roleV7Wildcard)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))
@@ -4031,6 +4066,7 @@ func TestRoleVersions(t *testing.T) {
 		desc             string
 		clientVersions   []string
 		expectError      bool
+		inputRole        types.Role
 		expectedRole     types.Role
 		expectDowngraded bool
 	}{
@@ -4039,14 +4075,50 @@ func TestRoleVersions(t *testing.T) {
 			clientVersions: []string{
 				"14.0.0-alpha.1", "15.1.2", api.Version, "",
 			},
+			inputRole:    role,
 			expectedRole: role,
+		},
+		{
+			desc: "downgrade role to v6 with wildcard on kube resources but supports label expressions",
+			clientVersions: []string{
+				minSupportedLabelExpressionVersion.String(), "13.3.0",
+			},
+			inputRole: roleV7Wildcard,
+			expectedRole: newRole(roleV7Wildcard.GetName(), types.V6, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					NodeLabels:       wildcardLabels,
+					AppLabels:        wildcardLabels,
+					KubernetesLabels: wildcardLabels,
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: types.Wildcard,
+							Name:      types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+					AppLabelsExpression:      `labels["env"] == "staging"`,
+					DatabaseLabelsExpression: `labels["env"] == "staging"`,
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels:               wildcardLabels,
+					ClusterLabels:                  types.Labels{"env": {"prod"}},
+					ClusterLabelsExpression:        `labels["env"] == "prod"`,
+					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				},
+			}),
+			expectDowngraded: true,
 		},
 		{
 			desc: "downgrade role to v6 but supports label expressions",
 			clientVersions: []string{
 				minSupportedLabelExpressionVersion.String(), "13.3.0",
 			},
-			expectedRole: newRole(types.V6, types.RoleSpecV6{
+			inputRole: role,
+			expectedRole: newRole(role.GetName(), types.V6, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					NodeLabels:               wildcardLabels,
 					AppLabels:                wildcardLabels,
@@ -4069,11 +4141,15 @@ func TestRoleVersions(t *testing.T) {
 			desc:           "bad client versions",
 			clientVersions: []string{"Not a version", "13", "13.1"},
 			expectError:    true,
+			inputRole:      role,
 		},
 		{
 			desc:           "label expressions downgraded",
 			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
-			expectedRole: newRole(types.V6,
+			inputRole:      role,
+			expectedRole: newRole(
+				role.GetName(),
+				types.V6,
 				types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						// None of the allow labels change
@@ -4138,7 +4214,7 @@ func TestRoleVersions(t *testing.T) {
 					}
 
 					// Test GetRole
-					gotRole, err := client.GetRole(ctx, role.GetName())
+					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
 					checkErr(err)
 					checkRole(gotRole)
 
@@ -4148,7 +4224,7 @@ func TestRoleVersions(t *testing.T) {
 					if !tc.expectError {
 						foundTestRole := false
 						for _, gotRole := range gotRoles {
-							if gotRole.GetName() != role.GetName() {
+							if gotRole.GetName() != tc.inputRole.GetName() {
 								continue
 							}
 							checkRole(gotRole)
@@ -4173,7 +4249,7 @@ func TestRoleVersions(t *testing.T) {
 					// Re-upsert the role so that the watcher sees it, do this
 					// on the auth server directly to avoid the
 					// TeleportDowngradedLabel check in ServerWithRoles
-					role, err = srv.Auth().UpsertRole(ctx, role)
+					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
 					require.NoError(t, err)
 
 					gotRole, err = func() (types.Role, error) {
@@ -4182,7 +4258,7 @@ func TestRoleVersions(t *testing.T) {
 							case <-watcher.Done():
 								return nil, watcher.Error()
 							case e := <-watcher.Events():
-								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == role.GetName() {
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
 									return gotRole, nil
 								}
 							}
@@ -4207,9 +4283,9 @@ func TestRoleVersions(t *testing.T) {
 					// role isn't modified
 					sv, err := semver.NewVersion(clientVersion)
 					if err == nil {
-						_, err := maybeDowngradeRoleToV6(ctx, role.(*types.RoleV6), sv)
+						_, err := maybeDowngradeRoleToV6(ctx, tc.inputRole.(*types.RoleV6), sv)
 						require.NoError(t, err)
-						require.Equal(t, originalLabels, role.GetMetadata().Labels)
+						require.Equal(t, originalLabels, tc.inputRole.GetMetadata().Labels)
 					}
 				})
 			}
