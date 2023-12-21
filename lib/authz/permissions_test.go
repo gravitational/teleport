@@ -511,12 +511,37 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	})
 	require.NoError(t, err, "NewAuthorizer failed")
 
+	validMFA := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{
+				Code: validTOTPCode,
+			},
+		},
+	}
+
+	validMFAWithReuse := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{
+				Code: validReusableTOTPCode,
+			},
+		},
+	}
+
+	invalidMFA := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{
+				Code: "invalid",
+			},
+		},
+	}
+
 	for _, tt := range []struct {
 		name                      string
 		user                      IdentityGetter
-		withTOTPInContext         string
+		withMFA                   *proto.MFAAuthenticateResponse
+		allowedReusedMFA          bool
 		contextGetter             func() context.Context
-		wantErr                   string
+		wantErrContains           string
 		wantAdminActionAuthorized bool
 	}{
 		{
@@ -527,10 +552,9 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					Username: localUser.GetName(),
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: false,
 		}, {
-			name: "NOK local user with mfa verified cert",
+			name: "NOK local user mfa verified cert",
 			user: LocalUser{
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
@@ -538,7 +562,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					MFAVerified: "mfa-verified-test",
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: false,
 		}, {
 			// edge case for the admin role check.
@@ -549,32 +572,51 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					Username: userWithHostName.GetName(),
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: false,
 		}, {
-			name: "NOK local user with invalid mfa from context",
+			name: "NOK local user invalid mfa",
 			user: LocalUser{
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
 				},
 			},
-			withTOTPInContext:         "invalid",
-			wantErr:                   "invalid MFA",
+			withMFA:                   invalidMFA,
+			wantErrContains:           "invalid MFA",
 			wantAdminActionAuthorized: true,
 		}, {
-			name: "OK local user with valid mfa from context",
+			name: "NOK local user reused mfa with reuse not allowed",
 			user: LocalUser{
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
 					Username: localUser.GetName(),
 				},
 			},
-			withTOTPInContext:         validTOTPCode,
-			wantErr:                   "",
+			withMFA:                   validMFAWithReuse,
+			wantAdminActionAuthorized: false,
+		}, {
+			name: "OK local user valid mfa",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username: localUser.GetName(),
+				},
+			},
+			withMFA:                   validMFA,
 			wantAdminActionAuthorized: true,
 		}, {
-			name: "OK local user with mfa verified private key policy",
+			name: "OK local user reused mfa with reuse allowed",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username: localUser.GetName(),
+				},
+			},
+			withMFA:                   validMFAWithReuse,
+			allowedReusedMFA:          true,
+			wantAdminActionAuthorized: true,
+		}, {
+			name: "OK local user mfa verified private key policy",
 			user: LocalUser{
 				Username: localUser.GetName(),
 				Identity: tlsca.Identity{
@@ -582,7 +624,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "OK admin",
@@ -590,7 +631,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				Role:     types.RoleAdmin,
 				Username: hostFQDN(uuid.NewString(), clusterName),
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "OK bot",
@@ -600,7 +640,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					Username: bot.GetName(),
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "OK admin impersonating local user",
@@ -611,7 +650,6 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					Impersonator: hostFQDN(uuid.NewString(), clusterName),
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "OK bot impersonating local user",
@@ -622,21 +660,13 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 					Impersonator: bot.GetName(),
 				},
 			},
-			wantErr:                   "",
 			wantAdminActionAuthorized: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			if tt.withTOTPInContext != "" {
-				mfaResp := &proto.MFAAuthenticateResponse{
-					Response: &proto.MFAAuthenticateResponse_TOTP{
-						TOTP: &proto.TOTPResponse{
-							Code: tt.withTOTPInContext,
-						},
-					},
-				}
-				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(mfaResp)
+			if tt.withMFA != nil {
+				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(tt.withMFA)
 				require.NoError(t, err)
 				md := metadata.MD(map[string][]string{
 					mfa.ResponseMetadataKey: {encodedMFAResp},
@@ -645,13 +675,19 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			}
 			userCtx := context.WithValue(ctx, contextUser, tt.user)
 			authCtx, err := authorizer.Authorize(userCtx)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr, "Expected matching Authorize error")
+			if tt.wantErrContains != "" {
+				require.ErrorContains(t, err, tt.wantErrContains, "Expected matching Authorize error")
 				return
 			}
 			require.NoError(t, err)
 
-			authAdminActionErr := AuthorizeAdminAction(ctx, authCtx)
+			var authAdminActionErr error
+			if tt.allowedReusedMFA {
+				authAdminActionErr = AuthorizeAdminActionAllowReusedMFA(ctx, authCtx)
+			} else {
+				authAdminActionErr = AuthorizeAdminAction(ctx, authCtx)
+			}
+
 			if tt.wantAdminActionAuthorized {
 				require.NoError(t, authAdminActionErr)
 			} else {

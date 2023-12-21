@@ -195,7 +195,8 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
