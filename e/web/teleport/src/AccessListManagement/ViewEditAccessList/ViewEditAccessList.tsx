@@ -56,6 +56,8 @@ export type AccessListModified = AccessList & {
   requiresReview: boolean;
 };
 
+const noAccessDeleteMsg = 'You do not have access to delete this access_list';
+
 export function ViewEditAccessList() {
   const ctx = useTeleport();
   const { accessListId } = useParams<{ accessListId: string }>();
@@ -69,7 +71,7 @@ export function ViewEditAccessList() {
   const { userOptions, roleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(attemptObj);
 
-  const [editAccess, setEditAccess] = useState<EditAccess>(getEditAccess({}));
+  const [perms, setPerms] = useState<Perms>(getPerms({}));
   const [reviewing, setReviewing] = useState(false);
 
   // If this api call succeeded, user is either an owner or
@@ -112,8 +114,7 @@ export function ViewEditAccessList() {
         const isOwner = fetchedAccessList.owners.some(
           owner => owner.name === ctx.storeUser.getUsername()
         );
-
-        setEditAccess(getEditAccess({ accessListAccess, isOwner }));
+        setPerms(getPerms({ accessListAccess, isOwner }));
 
         // If it was an intial fetch, there are other fetching
         // that needs to be done so we can't set attempt
@@ -177,6 +178,7 @@ export function ViewEditAccessList() {
         accessList={accessList}
         roleOptions={roleOptions}
         cancelReview={() => setReviewing(false)}
+        isOwner={perms.isOwner}
       />
     );
   }
@@ -214,7 +216,7 @@ export function ViewEditAccessList() {
 
     MainContent = (
       <>
-        {accessList.requiresReview && editAccess.isOwnerOrAdmin && (
+        {accessList.requiresReview && (perms.isOwner || perms.adminWhoCanEdit) && (
           <ReviewBanner>
             <Flex alignItems="center">
               <ReviewBannerIcon size={18} />
@@ -232,23 +234,23 @@ export function ViewEditAccessList() {
         )}
         <Box mb={6}>
           <Specs
-            editAccess={editAccess}
             roleOptions={roleOptions}
             accessList={accessList}
             fetchAccessList={fetchAccessList}
+            canEditSpecs={perms.adminWhoCanEdit}
           />
         </Box>
         <Box mb={6}>
           <OwnersList
-            editAccess={editAccess}
+            canEditOwners={perms.adminWhoCanEdit}
             userOptions={userOptions}
             accessList={accessList}
             fetchAccessList={fetchAccessList}
           />
         </Box>
-        {editAccess.members.hasAccess && (
+        {(perms.isOwner || perms.adminWhoCanRead) && (
           <MembersList
-            editAccess={editAccess}
+            canEditMembers={perms.isOwner || perms.adminWhoCanEdit}
             userOptions={userOptions}
             accessList={accessList}
             fetchAccessList={fetchAccessList}
@@ -276,10 +278,9 @@ export function ViewEditAccessList() {
         {accessList && (
           <ButtonSecondary
             onClick={() => setDeleteConfirm(true)}
-            title={editAccess.deleteList.btnTitle}
+            title={perms.adminWhoCanDelete ? '' : noAccessDeleteMsg}
             disabled={
-              attempt.status === 'processing' ||
-              !editAccess.deleteList.hasAccess
+              attempt.status === 'processing' || !perms.adminWhoCanDelete
             }
           >
             Delete
@@ -298,68 +299,31 @@ export function ViewEditAccessList() {
   );
 }
 
-export type EditAccessMeta = {
-  hasAccess: boolean;
-  // Hover titles for buttons.
-  // Can be empty if user hasAccess == true.
-  btnTitle?: string;
-};
-
-// EditAccess determines what kinds of editing actions the viewing
-// user can take on this access list.
+// Perms defines different types of permissions the viewing
+// user has.
 //
 // TODO: Explore using a PermissionLevel enum instead
 // (Owner, Admin, Member) and try to centralize the calculation of
 // which type a given user is.
-export type EditAccess = {
-  isOwnerOrAdmin: boolean;
-  // Update owner list and owner eligibility.
-  owners: EditAccessMeta;
-  // Update member list and member eligility.
-  members: EditAccessMeta;
-  // Update audit frequency and can "audit" (review) access list.
-  audit: EditAccessMeta;
-  grants: EditAccessMeta;
-  deleteList: EditAccessMeta;
+export type Perms = {
+  adminWhoCanRead: boolean;
+  adminWhoCanDelete: boolean;
+  adminWhoCanEdit: boolean;
+  isOwner: boolean;
 };
 
-function getEditAccess({
+function getPerms({
   accessListAccess,
   isOwner,
 }: {
   accessListAccess?: Access;
   isOwner?: boolean;
-}): EditAccess {
-  const genericNoAccessListMsg =
-    'You do not have access to create and update an access_list';
-
-  const isAdmin = accessListAccess?.create && accessListAccess?.edit;
-  const canDeleteAccessList = accessListAccess?.remove;
-
+}): Perms {
   return {
-    isOwnerOrAdmin: isOwner || isAdmin,
-    owners: {
-      hasAccess: isAdmin,
-      btnTitle: isAdmin ? '' : genericNoAccessListMsg,
-    },
-    members: {
-      hasAccess: isAdmin || isOwner,
-      btnTitle: isAdmin || isOwner ? '' : genericNoAccessListMsg,
-    },
-    audit: {
-      hasAccess: isAdmin || isOwner,
-      btnTitle: isAdmin || isOwner ? '' : genericNoAccessListMsg,
-    },
-    grants: {
-      hasAccess: isAdmin,
-      btnTitle: isAdmin ? '' : genericNoAccessListMsg,
-    },
-    deleteList: {
-      hasAccess: !!canDeleteAccessList,
-      btnTitle: canDeleteAccessList
-        ? ''
-        : 'You do not have access to delete this access_list',
-    },
+    isOwner,
+    adminWhoCanRead: accessListAccess?.read && accessListAccess?.list,
+    adminWhoCanEdit: accessListAccess?.create && accessListAccess?.edit,
+    adminWhoCanDelete: accessListAccess?.remove,
   };
 }
 

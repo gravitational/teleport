@@ -25,7 +25,7 @@ export function ReviewMembers({ editedMembers, onDeleteMember }: Props) {
       </Text>
       <AccessListMemberTable
         members={editedMembers}
-        memberEditAccess={{ hasAccess: true, btnTitle: '' }}
+        canEditMembers={true}
         onDeleteMember={onDeleteMember}
         hideIneligibleReason={true}
       />

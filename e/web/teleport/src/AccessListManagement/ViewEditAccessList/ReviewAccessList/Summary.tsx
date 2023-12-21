@@ -19,6 +19,7 @@ import { EditButton, EditedRecurrence, ReviewStep } from './Shared';
 import { getMembersDeleted } from './utils';
 
 export function Summary({
+  isOwner,
   setReviewStep,
   editedMembershipRequires,
   editedMembers,
@@ -29,6 +30,7 @@ export function Summary({
   setReviewNotes,
   originalMembers,
 }: {
+  isOwner: boolean;
   setReviewStep(r: ReviewStep): void;
   editedMembershipRequires: MembershipRequires;
   editedMembers: AccessListMember[];
@@ -42,11 +44,17 @@ export function Summary({
   return (
     <>
       <Box mb={5}>
-        <EditButton
-          title="Membership Requirements"
-          setStep={() => setReviewStep(ReviewStep.EditMembershipRequires)}
-          disabled={disabled}
-        />
+        {isOwner ? (
+          <Text fontSize={4} mb={2}>
+            Membership Requirements (Read Only)
+          </Text>
+        ) : (
+          <EditButton
+            title="Membership Requirements"
+            setStep={() => setReviewStep(ReviewStep.EditMembershipRequires)}
+            disabled={disabled}
+          />
+        )}
         <RoleAndTraitLabels
           roles={editedMembershipRequires.roles}
           traits={editedMembershipRequires.traitLabels.map(
@@ -62,11 +70,12 @@ export function Summary({
         />
         <AccessListMemberTable
           members={editedMembers}
-          memberEditAccess={{ hasAccess: true, btnTitle: '' }}
+          canEditMembers={true}
           hideIneligibleReason={true}
         />
       </Box>
       <ReviewAudit
+        isOwner={isOwner}
         disabled={disabled}
         editedMembers={editedMembers}
         editedMembershipRequires={editedMembershipRequires}
@@ -81,6 +90,7 @@ export function Summary({
 }
 
 export function ReviewAudit({
+  isOwner = false,
   disabled,
   editedMembers,
   editedMembershipRequires,
@@ -90,6 +100,7 @@ export function ReviewAudit({
   setReviewNotes,
   originalMembers,
 }: {
+  isOwner?: boolean;
   disabled: boolean;
   editedMembers: AccessListMember[];
   editedMembershipRequires: MembershipRequires;
@@ -121,19 +132,21 @@ export function ReviewAudit({
           {numMembersDeleted} {pluralize(numMembersDeleted, 'member')} removed
         </li>
       </List>
-      <Box width="500px">
-        <ReviewRecurrence
-          isDisabled={disabled}
-          onChangeFrequency={(o: ReviewFrequencyOption) =>
-            setEditedRecurrence({ ...editedRecurrence, reviewFrequency: o })
-          }
-          onChangeDayOfMonth={(o: ReviewDayOfMonthOption) =>
-            setEditedRecurrence({ ...editedRecurrence, reviewDayOfMonth: o })
-          }
-          selectedFrequency={editedRecurrence.reviewFrequency}
-          selectedDayOfMonth={editedRecurrence.reviewDayOfMonth}
-        />
-      </Box>
+      {!isOwner && (
+        <Box width="500px">
+          <ReviewRecurrence
+            isDisabled={disabled}
+            onChangeFrequency={(o: ReviewFrequencyOption) =>
+              setEditedRecurrence({ ...editedRecurrence, reviewFrequency: o })
+            }
+            onChangeDayOfMonth={(o: ReviewDayOfMonthOption) =>
+              setEditedRecurrence({ ...editedRecurrence, reviewDayOfMonth: o })
+            }
+            selectedFrequency={editedRecurrence.reviewFrequency}
+            selectedDayOfMonth={editedRecurrence.reviewDayOfMonth}
+          />
+        </Box>
+      )}
       <LabelInput>Review Notes (Optional)</LabelInput>
       <FieldTextArea
         placeholder="Review Notes"

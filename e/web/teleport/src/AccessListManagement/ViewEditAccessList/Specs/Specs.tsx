@@ -10,7 +10,7 @@ import {
   getReviewFrequencyOption,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 
-import { AccessListModified, EditAccess } from '../ViewEditAccessList';
+import { AccessListModified } from '../ViewEditAccessList';
 import { ButtonPencil, RoleAndTraitLabels } from '../Shared';
 
 import { EditEligibilityOrGrantRoles } from './EditEligibilityOrGrants';
@@ -18,15 +18,17 @@ import { EditAudit } from './EditAudit';
 
 type Props = {
   roleOptions: Option[];
-  editAccess: EditAccess;
+  canEditSpecs: boolean;
   fetchAccessList(): Promise<void | boolean>;
   accessList: AccessListModified;
 };
 
+const genericNoAccessMsg = 'You do not have access to edit this access_list';
+
 export function Specs({
   accessList,
   roleOptions,
-  editAccess,
+  canEditSpecs,
   fetchAccessList,
 }: Props) {
   const { membershipRequires, ownershipRequires, grants, audit } = accessList;
@@ -37,6 +39,8 @@ export function Specs({
   const dayOfMonth = getReviewDayOfMonthOption(
     audit.recurrence.dayOfMonth
   ).label;
+
+  const editBtnTitle = canEditSpecs ? '' : genericNoAccessMsg;
 
   return (
     <>
@@ -55,9 +59,9 @@ export function Specs({
                   List Owners
                 </Text>
                 <ButtonPencil
-                  title={editAccess.owners.btnTitle}
+                  title={editBtnTitle}
                   onClick={() => setEditPermKind('Owner')}
-                  disabled={!editAccess.owners.hasAccess}
+                  disabled={!canEditSpecs}
                 />
               </Flex>
               <RoleAndTraitLabels
@@ -73,9 +77,9 @@ export function Specs({
                   Members
                 </Text>
                 <ButtonPencil
-                  title={editAccess.members.btnTitle}
+                  title={editBtnTitle}
                   onClick={() => setEditPermKind('Member')}
-                  disabled={!editAccess.members.hasAccess}
+                  disabled={!canEditSpecs}
                 />
               </Flex>
               <RoleAndTraitLabels
@@ -94,9 +98,9 @@ export function Specs({
               Permissions Granted
             </Text>
             <ButtonPencil
-              title={editAccess.grants.btnTitle}
+              title={editBtnTitle}
               onClick={() => setEditPermKind('Grants')}
-              disabled={!editAccess.grants.hasAccess}
+              disabled={!canEditSpecs}
             />
           </Flex>
           <RoleAndTraitLabels
@@ -114,9 +118,9 @@ export function Specs({
               Audit
             </Text>
             <ButtonPencil
-              title={editAccess.audit.btnTitle}
+              title={editBtnTitle}
               onClick={() => setShowEditAudit(true)}
-              disabled={!editAccess.audit.hasAccess}
+              disabled={!canEditSpecs}
             />
           </Flex>
           <Box mb={2}>

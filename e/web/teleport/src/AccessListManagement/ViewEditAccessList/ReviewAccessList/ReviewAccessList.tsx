@@ -30,6 +30,7 @@ import {
 
 import { convertTraitLabelsToAllUserTraits } from '../../Traits';
 import { AccessListModified } from '../ViewEditAccessList';
+import { RoleAndTraitLabels } from '../Shared';
 
 import {
   MembershipRequires,
@@ -60,11 +61,13 @@ export function ReviewAccessList({
   roleOptions,
   reviewer,
   cancelReview,
+  isOwner = false,
 }: {
   accessList: AccessListModified;
   roleOptions: Option[];
   reviewer: string;
   cancelReview(): void;
+  isOwner?: boolean;
 }) {
   const history = useHistory();
   const [nextAuditDate, setNextAuditDate] = useState<Date | null>();
@@ -149,11 +152,25 @@ export function ReviewAccessList({
           </Box>
           {reviewStep === ReviewStep.EditMembershipRequires && (
             <Box mb={4} width="500px">
-              <ReviewMembershipRequires
-                roleOptions={roleOptions}
-                editedMembershipRequires={editedMembershipRequires}
-                setEditedMembershipRequires={setEditedMembershipRequires}
-              />
+              {isOwner ? (
+                <>
+                  <Text fontSize={4} mb={3}>
+                    Membership Requirements (Read Only)
+                  </Text>
+                  <RoleAndTraitLabels
+                    roles={editedMembershipRequires.roles}
+                    traits={editedMembershipRequires.traitLabels.map(
+                      l => `${l.name}: ${l.value}`
+                    )}
+                  />
+                </>
+              ) : (
+                <ReviewMembershipRequires
+                  roleOptions={roleOptions}
+                  editedMembershipRequires={editedMembershipRequires}
+                  setEditedMembershipRequires={setEditedMembershipRequires}
+                />
+              )}
             </Box>
           )}
           {reviewStep === ReviewStep.EditMembers && (
@@ -179,6 +196,7 @@ export function ReviewAccessList({
                 reviewNotes={reviewNotes}
                 setReviewNotes={setReviewNotes}
                 originalMembers={accessList.members}
+                isOwner={isOwner}
               />
             </>
           )}

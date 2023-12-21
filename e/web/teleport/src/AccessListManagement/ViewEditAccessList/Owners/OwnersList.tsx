@@ -9,23 +9,23 @@ import { UserOption } from '../../Shared/Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import { AccessListModified, EditAccess } from '../ViewEditAccessList';
+import { AccessListModified } from '../ViewEditAccessList';
 
 import { EnrollNewOwners } from './EnrollNewOwners';
 
-type Props = {
-  userOptions: UserOption[];
-  editAccess: EditAccess;
-  fetchAccessList(): Promise<void | boolean>;
-  accessList: AccessListModified;
-};
+const genericNoAccessMsg = 'You do not have access to edit owners';
 
 export function OwnersList({
   accessList,
-  editAccess,
+  canEditOwners,
   userOptions,
   fetchAccessList,
-}: Props) {
+}: {
+  userOptions: UserOption[];
+  canEditOwners: boolean;
+  fetchAccessList(): Promise<void | boolean>;
+  accessList: AccessListModified;
+}) {
   const { owners } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteOwner, setDeleteOwner] = useState<AccessListOwner>();
@@ -39,8 +39,8 @@ export function OwnersList({
           </Text>
         </Flex>
         <ButtonText
-          title={editAccess.owners.btnTitle}
-          disabled={!editAccess.owners.hasAccess}
+          title={canEditOwners ? '' : genericNoAccessMsg}
+          disabled={!canEditOwners}
           onClick={() => setShowEnrollNewMembers(true)}
           mr={0}
         >
@@ -73,8 +73,8 @@ export function OwnersList({
             altKey: 'options-btn',
             render: owner => (
               <UserRevokeButtonCell
-                disabled={!editAccess.owners.hasAccess}
-                btnTitle={editAccess.owners.btnTitle}
+                disabled={!canEditOwners}
+                btnTitle={canEditOwners ? '' : genericNoAccessMsg}
                 onClick={() => setDeleteOwner(owner)}
                 ineligibleReason={owner.ineligibleReason}
               />

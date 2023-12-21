@@ -10,27 +10,23 @@ import { UserOption } from '../../Shared/Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import {
-  AccessListModified,
-  EditAccess,
-  EditAccessMeta,
-} from '../ViewEditAccessList';
+import { AccessListModified } from '../ViewEditAccessList';
 
 import { EnrollNewMembers } from './EnrollNewMembers';
 
-type Props = {
-  userOptions: UserOption[];
-  editAccess: EditAccess;
-  fetchAccessList(): Promise<void | boolean>;
-  accessList: AccessListModified;
-};
+const genericNoAccessMsg = 'You do not have access to edit members';
 
 export function MembersList({
   accessList,
   userOptions,
-  editAccess,
+  canEditMembers,
   fetchAccessList,
-}: Props) {
+}: {
+  userOptions: UserOption[];
+  canEditMembers: boolean;
+  fetchAccessList(): Promise<void | boolean>;
+  accessList: AccessListModified;
+}) {
   const { members } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteMember, setDeleteMember] = useState<AccessListMember>();
@@ -45,8 +41,8 @@ export function MembersList({
             </Text>
           </Flex>
           <ButtonText
-            title={editAccess.members.btnTitle}
-            disabled={!editAccess.members.hasAccess}
+            title={canEditMembers ? '' : genericNoAccessMsg}
+            disabled={!canEditMembers}
             onClick={() => setShowEnrollNewMembers(true)}
             mr={0}
           >
@@ -57,7 +53,7 @@ export function MembersList({
       </Box>
       <AccessListMemberTable
         members={members}
-        memberEditAccess={editAccess.members}
+        canEditMembers={canEditMembers}
         onDeleteMember={setDeleteMember}
       />
       {showEnrollNewMembers && (
@@ -83,13 +79,13 @@ export function MembersList({
 
 export const AccessListMemberTable = ({
   members,
-  memberEditAccess,
+  canEditMembers,
   onDeleteMember = null,
   hideIneligibleReason = false,
   hideReasonCol = false,
 }: {
   members: AccessListMember[];
-  memberEditAccess: EditAccessMeta;
+  canEditMembers: boolean;
   onDeleteMember?(m: AccessListMember): void;
   hideIneligibleReason?: boolean;
   hideReasonCol?: boolean;
@@ -154,8 +150,8 @@ export const AccessListMemberTable = ({
           isNonRender: !onDeleteMember,
           render: member => (
             <UserRevokeButtonCell
-              disabled={!memberEditAccess.hasAccess}
-              btnTitle={memberEditAccess.btnTitle}
+              disabled={!canEditMembers}
+              btnTitle={canEditMembers ? '' : genericNoAccessMsg}
               onClick={() => onDeleteMember(member)}
               ineligibleReason={member.ineligibleReason}
               hideIneligibleReason={hideIneligibleReason}

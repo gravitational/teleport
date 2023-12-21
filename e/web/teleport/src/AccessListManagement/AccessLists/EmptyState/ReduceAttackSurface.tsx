@@ -29,7 +29,7 @@ export const ReduceAttackSurfacePreview = () => {
     <Box css={{ transform: 'var(--feature-preview-scale)' }}>
       <AccessListMemberTable
         members={mockMembers}
-        memberEditAccess={{ hasAccess: true }}
+        canEditMembers={true}
         onDeleteMember={() => null}
         hideReasonCol={true}
       />

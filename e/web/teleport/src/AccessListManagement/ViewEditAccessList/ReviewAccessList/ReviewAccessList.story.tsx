@@ -27,6 +27,7 @@ export const WithFullAccessList = () => {
         accessList={mockAccessListFull}
         roleOptions={mockRoleOptions}
         reviewer="llama"
+        isOwner={false}
       />
     </MemoryRouter>
   );
@@ -41,6 +42,37 @@ export const WithSparseAccessList = () => {
         accessList={mockAccessListSparse}
         roleOptions={mockRoleOptions}
         reviewer="llama"
+        isOwner={false}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const WithFullAccessListOwner = () => {
+  return (
+    <MemoryRouter>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListFull}
+        roleOptions={mockRoleOptions}
+        reviewer="llama"
+        isOwner={true}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const WithSparseAccessListOwner = () => {
+  return (
+    <MemoryRouter>
+      <Info>Devs: Click the buttons to see each step</Info>
+      <ReviewAccessList
+        cancelReview={() => null}
+        accessList={mockAccessListSparse}
+        roleOptions={mockRoleOptions}
+        reviewer="llama"
+        isOwner={true}
       />
     </MemoryRouter>
   );
