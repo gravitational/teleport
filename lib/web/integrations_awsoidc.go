@@ -377,7 +377,14 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 	}, nil
 }
 
-// awsOIDCListSecurityGroups returns a map of required VPC's and its subnets.
+// awsOIDCRequiredDatabasesVPCS returns a map of required VPC's and its subnets.
+// This is required during the web UI discover flow (where users opt for auto
+// discovery) to determine if user can skip the auto deployment screen (where we deploy
+// database agents).
+//
+// This api will return empty if we already have agents that can proxy the discovered databases.
+// Otherwise it will return with a map of VPC and its subnets where it's values are later used
+// to configure and deploy an agent (deploy an agent per unique VPC).
 func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
@@ -451,51 +458,30 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRe
 		vpcLookup[vpcId] = utils.Deduplicate(combinedSubnets)
 	}
 
-	// Start looking for db service matches.
-	wantLabels := map[string][]string{
-		types.DiscoveryLabelAccountID: {},
-		types.DiscoveryLabelRegion:    {},
-		types.DiscoveryLabelVPCID:     {},
-	}
-
 	for _, svc := range fetchedDbSvcs {
-		// Create a lookup table of labels for easier matching.
-		labelLookup := map[string][]string{}
-		for _, matcher := range svc.GetResourceMatchers() {
-			for key, newVals := range *matcher.Labels {
-				if existingVals, ok := labelLookup[key]; ok {
-					labelLookup[key] = append(existingVals, newVals...)
-					continue
-				}
-				labelLookup[key] = newVals
-			}
-		}
-
-		// Do an exact match, b/c other labels may not match.
-		if len(labelLookup) != len(wantLabels) {
+		if len(svc.GetResourceMatchers()) != 1 || svc.GetResourceMatchers()[0].Labels == nil {
 			continue
 		}
 
-		// Match labels contains the keys we are looking for.
-		matchedLabelKeys := true
-		for key := range wantLabels {
-			vals, found := labelLookup[key]
-			if !found {
-				matchedLabelKeys = false
-				break
-			}
-			wantLabels[key] = vals
-		}
+		// Database services deployed by Teleport have known configurations where
+		// we will only define a single resource matcher.
+		labelMatcher := *svc.GetResourceMatchers()[0].Labels
 
-		if matchedLabelKeys &&
-			slices.Contains(wantLabels[types.DiscoveryLabelAccountID], req.AccountID) &&
-			slices.Contains(wantLabels[types.DiscoveryLabelRegion], req.Region) {
-			// Delete found vpcs
-			vpcs := wantLabels[types.DiscoveryLabelVPCID]
-			for _, vpc := range vpcs {
-				delete(vpcLookup, vpc)
-			}
+		// We check for length 3, because we are only
+		// wanting/checking for 3 discovery labels.
+		if len(labelMatcher) != 3 {
+			continue
 		}
+		if slices.Compare(labelMatcher[types.DiscoveryLabelAccountID], []string{req.AccountID}) != 0 {
+			continue
+		}
+		if slices.Compare(labelMatcher[types.DiscoveryLabelRegion], []string{req.Region}) != 0 {
+			continue
+		}
+		if len(labelMatcher[types.DiscoveryLabelVPCID]) != 1 {
+			continue
+		}
+		delete(vpcLookup, labelMatcher[types.DiscoveryLabelVPCID][0])
 	}
 
 	return &ui.AWSOIDCRequiredVPCSResponse{

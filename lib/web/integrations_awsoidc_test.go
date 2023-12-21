@@ -510,37 +510,8 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	require.ElementsMatch(t, vpcs, extractKeysFn(resp))
 
 	// Insert two valid database services.
-	upsertDbSvcFn("vpc-1", []*types.DatabaseResourceMatcher{
-		{
-			Labels: &types.Labels{
-				types.DiscoveryLabelAccountID: []string{matchAccountId},
-			},
-		},
-		{
-			Labels: &types.Labels{
-				types.DiscoveryLabelVPCID:  []string{"vpc-1"},
-				types.DiscoveryLabelRegion: []string{matchRegion},
-			},
-		},
-	})
-	upsertDbSvcFn("vpc-5", []*types.DatabaseResourceMatcher{
-		{
-			Labels: &types.Labels{
-				types.DiscoveryLabelAccountID: []string{matchAccountId},
-			},
-		},
-		{
-			Labels: &types.Labels{
-				types.DiscoveryLabelRegion: []string{matchRegion},
-			},
-		},
-		{
-			Labels: &types.Labels{
-				types.DiscoveryLabelVPCID:  []string{"vpc-5"},
-				types.DiscoveryLabelRegion: []string{matchRegion},
-			},
-		},
-	})
+	upsertDbSvcFn("vpc-1", nil)
+	upsertDbSvcFn("vpc-5", nil)
 
 	// Insert two invalid database services.
 	upsertDbSvcFn("vpc-2", []*types.DatabaseResourceMatcher{
@@ -558,11 +529,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 				types.DiscoveryLabelAccountID: []string{matchAccountId},
 				types.DiscoveryLabelRegion:    []string{matchRegion},
 				types.DiscoveryLabelVPCID:     []string{"vpc-2"},
-			},
-		},
-		{
-			Labels: &types.Labels{
-				"something": []string{"extra"}, // not matching b/c extra label
+				"something":                   []string{"extra"}, // not matching b/c extra label
 			},
 		},
 	})

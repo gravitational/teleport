@@ -114,8 +114,8 @@ func ListAllDatabases(ctx context.Context, clt ListDatabasesClient, region strin
 			clt,
 			ListDatabasesRequest{
 				Region:    region,
-				Engines:   []string{"mysql", "mariadb", "postgres"},
-				RDSType:   "instance",
+				Engines:   []string{services.RDSEngineMySQL, services.RDSEngineMariaDB, services.RDSEnginePostgres},
+				RDSType:   rdsTypeInstance,
 				NextToken: nextToken,
 			},
 		)
@@ -137,8 +137,8 @@ func ListAllDatabases(ctx context.Context, clt ListDatabasesClient, region strin
 			clt,
 			ListDatabasesRequest{
 				Region:    region,
-				Engines:   []string{"aurora-mysql", "aurora-postgresql"},
-				RDSType:   "cluster",
+				Engines:   []string{services.RDSEngineAuroraMySQL, services.RDSEngineAuroraPostgres},
+				RDSType:   rdsTypeCluster,
 				NextToken: nextToken,
 			},
 		)
