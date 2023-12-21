@@ -56,6 +56,8 @@ linters-settings:
             desc: 'use "sync/atomic" instead'
           - pkg: golang.design
             desc: 'experimental project, not to be confused with official Go packages'
+          - pkg: golang.org/x/exp/slices
+            desc: 'use "slices" instead'
   gci:
     sections:
       - standard # Standard section: captures all standard packages.

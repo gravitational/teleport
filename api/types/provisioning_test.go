@@ -319,6 +319,28 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			expectedErr: &trace.BadParameterError{},
 		},
 		{
+			desc: "github slug and ghes set",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						EnterpriseServerHost: "example.com",
+						EnterpriseSlug:       "slug",
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Sub: "foo",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
 			desc: "circleci valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
