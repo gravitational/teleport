@@ -206,9 +206,8 @@ func (f Features) IsLegacy() bool {
 	return !f.IsUsageBasedBilling
 }
 
-// TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
-	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
+	return f.IdentityGovernanceSecurity
 }
 
 func (f Features) IsTeam() bool {

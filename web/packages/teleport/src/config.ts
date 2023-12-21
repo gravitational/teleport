@@ -71,6 +71,7 @@ const cfg = {
   featureLimits: {
     accessListCreateLimit: 0,
     accessMonitoringMaxReportRangeLimit: 0,
+    AccessRequestMonthlyRequestLimit: 0,
   },
 
   ui: {
