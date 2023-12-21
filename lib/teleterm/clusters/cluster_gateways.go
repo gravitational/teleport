@@ -153,7 +153,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 // At the moment, kube gateways reload their certs in memory while db gateways use the old approach
 // of saving a cert to disk and only then loading it to memory.
 // TODO(ravicious): Refactor db gateways to reload cert in memory and support MFA.
-func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway, mfaPrompt mfa.Prompt) (tls.Certificate, error) {
+func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	switch {
 	case g.TargetURI().IsDB():
 		db, err := gateway.AsDatabase(g)

@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -336,13 +335,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	var cert tls.Certificate
 
 	reissueGatewayCerts := func() error {
-		cluster, clusterClient, err := s.ResolveClusterURI(g.TargetURI())
+		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		mfaPrompt := clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", g.TargetURI().GetDbName()))
-		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
+		cert, err = cluster.ReissueGatewayCerts(ctx, g)
 		if err != nil {
 			return trace.Wrap(err)
 		}

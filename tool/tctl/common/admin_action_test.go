@@ -186,19 +186,21 @@ func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
 	identityFilePath := filepath.Join(t.TempDir(), "identity")
 
 	t.Run("AuthCommands", func(t *testing.T) {
-		for _, tc := range []adminActionTestCase{
-			{
-				command:    fmt.Sprintf("auth sign --out=%v --user=admin --overwrite", identityFilePath),
-				cliCommand: &tctl.AuthCommand{},
-			}, {
+		t.Run("Impersonation", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
 				command:    fmt.Sprintf("auth sign --out=%v --user=%v --overwrite", identityFilePath, user.GetName()),
 				cliCommand: &tctl.AuthCommand{},
-			},
-		} {
-			t.Run(tc.command, func(t *testing.T) {
-				s.testCommand(t, ctx, tc)
 			})
-		}
+		})
+
+		// Renewing certs for yourself should not require admin MFA.
+		t.Run("RenewCerts", func(t *testing.T) {
+			err := runTestCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
+				command:    fmt.Sprintf("auth sign --out=%v --user=admin --overwrite", identityFilePath),
+				cliCommand: &tctl.AuthCommand{},
+			})
+			require.NoError(t, err)
+		})
 	})
 }
 
