@@ -35,9 +35,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
