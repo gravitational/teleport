@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport"

@@ -124,7 +124,7 @@ type WindowsService struct {
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
-	lastDiscoveryResults types.ResourcesWithLabelsMap
+	lastDiscoveryResults map[string]types.WindowsDesktop
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
@@ -957,7 +957,8 @@ func (s *WindowsService) makeTDPSendHandler(
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
+		case byte(tdp.TypeRDPChannelIDs), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
+			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,

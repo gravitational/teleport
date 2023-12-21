@@ -53,6 +53,12 @@ func (t *templateIdentity) render(
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateIdentity/render",
+	)
+	defer span.End()
+
 	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
