@@ -2,7 +2,6 @@ package loginrule
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
+	etypical "github.com/gravitational/teleport/e/lib/typical"
 	oss "github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -60,7 +60,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 	sortLoginRules(rules)
 
 	appliedRules := make([]string, 0, len(rules))
-	traits := dictFromStringSliceMap(input.Traits)
+	traits := etypical.DictFromStringSliceMap(input.Traits)
 	for _, rule := range rules {
 		appliedRules = append(appliedRules, rule.Metadata.Name)
 		// Every rule gets the output of the previous rule as input.
@@ -72,7 +72,14 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		// storage, no need to check again here.
 		if len(rule.TraitsMap) > 0 {
 			var err error
-			traits, err = evaluateTraitsMap(env, rule.TraitsMap)
+			traits, err = etypical.EvaluateTraitsMap(
+				env,
+				wrapperStringValuesMapToStringSliceMap(rule.TraitsMap),
+				func(input string) (typical.Expression[evaluationEnv, any], error) {
+					expr, err := loginRuleParser.Parse(input)
+					return expr, trace.Wrap(err)
+				},
+			)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -86,7 +93,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		}
 	}
 	return &oss.EvaluationOutput{
-		Traits:       stringSliceMapFromDict(traits),
+		Traits:       etypical.StringSliceMapFromDict(traits),
 		AppliedRules: appliedRules,
 	}, nil
 }
@@ -102,59 +109,7 @@ func sortLoginRules(rules []*loginrulepb.LoginRule) {
 	})
 }
 
-func evaluateTraitsMap(env evaluationEnv, traitsMap map[string]*wrappers.StringValues) (dict, error) {
-	d, err := newDict()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for key, values := range traitsMap {
-		for _, expr := range values.Values {
-			e, err := parseExpr(expr)
-			if err != nil {
-				var u typical.UnknownIdentifierError
-				if errors.As(err, &u) {
-					id := u.Identifier()
-					if id == expr {
-						// If the entire expression evaluates to a single unknown
-						// identifier, treat it as a string. This is to support rules like
-						//   groups: [devs]
-						// instead of requiring extra quotes like
-						//   groups: ['"devs"']
-						d[key] = union(d[key], newSet(id))
-						continue
-					}
-				}
-				return nil, trace.Wrap(err, "error parsing expression: %q", expr)
-			}
-
-			result, err := e.Evaluate(env)
-			if err != nil {
-				return nil, trace.Wrap(err, "error evaluating expression: %q", expr)
-			}
-
-			s, err := traitsMapResultToSet(result, expr)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			d[key] = union(d[key], s)
-		}
-	}
-	return d, nil
-}
-
-func traitsMapResultToSet(result any, expr string) (set, error) {
-	switch v := result.(type) {
-	case string:
-		return newSet(v), nil
-	case set:
-		return v, nil
-	default:
-		return nil, trace.BadParameter("traits_map expression must evaluate to type string or set, the following expression evaluates to %T: %q", result, expr)
-	}
-}
-
-func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (dict, error) {
+func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (etypical.Dict, error) {
 	expr, err := parseExpr(traitsExpression)
 	if err != nil {
 		return nil, trace.Wrap(err, "error parsing expression: %q", traitsExpression)
@@ -163,25 +118,17 @@ func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (dict,
 	if err != nil {
 		return nil, trace.Wrap(err, "error evaluating expression: %q", traitsExpression)
 	}
-	d, ok := result.(dict)
+	d, ok := result.(etypical.Dict)
 	if !ok {
 		return nil, trace.BadParameter("traits_expression must evaluate to type dict, the following expression evaluates to %T: %q", result, traitsExpression)
 	}
 	return d, nil
 }
 
-func stringSliceMapFromDict(d dict) map[string][]string {
-	m := make(map[string][]string, len(d))
-	for key, s := range d {
-		m[key] = s.items()
+func wrapperStringValuesMapToStringSliceMap(ws map[string]*wrappers.StringValues) map[string][]string {
+	s := make(map[string][]string, len(ws))
+	for k, v := range ws {
+		s[k] = append(s[k], v.Values...)
 	}
-	return m
-}
-
-func dictFromStringSliceMap(m map[string][]string) dict {
-	d := make(dict, len(m))
-	for key, values := range m {
-		d[key] = newSet(values...)
-	}
-	return d
+	return s
 }

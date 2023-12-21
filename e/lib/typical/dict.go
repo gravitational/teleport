@@ -1,19 +1,20 @@
-package loginrule
+package typical
 
 import "github.com/gravitational/trace"
 
-type dict map[string]set
+// Dict is a map of type string key and Set values.
+type Dict map[string]Set
 
-// newDict returns a dict initialized with the key-value pairs as specified in
+// NewDict returns a dict initialized with the key-value pairs as specified in
 // [pairs].
-func newDict(pairs ...pair) (dict, error) {
-	d := make(dict, len(pairs))
+func NewDict(pairs ...pair) (Dict, error) {
+	d := make(Dict, len(pairs))
 	for _, p := range pairs {
 		k, ok := p.first.(string)
 		if !ok {
 			return nil, trace.BadParameter("dict keys must have type string, got %T", p.first)
 		}
-		v, ok := p.second.(set)
+		v, ok := p.second.(Set)
 		if !ok {
 			return nil, trace.BadParameter("dict values must have type set, got %T", p.second)
 		}
@@ -22,11 +23,11 @@ func newDict(pairs ...pair) (dict, error) {
 	return d, nil
 }
 
-func (d dict) addValues(key string, values ...string) dict {
+func (d Dict) addValues(key string, values ...string) Dict {
 	out := d.clone()
 	s := out[key]
 	if s == nil {
-		out[key] = newSet(values...)
+		out[key] = NewSet(values...)
 		return out
 	}
 	// Calling set.add would do an unnecessary extra copy, add the values
@@ -37,13 +38,13 @@ func (d dict) addValues(key string, values ...string) dict {
 	return out
 }
 
-func (d dict) put(key string, value set) dict {
+func (d Dict) put(key string, value Set) Dict {
 	out := d.clone()
 	out[key] = value
 	return out
 }
 
-func (d dict) remove(keys ...string) any {
+func (d Dict) remove(keys ...string) any {
 	out := d.clone()
 	for _, key := range keys {
 		delete(out, key)
@@ -51,8 +52,8 @@ func (d dict) remove(keys ...string) any {
 	return out
 }
 
-func (d dict) clone() dict {
-	out := make(dict, len(d))
+func (d Dict) clone() Dict {
+	out := make(Dict, len(d))
 	for key, set := range d {
 		out[key] = set.clone()
 	}
@@ -60,7 +61,7 @@ func (d dict) clone() dict {
 }
 
 // Get implements typical.Getter[set]
-func (d dict) Get(key string) (set, error) {
+func (d Dict) Get(key string) (Set, error) {
 	return d[key], nil
 }
 
