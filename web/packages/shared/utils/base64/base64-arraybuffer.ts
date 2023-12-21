@@ -32,12 +32,9 @@ for (let i = 0; i < chars.length; i++) {
   lookup[chars.charCodeAt(i)] = i;
 }
 
+// Most efficient of the implementations tried here: https://jsbench.me/krkz8mf04o/1
 export const arrayBufferToBase64 = (arraybuffer: ArrayBuffer): string => {
-  return btoa(
-    new Uint8Array(arraybuffer).reduce(function (data, byte) {
-      return data + String.fromCharCode(byte);
-    }, '')
-  );
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(arraybuffer)));
 };
 
 // Most efficient of the implementations tried here: https://jsbench.me/vkkz8ly9os/1

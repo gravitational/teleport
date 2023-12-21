@@ -31,7 +31,7 @@ export default {
 
 const fakeClient = () => {
   const client = new TdpClient('wss://socketAddr.gov');
-  client.connect = async () => {}; // Don't actually try to connect to a websocket.
+  client.init = () => {}; // Don't actually try to connect to a websocket.
   return client;
 };
 
@@ -48,8 +48,8 @@ const props: State = {
   clipboardSharingEnabled: false,
   tdpClient: fakeClient(),
   username: 'user',
-  clientOnWsOpen: () => {},
-  clientOnWsClose: () => {},
+  onWsOpen: () => {},
+  onWsClose: () => {},
   wsConnection: 'closed',
   disconnected: false,
   setDisconnected: () => {},
@@ -60,19 +60,17 @@ const props: State = {
   },
   setDirectorySharingState: () => {},
   onShareDirectory: () => {},
-  clientOnPngFrame: () => {},
-  clientOnBitmapFrame: () => {},
-  clientScreenSpec: { width: 0, height: 0 },
-  clientOnTdpError: () => {},
-  clientOnTdpWarning: () => {},
-  canvasOnKeyDown: () => {},
-  canvasOnKeyUp: () => {},
-  canvasOnMouseMove: () => {},
-  canvasOnMouseDown: () => {},
-  canvasOnMouseUp: () => {},
-  canvasOnMouseWheelScroll: () => {},
-  canvasOnContextMenu: () => false,
-  clientOnClipboardData: async () => {},
+  onPngFrame: () => {},
+  onTdpError: () => {},
+  onTdpWarning: () => {},
+  onKeyDown: () => {},
+  onKeyUp: () => {},
+  onMouseMove: () => {},
+  onMouseDown: () => {},
+  onMouseUp: () => {},
+  onMouseWheelScroll: () => {},
+  onContextMenu: () => false,
+  onClipboardData: async () => {},
   setTdpConnection: () => {},
   webauthn: {
     errorText: '',
@@ -123,7 +121,7 @@ export const InvalidProcessingState = () => (
 
 export const ConnectedSettingsFalse = () => {
   const client = fakeClient();
-  client.connect = async () => {
+  client.init = () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
@@ -136,7 +134,7 @@ export const ConnectedSettingsFalse = () => {
       wsConnection={'open'}
       disconnected={false}
       clipboardSharingEnabled={false}
-      clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
+      onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
     />
@@ -145,7 +143,7 @@ export const ConnectedSettingsFalse = () => {
 
 export const ConnectedSettingsTrue = () => {
   const client = fakeClient();
-  client.connect = async () => {
+  client.init = () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
@@ -162,7 +160,7 @@ export const ConnectedSettingsTrue = () => {
         canShare: true,
         isSharing: true,
       }}
-      clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
+      onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
     />
@@ -236,7 +234,7 @@ export const AnotherSessionActive = () => (
 
 export const Warnings = () => {
   const client = fakeClient();
-  client.connect = async () => {
+  client.init = () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
@@ -275,7 +273,7 @@ export const Warnings = () => {
           canShare: true,
           isSharing: true,
         }}
-        clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
+        onPngFrame={(ctx: CanvasRenderingContext2D) => {
           fillGray(ctx.canvas);
         }}
         warnings={warnings}

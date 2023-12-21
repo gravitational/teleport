@@ -32,6 +32,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -57,7 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -83,6 +84,12 @@ func (h *Handler) desktopConnectHandle(
 
 	return nil, nil
 }
+
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
 
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
@@ -111,23 +118,28 @@ func (h *Handler) createDesktopConnection(
 		return err
 	}
 
-	username, err := readUsername(r)
-	if err != nil {
-		return sendTDPError(err)
+	q := r.URL.Query()
+	username := q.Get("username")
+	if username == "" {
+		return sendTDPError(trace.BadParameter("missing username"))
 	}
-	log.Debugf("Attempting to connect to desktop using username=%v\n", username)
+	width, err := strconv.Atoi(q.Get("width"))
+	if err != nil {
+		return sendTDPError(trace.BadParameter("width missing or invalid"))
+	}
+	height, err := strconv.Atoi(q.Get("height"))
+	if err != nil {
+		return sendTDPError(trace.BadParameter("height missing or invalid"))
+	}
 
-	// Read the tdp.ClientScreenSpec from the websocket.
-	// This is always the first thing sent by the client.
-	// Certificate issuance may rely on the client sending
-	// a subsequent tdp.MFA message, hence we need to make
-	// sure that this message has been read from the wire
-	// beforehand.
-	screenSpec, err := readClientScreenSpec(ws)
-	if err != nil {
-		return sendTDPError(err)
+	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
+		return sendTDPError(trace.BadParameter(
+			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
+		))
 	}
-	log.Debugf("Received screen spec: %v\n", screenSpec)
+
+	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -192,7 +204,7 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	err = tdpConn.WriteMessage(screenSpec)
+	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -353,21 +365,6 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 	}
 
 	return newCerts.TLS, nil
-}
-
-func readUsername(r *http.Request) (string, error) {
-	q := r.URL.Query()
-	username := q.Get("username")
-	if username == "" {
-		return "", trace.BadParameter("missing username in URL")
-	}
-
-	return username, nil
-}
-
-func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
-	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
-	return tdpConn.ReadClientScreenSpec()
 }
 
 type connector struct {

@@ -4,6 +4,3 @@
 
 # Ignore protobuf files:
 **/*_pb.*
-
-# Ignore WASM generated files:
-web/packages/teleport/src/ironrdp/pkg

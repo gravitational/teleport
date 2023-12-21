@@ -19,7 +19,6 @@
 import React, { useEffect, useRef } from 'react';
 
 import { TdpClientEvent } from 'teleport/lib/tdp';
-import { BitmapFrame } from 'teleport/lib/tdp/client';
 
 import type { CSSProperties } from 'react';
 import type {
@@ -31,24 +30,22 @@ import type { TdpClient } from 'teleport/lib/tdp';
 
 export default function TdpClientCanvas(props: Props) {
   const {
-    client,
-    clientShouldConnect = false,
-    clientScreenSpec,
-    clientOnPngFrame,
-    clientOnBmpFrame,
-    clientOnClipboardData,
-    clientOnTdpError,
-    clientOnTdpWarning,
-    clientOnWsClose,
-    clientOnWsOpen,
-    clientOnClientScreenSpec,
-    canvasOnKeyDown,
-    canvasOnKeyUp,
-    canvasOnMouseMove,
-    canvasOnMouseDown,
-    canvasOnMouseUp,
-    canvasOnMouseWheelScroll,
-    canvasOnContextMenu,
+    tdpCli,
+    tdpCliInit = false,
+    tdpCliOnPngFrame,
+    tdpCliOnClipboardData,
+    tdpCliOnTdpError,
+    tdpCliOnTdpWarning,
+    tdpCliOnWsClose,
+    tdpCliOnWsOpen,
+    tdpCliOnClientScreenSpec,
+    onKeyDown,
+    onKeyUp,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onMouseWheelScroll,
+    onContextMenu,
     style,
   } = props;
 
@@ -64,294 +61,251 @@ export default function TdpClientCanvas(props: Props) {
   }
 
   useEffect(() => {
-    if (client && clientOnPngFrame) {
+    if (tdpCli && tdpCliOnPngFrame) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
 
       // Buffered rendering logic
-      var pngBuffer: PngFrame[] = [];
+      var buffer: PngFrame[] = [];
       const renderBuffer = () => {
-        if (pngBuffer.length) {
-          for (let i = 0; i < pngBuffer.length; i++) {
-            clientOnPngFrame(ctx, pngBuffer[i]);
+        if (buffer.length) {
+          for (let i = 0; i < buffer.length; i++) {
+            tdpCliOnPngFrame(ctx, buffer[i]);
           }
-          pngBuffer = [];
+          buffer = [];
         }
         requestAnimationFrame(renderBuffer);
       };
       requestAnimationFrame(renderBuffer);
 
-      const pushToPngBuffer = (pngFrame: PngFrame) => {
-        pngBuffer.push(pngFrame);
+      const pushToBuffer = (pngFrame: PngFrame) => {
+        buffer.push(pngFrame);
       };
 
-      client.on(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
+      tdpCli.on(TdpClientEvent.TDP_PNG_FRAME, pushToBuffer);
 
       return () => {
-        client.removeListener(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
+        tdpCli.removeListener(TdpClientEvent.TDP_PNG_FRAME, pushToBuffer);
       };
     }
-  }, [client, clientOnPngFrame]);
+  }, [tdpCli, tdpCliOnPngFrame]);
 
   useEffect(() => {
-    if (client && clientOnBmpFrame) {
+    if (tdpCli && tdpCliOnClientScreenSpec) {
       const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      // Buffered rendering logic
-      var bitmapBuffer: BitmapFrame[] = [];
-      const renderBuffer = () => {
-        if (bitmapBuffer.length) {
-          for (let i = 0; i < bitmapBuffer.length; i++) {
-            clientOnBmpFrame(ctx, bitmapBuffer[i]);
-          }
-          bitmapBuffer = [];
-        }
-        requestAnimationFrame(renderBuffer);
+      const _tdpCliOnClientScreenSpec = (spec: ClientScreenSpec) => {
+        tdpCliOnClientScreenSpec(canvas, spec);
       };
-      requestAnimationFrame(renderBuffer);
-
-      const pushToBitmapBuffer = (bmpFrame: BitmapFrame) => {
-        bitmapBuffer.push(bmpFrame);
-      };
-
-      client.on(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
-
-      return () => {
-        client.removeListener(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
-      };
-    }
-  }, [client, clientOnBmpFrame]);
-
-  useEffect(() => {
-    if (client && clientOnClientScreenSpec) {
-      const canvas = canvasRef.current;
-      const _clientOnClientScreenSpec = (spec: ClientScreenSpec) => {
-        clientOnClientScreenSpec(client, canvas, spec);
-      };
-      client.on(
+      tdpCli.on(
         TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-        _clientOnClientScreenSpec
+        _tdpCliOnClientScreenSpec
       );
 
       return () => {
-        client.removeListener(
+        tdpCli.removeListener(
           TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-          _clientOnClientScreenSpec
+          _tdpCliOnClientScreenSpec
         );
       };
     }
-  }, [client, clientOnClientScreenSpec]);
+  }, [tdpCli, tdpCliOnClientScreenSpec]);
 
   useEffect(() => {
-    if (client && clientOnClipboardData) {
-      client.on(TdpClientEvent.TDP_CLIPBOARD_DATA, clientOnClipboardData);
+    if (tdpCli && tdpCliOnClipboardData) {
+      tdpCli.on(TdpClientEvent.TDP_CLIPBOARD_DATA, tdpCliOnClipboardData);
 
       return () => {
-        client.removeListener(
+        tdpCli.removeListener(
           TdpClientEvent.TDP_CLIPBOARD_DATA,
-          clientOnClipboardData
+          tdpCliOnClipboardData
         );
       };
     }
-  }, [client, clientOnClipboardData]);
+  }, [tdpCli, tdpCliOnClipboardData]);
 
   useEffect(() => {
-    if (client && clientOnTdpError) {
-      client.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-      client.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+    if (tdpCli && tdpCliOnTdpError) {
+      tdpCli.on(TdpClientEvent.TDP_ERROR, tdpCliOnTdpError);
+      tdpCli.on(TdpClientEvent.CLIENT_ERROR, tdpCliOnTdpError);
 
       return () => {
-        client.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-        client.removeListener(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
+        tdpCli.removeListener(TdpClientEvent.TDP_ERROR, tdpCliOnTdpError);
+        tdpCli.removeListener(TdpClientEvent.CLIENT_ERROR, tdpCliOnTdpError);
       };
     }
-  }, [client, clientOnTdpError]);
+  }, [tdpCli, tdpCliOnTdpError]);
 
   useEffect(() => {
-    if (client && clientOnTdpWarning) {
-      client.on(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-      client.on(TdpClientEvent.CLIENT_WARNING, clientOnTdpWarning);
+    if (tdpCli && tdpCliOnTdpWarning) {
+      tdpCli.on(TdpClientEvent.TDP_WARNING, tdpCliOnTdpWarning);
+      tdpCli.on(TdpClientEvent.CLIENT_WARNING, tdpCliOnTdpWarning);
 
       return () => {
-        client.removeListener(TdpClientEvent.TDP_WARNING, clientOnTdpWarning);
-        client.removeListener(
+        tdpCli.removeListener(TdpClientEvent.TDP_WARNING, tdpCliOnTdpWarning);
+        tdpCli.removeListener(
           TdpClientEvent.CLIENT_WARNING,
-          clientOnTdpWarning
+          tdpCliOnTdpWarning
         );
       };
     }
-  }, [client, clientOnTdpWarning]);
+  }, [tdpCli, tdpCliOnTdpWarning]);
 
   useEffect(() => {
-    if (client && clientOnWsClose) {
-      client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+    if (tdpCli && tdpCliOnWsClose) {
+      tdpCli.on(TdpClientEvent.WS_CLOSE, tdpCliOnWsClose);
 
       return () => {
-        client.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
+        tdpCli.removeListener(TdpClientEvent.WS_CLOSE, tdpCliOnWsClose);
       };
     }
-  }, [client, clientOnWsClose]);
+  }, [tdpCli, tdpCliOnWsClose]);
 
   useEffect(() => {
-    if (client && clientOnWsOpen) {
-      client.on(TdpClientEvent.WS_OPEN, clientOnWsOpen);
+    if (tdpCli && tdpCliOnWsOpen) {
+      tdpCli.on(TdpClientEvent.WS_OPEN, tdpCliOnWsOpen);
 
       return () => {
-        client.removeListener(TdpClientEvent.WS_OPEN, clientOnWsOpen);
+        tdpCli.removeListener(TdpClientEvent.WS_OPEN, tdpCliOnWsOpen);
       };
     }
-  }, [client, clientOnWsOpen]);
+  }, [tdpCli, tdpCliOnWsOpen]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const _oncontextmenu = canvasOnContextMenu;
-    if (canvasOnContextMenu) {
+    const _oncontextmenu = onContextMenu;
+    if (onContextMenu) {
       canvas.oncontextmenu = _oncontextmenu;
     }
 
     return () => {
-      if (canvasOnContextMenu)
+      if (onContextMenu)
         canvas.removeEventListener('contextmenu', _oncontextmenu);
     };
-  }, [canvasOnContextMenu]);
+  }, [onContextMenu]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const _onmousemove = (e: MouseEvent) => {
-      canvasOnMouseMove(client, canvas, e);
+      onMouseMove(tdpCli, canvas, e);
     };
-    if (canvasOnMouseMove) {
+    if (onMouseMove) {
       canvas.onmousemove = _onmousemove;
     }
 
     return () => {
-      if (canvasOnMouseMove)
-        canvas.removeEventListener('mousemove', _onmousemove);
+      if (onMouseMove) canvas.removeEventListener('mousemove', _onmousemove);
     };
-  }, [client, canvasOnMouseMove]);
+  }, [tdpCli, onMouseMove]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const _onmousedown = (e: MouseEvent) => {
-      canvasOnMouseDown(client, e);
+      onMouseDown(tdpCli, e);
     };
-    if (canvasOnMouseDown) {
+    if (onMouseDown) {
       canvas.onmousedown = _onmousedown;
     }
 
     return () => {
-      if (canvasOnMouseDown)
-        canvas.removeEventListener('mousedown', _onmousedown);
+      if (onMouseDown) canvas.removeEventListener('mousedown', _onmousedown);
     };
-  }, [client, canvasOnMouseDown]);
+  }, [tdpCli, onMouseDown]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const _onmouseup = (e: MouseEvent) => {
-      canvasOnMouseUp(client, e);
+      onMouseUp(tdpCli, e);
     };
-    if (canvasOnMouseUp) {
+    if (onMouseUp) {
       canvas.onmouseup = _onmouseup;
     }
 
     return () => {
-      if (canvasOnMouseUp) canvas.removeEventListener('mouseup', _onmouseup);
+      if (onMouseUp) canvas.removeEventListener('mouseup', _onmouseup);
     };
-  }, [client, canvasOnMouseUp]);
+  }, [tdpCli, onMouseUp]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const _onwheel = (e: WheelEvent) => {
-      canvasOnMouseWheelScroll(client, e);
+      onMouseWheelScroll(tdpCli, e);
     };
-    if (canvasOnMouseWheelScroll) {
+    if (onMouseWheelScroll) {
       canvas.onwheel = _onwheel;
     }
 
     return () => {
-      if (canvasOnMouseWheelScroll)
-        canvas.removeEventListener('wheel', _onwheel);
+      if (onMouseWheelScroll) canvas.removeEventListener('wheel', _onwheel);
     };
-  }, [client, canvasOnMouseWheelScroll]);
+  }, [tdpCli, onMouseWheelScroll]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const _onkeydown = (e: KeyboardEvent) => {
-      canvasOnKeyDown(client, e);
+      onKeyDown(tdpCli, e);
     };
-    if (canvasOnKeyDown) {
+    if (onKeyDown) {
       canvas.onkeydown = _onkeydown;
     }
 
     return () => {
-      if (canvasOnKeyDown) canvas.removeEventListener('keydown', _onkeydown);
+      if (onKeyDown) canvas.removeEventListener('keydown', _onkeydown);
     };
-  }, [client, canvasOnKeyDown]);
+  }, [tdpCli, onKeyDown]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const _onkeyup = (e: KeyboardEvent) => {
-      canvasOnKeyUp(client, e);
+      onKeyUp(tdpCli, e);
     };
-    if (canvasOnKeyUp) {
+    if (onKeyUp) {
       canvas.onkeyup = _onkeyup;
     }
 
     return () => {
-      if (canvasOnKeyUp) canvas.removeEventListener('keyup', _onkeyup);
+      if (onKeyUp) canvas.removeEventListener('keyup', _onkeyup);
     };
-  }, [client, canvasOnKeyUp]);
+  }, [tdpCli, onKeyUp]);
 
   // Call init after all listeners have been registered
   useEffect(() => {
-    if (client && clientShouldConnect) {
-      client.connect(clientScreenSpec);
+    if (tdpCli && tdpCliInit) {
+      tdpCli.init();
       return () => {
-        client.shutdown();
+        tdpCli.shutdown();
       };
     }
-  }, [client, clientShouldConnect]);
+  }, [tdpCli, tdpCliInit]);
 
   return <canvas style={{ ...style }} ref={canvasRef} />;
 }
 
 export type Props = {
-  client: TdpClient;
-  // clientShouldConnect determines whether the TdpClientCanvas
-  // will try to connect to the server.
-  clientShouldConnect?: boolean;
-  // clientScreenSpec will be passed to client.connect() if
-  // clientShouldConnect is true.
-  clientScreenSpec?: ClientScreenSpec;
-  clientOnPngFrame?: (
+  tdpCli?: TdpClient;
+  tdpCliInit?: boolean;
+  tdpCliOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
   ) => void;
-  clientOnBmpFrame?: (
-    ctx: CanvasRenderingContext2D,
-    pngFrame: BitmapFrame
-  ) => void;
-  clientOnClipboardData?: (clipboardData: ClipboardData) => void;
-  clientOnTdpError?: (error: Error) => void;
-  clientOnTdpWarning?: (warning: string) => void;
-  clientOnWsClose?: () => void;
-  clientOnWsOpen?: () => void;
-  clientOnClientScreenSpec?: (
-    cli: TdpClient,
+  tdpCliOnClipboardData?: (clipboardData: ClipboardData) => void;
+  tdpCliOnTdpError?: (error: Error) => void;
+  tdpCliOnTdpWarning?: (warning: string) => void;
+  tdpCliOnWsClose?: () => void;
+  tdpCliOnWsOpen?: () => void;
+  tdpCliOnClientScreenSpec?: (
     canvas: HTMLCanvasElement,
     spec: ClientScreenSpec
   ) => void;
-  canvasOnKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
-  canvasOnKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
-  canvasOnMouseMove?: (
+  onKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
+  onKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
+  onMouseMove?: (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
     e: MouseEvent
   ) => void;
-  canvasOnMouseDown?: (cli: TdpClient, e: MouseEvent) => void;
-  canvasOnMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
-  canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
-  canvasOnContextMenu?: () => boolean;
+  onMouseDown?: (cli: TdpClient, e: MouseEvent) => void;
+  onMouseUp?: (cli: TdpClient, e: MouseEvent) => void;
+  onMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
+  onContextMenu?: () => boolean;
   style?: CSSProperties;
 };

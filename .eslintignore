@@ -1,5 +1,2 @@
 **/*_pb.*
 .eslintrc.js
-
-# Ignore WASM generated files:
-web/packages/teleport/src/ironrdp/pkg
