@@ -15,7 +15,6 @@ const { worker, rest } = window.msw;
 const defaultIsTeamFlag = cfg.oss.isTeam;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
-const defaultIsUsageBased = cfg.oss.isUsageBasedBilling;
 
 export default {
   title: 'Teleport/AccessLists/List',
@@ -30,7 +29,6 @@ export default {
           cfg.oss.isTeam = defaultIsTeamFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
           cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
-          cfg.oss.isUsageBasedBilling = defaultIsUsageBased;
         };
       }, []);
       return <Story />;
@@ -64,22 +62,8 @@ export const NoAccess = () => {
   );
 };
 
-export const Empty = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: [] }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
-};
-
 export const EmptyWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
-  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -94,7 +78,6 @@ export const EmptyWithIgs = () => {
 
 export const EmptyWithCta = () => {
   cfg.oss.isTeam = true;
-  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: [] }));
@@ -107,22 +90,8 @@ export const EmptyWithCta = () => {
   );
 };
 
-export const List = () => {
-  worker.use(
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: mockAccessLists }));
-    })
-  );
-  return (
-    <Provider>
-      <AccessLists />
-    </Provider>
-  );
-};
-
 export const ListWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
-  cfg.oss.isUsageBasedBilling = true;
 
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
@@ -138,7 +107,6 @@ export const ListWithIgs = () => {
 
 export const ListWithCta = () => {
   cfg.oss.isTeam = true;
-  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
       return res.once(ctx.json({ accessLists: mockAccessLists }));

@@ -38,7 +38,7 @@ type DurationOption = Option<Days> & {
 };
 
 function isIgsDisabled() {
-  return cfg.isUsageBasedBilling && !cfg.isIgsEnabled;
+  return !cfg.isIgsEnabled;
 }
 
 export function Timeframe(props: TimeframeProps) {

@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 
 import cfg from 'e-teleport/config';
-import { LimitedPreviewNotice } from 'e-teleport/AccessListManagement/LimitedPreviewNotice';
 
 import {
   AutomateAccessRequest,
@@ -44,7 +43,6 @@ export function EmptyState() {
         <Text typography="h5" mb={3} fontSize={7}>
           What are Access Lists?
         </Text>
-        <LimitedPreviewNotice />
         <Text css={{ maxWidth: '1204px' }}>
           <b>Access Lists</b> enable users to gain long-term access to select
           resources within Teleport. List Owners can manage membership and

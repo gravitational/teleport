@@ -76,8 +76,7 @@ func validateRequest(req any) error {
 
 func verifyAccessMonitoringMaxReportRangeLimit(days int32) error {
 	f := modules.GetModules().Features()
-	// TODO(lisa): checking for legacy is temporary until nearing v15.
-	if f.IsLegacy() || f.IGSEnabled() {
+	if f.IGSEnabled() {
 		return nil // any range supported
 	}
 

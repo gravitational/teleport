@@ -49,6 +49,10 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 			DeviceTrust: modules.DeviceTrustFeature{
 				Enabled: true,
 			},
+
+			// New features that are limited even for legacies.
+			AccessList:       GetUsageBasedAccessListFeatureLimits(),
+			AccessMonitoring: GetUsageBasedAccessMonitoringFeatureLimits(false),
 		}, nil
 	}
 

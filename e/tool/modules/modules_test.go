@@ -38,6 +38,8 @@ func TestGetLicenseFeatures(t *testing.T) {
 				DeviceTrust: modules.DeviceTrustFeature{
 					Enabled: true,
 				},
+				AccessList:       feature.GetUsageBasedAccessListFeatureLimits(),
+				AccessMonitoring: feature.GetUsageBasedAccessMonitoringFeatureLimits(false),
 			},
 		},
 		{

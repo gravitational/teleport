@@ -529,6 +529,9 @@ func TestSuggestAccessLists(t *testing.T) {
 	modules.SetTestModules(t, &fakeBuildModule{
 		TestModules: modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				IdentityGovernanceSecurity: true,
+			},
 		},
 	})
 
@@ -680,7 +683,8 @@ func TestPromoteAccessRequest(t *testing.T) {
 		TestModules: modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				AdvancedAccessWorkflows: true,
+				AdvancedAccessWorkflows:    true,
+				IdentityGovernanceSecurity: true,
 			},
 		},
 	})

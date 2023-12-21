@@ -131,6 +131,10 @@ export function useNewRequest(ctx: Ctx) {
       return;
     }
 
+    if (!ctx.storeUser.getBillingAccess().list) {
+      return;
+    }
+
     ctx.cloudService
       .fetchNonBillableSummaryInformation()
       .then(info => {

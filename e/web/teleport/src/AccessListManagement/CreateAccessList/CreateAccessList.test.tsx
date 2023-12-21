@@ -22,14 +22,12 @@ const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIgsFlag = cfg.isIgsEnabled;
 const defaultCreateLimit = cfg.featureLimits.accessListCreateLimit;
-const defaultIsUsageBased = cfg.isUsageBasedBilling;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
 
   beforeEach(() => {
     cfg.isEnterprise = true;
-    cfg.isUsageBasedBilling = true;
 
     // Response doesn't matter, just that we have one element in array.
     jest
@@ -47,7 +45,6 @@ describe('upsell links', () => {
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
     cfg.featureLimits.accessListCreateLimit = defaultCreateLimit;
-    cfg.isUsageBasedBilling = defaultIsUsageBased;
   });
 
   test('no access should not render cta', async () => {
@@ -63,19 +60,6 @@ describe('upsell links', () => {
     await screen.findByText(
       /Only Teleport administrators can create new Access Lists/i
     );
-    expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
-  });
-
-  test('render limited preview for non-usage based', async () => {
-    ecfg.oss.isUsageBasedBilling = false;
-
-    const ctx = createTeleportContextE({
-      customAcl: getAcl({ noAccess: true }),
-    });
-
-    renderComponent(ctx);
-
-    await screen.findByText(/preview and will limit/i);
     expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
   });
 

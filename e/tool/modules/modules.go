@@ -226,18 +226,23 @@ func getLicenseFeatures(license types.License) modules.Features {
 		IdentityGovernanceSecurity: license.GetSupportsIdentityGovernanceSecurity().Value(),
 	}
 
-	// There is only two types of `on-prem` license:
-	//  1) non usage-based: refers to legacy license before EUB product.
-	//  2) usage based: refers to licenses for EUB product.
+	// There is only two types of `on-prem` licenses:
+	//  1. enterprise usage based (EUB)
+	//  2. non usage-based: refers to legacy license before EUB product.
 	if license.GetUsageBasedBilling() {
 		f.ProductType = modules.ProductTypeEUB
+	}
 
-		if !license.GetSupportsIdentityGovernanceSecurity() {
-			f.AccessList = feature.GetUsageBasedAccessListFeatureLimits()
+	if !license.GetSupportsIdentityGovernanceSecurity() {
+		f.AccessList = feature.GetUsageBasedAccessListFeatureLimits()
+		// access monitoring enabling will be determined outside of license reading.
+		f.AccessMonitoring = feature.GetUsageBasedAccessMonitoringFeatureLimits(false)
+
+		// Legacy licenses (non-usage based) will continue to have unlimited support
+		// for feature AR & DT.
+		if notLegacyEnterprise := license.GetUsageBasedBilling(); notLegacyEnterprise {
 			f.AccessRequests = feature.GetUsageBasedAccessRequestFeatureLimits()
 			f.DeviceTrust = feature.GetUsageBasedDeviceTrustFeatureLimits()
-			// access monitoring enabling will be determined outside of license reading.
-			f.AccessMonitoring = feature.GetUsageBasedAccessMonitoringFeatureLimits(false)
 		}
 	}
 

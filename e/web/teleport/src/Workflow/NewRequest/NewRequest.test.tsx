@@ -428,6 +428,11 @@ const userContext = makeUserContext({
     requestableRoles: ['role-1', 'role-2', 'role-3'],
     suggestedReviewers: ['reviewer1', 'reviewer2'],
   },
+  userAcl: {
+    billing: {
+      list: true,
+    },
+  },
 });
 
 const nodesResponse = [

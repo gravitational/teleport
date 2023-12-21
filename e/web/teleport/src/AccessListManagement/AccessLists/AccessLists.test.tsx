@@ -32,14 +32,12 @@ import { AccessLists } from './AccessLists';
 const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultIgsFlag = cfg.isIgsEnabled;
-const defaultIsUsageBased = cfg.isUsageBasedBilling;
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
 
   beforeEach(() => {
     cfg.isEnterprise = true;
-    cfg.isUsageBasedBilling = true;
 
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
@@ -52,7 +50,6 @@ describe('upsell links', () => {
     cfg.isTeam = defaultIsTeamFlag;
     cfg.isEnterprise = defaultIsEnterpriseFlag;
     cfg.isIgsEnabled = defaultIgsFlag;
-    cfg.isUsageBasedBilling = defaultIsUsageBased;
   });
 
   test('no access should not render cta', async () => {
@@ -78,15 +75,6 @@ describe('upsell links', () => {
     expect(screen.getByText(/create new access list/i)).toHaveAttribute(
       'disabled'
     );
-  });
-
-  test('render limited preview for non-usage based', async () => {
-    ecfg.oss.isUsageBasedBilling = false;
-
-    renderComponent(ctx);
-
-    await screen.findByText(/preview and will limit/i);
-    expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
   });
 
   test('eub with igs enabled renders no cta', async () => {

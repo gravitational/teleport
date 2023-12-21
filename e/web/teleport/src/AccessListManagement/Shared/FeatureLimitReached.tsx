@@ -6,9 +6,9 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
 export function FeatureLimitReached() {
-  let cta = 'Teleport Enterprise';
+  let cta = 'Identity Governance & Security';
   if (cfg.isTeam) {
-    cta = 'Identity Governance & Security';
+    cta = 'Teleport Enterprise';
   }
   return (
     // to horizontally center an absolutely positioned element
@@ -48,11 +48,6 @@ export const featureLimitReachedBlurCss = {
 };
 
 export function FeatureLimitBlurb() {
-  // TODO(lisa): temporary check until nearing v15.
-  if (!cfg.isUsageBasedBilling) {
-    return null;
-  }
-
   return (
     <Box
       mt={4}

@@ -338,6 +338,8 @@ func TestRun_Legacy_NonUsageBased(t *testing.T) {
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},
+		AccessList:       GetUsageBasedAccessListFeatureLimits(),
+		AccessMonitoring: GetUsageBasedAccessMonitoringFeatureLimits(false),
 	})
 }
 

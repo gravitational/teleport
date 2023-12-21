@@ -9,11 +9,9 @@ import { CreateAccessList } from './CreateAccessList';
 
 const { worker, rest } = window.msw;
 
-const defaultIsTeamFlag = cfg.oss.isTeam;
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultIsIgsEnabled = cfg.oss.isIgsEnabled;
 const defaultCreateLimit = cfg.oss.featureLimits.accessListCreateLimit;
-const defaultIsUsageBased = cfg.oss.isUsageBasedBilling;
 
 export default {
   title: 'Teleport/AccessLists/Create',
@@ -25,11 +23,9 @@ export default {
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.oss.isTeam = defaultIsTeamFlag;
           cfg.oss.isEnterprise = defaultIsEnterprise;
           cfg.oss.isIgsEnabled = defaultIsIgsEnabled;
           cfg.oss.featureLimits.accessListCreateLimit = defaultCreateLimit;
-          cfg.oss.isUsageBasedBilling = defaultIsUsageBased;
         };
       }, []);
       return <Story />;
@@ -66,28 +62,8 @@ export const NoAccess = () => {
   );
 };
 
-export const Loaded = () => {
-  worker.use(
-    rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
-      return res.once(ctx.json([]));
-    }),
-    rest.get(cfg.oss.api.usersPath, (req, res, ctx) => {
-      return res.once(ctx.json([]));
-    }),
-    rest.get(cfg.getAccessManagementListUrl(), (req, res, ctx) => {
-      return res.once(ctx.json({ accessLists: [] }));
-    })
-  );
-  return (
-    <Provider>
-      <CreateAccessList />
-    </Provider>
-  );
-};
-
 export const LoadedWithIgs = () => {
   cfg.oss.isIgsEnabled = true;
-  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
       return res.once(ctx.json([]));
@@ -108,7 +84,6 @@ export const LoadedWithIgs = () => {
 
 export const LoadedReachedLimit = () => {
   cfg.oss.featureLimits.accessListCreateLimit = 1;
-  cfg.oss.isUsageBasedBilling = true;
   worker.use(
     rest.get(cfg.oss.getRolesUrl(), (req, res, ctx) => {
       return res.once(ctx.json([]));

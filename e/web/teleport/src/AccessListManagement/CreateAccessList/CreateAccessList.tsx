@@ -40,7 +40,6 @@ import {
 import { reviewFrequencyOpts, reviewDayOfMonthOpts } from '../Shared/Audit';
 import { useFetchUserAndRoles } from '../useFetchUsersAndRoles';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
-import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
 import {
   FeatureLimitReached,
   featureLimitReachedBlurCss,
@@ -103,8 +102,7 @@ export function CreateAccessList() {
   });
 
   useEffect(() => {
-    // TODO(lisa): temporary isUsageBased check until nearing v15.
-    if (cfg.oss.isIgsEnabled || !cfg.oss.isUsageBasedBilling) {
+    if (cfg.oss.isIgsEnabled) {
       fetchUsersAndRoles();
       return;
     }
@@ -239,12 +237,7 @@ export function CreateAccessList() {
 
   let MainContent: React.ReactElement;
   if (!canCreate) {
-    MainContent = (
-      <>
-        <LimitedPreviewNotice />
-        <NoAccessState action="create" />
-      </>
-    );
+    MainContent = <NoAccessState action="create" />;
   } else if (initAttempt.status === 'processing') {
     MainContent = (
       <Box textAlign="center" m={10}>
@@ -257,7 +250,6 @@ export function CreateAccessList() {
     MainContent = (
       <>
         {featureLimitReached && <FeatureLimitReached />}
-        {createAttempt.status !== 'failed' && <LimitedPreviewNotice />}
         {createAttempt.status === 'failed' && (
           <Alert children={createAttempt.statusText} />
         )}

@@ -21,7 +21,6 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import { AccessList } from 'e-teleport/services/accessmanagement';
-import { LimitedPreviewNotice } from 'e-teleport/AccessListManagement/LimitedPreviewNotice';
 
 import { State as RequestViewState } from '../useRequestView';
 import { LongTermAccess } from '../types';
@@ -110,7 +109,6 @@ export default function RequestReview({
               {state === 'PROMOTED' && (
                 <Box ml={4} mt={3} css={{ position: 'relative' }}>
                   <HorizontalLine />
-                  <LimitedPreviewNotice />
                   <FieldSelect
                     ml={1}
                     width="600px"

@@ -31,7 +31,6 @@ func TestService(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IsUsageBasedBilling: true,
 			AccessMonitoring: modules.AccessMonitoringFeature{
 				MaxReportRangeLimit: maxLimit,
 			},
@@ -159,7 +158,6 @@ func TestService(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			IsUsageBasedBilling:        true,
 			IdentityGovernanceSecurity: true,
 			AccessMonitoring: modules.AccessMonitoringFeature{
 				MaxReportRangeLimit: maxLimit,

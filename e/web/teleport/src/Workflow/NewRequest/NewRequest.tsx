@@ -272,7 +272,9 @@ export function NewRequest(props: State) {
     setWarningConfirm(null);
   }
 
+  const igsDisabled = !cfg.isLegacyEnterprise() && !cfg.isIgsEnabled;
   const limitReached = usage && usageLimitReached(usage);
+  const limited = limitReached || igsDisabled;
 
   return (
     <FeatureBox>
@@ -280,7 +282,7 @@ export function NewRequest(props: State) {
         <Flex width="100%" alignItems="center" justifyContent="space-between">
           <FeatureHeaderTitle>New Request</FeatureHeaderTitle>
 
-          {limitReached && (
+          {limited && (
             <Box>
               <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
                 <Text color="buttons.primary.text">
@@ -305,6 +307,7 @@ export function NewRequest(props: State) {
         <Info>{dryRunAttempt.statusText}</Info>
       )}
       {usage && <UsageInfo {...usage} />}
+      {!usage && igsDisabled && <LimitedInfo />}
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <Box width="150px" data-testid="resource-selector">
           <Select
@@ -682,15 +685,7 @@ function UsageInfo(usage: { limit: number; used: number }) {
   };
 
   return (
-    <UsageNotice
-      data-testid="usage-info"
-      width="100%"
-      height="44px"
-      my={2}
-      as={Flex}
-      alignItems="center"
-      flex="0 0 auto"
-    >
+    <UsageNotice data-testid="usage-info">
       <InfoIcon color="info" px={3} />
       <Text typography="paragraph">
         {limitReached ? (
@@ -718,12 +713,30 @@ function UsageInfo(usage: { limit: number; used: number }) {
   );
 }
 
-const UsageNotice = styled(Box)`
+function LimitedInfo() {
+  return (
+    <UsageNotice data-testid="usage-info">
+      <InfoIcon color="info" px={3} />
+      <Text typography="paragraph">
+        Your cluster has an allocation of{' '}
+        {cfg.featureLimits.AccessRequestMonthlyRequestLimit} access requests per
+        month.
+      </Text>
+    </UsageNotice>
+  );
+}
+
+const UsageNotice = styled(Flex)`
   border: 2px solid ${({ theme }) => theme.colors.info};
   background-color: ${({ theme }) => theme.colors.notice.background};
   border-radius: 8px;
-  margin-bottom: 24px;
-  padding: 24px 0;
+  padding: ${p => p.theme.space[4]}px 0;
+  width: 100%;
+  height: 44px;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-top: ${p => p.theme.space[2]}px;
+  margin-bottom: ${p => p.theme.space[4]}px;
 `;
 
 function usageLimitReached({ limit, used }: { limit: number; used: number }) {

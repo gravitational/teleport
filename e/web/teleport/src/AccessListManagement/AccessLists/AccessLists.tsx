@@ -20,7 +20,6 @@ import {
 import cfg from 'e-teleport/config';
 
 import { NoAccessState } from '../NoAccessState';
-import { LimitedPreviewNotice } from '../LimitedPreviewNotice';
 import { FeatureLimitBlurb } from '../Shared/FeatureLimitReached';
 import { makeTraitLabel } from '../Traits';
 
@@ -184,27 +183,24 @@ export function AccessLists() {
   return (
     <FeatureBox>
       {showFeatureHeader && (
-        <>
-          <FeatureHeader alignItems="center" justifyContent="space-between">
-            <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
-            {showCreateBtn && (
-              <ButtonPrimary
-                title={
-                  noPermToCreate
-                    ? `Only Teleport administrators can create new Access Lists`
-                    : ''
-                }
-                disabled={noPermToCreate || attempt.status === 'processing'}
-                width="240px"
-                as={Link}
-                to={cfg.routes.accessListNew}
-              >
-                Create New Access List
-              </ButtonPrimary>
-            )}
-          </FeatureHeader>
-          {attempt.status !== 'failed' && <LimitedPreviewNotice />}
-        </>
+        <FeatureHeader alignItems="center" justifyContent="space-between">
+          <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
+          {showCreateBtn && (
+            <ButtonPrimary
+              title={
+                noPermToCreate
+                  ? `Only Teleport administrators can create new Access Lists`
+                  : ''
+              }
+              disabled={noPermToCreate || attempt.status === 'processing'}
+              width="240px"
+              as={Link}
+              to={cfg.routes.accessListNew}
+            >
+              Create New Access List
+            </ButtonPrimary>
+          )}
+        </FeatureHeader>
       )}
       <Box>{MainContent}</Box>
     </FeatureBox>

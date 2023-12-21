@@ -27,7 +27,6 @@ import {
   getReviewDayOfMonthOption,
   getReviewFrequencyOption,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
-import { LimitedPreviewNotice } from 'e-teleport/AccessListManagement/LimitedPreviewNotice';
 
 import { convertTraitLabelsToAllUserTraits } from '../../Traits';
 import { AccessListModified } from '../ViewEditAccessList';
@@ -145,7 +144,6 @@ export function ReviewAccessList({
               Reviewing Access List: {accessList.title}
             </Text>
           </Flex>
-          <LimitedPreviewNotice />
           <Box mt={1} mb={3}>
             <StepNavigation currentStep={reviewStep} steps={reviewSteps} />
           </Box>
