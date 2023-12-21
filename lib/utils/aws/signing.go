@@ -100,6 +100,8 @@ type SigningCtx struct {
 	AWSRoleArn string
 	// AWSExternalID is an optional external ID used when getting sts credentials.
 	AWSExternalID string
+	// SessionTags is a list of AWS STS session tags.
+	SessionTags map[string]string
 }
 
 // Check checks signing context parameters.
@@ -167,6 +169,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 		SessionName: signCtx.SessionName,
 		RoleARN:     signCtx.AWSRoleArn,
 		ExternalID:  signCtx.AWSExternalID,
+		Tags:        signCtx.SessionTags,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
