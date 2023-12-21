@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/vulcand/predicate"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"

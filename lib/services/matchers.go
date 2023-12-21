@@ -20,10 +20,10 @@ package services
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -108,15 +108,15 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
-func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWithLabels) bool {
+func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) bool {
 	for _, matcher := range matchers {
 		if len(matcher.Labels) == 0 {
 			return false
 		}
-		match, _, err := MatchLabels(matcher.Labels, resource.GetAllLabels())
+		match, _, err := MatchLabels(matcher.Labels, labels)
 		if err != nil {
 			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
-				matcher.Labels, resource)
+				matcher.Labels, labels)
 			return false
 		}
 		if match {

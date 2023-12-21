@@ -17,12 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"

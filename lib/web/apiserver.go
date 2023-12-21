@@ -32,6 +32,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,7 +52,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -1604,6 +1604,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
 			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
+			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
 		},
 	}
 
