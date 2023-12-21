@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -786,6 +787,18 @@ type ReadOktaAccessPoint interface {
 	// GetUsers returns a list of users with the cluster
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 
+	// ListAccessLists returns a paginated list of access lists.
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+
+	// ListAccessListMembers returns a paginated list of all access list members.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+
+	// GetRoles returns a list of roles.
+	GetRoles(ctx context.Context) ([]types.Role, error)
+
 	// ListUserGroups returns a paginated list of all user group resources.
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 
@@ -827,6 +840,24 @@ type OktaAccessPoint interface {
 
 	// DeleteUser deletes the given user from the cluster
 	DeleteUser(ctx context.Context, user string) error
+
+	// UpsertAccessList creates or updates an access list resource.
+	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+	// DeleteAccessList removes the specified access list resource.
+	DeleteAccessList(context.Context, string) error
+
+	// UpsertAccessListMember creates or updates an access list member resource.
+	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+
+	// DeleteAccessListMember hard deletes the specified access list member resource.
+	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+
+	// UpsertRole creates or updates role.
+	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
+
+	// DeleteRole deletes role by name.
+	DeleteRole(ctx context.Context, name string) error
 
 	// CreateUserGroup creates a new user group resource.
 	CreateUserGroup(context.Context, types.UserGroup) error
@@ -1321,6 +1352,36 @@ func (w *OktaWrapper) UpdateUser(ctx context.Context, user types.User) (types.Us
 // DeleteUser removes a user from the cluster
 func (w *OktaWrapper) DeleteUser(ctx context.Context, user string) error {
 	return w.NoCache.DeleteUser(ctx, user)
+}
+
+// UpsertAccessList creates or updates an access list resource.
+func (w *OktaWrapper) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	return w.NoCache.UpsertAccessList(ctx, accessList)
+}
+
+// DeleteAccessList removes the specified access list resource.
+func (w *OktaWrapper) DeleteAccessList(ctx context.Context, name string) error {
+	return w.NoCache.DeleteAccessList(ctx, name)
+}
+
+// UpsertAccessListMember creates or updates an access list member resource.
+func (w *OktaWrapper) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	return w.NoCache.UpsertAccessListMember(ctx, member)
+}
+
+// DeleteAccessListMember hard deletes the specified access list member resource.
+func (w *OktaWrapper) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
+	return w.NoCache.DeleteAccessListMember(ctx, accessList, memberName)
+}
+
+// UpsertRole creates or updates role.
+func (w *OktaWrapper) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
+	return w.NoCache.UpsertRole(ctx, role)
+}
+
+// DeleteRole deletes role by name.
+func (w *OktaWrapper) DeleteRole(ctx context.Context, name string) error {
+	return w.NoCache.DeleteRole(ctx, name)
 }
 
 // CreateUserGroup creates a new user group resource.
