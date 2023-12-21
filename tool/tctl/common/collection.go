@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -1133,6 +1134,30 @@ func (c *samlIdPServiceProviderCollection) writeText(w io.Writer, verbose bool) 
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type botCollection struct {
+	bots []*machineidv1pb.Bot
+}
+
+func (c *botCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.bots))
+	for i, b := range c.bots {
+		resources[i] = types.Resource153ToLegacy(b)
+	}
+	return resources
+}
+
+func (c *botCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Roles"})
+	for _, b := range c.bots {
+		t.AddRow([]string{
+			b.Metadata.Name,
+			strings.Join(b.Spec.Roles, ", "),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
