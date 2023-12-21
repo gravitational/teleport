@@ -923,7 +923,7 @@ type ClientI interface {
 	SecReportsClient() *secreport.Client
 
 	// BotServiceClient returns a client for security reports.
-	// Clients connecting to  older Teleport versions, still get an bot service client
+	// Clients connecting to  older Teleport versions, still get a bot service client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
