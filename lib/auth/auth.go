@@ -5838,8 +5838,8 @@ func (a *Server) ValidateMFAAuthResponseWithScope(ctx context.Context, resp *pro
 
 // ValidateMFAAuthResponse validates an MFA or passwordless challenge. If the challenge
 // response if of type webauthn, this also validates that the challenge response scope
-// is satisfied by the stored webauthn credentials. Returns the device used to solve the
-// challenge (if applicable) and the username.
+// and reusability is satisfied by the stored webauthn credentials. Returns the device
+// used to solve the challenge (if applicable) and the username.
 func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
 	// Sanity check user/passwordless.
 	if user == "" && !passwordless {

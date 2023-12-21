@@ -2006,7 +2006,7 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2086,7 +2086,8 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2108,7 +2109,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3137,7 +3138,8 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Allow reused MFA responses to allow creating a reset token after creating a user.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3283,7 +3285,8 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3303,7 +3306,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3323,7 +3326,8 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3363,7 +3367,7 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3417,7 +3421,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3438,7 +3442,8 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3456,7 +3461,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3474,7 +3479,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3516,7 +3521,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3599,7 +3604,7 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3639,7 +3644,8 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3657,7 +3663,8 @@ func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3671,7 +3678,7 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3716,7 +3723,7 @@ func (a *ServerWithRoles) DeleteGithubConnector(ctx context.Context, connectorID
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3728,7 +3735,7 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4008,7 +4015,7 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4026,7 +4033,7 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4044,7 +4051,8 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4108,7 +4116,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6365,7 +6373,8 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err = authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err = authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6403,7 +6412,8 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, true /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6449,7 +6459,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6492,7 +6502,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6577,7 +6587,7 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6594,7 +6604,7 @@ func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6616,7 +6626,7 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6638,7 +6648,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, &a.context, false /* allowReused */); err != nil {
 		return trace.Wrap(err)
 	}
 

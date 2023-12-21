@@ -218,7 +218,8 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests and chained invite commands (CreateResetPasswordToken).
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx, true /* allowReuse */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -284,7 +285,8 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Allow reused MFA responses to allow Updating a user after get (WebUI).
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx, true /* allowReuse */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -354,7 +356,8 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx, true /* allowReuse */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -430,7 +433,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx, false /* allowReuse */); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

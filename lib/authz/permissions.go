@@ -152,8 +152,10 @@ type AuthorizerAccessPoint interface {
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
+	// ValidateMFAAuthResponse validates an MFA or passwordless challenge. If the challenge
+	// response if of type webauthn, this also validates that the challenge response scope
+	// and reusability is satisfied by the stored webauthn credentials. Returns the device
+	// used to solve the challenge (if applicable) and the username.
 	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
@@ -191,11 +193,18 @@ type Context struct {
 	// Inherited from the authorizer that creates the context.
 	disableDeviceRoleMode bool
 
-	// AdminActionVerified is whether this auth request is verified for admin actions. This
-	// either means that the request was MFA verified through the context or Hardware Key support,
-	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
-	AdminActionAuthorized bool
+	// AdminActionAuthState is the state of admin action authorization for this auth context.
+	AdminActionAuthState AdminActionAuthState
 }
+
+type AdminActionAuthState int
+
+const (
+	AdminActionAuthUnauthorized AdminActionAuthState = iota
+	AdminActionAuthNotRequired
+	AdminActionAuthMFAVerified
+	AdminActionAuthMFAVerifiedWithReuse
+)
 
 // GetUserMetadata returns information about the authenticated identity
 // to be included in audit events.
@@ -377,40 +386,44 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	err := a.authorizeAdminAction(ctx, authContext)
+	required, err := a.isAdminActionAuthorizationRequired(ctx, authContext)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// missing MFA verification should be a noop.
-			return nil
-		}
 		return trace.Wrap(err)
 	}
 
-	authContext.AdminActionAuthorized = true
+	if !required {
+		authContext.AdminActionAuthState = AdminActionAuthNotRequired
+		return nil
+	}
+
+	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
-func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
+func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, authContext *Context) (bool, error) {
 	// Builtin roles do not require MFA to perform admin actions.
 	switch authContext.Identity.(type) {
 	case BuiltinRole, RemoteBuiltinRole:
-		return nil
+		return false, nil
 	}
 
 	authpref, err := a.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
 	// Admin actions do not require MFA when Webauthn is not enabled.
 	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
-		return nil
+		return false, nil
 	}
 
 	// Skip MFA check if the user is a Bot.
 	if user, err := a.accessPoint.GetUser(ctx, authContext.Identity.GetIdentity().Username, false); err == nil && user.IsBot() {
 		a.logger.Debugf("Skipping admin action MFA check for bot identity: %v", authContext.Identity.GetIdentity())
-		return nil
+		return false, nil
 	}
 
 	// Skip MFA if the identity is being impersonated by the Bot or Admin built in role.
@@ -418,7 +431,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
 			a.logger.Debugf("Skipping admin action MFA check for bot-impersonated identity: %v", authContext.Identity.GetIdentity())
-			return nil
+			return false, nil
 		}
 
 		// If we don't find a user matching the impersonator, it may be the admin role impersonating.
@@ -428,20 +441,29 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 			if hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
 					a.logger.Debugf("Skipping admin action MFA check for admin-impersonated identity: %v", authContext.Identity.GetIdentity())
-					return nil
+					return false, nil
 				}
 			}
 		}
 	}
 
+	return true, nil
+}
+
+func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Context) error {
 	// Certain hardware-key based private key policies require MFA for each request.
 	if authContext.Identity.GetIdentity().PrivateKeyPolicy.MFAVerified() {
+		authContext.AdminActionAuthState = AdminActionAuthMFAVerified
 		return nil
 	}
 
 	// MFA is required to be passed through the request context.
 	mfaResp, err := mfa.CredentialsFromContext(ctx)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// missing MFA verification should be a noop.
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
@@ -457,6 +479,11 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 
 	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
 		return trace.Wrap(err)
+	}
+
+	authContext.AdminActionAuthState = AdminActionAuthMFAVerified
+	if mfaResp.AllowReuse {
+		authContext.AdminActionAuthState = AdminActionAuthMFAVerifiedWithReuse
 	}
 
 	return nil
@@ -1112,8 +1139,8 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 		Checker:               checker,
 		Identity:              r,
 		UnmappedIdentity:      r,
-		disableDeviceRoleMode: true, // Builtin roles skip device trust.
-		AdminActionAuthorized: true, // builtin roles skip mfa for admin actions.
+		disableDeviceRoleMode: true,                       // Builtin roles skip device trust.
+		AdminActionAuthState:  AdminActionAuthNotRequired, // builtin roles skip mfa for admin actions.
 	}, nil
 }
 
@@ -1336,11 +1363,16 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
-func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	if !authCtx.AdminActionAuthorized {
-		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
+func AuthorizeAdminAction(ctx context.Context, authCtx *Context, allowReusedMFA bool) error {
+	switch authCtx.AdminActionAuthState {
+	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
+		return nil
+	case AdminActionAuthMFAVerifiedWithReuse:
+		if allowReusedMFA {
+			return nil
+		}
 	}
-	return nil
+	return trace.Wrap(&mfa.ErrAdminActionMFARequired)
 }
 
 // LocalUser is a local user
