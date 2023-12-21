@@ -17,11 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // SessionRecordingConfig defines session recording configuration. This is
