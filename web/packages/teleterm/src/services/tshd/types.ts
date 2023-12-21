@@ -285,6 +285,15 @@ export type TshClient = {
     params: apiService.ListUnifiedResourcesRequest.AsObject,
     abortSignal?: TshAbortSignal
   ) => Promise<ListUnifiedResourcesResponse>;
+
+  getUserPreferences: (
+    params: apiService.GetUserPreferencesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<UserPreferences>;
+  updateUserPreferences: (
+    params: apiService.UpdateUserPreferencesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<UserPreferences>;
 };
 
 export type TshAbortController = {
@@ -395,6 +404,8 @@ export type UnifiedResourceResponse =
       resource: Database;
     }
   | { kind: 'kube'; resource: Kube };
+
+export type UserPreferences = apiService.UserPreferences.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

@@ -30,6 +30,8 @@ import (
 // Getter gets the target image version for an external source. It should cache
 // the result to reduce io and avoid potential rate-limits and is safe to call
 // multiple times over a short period.
+// If the version source intentionally returns no version, a NoNewVersionError is
+// returned.
 type Getter interface {
 	GetVersion(context.Context) (string, error)
 }
@@ -37,7 +39,6 @@ type Getter interface {
 // ValidVersionChange receives the current version and the candidate next version
 // and evaluates if the version transition is valid.
 func ValidVersionChange(ctx context.Context, current, next string) bool {
-	// TODO: clarify rollback constraints regarding previous version and add a "previous" parameter
 	log := ctrllog.FromContext(ctx).V(1)
 	// Cannot upgrade to a non-valid version
 	if !semver.IsValid(next) {

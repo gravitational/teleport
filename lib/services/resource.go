@@ -26,8 +26,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // MarshalConfig specifies marshaling options
@@ -224,6 +228,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSecurityReport, nil
 	case types.KindServerInfo:
 		return types.KindServerInfo, nil
+	case types.KindBot, "bots":
+		return types.KindBot, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -635,6 +641,13 @@ func init() {
 		}
 		return ap, nil
 	})
+	RegisterResourceUnmarshaler(types.KindBot, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		b := &machineidv1pb.Bot{}
+		if err := protojson.Unmarshal(bytes, b); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(b), nil
+	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -729,4 +742,24 @@ func setResourceName(overrideLabels []string, meta types.Metadata, firstNamePart
 	meta.Name = strings.Join(nameParts, "-")
 
 	return meta
+}
+
+type resetProtoResource interface {
+	protoadapt.MessageV1
+	SetResourceID(int64)
+	SetRevision(string)
+}
+
+// maybeResetProtoResourceID returns a clone of [r] with the identifiers
+// reset to default values if preserveResourceID is true, otherwise
+// this is a nop, and the original value is returned unaltered.
+func maybeResetProtoResourceID[T resetProtoResource](preserveResourceID bool, r T) T {
+	if preserveResourceID {
+		return r
+	}
+
+	cp := utils.CloneProtoMsg(r)
+	cp.SetResourceID(0)
+	cp.SetRevision("")
+	return cp
 }

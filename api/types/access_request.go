@@ -49,6 +49,12 @@ type AccessRequest interface {
 	// GetAccessExpiry gets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	GetAccessExpiry() time.Time
+	// GetAssumeStartTime gets the time the roles can be assumed
+	// if the Access Request is approved.
+	GetAssumeStartTime() *time.Time
+	// SetAssumeStartTime sets the time the roles can be assumed
+	// if the Access Request is approved.
+	SetAssumeStartTime(time.Time)
 	// SetAccessExpiry sets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
@@ -196,6 +202,16 @@ func (r *AccessRequestV3) SetCreationTime(t time.Time) {
 // GetAccessExpiry gets AccessExpiry
 func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 	return r.Spec.Expires
+}
+
+// GetAssumeStartTime gets AssumeStartTime
+func (r *AccessRequestV3) GetAssumeStartTime() *time.Time {
+	return r.Spec.AssumeStartTime
+}
+
+// SetAssumeStartTime sets AssumeStartTime
+func (r *AccessRequestV3) SetAssumeStartTime(t time.Time) {
+	r.Spec.AssumeStartTime = &t
 }
 
 // SetAccessExpiry sets AccessExpiry
@@ -606,6 +622,9 @@ type AccessRequestUpdate struct {
 	// and must be a subset of the role list originally
 	// present on the request.
 	Roles []string
+	// AssumeStartTime sets the time the requestor can assume
+	// the requested roles.
+	AssumeStartTime *time.Time
 }
 
 // Check validates the request's fields

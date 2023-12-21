@@ -73,7 +73,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 					},
 				},
 			},
-			Identity: identity,
+			Identity:              identity,
+			AdminActionAuthorized: true,
 		}, nil
 	}
 
@@ -102,8 +103,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 				Username: "alice",
 			},
 		},
+		AdminActionAuthorized: true,
 	}, nil
-
 }
 
 type fakeChecker struct {
@@ -866,7 +867,6 @@ func TestRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-
 			env, err := newTestEnv(withAuthorizer(&fakeAuthorizer{authzContext: &authz.Context{
 				User:    llama,
 				Checker: test.checker,
@@ -876,6 +876,7 @@ func TestRBAC(t *testing.T) {
 						Groups: []string{"dev"},
 					},
 				},
+				AdminActionAuthorized: true,
 			}}))
 			require.NoError(t, err, "creating test service")
 
@@ -888,5 +889,4 @@ func TestRBAC(t *testing.T) {
 			require.ElementsMatch(t, test.expectChecks, test.checker.checks)
 		})
 	}
-
 }

@@ -712,7 +712,7 @@ func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *W
 		return trace.Wrap(err, "creating websocket pinger")
 	}
 
-	sshPinger, err := latency.NewSSHPinger(clock, sshClient)
+	sshPinger, err := latency.NewSSHPinger(sshClient)
 	if err != nil {
 		return trace.Wrap(err, "creating ssh pinger")
 	}

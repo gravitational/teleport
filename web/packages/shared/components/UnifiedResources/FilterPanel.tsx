@@ -131,7 +131,6 @@ export function FilterPanel({
               padding-left: ${props => props.theme.space[2]}px;
               padding-right: ${props => props.theme.space[2]}px;
               height: 22px;
-              width: 128px;
             `}
             onClick={() => setExpandAllLabels(!expandAllLabels)}
           >

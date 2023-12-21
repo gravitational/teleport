@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "vite",
-    "build": "vite build",
+    "start": "yarn build-wasm && vite",
+    "build-wasm": "wasm-pack build ./src/ironrdp --target web",
+    "build": "yarn build-wasm && vite build",
     "test": "npx jest",
     "tdd": "jest . --watch"
   },
@@ -24,6 +25,8 @@
     "xterm-addon-web-links": "^0.8.0"
   },
   "devDependencies": {
+    "babel-plugin-transform-import-meta": "^2.2.0",
+    "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "@gravitational/build": "^1.0.0",
     "@types/wicg-file-system-access": "^2020.9.5",
     "jest-canvas-mock": "^2.3.1",

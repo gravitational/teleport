@@ -75,6 +75,8 @@ func (c TeleportSAMLConnector) ToTeleport() types.SAMLConnector {
 	}
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (c *TeleportSAMLConnector) StatusConditions() *[]metav1.Condition {
 	return &c.Status.Conditions
 }

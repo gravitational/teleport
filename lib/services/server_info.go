@@ -73,15 +73,7 @@ func MarshalServerInfo(si types.ServerInfo, opts ...MarshalOption) ([]byte, erro
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *si
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			si = &copy
-		}
-		bytes, err := utils.FastMarshal(si)
+		bytes, err := utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, si))
 		return bytes, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unrecognized server info version %T", si)

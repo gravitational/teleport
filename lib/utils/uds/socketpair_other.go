@@ -1,4 +1,4 @@
-//go:build unix && !darwin
+//go:build !unix
 
 /*
  * Teleport
@@ -18,25 +18,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package uds
 
 import (
+	"errors"
 	"syscall"
 
 	"github.com/gravitational/trace"
 )
 
-// cloexecSocketpair returns a unix/local stream socketpair whose file
-// descriptors are flagged close-on-exec. This implementation creates the
-// socketpair directly in close-on-exec mode.
-func cloexecSocketpair() (uintptr, uintptr, error) {
-	// SOCK_CLOEXEC on socketpair is supported since Linux 2.6.27 and go's
-	// minimum requirement is 2.6.32 (FreeBSD supports it since FreeBSD 10 and
-	// go 1.20+ requires FreeBSD 12)
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
-	if err != nil {
-		return 0, 0, trace.Wrap(err)
-	}
+var nonUnixErr = errors.New("socket pair not available on non-unix platform")
 
-	return uintptr(fds[0]), uintptr(fds[1]), nil
+// NewSocketpair creates a unix socket pair, returning the halves as files.
+func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+	return nil, nil, trace.Wrap(nonUnixErr)
 }

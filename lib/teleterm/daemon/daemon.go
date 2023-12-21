@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"os/exec"
 	"sync"
 	"time"
@@ -32,12 +33,14 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
+	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -290,6 +293,16 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	_, clusterClient, err := s.ResolveClusterURI(targetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	withPromptReasonOpt, err := WithPromptReasonSessionMFA(targetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
+
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -297,6 +310,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
+		MFAPrompt:             mfaPrompt,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -315,8 +329,9 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
+// reissueGatewayCerts tries to reissue gateway certs. It handles asking the user to relogin and
+// per-session MFA checks.
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
@@ -327,17 +342,25 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		},
 	}
 
-	reissueDBCerts := func() error {
-		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
+	var cert tls.Certificate
+
+	reissueGatewayCerts := func() error {
+		cluster, clusterClient, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
+		withPromptReasonOpt, err := WithPromptReasonSessionMFA(g.TargetURI())
+		if err != nil {
 			return trace.Wrap(err)
 		}
+		mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
 
-		return trace.Wrap(g.ReloadCert())
+		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	// If the gateway certs have expired but the user cert is active,
@@ -346,7 +369,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
+	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
 		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
@@ -361,10 +384,10 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	return nil
+	return cert, nil
 }
 
 // RemoveGateway removes cluster gateway
@@ -925,6 +948,88 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the preferences for a given user.
+func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.ResourceURI) (*api.UserPreferences, error) {
+	_, rootClusterClient, err := s.ResolveClusterURI(clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leafClusterName := clusterURI.GetLeafClusterName()
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		var leafAuthClient auth.ClientI
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer leafAuthClient.Close()
+		}
+
+		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
+		return trace.Wrap(err)
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpdateUserPreferences updates the preferences for a given user.
+func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.ResourceURI, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
+	_, rootClusterClient, err := s.ResolveClusterURI(clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leafClusterName := clusterURI.GetLeafClusterName()
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		var leafAuthClient auth.ClientI
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer leafAuthClient.Close()
+		}
+
+		preferences, err = userpreferences.Update(ctx, rootAuthClient, leafAuthClient, newPreferences)
+		return trace.Wrap(err)
+	})
+
+	return preferences, trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {

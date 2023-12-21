@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -2006,6 +2006,11 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteToken(ctx, token)
 }
 
@@ -2081,12 +2086,19 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
@@ -2096,12 +2108,19 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
@@ -2365,6 +2384,13 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 		}
 	}
 
+	if !authz.IsCurrentUser(a.context, req.GetUser()) {
+		// If this request was authorized by allow rules and not ownership, require MFA.
+		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// ensure request ID is set server-side
 	req.SetName(uuid.NewString())
 
@@ -2374,6 +2400,10 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2417,6 +2447,10 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 
 	// Check if the current user is allowed to submit the given access review request.
 	if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2499,6 +2533,11 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
@@ -3070,49 +3109,6 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
 }
 
-// CreateBot creates a new certificate renewal bot and returns a join token.
-func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	// Note: this creates a role with role impersonation privileges for all
-	// roles listed in the request and doesn't attempt to verify that the
-	// current user has permissions for those embedded roles. We assume that
-	// "create role" is effectively root already and validate only that.
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.createBot(ctx, req)
-}
-
-// DeleteBot removes a certificate renewal bot by name.
-func (a *ServerWithRoles) DeleteBot(ctx context.Context, botName string) error {
-	// Requires read + delete on users and roles. We do verify the user and
-	// role are explicitly associated with a bot before doing anything (must
-	// match bot-$name and have a matching teleport.dev/bot label set).
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.deleteBot(ctx, botName)
-}
-
-// GetBotUsers fetches all users with bot labels. It does not fetch users with
-// secrets.
-func (a *ServerWithRoles) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.getBotUsers(ctx)
-}
-
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3120,6 +3116,10 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 
 	if a.hasBuiltinRole(types.RoleOkta) {
 		return nil, trace.AccessDenied("access denied")
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
@@ -3133,7 +3133,49 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangeUserAuthentication(ctx, req)
+	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
+	isPasswordless := req.NewMFARegisterResponse != nil && len(req.NewPassword) == 0
+	if isPasswordless && modules.GetModules().Features().Cloud {
+		if err := a.trySettingConnectorNameToPasswordless(ctx); err != nil {
+			log.WithError(err).Error("Failed to set passwordless as connector name.")
+		}
+	}
+
+	return resp, nil
+}
+
+// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
+// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
+func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Context) error {
+	users, err := a.authServer.GetUsers(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only set the connector name on the first user registration.
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Don't overwrite an existing connector name.
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+	return trace.Wrap(a.authServer.SetAuthPreference(ctx, authPreference))
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -3222,6 +3264,10 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	upserted, err := a.authServer.UpsertOIDCConnector(ctx, connector)
 	return upserted, trace.Wrap(err)
 }
@@ -3238,6 +3284,10 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateOIDCConnector(ctx, connector)
 	return updated, trace.Wrap(err)
 }
@@ -3252,6 +3302,10 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	creted, err := a.authServer.CreateOIDCConnector(ctx, connector)
@@ -3287,6 +3341,10 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3339,6 +3397,11 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
 }
 
@@ -3351,7 +3414,12 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3369,6 +3437,10 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.CreateSAMLConnector(ctx, connector)
 	return created, trace.Wrap(err)
 }
@@ -3383,6 +3455,10 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateSAMLConnector(ctx, connector)
 	return updated, trace.Wrap(err)
 }
@@ -3391,11 +3467,13 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if withSecrets {
 		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
 }
 
@@ -3416,6 +3494,10 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3497,6 +3579,11 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
 }
 
@@ -3524,10 +3611,16 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.checkGithubConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3540,9 +3633,15 @@ func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector t
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.checkGithubConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.createGithubConnector(ctx, connector)
 	return created, trace.Wrap(err)
 }
@@ -3552,9 +3651,15 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.checkGithubConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	updated, err := a.authServer.updateGithubConnector(ctx, connector)
 	return updated, trace.Wrap(err)
 }
@@ -3591,11 +3696,20 @@ func (a *ServerWithRoles) DeleteGithubConnector(ctx context.Context, connectorID
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.deleteGithubConnector(ctx, connectorID)
 }
 
 func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindGithubRequest, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3887,6 +4001,10 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.validateRole(ctx, role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3901,6 +4019,10 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.validateRole(ctx, role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3912,6 +4034,10 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 // UpsertRole creates or updates role.
 func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4062,6 +4188,11 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// DELETE IN (7.0)
 	// It's OK to delete this code alongside migrateOSS code in auth.
 	// It prevents 6.0 from migrating resources multiple times
@@ -4414,6 +4545,11 @@ func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (t
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
+	// Don't allow a Cloud tenant to be a leaf cluster.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("cloud tenants cannot be leaf clusters")
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4422,9 +4558,9 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 }
 
 func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	// Don't allow leaf clusters if running in Cloud.
+	// Don't allow a leaf cluster to be added to a Cloud tenant.
 	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("cloud clusters do not support trusted cluster resources")
+		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
 	// the token provides it's own authorization and authentication
@@ -6247,128 +6383,157 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
-func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	code := events.SAMLIdPServiceProviderCreateFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err == nil {
-		err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
-		if err == nil {
-			code = events.SAMLIdPServiceProviderCreateCode
+func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) (err error) {
+	defer func() {
+		code := events.SAMLIdPServiceProviderCreateCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderCreateFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderCreateEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      sp.GetName(),
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+				ServiceProviderEntityID: sp.GetEntityID(),
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
+		}
+	}()
+
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderCreateEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      sp.GetName(),
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
-			ServiceProviderEntityID: sp.GetEntityID(),
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
+	if err = authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
 	}
 
+	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
-func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	code := events.SAMLIdPServiceProviderUpdateFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err == nil {
-		err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
-		if err == nil {
-			code = events.SAMLIdPServiceProviderUpdateCode
+func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) (err error) {
+	defer func() {
+		code := events.SAMLIdPServiceProviderUpdateCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderUpdateFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderUpdateEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      sp.GetName(),
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+				ServiceProviderEntityID: sp.GetEntityID(),
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+		}
+	}()
+
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderUpdateEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      sp.GetName(),
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
-			ServiceProviderEntityID: sp.GetEntityID(),
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
 	}
 
+	err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
-func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) (err error) {
 	var entityID string
-	code := events.SAMLIdPServiceProviderDeleteFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
-		var sp types.SAMLIdPServiceProvider
-		// Get the service provider so we can emit its entity ID later.
-		sp, err = a.authServer.GetSAMLIdPServiceProvider(ctx, name)
-		if err == nil {
-			name = sp.GetName()
-			entityID = sp.GetEntityID()
-
-			// Delete the actual service provider.
-			err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
-			if err == nil {
-				code = events.SAMLIdPServiceProviderDeleteCode
-			}
+	defer func() {
+		code := events.SAMLIdPServiceProviderDeleteCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderDeleteFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderDeleteEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      name,
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+				ServiceProviderEntityID: entityID,
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
+		}
+	}()
+
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderDeleteEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      name,
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
-			ServiceProviderEntityID: entityID,
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
 	}
 
+	// Get the service provider so we can emit its entity ID later.
+	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	name = sp.GetName()
+	entityID = sp.GetEntityID()
+
+	// Delete the actual service provider.
+	err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
 	return trace.Wrap(err)
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
-func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
-	code := events.SAMLIdPServiceProviderDeleteAllFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
-		err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
-		if err == nil {
-			code = events.SAMLIdPServiceProviderDeleteAllCode
+func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
+	defer func() {
+		code := events.SAMLIdPServiceProviderDeleteAllCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderDeleteAllFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderDeleteAllEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
+		}
+	}()
+
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderDeleteAllEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
 	}
 
+	err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
 	return trace.Wrap(err)
 }
 
@@ -6449,6 +6614,10 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.checkAccessToUserGroup(userGroup); err != nil {
 		return trace.Wrap(err)
 	}
@@ -6459,6 +6628,10 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 // UpdateUserGroup updates an existing user group resource.
 func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6480,6 +6653,10 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	previousUserGroup, err := a.authServer.GetUserGroup(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6495,6 +6672,10 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 // DeleteAllUserGroups removes all user groups.
 func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6834,7 +7015,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

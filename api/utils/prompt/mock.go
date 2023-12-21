@@ -16,15 +16,18 @@ package prompt
 
 import (
 	"context"
-	"errors"
 	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
 )
 
 type FakeReplyFunc func(context.Context) (string, error)
 
 type FakeReader struct {
-	mu      sync.Mutex
-	replies []FakeReplyFunc
+	mu              sync.Mutex
+	replies         []FakeReplyFunc
+	waitingForReply chan struct{}
 }
 
 // NewFakeReader returns a fake that can be used in place of a ContextReader.
@@ -42,6 +45,10 @@ func (r *FakeReader) AddReply(fn FakeReplyFunc) *FakeReader {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.replies = append(r.replies, fn)
+	if r.waitingForReply != nil {
+		close(r.waitingForReply)
+		r.waitingForReply = nil
+	}
 	return r
 }
 
@@ -60,8 +67,19 @@ func (r *FakeReader) AddError(err error) *FakeReader {
 func (r *FakeReader) ReadContext(ctx context.Context) ([]byte, error) {
 	r.mu.Lock()
 	if len(r.replies) == 0 {
+		// wait for a reply
+		wait := make(chan struct{})
+		r.waitingForReply = wait
 		r.mu.Unlock()
-		return nil, errors.New("no fake replies available")
+
+		select {
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case <-time.After(5 * time.Second):
+			return nil, trace.BadParameter("no fake replies available after wait")
+		case <-wait:
+			r.mu.Lock()
+		}
 	}
 
 	// Pop first reply.

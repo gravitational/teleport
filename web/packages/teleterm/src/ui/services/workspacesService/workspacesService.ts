@@ -16,12 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+
+import {
+  UnifiedResourcePreferences,
+  DefaultTab,
+  ViewMode,
+  LabelsViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -66,6 +74,7 @@ export interface Workspace {
   connectMyComputer?: {
     autoStart: boolean;
   };
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
   previous?: {
     documents: Document[];
     location: DocumentUri;
@@ -216,6 +225,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  setUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri,
+    preferences: UnifiedResourcePreferences
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].unifiedResourcePreferences =
+        preferences;
+    });
+  }
+
+  getUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri
+  ): UnifiedResourcePreferences | undefined {
+    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+  }
+
   /**
    * setActiveWorkspace changes the active workspace to that of the given root cluster.
    * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
@@ -360,6 +385,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
+          unifiedResourcePreferences: this.parseUnifiedResourcePreferences(
+            persistedWorkspace?.unifiedResourcePreferences
+          ),
         };
         return workspaces;
       }, {});
@@ -370,6 +398,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     if (persistedState.rootClusterUri) {
       await this.setActiveWorkspace(persistedState.rootClusterUri);
+    }
+  }
+
+  // TODO(gzdunek): Parse the entire workspace state read from disk like below.
+  private parseUnifiedResourcePreferences(
+    unifiedResourcePreferences: unknown
+    // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
+  ): Partial<UnifiedResourcePreferences> | undefined {
+    try {
+      return unifiedResourcePreferencesSchema.parse(unifiedResourcePreferences);
+    } catch (e) {
+      this.logger.error('Failed to parse unified resource preferences', e);
     }
   }
 
@@ -476,11 +516,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,
         connectMyComputer: workspace.connectMyComputer,
+        unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
     }
     this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }
+
+const unifiedResourcePreferencesSchema = z.object({
+  defaultTab: z.nativeEnum(DefaultTab),
+  viewMode: z.nativeEnum(ViewMode),
+  labelsViewMode: z.nativeEnum(LabelsViewMode),
+});
 
 export type PendingAccessRequest = {
   [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;

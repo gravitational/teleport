@@ -19,8 +19,9 @@
 package usagereporter
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -994,6 +995,21 @@ func (e *AuditQueryRunEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 	}
 }
 
+// DiscoveryFetchEvent is emitted when a DiscoveryService fetchs resources.
+type DiscoveryFetchEvent prehogv1a.DiscoveryFetchEvent
+
+// Anonymize anonymizes the event.
+func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DiscoveryFetchEvent{
+			DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
+				CloudProvider: e.CloudProvider,
+				ResourceType:  e.ResourceType,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1429,6 +1445,12 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListReviewDelete.Metadata.Id,
 			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent:
+		ret := &DiscoveryFetchEvent{
+			CloudProvider: e.DiscoveryFetchEvent.CloudProvider,
+			ResourceType:  e.DiscoveryFetchEvent.ResourceType,
 		}
 		return ret, nil
 

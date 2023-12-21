@@ -1,154 +1,65 @@
-# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
-ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport15-${BUILDARCH} AS teleport-buildbox-centos7-assets
+# syntax=docker/dockerfile:1
 
-FROM centos:7 AS libbpf
+ARG BUILDBOX_CENTOS7
+FROM ${BUILDBOX_CENTOS7}
 
-ARG BUILDARCH
-ARG TARGETARCH
-ARG DEVTOOLSET
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
-# Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
-    yum update -y && \
-    yum -y install centos-release-scl-rh && \
-    yum install -y \
-        centos-release-scl \
-        elfutils-libelf-devel-static \
-        scl-utils && \
-    yum clean all
-
-# As mentioned above, these packages are unsigned.
-RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc \
-        ${DEVTOOLSET}-gcc-c++ \
-        ${DEVTOOLSET}-make && \
-    yum clean all
-
-# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY - builds only static libraries without shared ones
-# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
-# DESTDIR - where to install the library
-# V=1 - verbose build
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable ${DEVTOOLSET} "BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers"
-
-FROM centos:7
-
-ARG BUILDARCH
-ARG TARGETARCH
-ARG DEVTOOLSET
-
-ENV LANGUAGE=en_US.UTF-8 \
-    LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8 \
-    LC_CTYPE=en_US.UTF-8
-
-ARG UID
-ARG GID
-RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
-     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
-
-# devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
-# published to the official CentOS SCL repos.
-ENV DEVTOOLSET=${DEVTOOLSET} \
-    TARGETARCH=${TARGETARCH}
-
-RUN bash -c 'if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi; \
-    echo -e "[${DEVTOOLSET}-build]\nname=${DEVTOOLSET} - Build\nbaseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/\ngpgcheck=0\nenabled=1" > /etc/yum.repos.d/${DEVTOOLSET}-build.repo'
-
-# Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
-    yum update -y && \
-    yum -y install centos-release-scl-rh && \
-    yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by Clang/LLVM
-    cmake3 \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    net-tools \
-    # required by boringssl
-    ninja-build \
-    # required by Teleport PAM support
-    pam-devel \
-    perl-IPC-Cmd \
-    tree \
-    # used by our Makefile
-    which \
-    zip \
-    # required by libbpf
-    zlib-static && \
-    yum clean all
-
-# As mentioned above, these packages are unsigned.
-RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc \
-        ${DEVTOOLSET}-gcc-c++ \
-        ${DEVTOOLSET}-make && \
-    yum clean all
-
-# Install Go.
-ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | tar xz && \
-    mkdir -p /go/src/github.com/gravitational/teleport && \
-    chmod a+w /go && \
-    chmod a+w /var/lib && \
-    chmod a-w /
+# Set environment variables used for enabling FIPS mode
+# `GOEXPERIMENT=boringcrypto` -- enable FIPS mode (BoringCrypto) for Go
+# https://github.com/golang/go/blob/master/src/crypto/internal/boring/README.md
+# `OPENSSL_FIPS=1` -- enable FIPS mode for OpenSSL
+# https://www.openssl.org/docs/man3.0/man7/fips_module.html
 ENV GOEXPERIMENT=boringcrypto \
-    GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+    OPENSSL_FIPS=1
 
-# Install PAM module and policies for testing.
-COPY pam/ /opt/pam_teleport/
-RUN make -C /opt/pam_teleport install
+# Enable OpenSSL FIPS mode by default
+# https://www.openssl.org/docs/man3.0/man7/fips_module.html
+RUN cat >/usr/local/ssl/openssl.cnf <<EOF
+config_diagnostics = 1
+openssl_conf = openssl_init
 
-RUN chmod a-w /
+.include /usr/local/ssl/fipsmodule.cnf
 
-ARG RUST_VERSION
-ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
+[openssl_init]
+providers = provider_sect
 
-RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
-    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+[provider_sect]
+fips = fips_sect
+base = base_sect
 
-# Install Rust using the ci user, as that is the user that
-# will run builds using the Rust toolchains we install here.
+[base_sect]
+activate = 1
+EOF
+
 USER ci
-RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
-    rustup --version && \
-    cargo --version && \
-    rustc --version && \
-    rustup component add rustfmt clippy && \
-    rustup target add ${TARGETARCH}-unknown-linux-gnu
 
-ARG WASM_PACK_VERSION
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+# Validate that environment variables were set
+RUN echo "Ensure environment variables are set" && \
+    [ -n "$GOEXPERIMENT" ] && \
+    [ -n "$OPENSSL_FIPS" ]
 
-ARG LIBBPF_VERSION
-COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
+# Validate that Go binaries have BoringCrypto enabled
+RUN cat >/tmp/boringtest.go <<EOF
+package main
 
-# Download pre-built CentOS 7 assets with clang needed to build BoringSSL and BPF tools.
-COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+import (
+	"crypto/boring"
+	"os"
+)
+
+func main() {
+	if !boring.Enabled() {
+		os.Exit(1)
+	}
+}
+EOF
+
+RUN echo "Ensure Go is using BoringCrypto" && \
+    go run /tmp/boringtest.go
+
+RUN echo "Ensure OpenSSL is using FIPS module" && \
+    ! openssl md5 /tmp/boringtest.go > /dev/null 2>&1
+
+RUN rm /tmp/boringtest.go
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

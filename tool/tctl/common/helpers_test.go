@@ -138,7 +138,7 @@ func runEditCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 
 	var stdoutBuff bytes.Buffer
 	command := &EditCommand{
-		editor: o.Editor,
+		Editor: o.Editor,
 	}
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
