@@ -1098,11 +1098,12 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 		assert.NoError(t, err)
 
 		for _, e := range es {
-			if e.GetCode() == events.AuthAttemptFailureCode && e.(*apievents.AuthAttempt).Login == nodeLogin {
+			if e.GetCode() == events.AuthAttemptFailureCode {
+				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
 				return
 			}
 		}
-		t.Errorf("Failed to find an AuthAttemptFailureCode event")
+		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
 	}, 5*time.Second, 500*time.Millisecond)
 }
 
