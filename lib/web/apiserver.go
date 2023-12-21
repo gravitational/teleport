@@ -375,12 +375,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
 	}
 
-	if automaticUpgrades(cfg.ClusterFeatures) && cfg.AutomaticUpgradesChannels == nil {
-		cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
+		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
 
-	if cfg.AutomaticUpgradesChannels != nil {
-		err := cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+	if h.cfg.AutomaticUpgradesChannels != nil {
+		err := h.cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
