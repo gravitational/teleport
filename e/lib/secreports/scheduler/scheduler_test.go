@@ -24,10 +24,11 @@ func TestScheduler(t *testing.T) {
 	day := time.Hour * 24
 
 	tests := []struct {
-		name     string
-		details  *limiter.Details
-		expected time.Time
-		now      time.Time
+		name             string
+		details          *limiter.Details
+		expected         time.Time
+		now              time.Time
+		reservedCapacity float64
 	}{
 		{
 			name: "10% cap used -  30 days span",
@@ -85,6 +86,42 @@ func TestScheduler(t *testing.T) {
 			},
 			expected: time.Date(2021, 1, 31, 0, 0, 0, 0, time.UTC),
 		},
+		{
+			name: "10% cap used - 30 days span with 10% reserved capacity",
+			now:  start.Add(day),
+			details: &limiter.Details{
+				Current: 1,
+				Limit:   10,
+				Start:   start,
+				End:     start.Add(30 * day),
+			},
+			reservedCapacity: 0.1,
+			expected:         time.Date(2021, 1, 7, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "10% cap used - 30 days span with 50% reserved capacity",
+			now:  start.Add(day),
+			details: &limiter.Details{
+				Current: 1,
+				Limit:   10,
+				Start:   start,
+				End:     start.Add(30 * day),
+			},
+			reservedCapacity: 0.5,
+			expected:         time.Date(2021, 1, 19, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "60% cap used - 30 days span with 50% reserved capacity",
+			now:  start.Add(day),
+			details: &limiter.Details{
+				Current: 6,
+				Limit:   10,
+				Start:   start,
+				End:     start.Add(30 * day),
+			},
+			reservedCapacity: 0.5,
+			expected:         time.Date(2021, 1, 31, 0, 0, 0, 0, time.UTC),
+		},
 	}
 
 	for _, tc := range tests {
@@ -96,8 +133,9 @@ func TestScheduler(t *testing.T) {
 					Limiter: &mockGetter{
 						details: tc.details,
 					},
-					Clock:       clock,
-					MinInterval: time.Hour,
+					Clock:                      clock,
+					MinInterval:                time.Hour,
+					ReservedCapacityPercentage: tc.reservedCapacity,
 				},
 			}
 			got, err := s.Next(ctx)

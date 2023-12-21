@@ -22,6 +22,9 @@ type Config struct {
 	Clock clockwork.Clock
 	// MinInterval is the minimum interval between reports.
 	MinInterval time.Duration
+	// ReservedCapacityPercentage is the percentage of total capacity that will not be reserved by the scheduler.
+	// This is used to prevent the scheduler draining the limiter completely leaving capacity for user queries.
+	ReservedCapacityPercentage float64
 }
 
 // CheckAndSetDefaults checks and sets default parameters.
@@ -34,6 +37,15 @@ func (s *Config) CheckAndSetDefaults() error {
 	}
 	if s.MinInterval == 0 {
 		s.MinInterval = time.Hour
+	}
+
+	if s.ReservedCapacityPercentage == 0 {
+		// Reserve 60% of Limiter capacity for customer user queries.
+		// This is to prevent the scheduler draining the limiter completely by internal security report scheduler.
+		s.ReservedCapacityPercentage = 0.6
+	}
+	if s.ReservedCapacityPercentage < 0 || s.ReservedCapacityPercentage > 1 {
+		return trace.BadParameter("reserved capacity percentage must be between 0 and 1")
 	}
 	return nil
 }
@@ -62,6 +74,11 @@ func (s *Scheduler) Next(ctx context.Context) (time.Time, error) {
 	if details.Current == 0 {
 		return s.Clock.Now(), nil
 	}
+
+	if s.ReservedCapacityPercentage != 0 {
+		details.Current += uint64(float64(details.Limit) * s.ReservedCapacityPercentage)
+	}
+
 	// If the limit is reached, return end time
 	// when the capacity is refilled.
 	if details.Current >= details.Limit {
