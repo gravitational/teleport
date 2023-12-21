@@ -2753,14 +2753,6 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	// If GenerateUserCerts was called with an MFA response in the request,
-	// we validate the MFA response later during cert generation.
-	if req.MFAResponse == nil {
-		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	identity := a.context.Identity.GetIdentity()
 	return a.generateUserCerts(
 		ctx, req,
@@ -2790,6 +2782,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
+		// If we are using mfa to create an mfa verified cert, admin action mfa is redundant.
 		dev, _, err := a.authServer.ValidateMFAAuthResponse(
 			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
 		if err != nil {
@@ -3044,6 +3037,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	for _, o := range opts {
 		o(&certReq)
+	}
+
+	if certReq.mfaVerified == "" {
+		// Admin action MFA is not used to create mfa verified certs.
+		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// If the user is renewing a renewable cert, make sure the renewable flag
