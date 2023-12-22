@@ -75,6 +75,7 @@ func TestManagedConn(t *testing.T) {
 			return c, nil
 		}
 		ht.ResponseHeaderTimeout = 5 * time.Second
+		ht.IdleConnTimeout = time.Nanosecond
 		req, err := http.NewRequest("GET", "http://127.0.0.1/", http.NoBody)
 		require.NoError(t, err)
 
@@ -86,9 +87,13 @@ func TestManagedConn(t *testing.T) {
 		b, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, []byte("hello"), b)
+		require.NoError(t, resp.Body.Close())
 
-		ht.CloseIdleConnections()
-		require.True(t, c.localClosed)
+		c.mu.Lock()
+		for !c.localClosed {
+			c.cond.Wait()
+		}
+		c.mu.Unlock()
 	})
 
 	t.Run("Deadline", func(t *testing.T) {
