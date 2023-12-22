@@ -126,7 +126,7 @@ const (
 	HTTP2ReadIdleTimeout = 30 * time.Second
 
 	// HTTP2PingTimeout is the amount of time to wait for ping response
-	HTTP2PingTimeout = 5 * time.Second
+	HTTP2PingTimeout = 15 * time.Second
 
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
