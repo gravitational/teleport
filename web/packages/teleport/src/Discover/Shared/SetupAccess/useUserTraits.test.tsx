@@ -233,7 +233,10 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
-      autoDiscoveryConfig: { name: '', discoveryGroup: '', aws: [] },
+      autoDiscovery: {
+        config: { name: '', discoveryGroup: '', aws: [] },
+        requiredVpcsAndSubnets: {},
+      },
     };
 
     const { result } = renderHook(() => useUserTraits(), {

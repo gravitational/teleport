@@ -32,10 +32,7 @@ import {
   SuccessBox,
   WaitingInfo,
 } from 'teleport/Discover/Shared/HintBox';
-import {
-  AwsOidcDeployServiceResponse,
-  integrationService,
-} from 'teleport/services/integrations';
+import { integrationService } from 'teleport/services/integrations';
 import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
 import {
   DiscoverEventStatus,
@@ -69,8 +66,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const [showLabelMatchErr, setShowLabelMatchErr] = useState(true);
 
   const [taskRoleArn, setTaskRoleArn] = useState('TeleportDatabaseAccess');
-  const [deploySvcResp, setDeploySvcResp] =
-    useState<AwsOidcDeployServiceResponse>();
+  const [svcDeployedAwsUrl, setSvcDeployedAwsUrl] = useState('');
   const [deployFinished, setDeployFinished] = useState(false);
 
   const [selectedSecurityGroups, setSelectedSecurityGroups] = useState<
@@ -96,33 +92,63 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
       return;
     }
 
-    if (!hasMatchingLabels(dbLabels, labels)) {
-      setShowLabelMatchErr(true);
-      return;
-    }
+    const integrationName = dbMeta.awsIntegration.name;
 
-    setShowLabelMatchErr(false);
-    setAttempt({ status: 'processing' });
-    integrationService
-      .deployAwsOidcService(dbMeta.awsIntegration?.name, {
-        deploymentMode: 'database-service',
-        region: dbMeta.awsRegion,
-        subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
-        taskRoleArn,
-        databaseAgentMatcherLabels: labels,
-        securityGroups: selectedSecurityGroups,
-      })
-      // The user is still technically in the "processing"
-      // state, because after this call succeeds, we will
-      // start pinging for the newly registered db
-      // to get picked up by this service we deployed.
-      // So setting the attempt here to "success"
-      // is not necessary.
-      .then(setDeploySvcResp)
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        emitErrorEvent(`deploy request failed: ${err.message}`);
-      });
+    if (wantAutoDiscover) {
+      setAttempt({ status: 'processing' });
+
+      const requiredVpcsAndSubnets =
+        dbMeta.autoDiscovery.requiredVpcsAndSubnets;
+      const vpcIds = Object.keys(requiredVpcsAndSubnets);
+
+      integrationService
+        .deployDatabaseServices(integrationName, {
+          region: dbMeta.awsRegion,
+          taskRoleArn,
+          deployments: vpcIds.map(vpcId => ({
+            vpcId,
+            subnetIds: requiredVpcsAndSubnets[vpcId],
+          })),
+        })
+        .then(url => {
+          setAttempt({ status: 'success' });
+          setSvcDeployedAwsUrl(url);
+          setDeployFinished(true);
+          updateAgentMeta({ ...agentMeta, serviceDeployedMethod: 'auto' });
+        })
+        .catch((err: Error) => {
+          setAttempt({ status: 'failed', statusText: err.message });
+          emitErrorEvent(`auto discover deploy request failed: ${err.message}`);
+        });
+    } else {
+      if (!hasMatchingLabels(dbLabels, labels)) {
+        setShowLabelMatchErr(true);
+        return;
+      }
+
+      setShowLabelMatchErr(false);
+      setAttempt({ status: 'processing' });
+      integrationService
+        .deployAwsOidcService(integrationName, {
+          deploymentMode: 'database-service',
+          region: dbMeta.awsRegion,
+          subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
+          taskRoleArn,
+          databaseAgentMatcherLabels: labels,
+          securityGroups: selectedSecurityGroups,
+        })
+        // The user is still technically in the "processing"
+        // state, because after this call succeeds, we will
+        // start pinging for the newly registered db
+        // to get picked up by this service we deployed.
+        // So setting the attempt here to "success"
+        // is not necessary.
+        .then(setSvcDeployedAwsUrl)
+        .catch((err: Error) => {
+          setAttempt({ status: 'failed', statusText: err.message });
+          emitErrorEvent(`deploy request failed: ${err.message}`);
+        });
+    }
   }
 
   function handleOnProceed() {
@@ -151,16 +177,15 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         `aborted in middle of auto deploying (>= 5 minutes of waiting)`
       );
     }
-    setDeploySvcResp(null);
+    setSvcDeployedAwsUrl(null);
     setAttempt({ status: '' });
     toggleDeployMethod();
   }
 
-  const isProcessing = attempt.status === 'processing' && !!deploySvcResp;
-  const isDeploying = isProcessing && !!deploySvcResp;
+  const wantAutoDiscover = !!dbMeta.autoDiscovery;
+  const isProcessing = attempt.status === 'processing' && !!svcDeployedAwsUrl;
+  const isDeploying = isProcessing && !!svcDeployedAwsUrl;
   const hasError = attempt.status === 'failed';
-
-  const wantAutoDiscover = !!dbMeta.autoDiscoveryConfig;
 
   return (
     <Box>
@@ -171,6 +196,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
               region={dbMeta.awsRegion}
+              wantAutoDiscover={wantAutoDiscover}
             />
 
             {/* step one */}
@@ -250,12 +276,18 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               )}
             </StyledBox>
 
-            {isDeploying && (
+            {!wantAutoDiscover && isDeploying && (
               <DeployHints
                 deployFinished={handleDeployFinished}
                 resourceName={agentMeta.resourceName}
                 abortDeploying={abortDeploying}
-                deploySvcResp={deploySvcResp}
+                svcDeployedAwsUrl={svcDeployedAwsUrl}
+              />
+            )}
+
+            {wantAutoDiscover && svcDeployedAwsUrl && (
+              <AutoDiscoverDeploySuccess
+                svcDeployedAwsUrl={svcDeployedAwsUrl}
               />
             )}
 
@@ -274,10 +306,12 @@ const Heading = ({
   toggleDeployMethod,
   togglerDisabled,
   region,
+  wantAutoDiscover,
 }: {
   toggleDeployMethod(): void;
   togglerDisabled: boolean;
   region: string;
+  wantAutoDiscover: boolean;
 }) => {
   return (
     <>
@@ -288,14 +322,18 @@ const Heading = ({
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
         You will only need to do this once per geographical region.
-        <br />
-        <br />
-        Want to deploy a database service manually from one of your existing
-        servers?{' '}
-        <AlternateInstructionButton
-          onClick={toggleDeployMethod}
-          disabled={togglerDisabled}
-        />
+        {!wantAutoDiscover && (
+          <>
+            <br />
+            <br />
+            Want to deploy a database service manually from one of your existing
+            servers?{' '}
+            <AlternateInstructionButton
+              onClick={toggleDeployMethod}
+              disabled={togglerDisabled}
+            />
+          </>
+        )}
       </HeaderSubtitle>
     </>
   );
@@ -391,12 +429,12 @@ const DeployHints = ({
   resourceName,
   deployFinished,
   abortDeploying,
-  deploySvcResp,
+  svcDeployedAwsUrl,
 }: {
   resourceName: string;
   deployFinished(dbResult: Database): void;
   abortDeploying(): void;
-  deploySvcResp: AwsOidcDeployServiceResponse;
+  svcDeployedAwsUrl: string;
 }) => {
   // Starts resource querying interval.
   const { result, active } = usePingTeleport<Database>(resourceName);
@@ -419,7 +457,7 @@ const DeployHints = ({
             try manually deploying your own service.
           </AlternateInstructionButton>{' '}
           You can visit your AWS{' '}
-          <Link target="_blank" href={deploySvcResp.serviceDashboardUrl}>
+          <Link target="_blank" href={svcDeployedAwsUrl}>
             dashboard
           </Link>{' '}
           to see progress details.
@@ -452,7 +490,7 @@ const DeployHints = ({
         least a minute for the Database Service to be created and joined to your
         cluster. <br />
         We will update this status once detected, meanwhile visit your AWS{' '}
-        <Link target="_blank" href={deploySvcResp.serviceDashboardUrl}>
+        <Link target="_blank" href={svcDeployedAwsUrl}>
           dashboard
         </Link>{' '}
         to see progress details.
@@ -460,6 +498,23 @@ const DeployHints = ({
     </WaitingInfo>
   );
 };
+
+export function AutoDiscoverDeploySuccess({
+  svcDeployedAwsUrl,
+}: {
+  svcDeployedAwsUrl: string;
+}) {
+  return (
+    <SuccessBox>
+      The required database services has been successfully deployed. It will
+      take up to a minute to complete discovery. You can visit your AWS{' '}
+      <Link target="_blank" href={svcDeployedAwsUrl}>
+        dashboard
+      </Link>{' '}
+      to see progress details.
+    </SuccessBox>
+  );
+}
 
 const StyledBox = styled(Box)`
   max-width: 1000px;

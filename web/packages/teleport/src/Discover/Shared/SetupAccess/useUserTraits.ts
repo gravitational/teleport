@@ -52,7 +52,7 @@ export function useUserTraits() {
   const isSsoUser = ctx.storeUser.state.authType === 'sso';
   const canEditUser = ctx.storeUser.getUserAccess().edit;
   const dynamicTraits = initUserTraits(user);
-  const wantAutoDiscover = !!agentMeta.autoDiscoveryConfig;
+  const wantAutoDiscover = !!agentMeta.autoDiscovery;
 
   // Filter out static traits from the resource that we
   // queried in a prior step where we discovered the newly connected resource.
@@ -285,31 +285,15 @@ export function useUserTraits() {
   }
 
   const getSelectableOptions = (trait: Trait) => {
-    return initSelectedOptionsHelper({
-      trait,
-      dynamicTraits,
-    });
+    return initSelectedOptionsHelper({ trait, dynamicTraits });
   };
 
   function getFixedOptions(trait: Trait): Option[] {
-    return initSelectedOptionsHelper({
-      trait,
-      staticTraits,
-      // list dynamic traits as fixed option as well since
-      // diffing uer traits for static and dynamic is not
-      // available with auto discover.
-      dynamicTraits: wantAutoDiscover ? dynamicTraits : null,
-      wantAutoDiscover,
-    });
+    return initSelectedOptionsHelper({ trait, staticTraits });
   }
 
   function initSelectedOptions(trait: Trait): Option[] {
-    return initSelectedOptionsHelper({
-      trait,
-      staticTraits,
-      dynamicTraits,
-      wantAutoDiscover,
-    });
+    return initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits });
   }
 
   // Only allow kind database's to be able to go back from
@@ -359,7 +343,6 @@ export function initSelectedOptionsHelper({
   trait,
   staticTraits,
   dynamicTraits,
-  wantAutoDiscover = false,
 }: {
   trait: Trait;
   staticTraits?: UserTraits;
@@ -380,7 +363,7 @@ export function initSelectedOptionsHelper({
     options = dynamicTraits[trait].map(l => ({
       value: l,
       label: l,
-      isFixed: wantAutoDiscover,
+      isFixed: false,
     }));
   }
 

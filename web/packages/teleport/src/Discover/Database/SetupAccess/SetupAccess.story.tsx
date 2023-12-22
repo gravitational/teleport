@@ -111,17 +111,19 @@ export const WithTraitsAwsPostgresAutoEnroll = () => {
       agentMeta={
         {
           ...meta,
-          autoDiscoveryConfig: {
-            name: 'some-name',
-            discoveryGroup: 'some-group',
-            aws: [
-              {
-                types: ['rds'],
-                regions: ['us-east-1'],
-                tags: {},
-                integration: 'some-integration',
-              },
-            ],
+          autoDiscovery: {
+            config: {
+              name: 'some-name',
+              discoveryGroup: 'some-group',
+              aws: [
+                {
+                  types: ['rds'],
+                  regions: ['us-east-1'],
+                  tags: {},
+                  integration: 'some-integration',
+                },
+              ],
+            },
           },
         } as any
       }
@@ -193,7 +195,7 @@ export const SsoUser = () => (
 
 const dynamicTraits = {
   databaseNames: ['dynamicName1', 'dynamicName2'],
-  databaseUsers: ['dynamicUser1', 'dynamicUser2', 'staticUser1'],
+  databaseUsers: ['dynamicUser1', 'dynamicUser2'],
   logins: [],
   kubeUsers: [],
   kubeGroups: [],

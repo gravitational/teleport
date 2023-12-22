@@ -37,6 +37,7 @@ export type AutoEnrollDialog = {
   close(): void;
   next(): void;
   region: string;
+  skipDeployment: boolean;
 };
 
 export function AutoEnrollDialog({
@@ -45,6 +46,7 @@ export function AutoEnrollDialog({
   close,
   next,
   region,
+  skipDeployment,
 }: AutoEnrollDialog) {
   let content: JSX.Element;
   if (attempt.status === 'failed') {
@@ -67,7 +69,7 @@ export function AutoEnrollDialog({
   } else if (attempt.status === 'processing') {
     content = (
       <>
-        <AnimatedProgressBar mb={1} />
+        <AnimatedProgressBar mb={5} />
         <ButtonPrimary width="100%" disabled>
           Next
         </ButtonPrimary>
@@ -80,9 +82,14 @@ export function AutoEnrollDialog({
         <Flex mb={5}>
           <Icons.Check size="small" ml={1} mr={2} color="success" />
           <Text>
-            Discovery config successfully created. The discovery service can
-            take a few minutes to finish auto enrolling RDS databases found in
-            region <Mark>{region}</Mark>.
+            Discovery config successfully created.
+            {skipDeployment && (
+              <>
+                {' '}
+                The discovery service can take a few minutes to finish auto
+                enrolling RDS databases found in region <Mark>{region}</Mark>.
+              </>
+            )}
           </Text>
         </Flex>
         <ButtonPrimary width="100%" onClick={next}>

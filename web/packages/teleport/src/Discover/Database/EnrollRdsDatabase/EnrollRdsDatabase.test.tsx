@@ -24,23 +24,39 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
-import { TeleportProvider, getDbMeta } from 'teleport/Discover/fixtures';
 import DatabaseService from 'teleport/services/databases/databases';
 import * as discoveryService from 'teleport/services/discovery/discovery';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
+import cfg from 'teleport/config';
 
 import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 
+const defaultIsCloud = cfg.isCloud;
+
 describe('test EnrollRdsDatabase.tsx', () => {
   beforeEach(() => {
+    cfg.isCloud = true;
     jest
       .spyOn(DatabaseService.prototype, 'fetchDatabases')
       .mockResolvedValue({ agents: [] });
     jest
+      .spyOn(DatabaseService.prototype, 'createDatabase')
+      .mockResolvedValue({} as any);
+    jest
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
+    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
+      name: '',
+      discoveryGroup: '',
+      aws: [],
+    });
+    jest
+      .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
+      .mockResolvedValue({ services: [] });
   });
 
   afterEach(() => {
+    cfg.isCloud = defaultIsCloud;
     jest.restoreAllMocks();
   });
 
@@ -49,11 +65,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
       .spyOn(integrationService, 'fetchAwsRdsDatabases')
       .mockResolvedValue({ databases: [] });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -73,11 +85,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
       databases: mockAwsDbs,
     });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -92,27 +100,15 @@ describe('test EnrollRdsDatabase.tsx', () => {
     expect(DatabaseService.prototype.fetchDatabases).toHaveBeenCalledTimes(1);
   });
 
-  test('auto enroll is on by default and creates discovery config', async () => {
+  test('auto enroll is on by default with no database services', async () => {
     jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
     });
-    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
-      name: '',
-      discoveryGroup: '',
-      aws: [],
-    });
     jest
-      .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
-      .mockResolvedValue({ services: [] });
-    jest
-      .spyOn(DatabaseService.prototype, 'createDatabase')
-      .mockResolvedValue({} as any);
+      .spyOn(integrationService, 'fetchAwsRdsRequiredVpcs')
+      .mockResolvedValue({});
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -126,9 +122,8 @@ describe('test EnrollRdsDatabase.tsx', () => {
     act(() => screen.getByText('Next').click());
     await screen.findByText(/Creating Auto Discovery Config/i);
     expect(discoveryService.createDiscoveryConfig).toHaveBeenCalledTimes(1);
-    expect(
-      DatabaseService.prototype.fetchDatabaseServices
-    ).toHaveBeenCalledTimes(1);
+    expect(integrationService.fetchAwsRdsRequiredVpcs).toHaveBeenCalledTimes(1);
+
     expect(DatabaseService.prototype.createDatabase).not.toHaveBeenCalled();
   });
 
@@ -136,23 +131,8 @@ describe('test EnrollRdsDatabase.tsx', () => {
     jest.spyOn(integrationService, 'fetchAwsRdsDatabases').mockResolvedValue({
       databases: mockAwsDbs,
     });
-    jest
-      .spyOn(DatabaseService.prototype, 'fetchDatabaseServices')
-      .mockResolvedValue({ services: [] });
-    jest
-      .spyOn(DatabaseService.prototype, 'createDatabase')
-      .mockResolvedValue({} as any);
-    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
-      name: '',
-      discoveryGroup: '',
-      aws: [],
-    });
 
-    render(
-      <TeleportProvider agentMeta={getDbMeta()}>
-        <EnrollRdsDatabase />
-      </TeleportProvider>
-    );
+    render(<Component />);
 
     // select a region from selector.
     const selectEl = screen.getByLabelText(/aws region/i);
@@ -163,10 +143,12 @@ describe('test EnrollRdsDatabase.tsx', () => {
     await screen.findByText(/rds-1/i);
 
     // disable auto enroll
+    expect(screen.getByText('Next')).toBeEnabled();
     act(() => screen.getByText(/auto-enroll all/i).click());
     expect(screen.getByText('Next')).toBeDisabled();
 
-    act(() => screen.getByTestId('input-radio').click());
+    act(() => screen.getByRole('radio').click());
+
     act(() => screen.getByText('Next').click());
     await screen.findByText(/Database "rds-1" successfully registered/i);
 
@@ -192,3 +174,9 @@ const mockAwsDbs: AwsRdsDatabase[] = [
     subnets: ['subnet1', 'subnet2'],
   },
 ];
+
+const Component = () => (
+  <ComponentWrapper>
+    <EnrollRdsDatabase />
+  </ComponentWrapper>
+);
