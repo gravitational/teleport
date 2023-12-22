@@ -2904,6 +2904,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	// If the user is not a user cert renewal (impersonation, etc.), this is an
+	// admin action and requires MFA.
+	if req.Username != a.context.User.GetName() {
+		// Admin action MFA is not used to create mfa verified certs.
+		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// we're going to extend the roles list based on the access requests, so we
 	// ensure that all the current requests are added to the new certificate
 	// (and are checked again)
