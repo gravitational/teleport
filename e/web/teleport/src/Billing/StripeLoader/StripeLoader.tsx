@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 
+// Note: using the pure version of stripe-js to avoid loading it if there's no
+// need (and our CSP prevents it). See
+// https://github.com/gravitational/teleport.e/issues/2986.
 import { Elements } from '@stripe/react-stripe-js';
-import { loadStripe } from '@stripe/stripe-js';
+import { loadStripe } from '@stripe/stripe-js/pure';
 
 import { useTheme } from 'styled-components';
 
