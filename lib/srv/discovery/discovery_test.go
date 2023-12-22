@@ -1929,9 +1929,9 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		)
 		require.NoError(t, err)
 
+		require.Zero(t, reporter.DiscoveryFetchEventCount())
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
-		require.Zero(t, reporter.DiscoveryFetchEventCount())
 
 		// Check for new resource in reconciler
 		expectDatabases := []types.Database{awsRDSDB}
