@@ -430,6 +430,10 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resp, updated, upsertErr := s.upsertAccessList(ctx, req)
 
 	var accessListName string
@@ -569,8 +573,12 @@ func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, 
 		User: authCtx.User,
 	}
 
-	_, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, types.VerbDelete)
+	authCtx, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, types.VerbDelete)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -639,7 +647,7 @@ func (s *Service) DeleteAllAccessLists(ctx context.Context, _ *accesslistv1.Dele
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (*accesslistv1.ListAccessListMembersResponse, error) {
-	retrievedAccessList, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessList, types.VerbRead, types.VerbList)
+	retrievedAccessList, _, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessList, types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -780,16 +788,16 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	member, err := conv.FromMemberProto(req.Member)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	username := user.GetIdentity().Username
+	username := authCtx.Identity.GetIdentity().Username
 
 	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member)
 
@@ -809,15 +817,9 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 }
 
 // upsertAccessListMember is a helper for creating or updating access list members that returns the response, whether this was an update, and an error.
-func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Context,
-	member *accesslist.AccessListMember) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
+func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Context, member *accesslist.AccessListMember) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
 	updated = false
-
-	user, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, member.Spec.AccessList, updated, trace.Wrap(err)
-	}
-	username := user.GetIdentity().Username
+	username := authCtx.Identity.GetIdentity().Username
 
 	// If the user didn't exist before, make sure the current user is recorded as the user that added it.
 	if oldMember, err := s.accessLists.GetAccessListMember(ctx, member.Spec.AccessList, member.GetName()); err == nil || trace.IsNotFound(err) {
@@ -844,7 +846,7 @@ func (s *Service) userTryingToAddThemselves(ctx context.Context, authCtx *authz.
 	// to users, the user can't add themselves. If the user has create/update access to users, then
 	// the user is able to add themselves.
 	if slices.Contains(memberNames, username) && !s.hasUserRBAC(ctx, authCtx, types.VerbCreate, types.VerbUpdate) {
-		//if slices.Contains(memberNames, username) {
+		// if slices.Contains(memberNames, username) {
 		return trace.AccessDenied("user cannot add themselves to an access list")
 	}
 
@@ -952,15 +954,16 @@ func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, upda
 
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) (*emptypb.Empty, error) {
-	if _, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user, err := authz.UserFromContext(ctx)
+	authCtx, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	username := user.GetIdentity().Username
+
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	username := authCtx.Identity.GetIdentity().Username
 
 	resp, deleteErr := s.deleteAccessListMember(ctx, req)
 
@@ -1038,15 +1041,16 @@ func (s *Service) emitDeleteAccessListMemberUsageEvent(ctx context.Context, acce
 
 // DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list (without deleting the access list itself).
 func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error) {
-	if _, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user, err := authz.UserFromContext(ctx)
+	authCtx, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	username := user.GetIdentity().Username
+
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	username := authCtx.Identity.GetIdentity().Username
 
 	resp, deleteErr := s.deleteAllAccessListMembersForAccessList(ctx, req)
 
@@ -1108,11 +1112,11 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := authz.UserFromContext(ctx)
-	if err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	username := user.GetIdentity().Username
+
+	username := authCtx.Identity.GetIdentity().Username
 
 	resp, updated, accessListModified, modifiedMembers, upsertErr := s.upsertAccessListWithMembers(ctx, authCtx, req)
 
@@ -1176,7 +1180,8 @@ type modifiedMembers struct {
 // whether the access list was updated, the modified members, and an error.
 func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *authz.Context,
 	req *accesslistv1.UpsertAccessListWithMembersRequest) (resp *accesslistv1.UpsertAccessListWithMembersResponse, updated,
-	accessListModified bool, modified *modifiedMembers, err error) {
+	accessListModified bool, modified *modifiedMembers, err error,
+) {
 	newAccessList, err := conv.FromProto(req.AccessList)
 	if err != nil {
 		return nil, false, false, nil, trace.Wrap(err)
@@ -1257,7 +1262,8 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 
 // canUpdateMembership will return an error if the given user is able to update membership for this member.
 func (s *Service) canUpdateMembership(ctx context.Context, authCtx *authz.Context, username string,
-	oldMember, newMember *accesslist.AccessListMember) error {
+	oldMember, newMember *accesslist.AccessListMember,
+) error {
 	err := s.userTryingToAddThemselves(ctx, authCtx, username, newMember.GetName(), newMember.Spec.Name)
 	if err == nil {
 		return nil
@@ -1375,16 +1381,13 @@ func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Contex
 
 // AccessRequestPromote promotes an access request to an access list.
 func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
-	accessList, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessListName, types.VerbCreate, types.VerbUpdate)
+	accessList, authCtx, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessListName, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		s.log.WithError(err).Debug("Failed to authorize user")
-		// Return an opaque error
-		return nil, trace.AccessDenied("access denied")
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	accessReviewSubmission := types.AccessReviewSubmission{
@@ -1504,6 +1507,10 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	accessList, err := s.accessLists.GetAccessList(ctx, req.Review.Spec.AccessList)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1524,7 +1531,8 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 // createAccessListReview is a helper for creating the access list review that returns the response and an error.
 // The updated access review will be returned on success, else the existing access review will be returned.
 func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review,
-	authCtx *authz.Context, username string) (*accesslistv1.CreateAccessListReviewResponse, *accesslist.Review, error) {
+	authCtx *authz.Context, username string,
+) (*accesslistv1.CreateAccessListReviewResponse, *accesslist.Review, error) {
 	hasRBAC := s.hasAccessListRBAC(ctx, authCtx, types.VerbCreate, types.VerbUpdate)
 	accessListModified := !cmp.Equal(accesslist.ReviewChanges{}, review.Spec.Changes, reviewValidOwnerChanges...)
 
@@ -1639,8 +1647,11 @@ func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.
 		User: authCtx.User,
 	}
 
-	_, err = authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, types.VerbDelete)
-	if err != nil {
+	if _, err = authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, types.KindAccessList, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1730,30 +1741,30 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 
 // authOrIsOwnerWithAccessList first checks if retrieving access list was successful,
 // then checks if the user is either authorized for the access list or owns this access list.
-func (s *Service) authOrIsOwnerWithAccessList(ctx context.Context, accessListName string, verbs ...string) (*accesslist.AccessList, error) {
+func (s *Service) authOrIsOwnerWithAccessList(ctx context.Context, accessListName string, verbs ...string) (*accesslist.AccessList, *authz.Context, error) {
 	// Make sure the user is authorized within Teleport.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		s.log.WithError(err).Debug("Failed to authorize user")
 		// Return an opaque error
-		return nil, trace.AccessDenied("access denied")
+		return nil, nil, trace.AccessDenied("access denied")
 	}
 
 	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
 	if err != nil {
 		s.log.WithError(err).Debug("Failed to get access list")
 		// Return an opaque error
-		return nil, trace.AccessDenied("access denied")
+		return nil, nil, trace.AccessDenied("access denied")
 	}
 
 	if hasAccess := s.hasAccessListRBAC(ctx, authCtx, verbs...); hasAccess {
-		return accessList, nil
+		return accessList, authCtx, nil
 	}
 	if err := s.isOwnerOfAccessList(ctx, authCtx, accessList); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return accessList, nil
+	return accessList, authCtx, nil
 }
 
 type StillEligibleFields struct {

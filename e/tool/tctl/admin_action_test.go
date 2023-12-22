@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -37,6 +38,8 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	authe "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
@@ -58,6 +61,7 @@ func TestAdminActionMFA(t *testing.T) {
 	s := newAdminActionTestSuite(t)
 
 	t.Run("LoginRules", s.testLoginRules)
+	t.Run("AcessLists", s.testAccessLists)
 }
 
 func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
@@ -113,6 +117,81 @@ func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
 		resourceCreate: createLoginRule,
 		resourceGet:    getLoginRule,
 		resourceDelete: deleteLoginRule,
+	})
+}
+
+func (s *adminActionTestSuite) testAccessLists(t *testing.T) {
+	ctx := context.Background()
+
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "accesslist",
+		},
+		accesslist.Spec{
+			Title: "simple",
+			Grants: accesslist.Grants{
+				Roles: []string{teleport.PresetAccessRoleName},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: clock.Now().AddDate(1, 0, 0),
+			},
+			Owners: []accesslist.Owner{
+				{
+					Name: "admin",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	accessListMember, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: "admin",
+	}, accesslist.AccessListMemberSpec{
+		AccessList: accessList.GetName(),
+		Name:       "admin",
+		Joined:     time.Now(),
+		AddedBy:    "admin",
+	})
+	require.NoError(t, err)
+
+	createAccessList := func() error {
+		_, err := s.authServer.UpsertAccessList(ctx, accessList)
+		return trace.Wrap(err)
+	}
+
+	deleteAccessList := func() error {
+		return s.authServer.DeleteAccessList(ctx, accessList.GetName())
+	}
+
+	for name, tc := range map[string]adminActionTestCase{
+		"tctl acl users add": {
+			command:    fmt.Sprintf("acl users add %v %v", accessList.GetName(), "admin"),
+			cliCommand: &tctl.ACLCommand{},
+			setup:      createAccessList,
+			cleanup:    deleteAccessList,
+		},
+		"tctl acl users rm": {
+			command:    fmt.Sprintf("acl users rm %v %v", accessList.GetName(), "admin"),
+			cliCommand: &tctl.ACLCommand{},
+			setup: func() error {
+				if err := createAccessList(); err != nil {
+					return trace.Wrap(err)
+				}
+				_, err := s.authServer.UpsertAccessListMember(ctx, accessListMember)
+				return trace.Wrap(err)
+			},
+			cleanup: deleteAccessList,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s.testCommand(t, ctx, tc)
+		})
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:       accessList,
+		resourceCreate: createAccessList,
+		resourceDelete: deleteAccessList,
 	})
 }
 
@@ -358,15 +437,15 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 func runTestCase(t *testing.T, ctx context.Context, client auth.ClientI, tc adminActionTestCase) error {
 	t.Helper()
 
-	if tc.setup != nil {
-		require.NoError(t, tc.setup(), "unexpected error during setup")
-	}
 	if tc.cleanup != nil {
 		t.Cleanup(func() {
 			if err := tc.cleanup(); err != nil && !trace.IsNotFound(err) {
 				t.Errorf("unexpected error during cleanup: %v", err)
 			}
 		})
+	}
+	if tc.setup != nil {
+		require.NoError(t, tc.setup(), "unexpected error during setup")
 	}
 
 	app := utils.InitCLIParser("tctl", tctl.GlobalHelpString)
