@@ -823,7 +823,7 @@ func Transport() (*http.Transport, error) {
 	// issue: https://github.com/golang/go/issues/36026
 	tr2, err := http2.ConfigureTransports(tr)
 	if err != nil {
-		return tr, trace.BadParameter("http2 transport already configured")
+		return tr, trace.Wrap(err, "configuring http2 transport")
 	}
 	tr2.ReadIdleTimeout = HTTP2ReadIdleTimeout
 	tr2.PingTimeout = HTTP2PingTimeout
