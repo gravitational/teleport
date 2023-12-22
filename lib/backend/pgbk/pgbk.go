@@ -434,37 +434,41 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 // Get implements [backend.Backend].
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
-		var (
-			value    []byte
-			expires  time.Time
-			revision revision
-		)
-		rows, err := b.pool.Query(ctx, "SELECT kv.value, kv.expires, kv.revision FROM kv"+
-			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", NonNil(key))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item, err := pgx.CollectOneRow(rows, func(row pgx.CollectableRow) (*backend.Item, error) {
-			if err := rows.Scan(&value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-				return nil, trace.Wrap(err)
+		batch := new(pgx.Batch)
+		// batches run in an implicit transaction
+		batch.Queue("SET transaction_read_only TO on")
+
+		var item *backend.Item
+		batch.Queue("SELECT kv.value, kv.expires, kv.revision FROM kv"+
+			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", NonNil(key),
+		).QueryRow(func(row pgx.Row) error {
+			var value []byte
+			var expires time.Time
+			var revision revision
+			if err := row.Scan(&value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
+				}
+				return trace.Wrap(err)
 			}
-			return &backend.Item{
+
+			item = &backend.Item{
 				Key:      key,
 				Value:    value,
 				Expires:  expires.UTC(),
 				ID:       IdFromRevision(revision),
 				Revision: RevisionToString(revision),
-			}, nil
+			}
+			return nil
 		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		if err != nil {
+
+		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return item, nil
 	})
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -479,7 +483,6 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	lastSeenKey := startKey
 	results := &backend.GetResult{}
 	pageSize := defaultPageSize
-	queryCount := 0
 
 	if limit > 0 && pageSize > limit {
 		pageSize = limit
@@ -487,38 +490,41 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 	for {
 		items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
-			queryCount += 1
-			rows, err := b.pool.Query(ctx, "SELECT kv.key, kv.value, kv.expires, kv.revision from kv"+
-				" WHERE kv.key >= $1 AND kv.key <= $2 AND (kv.expires IS NULL OR kv.expires > now())"+
-				" ORDER BY kv.key LIMIT $3",
+			batch := new(pgx.Batch)
+			// batches run in an implicit transaction
+			batch.Queue("SET transaction_read_only TO on")
+			// TODO(espadolini): figure out if we want transaction_deferred enabled
+			// for GetRange
+
+			var items []backend.Item
+			batch.Queue(
+				"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
+					" WHERE kv.key BETWEEN $1 AND $2 AND (kv.expires IS NULL OR kv.expires > now())"+
+					" ORDER BY kv.key LIMIT $3",
 				NonNil(lastSeenKey), NonNil(endKey), pageSize,
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-				var (
-					key, value []byte
-					expires    time.Time
-					revision   revision
-				)
-
-				if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
-					return backend.Item{}, trace.Wrap(err)
-				}
-				return backend.Item{
-					Key:      key,
-					Value:    value,
-					Expires:  expires.UTC(),
-					ID:       IdFromRevision(revision),
-					Revision: RevisionToString(revision),
-				}, nil
+			).Query(func(rows pgx.Rows) error {
+				var err error
+				items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
+					var key, value []byte
+					var expires time.Time
+					var revision revision
+					if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {
+						return backend.Item{}, err
+					}
+					return backend.Item{
+						Key:      key,
+						Value:    value,
+						Expires:  expires.UTC(),
+						ID:       IdFromRevision(revision),
+						Revision: RevisionToString(revision),
+					}, nil
+				})
+				return trace.Wrap(err)
 			})
-			if err != nil {
+
+			if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
 				return nil, trace.Wrap(err)
 			}
-
 			return items, nil
 		})
 		if err != nil {
