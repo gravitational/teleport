@@ -194,16 +194,16 @@ export function EnrollRdsDatabase() {
 
   function handleAndEmitRequestError(
     err: Error,
-    cfg: { preErrMsg?: string; setAttempt?(attempt: Attempt): void }
+    cfg: { errorPrefix?: string; setAttempt?(attempt: Attempt): void }
   ) {
     const message = getErrMessage(err);
     if (cfg.setAttempt) {
       cfg.setAttempt({
         status: 'failed',
-        statusText: `${cfg.preErrMsg}${message}`,
+        statusText: `${cfg.errorPrefix}${message}`,
       });
     }
-    emitErrorEvent(`${cfg.preErrMsg}${message}`);
+    emitErrorEvent(`${cfg.errorPrefix}${message}`);
   }
 
   async function enableAutoDiscovery() {
@@ -225,7 +225,7 @@ export function EnrollRdsDatabase() {
         setRequiredVpcs(requiredVpcsAndSubnets);
       } catch (err) {
         handleAndEmitRequestError(err, {
-          preErrMsg: 'failed collecting vpc ids and its subnets: ',
+          errorPrefix: 'failed to collect vpc ids and its subnets: ',
           setAttempt: setAutoDiscoverAttempt,
         });
         return;
@@ -253,7 +253,7 @@ export function EnrollRdsDatabase() {
         setAutoDiscoveryCfg(discoveryConfig);
       } catch (err) {
         handleAndEmitRequestError(err, {
-          preErrMsg: 'failed to create discovery config: ',
+          errorPrefix: 'failed to create discovery config: ',
           setAttempt: setAutoDiscoverAttempt,
         });
         return;
@@ -357,7 +357,7 @@ export function EnrollRdsDatabase() {
           {cfg.isCloud && (
             <ToggleSection
               wantAutoDiscover={wantAutoDiscover}
-              setWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
+              toggleWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
               isDisabled={tableData.items.length === 0}
             />
           )}
@@ -382,9 +382,8 @@ export function EnrollRdsDatabase() {
       )}
       {showTable && wantAutoDiscover && (
         <Text mt={4} mb={-3}>
-          <b>Note:</b> Auto-Enroll will enroll <Mark>all</Mark> database engines
-          in this region: mysql, mariadb, postgres, postgres-mysql, and
-          aurora-postgresql
+          <b>Note:</b> Auto-enroll will enroll <Mark>all</Mark> database engines
+          in this region (e.g. PostgreSQL, MySQL, Aurora).
         </Text>
       )}
       <ActionButtons
@@ -416,25 +415,25 @@ function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
 
 function ToggleSection({
   wantAutoDiscover,
-  setWantAutoDiscover,
+  toggleWantAutoDiscover,
   isDisabled,
 }: {
   wantAutoDiscover: boolean;
   isDisabled: boolean;
-  setWantAutoDiscover(): void;
+  toggleWantAutoDiscover(): void;
 }) {
   return (
     <Box mb={2}>
       <Toggle
         isToggled={wantAutoDiscover}
-        onToggle={() => setWantAutoDiscover()}
+        onToggle={toggleWantAutoDiscover}
         disabled={isDisabled}
       >
         <Box ml={2} mr={1}>
-          Auto-Enroll all Databases for selected region
+          Auto-enroll all databases for selected region
         </Box>
         <ToolTipInfo>
-          Auto-Enroll will automatically identify all RDS databases from the
+          Auto-enroll will automatically identify all RDS databases from the
           selected region and register them as database resources in your
           infrastructure.
         </ToolTipInfo>

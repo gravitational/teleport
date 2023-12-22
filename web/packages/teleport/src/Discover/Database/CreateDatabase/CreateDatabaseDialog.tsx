@@ -106,7 +106,7 @@ export function CreateDatabaseDialog({
   }
 
   return (
-    <Dialog disableEscapeKeyDown={false} open={true}>
+    <Dialog open={true}>
       <DialogContent
         width="460px"
         alignItems="center"

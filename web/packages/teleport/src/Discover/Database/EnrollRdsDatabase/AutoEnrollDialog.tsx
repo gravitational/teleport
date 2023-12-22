@@ -86,8 +86,9 @@ export function AutoEnrollDialog({
             {skipDeployment && (
               <>
                 {' '}
-                The discovery service can take a few minutes to finish auto
-                enrolling RDS databases found in region <Mark>{region}</Mark>.
+                The discovery service can take a few minutes to finish
+                auto-enrolling RDS databases found in region{' '}
+                <Mark>{region}</Mark>.
               </>
             )}
           </Text>
@@ -100,7 +101,7 @@ export function AutoEnrollDialog({
   }
 
   return (
-    <Dialog disableEscapeKeyDown={false} open={true}>
+    <Dialog open={true}>
       <DialogContent
         width="460px"
         alignItems="center"

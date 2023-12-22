@@ -419,7 +419,7 @@ const AutoDiscoverInfoTabs = ({ location }: { location: DatabaseLocation }) => {
     <Tabs
       tabs={[
         {
-          title: 'Postgres',
+          title: 'PostgreSQL',
           content: (
             <Box p={3}>
               <Info dbEngine={DatabaseEngine.Postgres} dbLocation={location} />
@@ -427,7 +427,7 @@ const AutoDiscoverInfoTabs = ({ location }: { location: DatabaseLocation }) => {
           ),
         },
         {
-          title: `Mysql`,
+          title: `MySQL`,
           content: (
             <Box p={3}>
               <Info dbEngine={DatabaseEngine.MySql} dbLocation={location} />

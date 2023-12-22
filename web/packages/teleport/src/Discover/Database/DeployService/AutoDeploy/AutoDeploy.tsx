@@ -242,9 +242,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <Text bold>Step {wantAutoDiscover ? 2 : 4}</Text>
-              <Box mb={2}>
-                <Text>Deploy the Teleport Database Service.</Text>
-              </Box>
+              <Text mb={2}>Deploy the Teleport Database Service.</Text>
               <ButtonSecondary
                 width="215px"
                 type="submit"
@@ -506,8 +504,8 @@ export function AutoDiscoverDeploySuccess({
 }) {
   return (
     <SuccessBox>
-      The required database services has been successfully deployed. It will
-      take up to a minute to complete discovery. You can visit your AWS{' '}
+      The required database services have been deployed successfully. Discovery
+      will complete in a minute. You can visit your AWS{' '}
       <Link target="_blank" href={svcDeployedAwsUrl}>
         dashboard
       </Link>{' '}
