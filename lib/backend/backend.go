@@ -131,7 +131,7 @@ func (fn newbkfn[T]) new(ctx context.Context, params Params) (Backend, error) {
 func MustRegister[T Backend](fn newbkfn[T], types ...string) {
 	for _, t := range types {
 		if _, ok := newbks[t]; ok {
-			panic("backend already registered")
+			panic(fmt.Sprintf("backend already registered: %s", t))
 		}
 	}
 	for _, bkType := range types {
