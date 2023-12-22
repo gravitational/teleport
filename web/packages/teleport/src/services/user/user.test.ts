@@ -263,7 +263,7 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
-      bot: {
+      bots: {
         list: false,
         read: false,
         edit: false,
