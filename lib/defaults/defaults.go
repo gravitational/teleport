@@ -818,6 +818,9 @@ func Transport() (*http.Transport, error) {
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
 
+	// Set HTTP2 health check to make sure connection is still good otherwise the client
+	// will happily try to send requests on a broken connection
+	// issue: https://github.com/golang/go/issues/36026
 	tr2, err := http2.ConfigureTransports(tr)
 	if err != nil {
 		return tr, trace.BadParameter("http2 transport already configured")
