@@ -285,8 +285,9 @@ func (*noopAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 		return nil, err
 	}
 	return &authz.Context{
-		User:    user,
-		Checker: &NoopChecker{},
+		User:                  user,
+		Checker:               &NoopChecker{},
+		AdminActionAuthorized: true,
 	}, nil
 }
 

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -48,6 +49,8 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -60,8 +63,105 @@ import (
 func TestAdminActionMFA(t *testing.T) {
 	s := newAdminActionTestSuite(t)
 
+	t.Run("DeviceTrust", s.testDeviceTrust)
 	t.Run("LoginRules", s.testLoginRules)
 	t.Run("AcessLists", s.testAccessLists)
+}
+
+func (s *adminActionTestSuite) testDeviceTrust(t *testing.T) {
+	ctx := context.Background()
+
+	macOSDev1, err := dttestenv.NewFakeMacOSDevice()
+	require.NoError(t, err, "NewFakeMacOSDevice failed")
+
+	device := &devicetrustv1.Device{
+		ApiVersion:   types.V1,
+		Id:           macOSDev1.ID,
+		OsType:       macOSDev1.GetDeviceOSType(),
+		AssetTag:     macOSDev1.SerialNumber,
+		EnrollStatus: devicetrustv1.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+	}
+
+	upsertDevice := func() error {
+		_, err := s.authClient.DevicesClient().UpsertDevice(ctx, &devicetrustv1.UpsertDeviceRequest{
+			Device: device,
+		})
+		return trace.Wrap(err)
+	}
+
+	// For tests where we depend on the actual resource ID, rather than just the asset tag.
+	upsertDeviceWithID := func() error {
+		_, err := s.authClient.DevicesClient().UpsertDevice(ctx, &devicetrustv1.UpsertDeviceRequest{
+			Device:           device,
+			CreateAsResource: true,
+		})
+		return trace.Wrap(err)
+	}
+
+	getDevice := func() (types.Resource, error) {
+		resp, err := s.authClient.DevicesClient().FindDevices(ctx, &devicetrustv1.FindDevicesRequest{
+			IdOrTag: macOSDev1.SerialNumber,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if len(resp.Devices) == 0 {
+			return nil, trace.NotFound("no devices found")
+		} else if len(resp.Devices) != 1 {
+			return nil, trace.BadParameter("expected 1 device but found %v", len(resp.Devices))
+		}
+		return types.DeviceToResource(resp.Devices[0]), nil
+	}
+
+	deleteDevice := func() error {
+		resp, err := s.authClient.DevicesClient().FindDevices(ctx, &devicetrustv1.FindDevicesRequest{
+			IdOrTag: macOSDev1.SerialNumber,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		} else if len(resp.Devices) == 0 {
+			return trace.NotFound("no devices found")
+		}
+		_, err = s.authClient.DevicesClient().DeleteDevice(ctx, &devicetrustv1.DeleteDeviceRequest{
+			DeviceId: resp.Devices[0].Id,
+		})
+		return trace.Wrap(err)
+	}
+
+	for name, tc := range map[string]adminActionTestCase{
+		"tctl devices add": {
+			command:    fmt.Sprintf("devices add --os=macos --asset-tag=%v", macOSDev1.SerialNumber),
+			cliCommand: &tctl.DevicesCommand{},
+			cleanup:    deleteDevice,
+		},
+		"tctl devices add --enroll": {
+			command:    fmt.Sprintf("devices add --enroll --os=macos --asset-tag=%v", macOSDev1.SerialNumber),
+			cliCommand: &tctl.DevicesCommand{},
+			cleanup:    deleteDevice,
+		},
+		"tctl devices rm": {
+			command:    fmt.Sprintf("devices rm --asset-tag=%v", macOSDev1.SerialNumber),
+			cliCommand: &tctl.DevicesCommand{},
+			setup:      upsertDevice,
+			cleanup:    deleteDevice,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s.testCommand(t, ctx, tc)
+		})
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:       types.DeviceToResource(device),
+		resourceCreate: upsertDeviceWithID,
+		resourceDelete: deleteDevice,
+	})
+
+	s.testEditCommand(t, ctx, editCommandTestCase{
+		resourceRef:    getResourceRef(types.DeviceToResource(device)),
+		resourceCreate: upsertDeviceWithID,
+		resourceGet:    getDevice,
+		resourceDelete: deleteDevice,
+	})
 }
 
 func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
@@ -279,6 +379,15 @@ type adminActionTestSuite struct {
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	t.Helper()
 	ctx := context.Background()
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			DeviceTrust: modules.DeviceTrustFeature{
+				Enabled: true,
+			},
+		},
+	})
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,

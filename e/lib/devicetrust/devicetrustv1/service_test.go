@@ -302,8 +302,9 @@ func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}
 
 	return &authz.Context{
-		User:    user,
-		Checker: a.Checker,
+		User:                  user,
+		Checker:               a.Checker,
+		AdminActionAuthorized: true,
 	}, nil
 }
 
@@ -2106,8 +2107,9 @@ func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, er
 		return nil, fmt.Errorf("creating user: %v", err)
 	}
 	return &authz.Context{
-		User:    user,
-		Checker: a,
+		User:                  user,
+		Checker:               a,
+		AdminActionAuthorized: true,
 	}, nil
 }
 

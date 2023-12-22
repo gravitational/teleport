@@ -206,7 +206,11 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	} else {
 		verbs = []string{types.VerbCreate}
 	}
-	if _, err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, verbs...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -252,7 +256,11 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 }
 
 func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRequest) (*devicepb.Device, error) {
-	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbUpdate); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -317,7 +325,11 @@ func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
 }
 
 func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRequest) (*devicepb.Device, error) {
-	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -378,7 +390,11 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 }
 
 func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRequest) (*emptypb.Empty, error) {
-	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbDelete); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -486,9 +502,14 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 }
 
 func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreateDevicesRequest) (*devicepb.BulkCreateDevicesResponse, error) {
-	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(req.Devices) == 0 {
 		return nil, trace.BadParameter("devices required")
 	}
@@ -571,6 +592,10 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		// Audit information.
 		devMetadata = getDeviceMetadata(dev)
 	} else {
+		if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId, getExpireTime(req.ExpireTime))
 		// err verified below
 
@@ -654,6 +679,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := s.storage.VerifyEnrolledDevicesLimit(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -808,7 +834,11 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		types.VerbDelete, // removal of missing devices
 	}
 	ctx := stream.Context()
-	if _, err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, verbs...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return trace.Wrap(err)
 	}
 
