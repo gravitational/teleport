@@ -1,4 +1,4 @@
-package typical
+package expression
 
 import "github.com/gravitational/trace"
 

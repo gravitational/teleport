@@ -159,7 +159,7 @@ func TestEvaluate(t *testing.T) {
 				}),
 			},
 			errorContains: []string{
-				"traits_map expression must evaluate to type string or set, the following expression evaluates to typical.Dict:",
+				"traits_map expression must evaluate to type string or set, the following expression evaluates to expression.Dict:",
 			},
 		},
 		{
@@ -168,7 +168,7 @@ func TestEvaluate(t *testing.T) {
 				newLoginRuleWithTraitsExpression("rule0", 0, "external.groups"),
 			},
 			errorContains: []string{
-				"traits_expression must evaluate to type dict, the following expression evaluates to typical.Set:",
+				"traits_expression must evaluate to type dict, the following expression evaluates to expression.Set:",
 			},
 		},
 		{
@@ -242,7 +242,7 @@ func TestEvaluate(t *testing.T) {
 			inputTraits: baseInputTraits,
 			errorContains: []string{
 				"parsing argument 2 to function (add)",
-				"expected type string, got expression returning type (typical.Set)",
+				"expected type string, got expression returning type (expression.Set)",
 			},
 		},
 		{
@@ -375,7 +375,7 @@ func TestEvaluate(t *testing.T) {
 			},
 			errorContains: []string{
 				"parsing argument 1 to function (choose)",
-				"expected type typical.option, got expression returning type (bool)",
+				"expected type expression.option, got expression returning type (bool)",
 			},
 		},
 		{

@@ -1,4 +1,4 @@
-package typical
+package expression
 
 import (
 	"testing"
@@ -45,7 +45,7 @@ func TestEvaluateTraitsMap(t *testing.T) {
 			desc:        "wrong map return type",
 			expressions: map[string][]string{"groups": []string{"user.spec.traits"}},
 			errorContains: []string{
-				"traits_map expression must evaluate to type string or set, the following expression evaluates to typical.Dict:",
+				"traits_map expression must evaluate to type string or set, the following expression evaluates to expression.Dict:",
 			},
 		},
 		{
@@ -249,7 +249,7 @@ func TestEvaluateTraitsMap(t *testing.T) {
 		}),
 	}
 
-	attributeParser, err := NewTypicalParser[evaluationEnv](typicalEnvVar)
+	attributeParser, err := NewTraitsExpressionParser[evaluationEnv](typicalEnvVar)
 	require.NoError(t, err)
 
 	for _, tc := range tests {

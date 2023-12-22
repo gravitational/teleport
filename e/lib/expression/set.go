@@ -1,4 +1,4 @@
-package typical
+package expression
 
 import (
 	"golang.org/x/exp/maps"

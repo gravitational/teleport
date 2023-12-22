@@ -1,4 +1,4 @@
-package typical
+package expression
 
 import (
 	"strings"
@@ -11,56 +11,56 @@ import (
 
 type evaluationEnvVar map[string]typical.Variable
 
-func defaultParserSpec[T any]() typical.ParserSpec {
+func defaultParserSpec[evaluationEnv any]() typical.ParserSpec {
 	return typical.ParserSpec{
 		Functions: map[string]typical.Function{
-			"set": typical.UnaryVariadicFunction[T](
+			"set": typical.UnaryVariadicFunction[evaluationEnv](
 				func(args ...string) (Set, error) {
 					return NewSet(args...), nil
 				}),
-			"dict": typical.UnaryVariadicFunction[T](
+			"dict": typical.UnaryVariadicFunction[evaluationEnv](
 				func(pairs ...pair) (Dict, error) {
 					return NewDict(pairs...)
 				}),
-			"pair": typical.BinaryFunction[T](
+			"pair": typical.BinaryFunction[evaluationEnv](
 				func(a, b any) (pair, error) {
 					return pair{a, b}, nil
 				}),
-			"union": typical.UnaryVariadicFunction[T](
+			"union": typical.UnaryVariadicFunction[evaluationEnv](
 				func(sets ...Set) (Set, error) {
 					return union(sets...), nil
 				}),
-			"ifelse": typical.TernaryFunction[T](
+			"ifelse": typical.TernaryFunction[evaluationEnv](
 				func(cond bool, a, b any) (any, error) {
 					if cond {
 						return a, nil
 					}
 					return b, nil
 				}),
-			"strings.upper": typical.UnaryFunction[T](
+			"strings.upper": typical.UnaryFunction[evaluationEnv](
 				func(input any) (any, error) {
 					return StringTransform("strings.upper", input, strings.ToUpper)
 				}),
-			"strings.lower": typical.UnaryFunction[T](
+			"strings.lower": typical.UnaryFunction[evaluationEnv](
 				func(input any) (any, error) {
 					return StringTransform("strings.lower", input, strings.ToLower)
 				}),
-			"strings.replaceall": typical.TernaryFunction[T](
+			"strings.replaceall": typical.TernaryFunction[evaluationEnv](
 				func(input any, match string, replacement string) (any, error) {
 					f := func(s string) string {
 						return strings.ReplaceAll(s, match, replacement)
 					}
 					return StringTransform("strings.replaceall", input, f)
 				}),
-			"choose": typical.UnaryVariadicFunction[T](
+			"choose": typical.UnaryVariadicFunction[evaluationEnv](
 				func(opts ...option) (any, error) {
 					return choose(opts...)
 				}),
-			"option": typical.BinaryFunction[T](
+			"option": typical.BinaryFunction[evaluationEnv](
 				func(cond bool, v any) (option, error) {
 					return option{cond, v}, nil
 				}),
-			"email.local": typical.UnaryFunction[T](
+			"email.local": typical.UnaryFunction[evaluationEnv](
 				func(emails Set) (Set, error) {
 					locals, err := parse.EmailLocal(emails.items())
 					if err != nil {
@@ -68,7 +68,7 @@ func defaultParserSpec[T any]() typical.ParserSpec {
 					}
 					return NewSet(locals...), nil
 				}),
-			"regexp.replace": typical.TernaryFunction[T](
+			"regexp.replace": typical.TernaryFunction[evaluationEnv](
 				func(inputs Set, match string, replacement string) (Set, error) {
 					replaced, err := parse.RegexpReplace(inputs.items(), match, replacement)
 					if err != nil {
@@ -76,7 +76,7 @@ func defaultParserSpec[T any]() typical.ParserSpec {
 					}
 					return NewSet(replaced...), nil
 				}),
-			"strings.split": typical.BinaryFunction[T](
+			"strings.split": typical.BinaryFunction[evaluationEnv](
 				func(inputs Set, sep string) (Set, error) {
 					var outputs []string
 					for input := range inputs {
@@ -86,23 +86,23 @@ func defaultParserSpec[T any]() typical.ParserSpec {
 				}),
 		},
 		Methods: map[string]typical.Function{
-			"add": typical.BinaryVariadicFunction[T](
+			"add": typical.BinaryVariadicFunction[evaluationEnv](
 				func(s Set, values ...string) (Set, error) {
 					return s.add(values...), nil
 				}),
-			"contains": typical.BinaryFunction[T](
+			"contains": typical.BinaryFunction[evaluationEnv](
 				func(s Set, str string) (bool, error) {
 					return s.contains(str), nil
 				}),
-			"put": typical.TernaryFunction[T](
+			"put": typical.TernaryFunction[evaluationEnv](
 				func(d Dict, key string, value Set) (Dict, error) {
 					return d.put(key, value), nil
 				}),
-			"add_values": typical.TernaryVariadicFunction[T](
+			"add_values": typical.TernaryVariadicFunction[evaluationEnv](
 				func(d Dict, key string, values ...string) (Dict, error) {
 					return d.addValues(key, values...), nil
 				}),
-			"remove": typical.BinaryVariadicFunction[T](
+			"remove": typical.BinaryVariadicFunction[evaluationEnv](
 				func(r remover, items ...string) (any, error) {
 					return r.remove(items...), nil
 				}),
@@ -110,11 +110,11 @@ func defaultParserSpec[T any]() typical.ParserSpec {
 	}
 }
 
-// NewTypicalParser returns new typical parser using evaluation environment and default parser spec.
-func NewTypicalParser[T any](vars evaluationEnvVar) (*typical.Parser[T, any], error) {
-	defParserSpec := defaultParserSpec[T]()
+// NewTraitsExpressionParser returns new expression parser using evaluation environment and default parser spec.
+func NewTraitsExpressionParser[TEnv any](vars evaluationEnvVar) (*typical.Parser[TEnv, any], error) {
+	defParserSpec := defaultParserSpec[TEnv]()
 	defParserSpec.Variables = vars
-	parser, err := typical.NewParser[T, any](defParserSpec)
+	parser, err := typical.NewParser[TEnv, any](defParserSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -122,7 +122,7 @@ func NewTypicalParser[T any](vars evaluationEnvVar) (*typical.Parser[T, any], er
 	return parser, nil
 }
 
-// traitsMapResultToSet returns Set of result string or set) and erros if the result
+// traitsMapResultToSet returns Set for result type string or Set and errors if the result
 // cannot be evaluated to either Set or string.
 func traitsMapResultToSet(result any, expr string) (Set, error) {
 	switch v := result.(type) {
@@ -133,15 +133,6 @@ func traitsMapResultToSet(result any, expr string) (Set, error) {
 	default:
 		return nil, trace.BadParameter("traits_map expression must evaluate to type string or set, the following expression evaluates to %T: %q", result, expr)
 	}
-}
-
-// StringSliceFromDict returns string slice from a Dict.
-func StringSliceFromDict(d Dict) []string {
-	m := make([]string, 0, len(d))
-	for _, s := range d {
-		m = append(m, s.items()...)
-	}
-	return m
 }
 
 // StringSliceMapFromDict returns string slice map from a Dict.
@@ -159,13 +150,6 @@ func DictFromStringSliceMap(m map[string][]string) Dict {
 	for key, values := range m {
 		d[key] = NewSet(values...)
 	}
-	return d
-}
-
-// DictFromStringSlice returns Dict from string slice.
-func DictFromStringSlice(key string, s []string) Dict {
-	d := make(Dict, len(s))
-	d[key] = NewSet(s...)
 	return d
 }
 

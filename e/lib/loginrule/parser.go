@@ -3,7 +3,7 @@ package loginrule
 import (
 	"github.com/gravitational/trace"
 
-	etypical "github.com/gravitational/teleport/e/lib/typical"
+	"github.com/gravitational/teleport/e/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -15,7 +15,7 @@ type evaluationEnv struct {
 	// lowest priority login rule these will be the external traits coming from
 	// the identity provider, for subsequent login rules this should be set to
 	// the output traits of the previous login rule.
-	external etypical.Dict
+	external expression.Dict
 }
 
 type loginRuleExpr typical.Expression[evaluationEnv, any]
@@ -32,11 +32,11 @@ func mustLoginRuleParser() *typical.Parser[evaluationEnv, any] {
 	envVar := map[string]typical.Variable{
 		"true":  true,
 		"false": false,
-		"external": typical.DynamicMap[evaluationEnv, etypical.Set](func(env evaluationEnv) (etypical.Dict, error) {
+		"external": typical.DynamicMap[evaluationEnv, expression.Set](func(env evaluationEnv) (expression.Dict, error) {
 			return env.external, nil
 		}),
 	}
-	parser, err := etypical.NewTypicalParser[evaluationEnv](envVar)
+	parser, err := expression.NewTraitsExpressionParser[evaluationEnv](envVar)
 	if err != nil {
 		panic(trace.Wrap(err, "creating login rule parser (this is a bug)"))
 	}

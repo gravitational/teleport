@@ -9,8 +9,8 @@ import (
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/expression"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
-	etypical "github.com/gravitational/teleport/e/lib/typical"
 	oss "github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -60,7 +60,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 	sortLoginRules(rules)
 
 	appliedRules := make([]string, 0, len(rules))
-	traits := etypical.DictFromStringSliceMap(input.Traits)
+	traits := expression.DictFromStringSliceMap(input.Traits)
 	for _, rule := range rules {
 		appliedRules = append(appliedRules, rule.Metadata.Name)
 		// Every rule gets the output of the previous rule as input.
@@ -72,12 +72,11 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		// storage, no need to check again here.
 		if len(rule.TraitsMap) > 0 {
 			var err error
-			traits, err = etypical.EvaluateTraitsMap(
+			traits, err = expression.EvaluateTraitsMap(
 				env,
 				wrapperStringValuesMapToStringSliceMap(rule.TraitsMap),
 				func(input string) (typical.Expression[evaluationEnv, any], error) {
-					expr, err := loginRuleParser.Parse(input)
-					return expr, trace.Wrap(err)
+					return parseExpr(input)
 				},
 			)
 			if err != nil {
@@ -93,7 +92,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		}
 	}
 	return &oss.EvaluationOutput{
-		Traits:       etypical.StringSliceMapFromDict(traits),
+		Traits:       expression.StringSliceMapFromDict(traits),
 		AppliedRules: appliedRules,
 	}, nil
 }
@@ -109,7 +108,7 @@ func sortLoginRules(rules []*loginrulepb.LoginRule) {
 	})
 }
 
-func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (etypical.Dict, error) {
+func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (expression.Dict, error) {
 	expr, err := parseExpr(traitsExpression)
 	if err != nil {
 		return nil, trace.Wrap(err, "error parsing expression: %q", traitsExpression)
@@ -118,7 +117,7 @@ func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (etypi
 	if err != nil {
 		return nil, trace.Wrap(err, "error evaluating expression: %q", traitsExpression)
 	}
-	d, ok := result.(etypical.Dict)
+	d, ok := result.(expression.Dict)
 	if !ok {
 		return nil, trace.BadParameter("traits_expression must evaluate to type dict, the following expression evaluates to %T: %q", result, traitsExpression)
 	}

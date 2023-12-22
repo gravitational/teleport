@@ -1,4 +1,4 @@
-package typical
+package expression
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 // EvaluateTraitsMap evaluates expression that must evaluate to either string or Set.
 // traitsMap: key is name of the trait and values are list of predicate expressions.
-func EvaluateTraitsMap[T any](env T, traitsMap map[string][]string, parseExpression func(input string) (typical.Expression[T, any], error)) (Dict, error) {
+func EvaluateTraitsMap[TEnv any](env TEnv, traitsMap map[string][]string, parseExpression func(input string) (typical.Expression[TEnv, any], error)) (Dict, error) {
 	d, err := NewDict()
 	if err != nil {
 		return nil, trace.Wrap(err)
