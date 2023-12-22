@@ -132,10 +132,11 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		}
 		const accessGraphRetryPeriod = 5 * time.Second
 
+		ctx := process.GracefulExitContext()
 		// TODO(jakule): Very excessive retrying, but we need to make sure that
 		// the access graph is initialized before we start serving requests.
 		for {
-			if err := initializeAndWatchAccessGraph(process.GracefulExitContext(),
+			if err := initializeAndWatchAccessGraph(ctx,
 				cfg.Log.WithField("Addr", accessGraphAddr),
 				ServiceClientConfig{
 					Addr:     accessGraphAddr,
@@ -144,10 +145,10 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 					Insecure: cfg.AccessGraph.Insecure,
 				},
 				process.GetAuthServer(), process.GetBackend()); err != nil {
-				cfg.Log.Errorf("Failed to initialize access graph: %v", err)
+				cfg.Log.Errorf("Access graph sync process failed: %v", err)
 				select {
-				case <-process.GracefulExitContext().Done():
-					return trace.Wrap(err)
+				case <-ctx.Done():
+					return nil
 				case <-time.After(accessGraphRetryPeriod):
 					continue
 				}

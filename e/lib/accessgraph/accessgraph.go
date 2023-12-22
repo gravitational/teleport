@@ -82,91 +82,85 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 		}
 	}`
 
-	for {
-		err := backend.RunWhileLocked(
-			ctx,
-			backend.RunWhileLockedConfig{
-				LockConfiguration: backend.LockConfiguration{
-					LockName:      "accessGraphClient",
-					Backend:       bk,
-					TTL:           10 * time.Second,
-					RetryInterval: 5 * time.Second,
-				},
-				ReleaseCtxTimeout:   5 * time.Second,
-				RefreshLockInterval: 1 * time.Second,
+	err := backend.RunWhileLocked(
+		ctx,
+		backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				LockName:      "accessGraphClient",
+				Backend:       bk,
+				TTL:           10 * time.Second,
+				RetryInterval: 5 * time.Second,
 			},
-			func(ctx context.Context) error {
-				accessGraphConn, err := NewAccessGraphClient(
-					ctx,
-					config,
-					grpc.WithDefaultServiceConfig(serviceConfig),
-				)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				// Close the connection when the function returns.
-				defer accessGraphConn.Close()
-				client := accessgraphv1.NewAccessGraphServiceClient(accessGraphConn)
+			ReleaseCtxTimeout:   5 * time.Second,
+			RefreshLockInterval: 1 * time.Second,
+		},
+		func(ctx context.Context) error {
+			accessGraphConn, err := NewAccessGraphClient(
+				ctx,
+				config,
+				grpc.WithDefaultServiceConfig(serviceConfig),
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// Close the connection when the function returns.
+			defer accessGraphConn.Close()
+			client := accessgraphv1.NewAccessGraphServiceClient(accessGraphConn)
 
-				stream, err := client.EventsStream(ctx)
-				if err != nil {
-					log.WithError(err).Error("Failed to get access graph service stream")
-					return trace.Wrap(err)
-				}
+			stream, err := client.EventsStream(ctx)
+			if err != nil {
+				log.WithError(err).Error("Failed to get access graph service stream")
+				return trace.Wrap(err)
+			}
 
-				newCtx, cancel := context.WithCancel(ctx)
+			newCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			// Start a goroutine to watch the access graph service connection state.
+			// If the connection is closed, cancel the context to stop the event watcher
+			// before it tries to send any events to the access graph service.
+			go func() {
 				defer cancel()
-				// Start a goroutine to watch the access graph service connection state.
-				// If the connection is closed, cancel the context to stop the event watcher
-				// before it tries to send any events to the access graph service.
-				go func() {
-					defer cancel()
-					if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
-						log.Info("access graph service connection was closed")
-					}
-				}()
-
-				eventWatcher := newTagEventWatcher(newCtx, stream)
-
-				errc := make(chan error)
-				go func() {
-					// Start watching the auth server for events.
-					// Subscribe for new events before sending all resources.
-					// Otherwise, we might miss some events.
-					errc <- startWatching(eventWatcher, authServer)
-				}()
-
-				log.Debug("Sending teleport resources to access graph service")
-				// Send all teleport resources to the access graph service.
-				if err := sendTeleportResources(ctx, stream, authServer); err != nil {
-					log.WithError(err).Error("Failed to send teleport resources to access graph service")
-					return trace.Wrap(err)
+				if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
+					log.Info("access graph service connection was closed")
 				}
+			}()
 
-				log.Debug("Done sending teleport resources to access graph service")
+			eventWatcher := newTagEventWatcher(newCtx, stream)
 
-				// Marks as ready and send cached resources to TAG
-				if err := eventWatcher.MarkReady(); err != nil {
-					return trace.Wrap(err)
-				}
+			errc := make(chan error)
+			go func() {
+				// Start watching the auth server for events.
+				// Subscribe for new events before sending all resources.
+				// Otherwise, we might miss some events.
+				errc <- startWatching(eventWatcher, authServer)
+			}()
 
-				err = <-errc
-				if errors.Is(err, context.Canceled) {
-					log.WithError(err).Info("access graph service connection was closed")
-					return trace.Wrap(err)
-				} else if err != nil {
-					log.WithError(err).Error("Failed to start watching access graph service")
-					return trace.Wrap(err)
-				}
+			log.Debug("Sending teleport resources to access graph service")
+			// Send all teleport resources to the access graph service.
+			if err := sendTeleportResources(ctx, stream, authServer); err != nil {
+				log.WithError(err).Error("Failed to send teleport resources to access graph service")
+				return trace.Wrap(err)
+			}
 
-				return nil
-			})
-		if err != nil {
-			log.WithError(err).Error("Failed to run access graph service while locked")
-			// Wait a bit before retrying.
-			time.Sleep(5 * time.Second)
-		}
-	}
+			log.Debug("Done sending teleport resources to access graph service")
+
+			// Marks as ready and send cached resources to TAG
+			if err := eventWatcher.MarkReady(); err != nil {
+				return trace.Wrap(err)
+			}
+
+			err = <-errc
+			if errors.Is(err, context.Canceled) {
+				log.WithError(err).Info("access graph service connection was closed")
+				return trace.Wrap(err)
+			} else if err != nil {
+				log.WithError(err).Error("Failed to start watching access graph service")
+				return trace.Wrap(err)
+			}
+
+			return nil
+		})
+	return trace.Wrap(err)
 }
 
 // newTagEventWatcher returns a new tagEventWatcher.
