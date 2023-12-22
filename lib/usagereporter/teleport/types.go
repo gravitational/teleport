@@ -94,6 +94,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	sessionStart := &prehogv1a.SessionStartEvent{
 		UserName:    a.AnonymizeString(u.UserName),
 		SessionType: u.SessionType,
+		UserKind:    u.UserKind,
 	}
 	if u.Database != nil {
 		sessionStart.Database = &prehogv1a.SessionStartDatabaseMetadata{
@@ -482,6 +483,7 @@ func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRe
 		Event: &prehogv1a.SubmitEventRequest_KubeRequest{
 			KubeRequest: &prehogv1a.KubeRequestEvent{
 				UserName: a.AnonymizeString(u.UserName),
+				UserKind: u.UserKind,
 			},
 		},
 	}
@@ -495,6 +497,7 @@ func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 		Event: &prehogv1a.SubmitEventRequest_Sftp{
 			Sftp: &prehogv1a.SFTPEvent{
 				UserName: a.AnonymizeString(u.UserName),
+				UserKind: u.UserKind,
 				Action:   u.Action,
 			},
 		},

@@ -1205,6 +1205,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
+		Bot:            id.Bot,
 	}
 }
 
