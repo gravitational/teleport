@@ -293,16 +293,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	_, clusterClient, err := s.ResolveClusterURI(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	withPromptReasonOpt, err := WithPromptReasonSessionMFA(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
-
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -310,7 +300,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
-		MFAPrompt:             mfaPrompt,
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -345,18 +335,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	var cert tls.Certificate
 
 	reissueGatewayCerts := func() error {
-		cluster, clusterClient, err := s.ResolveClusterURI(g.TargetURI())
+		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		withPromptReasonOpt, err := WithPromptReasonSessionMFA(g.TargetURI())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
-
-		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
+		cert, err = cluster.ReissueGatewayCerts(ctx, g)
 		if err != nil {
 			return trace.Wrap(err)
 		}

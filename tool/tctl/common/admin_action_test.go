@@ -60,6 +60,7 @@ func TestAdminActionMFA(t *testing.T) {
 
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
+	t.Run("AuthSign", s.testAuthSign)
 	t.Run("Roles", s.testRoles)
 	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
@@ -174,6 +175,39 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	})
 }
 
+func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
+	ctx := context.Background()
+
+	user, err := types.NewUser("teleuser")
+	require.NoError(t, err)
+	_, err = s.authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.DeleteUser(ctx, user.GetName()))
+	})
+
+	identityFilePath := filepath.Join(t.TempDir(), "identity")
+
+	t.Run("AuthCommands", func(t *testing.T) {
+		t.Run("Impersonation", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("auth sign --out=%v --user=%v --overwrite", identityFilePath, user.GetName()),
+				cliCommand: &tctl.AuthCommand{},
+			})
+		})
+
+		// Renewing certs for yourself should not require admin MFA.
+		t.Run("RenewCerts", func(t *testing.T) {
+			err := runTestCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
+				command:    fmt.Sprintf("auth sign --out=%v --user=admin --overwrite", identityFilePath),
+				cliCommand: &tctl.AuthCommand{},
+			})
+			require.NoError(t, err)
+		})
+	})
+}
+
 func (s *adminActionTestSuite) testRoles(t *testing.T) {
 	ctx := context.Background()
 
@@ -226,6 +260,11 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 	user.SetRoles([]string{role.GetName()})
 	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.DeleteUser(ctx, user.GetName()))
+		require.NoError(t, s.authServer.DeleteRole(ctx, role.GetName()))
+	})
 
 	accessRequest, err := services.NewAccessRequest(user.GetName(), teleport.PresetAccessRoleName)
 	require.NoError(t, err)
@@ -841,6 +880,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	adminRole, err := types.NewRole(username, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			GroupLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{types.Wildcard},
+				Roles: []string{types.Wildcard},
+			},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.Wildcard},
