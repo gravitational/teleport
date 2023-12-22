@@ -123,6 +123,12 @@ type License interface {
 	GetAccountID() string
 
 	// GetFeatureSource returns where the features should be loaded from.
+	//
+	// Deprecated.
+	// FeatureSource was used to differentiate between
+	// cloud+team vs cloud+enterprise. cloud+enterprise read from license
+	// and cloud+team read from salescenter. With the new EUB product,
+	// all cloud+ will read from salescenter.
 	GetFeatureSource() FeatureSource
 
 	// GetCustomTheme returns the name of the WebUI custom theme
@@ -130,6 +136,17 @@ type License interface {
 
 	// SetCustomTheme sets the name of the WebUI custom theme
 	SetCustomTheme(themeName string)
+
+	// GetSupportsIdentityGovernanceSecurity returns IGS features support flag.
+	// IGS includes: access list, access request, access monitoring and device trust.
+	GetSupportsIdentityGovernanceSecurity() Bool
+	// SetSupportsIdentityGovernanceSecurity sets IGS feature support flag.
+	// IGS includes: access list, access request, access monitoring and device trust.
+	SetSupportsIdentityGovernanceSecurity(Bool)
+	// GetUsageBasedBilling returns if usage based billing is turned on or off
+	GetUsageBasedBilling() Bool
+	// SetUsageBasedBilling sets flag for usage based billing
+	SetUsageBasedBilling(Bool)
 }
 
 // FeatureSource defines where the list of features enabled
@@ -423,6 +440,28 @@ func (c *LicenseV3) SetCustomTheme(themeName string) {
 	c.Spec.CustomTheme = themeName
 }
 
+// GetSupportsIdentityGovernanceSecurity returns IGS feature support flag.
+// IGS includes: access list, access request, access monitoring and device trust.
+func (c *LicenseV3) GetSupportsIdentityGovernanceSecurity() Bool {
+	return c.Spec.SupportsIdentityGovernanceSecurity
+}
+
+// SetSupportsIdentityGovernanceSecurity sets IGS feature support flag.
+// IGS includes: access list, access request, access monitoring and device trust.
+func (c *LicenseV3) SetSupportsIdentityGovernanceSecurity(b Bool) {
+	c.Spec.SupportsIdentityGovernanceSecurity = b
+}
+
+// GetUsageBasedBilling returns if usage based billing is turned on or off
+func (c *LicenseV3) GetUsageBasedBilling() Bool {
+	return c.Spec.UsageBasedBilling
+}
+
+// SetUsageBasedBilling sets flag for usage based billing.
+func (c *LicenseV3) SetUsageBasedBilling(b Bool) {
+	c.Spec.UsageBasedBilling = b
+}
+
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -522,7 +561,17 @@ type LicenseSpecV3 struct {
 	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
 	// FeatureSource is the source of the set of enabled feature
+	//
+	// Deprecated.
+	// FeatureSource was used to differentiate between
+	// cloud+team vs cloud+enterprise. cloud+enterprise read from license
+	// and cloud+team read from salescenter. With the new EUB product,
+	// all cloud+ will read from salescenter.
 	FeatureSource FeatureSource `json:"feature_source"`
 	// CustomTheme is the name of the WebUI custom theme
 	CustomTheme string `json:"custom_theme,omitempty"`
+	// SupportsIdentityGovernanceSecurity turns IGS features on or off.
+	SupportsIdentityGovernanceSecurity Bool `json:"identity_governance_security,omitempty"`
+	// UsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+	UsageBasedBilling Bool `json:"usage_based_billing,omitempty"`
 }

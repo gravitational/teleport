@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package userloginstate
 
@@ -42,6 +44,10 @@ import (
 
 func TestAccessLists(t *testing.T) {
 	user, err := types.NewUser("user")
+	user.SetStaticLabels(map[string]string{
+		"label1": "value1",
+		"label2": "value2",
+	})
 	user.SetRoles([]string{"orole1"})
 	user.SetTraits(map[string][]string{
 		"otrait1": {"value1", "value2"},
@@ -70,6 +76,11 @@ func TestAccessLists(t *testing.T) {
 			cloud: true,
 			roles: []string{"orole1"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
@@ -93,6 +104,11 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1", "role2"},
@@ -119,6 +135,11 @@ func TestAccessLists(t *testing.T) {
 			},
 			roles: []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
@@ -142,6 +163,11 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1", "role2"},
@@ -165,6 +191,11 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
@@ -188,6 +219,11 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "not-user")...),
 			roles:   []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1"},
@@ -207,6 +243,11 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2", "role3"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1", "role2", "role3"},
@@ -235,6 +276,11 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
@@ -262,6 +308,9 @@ func TestAccessLists(t *testing.T) {
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"role1"},
 			expected: newUserLoginState(t, "user",
+				map[string]string{
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
 				nil,
 				nil,
 				[]string{"role1"},
@@ -279,7 +328,8 @@ func TestAccessLists(t *testing.T) {
 			modules.SetTestModules(t, &modules.TestModules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
-					Cloud: test.cloud,
+					Cloud:                      test.cloud,
+					IdentityGovernanceSecurity: true,
 				},
 			})
 
@@ -421,15 +471,13 @@ func newAccessListMembers(t *testing.T, clock clockwork.Clock, accessList string
 	return alMembers
 }
 
-func newUserLoginState(t *testing.T, name string, originalRoles []string, originalTraits map[string][]string,
+func newUserLoginState(t *testing.T, name string, labels map[string]string, originalRoles []string, originalTraits map[string][]string,
 	roles []string, traits map[string][]string) *userloginstate.UserLoginState {
 	t.Helper()
 
 	uls, err := userloginstate.New(header.Metadata{
-		Name: name,
-		Labels: map[string]string{
-			userloginstate.OriginalRolesAndTraitsSet: "true",
-		},
+		Name:   name,
+		Labels: labels,
 	}, userloginstate.Spec{
 		OriginalRoles:  originalRoles,
 		OriginalTraits: originalTraits,

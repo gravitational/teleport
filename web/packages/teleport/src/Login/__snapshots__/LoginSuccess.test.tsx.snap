@@ -10,12 +10,15 @@ exports[`renders 1`] = `
   padding: 48px;
   width: 540px;
   text-align: center;
+}
+
+.c2 {
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
   background-color: #222C59;
 }
 
-.c3 {
+.c4 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -25,7 +28,7 @@ exports[`renders 1`] = `
   margin-bottom: 24px;
 }
 
-.c2 {
+.c3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -50,11 +53,11 @@ exports[`renders 1`] = `
     src="file_stub"
   />
   <div
-    class="c1"
+    class="c1 c2"
     width="540px"
   >
     <span
-      class="c2 icon icon-circlecheck"
+      class="c3 icon icon-circlecheck"
       color="success"
     >
       <svg
@@ -74,7 +77,7 @@ exports[`renders 1`] = `
       </svg>
     </span>
     <div
-      class="c3"
+      class="c4"
     >
       Login Successful
     </div>

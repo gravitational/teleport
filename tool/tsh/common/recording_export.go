@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -25,6 +27,7 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -63,7 +66,7 @@ func onExportRecording(cf *CLIConf) error {
 			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf)
+	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
 	return trace.Wrap(err)
 }
 
@@ -77,8 +80,7 @@ func makeAVIFileName(prefix string, currentFile int) string {
 
 // writeMovie writes the events for the specified session into one or more movie files
 // beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
-	write func(format string, args ...any) (int, error)) (frames int, err error) {
+func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
 
 	var screen *image.NRGBA
 	var movie mjpeg.AviWriter
@@ -91,6 +93,7 @@ func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, 
 	currentFilename := makeAVIFileName(prefix, fileCount)
 
 	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
+	fastPathReceived := false
 loop:
 	for {
 		select {
@@ -117,7 +120,19 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
-				break loop
+				if !fastPathReceived {
+					break loop
+				}
+				if movie != nil {
+					movie.Close()
+					os.Remove(currentFilename)
+				}
+				url := fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d",
+					webProxyAddr,
+					evt.ClusterName,
+					evt.SessionID,
+					evt.EndTime.Sub(evt.StartTime).Milliseconds())
+				return frameCount, trace.BadParameter("this session can't be exported, please visit %s to view it", url)
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
@@ -128,6 +143,8 @@ loop:
 				}
 
 				switch msg := msg.(type) {
+				case tdp.RDPFastPathPDU:
+					fastPathReceived = true
 				case tdp.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")

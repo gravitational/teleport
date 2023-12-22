@@ -1,4 +1,4 @@
-{{ client="The plugin" }}
+{{ client="plugin" secret="plugin-identity" }}
 
 Like all Teleport users, `{{ user }}` needs signed credentials in order to
 connect to your Teleport cluster. You will use the `tctl auth sign` command to
@@ -12,15 +12,15 @@ directory:
 $ tctl auth sign --user={{ user }} --out=auth.pem
 ```
 
-{{ client }} connects to the Teleport Auth Service's gRPC endpoint over TLS.
+The {{ client }} connects to the Teleport Auth Service's gRPC endpoint over TLS.
 
-The identity file, `auth.pem`, includes both TLS and SSH credentials. {{ client }}
-uses the SSH credentials to connect to the Proxy Service, which establishes a
-reverse tunnel connection to the Auth Service. {{ client }}  uses this reverse
-tunnel, along with your TLS credentials, to connect to the Auth Service's gRPC
-endpoint.
+The identity file, `auth.pem`, includes both TLS and SSH credentials. The 
+{{ client }} uses the SSH credentials to connect to the Proxy Service, which
+establishes a reverse tunnel connection to the Auth Service. The {{ client }}
+uses this reverse tunnel, along with your TLS credentials, to connect to the
+Auth Service's gRPC endpoint.
 
-<Admonition
+<Details
   title="Certificate Lifetime"
 >
 
@@ -40,4 +40,22 @@ endpoint.
   $ tsh login --proxy=teleport.example.com --ttl=60060
   ```
 
-</Admonition>
+</Details>
+
+If you are running the {{ client }} on a Linux server, create a data directory
+to hold certificate files for the {{ client }}:
+
+```code
+$ sudo mkdir -p /var/lib/teleport/api-credentials
+$ sudo mv auth.* /var/lib/teleport/plugins/api-credentials
+```
+
+If you are running the {{ client }} on Kubernetes, Create a Kubernetes secret
+that contains the Teleport identity file:
+
+```code
+$ kubectl -n teleport create secret generic --from-file=auth.pem {{ secret }}
+```
+
+Once the Teleport credentials expire, you will need to renew them by running the
+`tctl auth sign` command again.

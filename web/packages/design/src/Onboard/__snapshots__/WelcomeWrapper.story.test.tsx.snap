@@ -1,13 +1,28 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`wrapper 1`] = `
-.c5 {
+.c1 {
+  box-sizing: border-box;
+  height: 100%;
+}
+
+.c3 {
+  box-sizing: border-box;
+}
+
+.c6 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c8 {
+.c12 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -15,42 +30,41 @@ exports[`wrapper 1`] = `
   text-transform: none;
 }
 
-.c1 {
-  box-sizing: border-box;
-  height: 100%;
+.c2 {
   display: flex;
   justify-content: space-between;
   flex-direction: column;
 }
 
-.c2 {
-  box-sizing: border-box;
+.c4 {
   display: flex;
   flex-direction: column;
 }
 
-.c7 {
-  box-sizing: border-box;
+.c10 {
   display: flex;
+}
+
+.c11 {
   justify-content: center;
   width: 100%;
   gap: 50px;
 }
 
-.c6 {
+.c9 {
   padding-bottom: 24px;
   width: 100%;
   color: white;
 }
 
-.c9 {
+.c13 {
   color: white;
   text-decoration: none;
 }
 
-.c9:hover,
-.c9:active,
-.c9:focus {
+.c13:hover,
+.c13:active,
+.c13:focus {
   color: rgba(255,255,255,0.54);
 }
 
@@ -82,19 +96,14 @@ exports[`wrapper 1`] = `
   backdrop-filter: blur(17.5px);
 }
 
-.c3 {
-  box-sizing: border-box;
+.c5 {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin: 24px 0;
 }
 
-.c4 {
-  box-sizing: border-box;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
+.c7 {
   width: 600px;
   padding: 24px;
   text-align: left;
@@ -103,7 +112,7 @@ exports[`wrapper 1`] = `
 }
 
 @media screen and (max-width:800px) {
-  .c7 {
+  .c11 {
     flex-direction: column-reverse;
     text-align: center;
     gap: 10px;
@@ -111,14 +120,14 @@ exports[`wrapper 1`] = `
 }
 
 @media screen and (max-width:800px) {
-  .c4 {
+  .c7 {
     width: auto;
     margin: 20px;
   }
 }
 
 @media screen and (max-height:760px) {
-  .c4 {
+  .c7 {
     height: calc(100vh - 250px);
   }
 }
@@ -127,14 +136,14 @@ exports[`wrapper 1`] = `
   class="c0"
 >
   <div
-    class="c1"
+    class="c1 c2"
     height="100%"
   >
     <div
-      class="c2"
+      class="c3 c4"
     >
       <div
-        class="c3"
+        class="c3 c5"
       >
         <svg
           fill="none"
@@ -152,28 +161,28 @@ exports[`wrapper 1`] = `
         </svg>
       </div>
       <div
-        class="c4"
+        class="c3 c6 c7"
       >
         <div
-          class="c5"
+          class="c8"
         >
           Some content
         </div>
       </div>
     </div>
     <footer
-      class="c6"
+      class="c9"
     >
       <div
-        class="c7"
+        class="c3 c10 c11"
       >
         <div
-          class="c5"
+          class="c8"
         >
           © Gravitational, Inc. All Rights Reserved
         </div>
         <a
-          class="c8 c9"
+          class="c12 c13"
           href="https://goteleport.com/legal/tos/"
           rel="noreferrer"
           target="_blank"
@@ -181,7 +190,7 @@ exports[`wrapper 1`] = `
           Terms of Service
         </a>
         <a
-          class="c8 c9"
+          class="c12 c13"
           href="https://goteleport.com/legal/privacy/"
           rel="noreferrer"
           target="_blank"

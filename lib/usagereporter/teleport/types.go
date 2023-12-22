@@ -1,24 +1,27 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package usagereporter
 
 import (
+	"slices"
+
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -774,6 +777,57 @@ func (e *AccessListGrantsToUserEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	}
 }
 
+type AccessListReviewCreateEvent prehogv1a.AccessListReviewCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListReviewCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewCreate{
+			AccessListReviewCreate: &prehogv1a.AccessListReviewCreateEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+				DaysPastNextAuditDate:         e.DaysPastNextAuditDate,
+				MembershipRequirementsChanged: e.MembershipRequirementsChanged,
+				ReviewFrequencyChanged:        e.ReviewFrequencyChanged,
+				ReviewDayOfMonthChanged:       e.ReviewDayOfMonthChanged,
+				NumberOfRemovedMembers:        e.NumberOfRemovedMembers,
+			},
+		},
+	}
+}
+
+type AccessListReviewDeleteEvent prehogv1a.AccessListReviewDeleteEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListReviewDeleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewDelete{
+			AccessListReviewDelete: &prehogv1a.AccessListReviewDeleteEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Metadata: &prehogv1a.AccessListMetadata{
+					Id: a.AnonymizeString(e.Metadata.Id),
+				},
+			},
+		},
+	}
+}
+
+type AccessListReviewComplianceEvent prehogv1a.AccessListReviewComplianceEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessListReviewComplianceEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessListReviewCompliance{
+			AccessListReviewCompliance: &prehogv1a.AccessListReviewComplianceEvent{
+				TotalAccessLists:      e.TotalAccessLists,
+				AccessListsNeedReview: e.AccessListsNeedReview,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -903,6 +957,55 @@ func (e *ExternalAuditStorageAuthenticateEvent) Anonymize(a utils.Anonymizer) pr
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_ExternalAuditStorageAuthenticate{
 			ExternalAuditStorageAuthenticate: &prehogv1a.ExternalAuditStorageAuthenticateEvent{},
+		},
+	}
+}
+
+// SecurityReportGetResultEvent is emitted when a user requests a security report.
+type SecurityReportGetResultEvent prehogv1a.SecurityReportGetResultEvent
+
+// Anonymize anonymizes the event. Since there is nothing to anonymize, it
+// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+func (e *SecurityReportGetResultEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SecurityReportGetResult{
+			SecurityReportGetResult: &prehogv1a.SecurityReportGetResultEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Name:     e.Name,
+				Days:     e.Days,
+			},
+		},
+	}
+}
+
+// AuditQueryRunEvent is emitted when a user runs an audit query.
+type AuditQueryRunEvent prehogv1a.AuditQueryRunEvent
+
+// Anonymize anonymizes the event. Since there is nothing to anonymize, it
+// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+func (e *AuditQueryRunEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AuditQueryRun{
+			AuditQueryRun: &prehogv1a.AuditQueryRunEvent{
+				UserName:  a.AnonymizeString(e.UserName),
+				Days:      e.Days,
+				IsSuccess: e.IsSuccess,
+			},
+		},
+	}
+}
+
+// DiscoveryFetchEvent is emitted when a DiscoveryService fetchs resources.
+type DiscoveryFetchEvent prehogv1a.DiscoveryFetchEvent
+
+// Anonymize anonymizes the event.
+func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DiscoveryFetchEvent{
+			DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
+				CloudProvider: e.CloudProvider,
+				ResourceType:  e.ResourceType,
+			},
 		},
 	}
 }
@@ -1316,6 +1419,41 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			IsSuccess:  e.TagExecuteQuery.IsSuccess,
 		}
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_SecurityReportGetResult:
+		ret := &SecurityReportGetResultEvent{
+			UserName: userMD.Username,
+			Name:     e.SecurityReportGetResult.Name,
+			Days:     e.SecurityReportGetResult.Days,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListReviewCreate:
+		ret := &AccessListReviewCreateEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListReviewCreate.Metadata.Id,
+			},
+			DaysPastNextAuditDate:         e.AccessListReviewCreate.DaysPastNextAuditDate,
+			MembershipRequirementsChanged: e.AccessListReviewCreate.MembershipRequirementsChanged,
+			ReviewFrequencyChanged:        e.AccessListReviewCreate.ReviewFrequencyChanged,
+			ReviewDayOfMonthChanged:       e.AccessListReviewCreate.ReviewDayOfMonthChanged,
+			NumberOfRemovedMembers:        e.AccessListReviewCreate.NumberOfRemovedMembers,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AccessListReviewDelete:
+		ret := &AccessListReviewDeleteEvent{
+			UserName: userMD.Username,
+			Metadata: &prehogv1a.AccessListMetadata{
+				Id: e.AccessListReviewDelete.Metadata.Id,
+			},
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent:
+		ret := &DiscoveryFetchEvent{
+			CloudProvider: e.DiscoveryFetchEvent.CloudProvider,
+			ResourceType:  e.DiscoveryFetchEvent.ResourceType,
+		}
+		return ret, nil
+
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}

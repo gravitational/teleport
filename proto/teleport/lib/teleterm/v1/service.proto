@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 syntax = "proto3";
 
@@ -24,6 +28,8 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/userpreferences/v1/cluster_preferences.proto";
+import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -145,6 +151,11 @@ service TerminalService {
   rpc GetConnectMyComputerNodeName(GetConnectMyComputerNodeNameRequest) returns (GetConnectMyComputerNodeNameResponse);
   // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
   rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
+  // GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
+  // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
+  // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse);
 }
 
 message EmptyResponse {}
@@ -550,4 +561,28 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
   }
+}
+
+message GetUserPreferencesRequest {
+  string cluster_uri = 1;
+}
+
+message GetUserPreferencesResponse {
+  UserPreferences user_preferences = 1;
+}
+
+message UpdateUserPreferencesRequest {
+  string cluster_uri = 1;
+  UserPreferences user_preferences = 2;
+}
+
+message UpdateUserPreferencesResponse {
+  UserPreferences user_preferences = 1;
+}
+
+// UserPreferences is a subset of teleport.userpreferences.v1.UserPreferences.
+// It contains preferences that are relevant to Connect.
+message UserPreferences {
+  teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
+  teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
 }

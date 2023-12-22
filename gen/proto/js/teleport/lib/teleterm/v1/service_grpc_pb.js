@@ -1,19 +1,22 @@
 // GENERATED CODE -- DO NOT EDIT!
 
 // Original file comments:
-// Copyright 2021 Gravitational, Inc
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Teleport
+// Copyright (C) 2023  Gravitational, Inc.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 'use strict';
 var grpc = require('@grpc/grpc-js');
@@ -26,6 +29,8 @@ var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/tele
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');
 var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/teleterm/v1/server_pb.js');
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
+var teleport_userpreferences_v1_cluster_preferences_pb = require('../../../../teleport/userpreferences/v1/cluster_preferences_pb.js');
+var teleport_userpreferences_v1_unified_resource_preferences_pb = require('../../../../teleport/userpreferences/v1/unified_resource_preferences_pb.js');
 
 function serialize_teleport_lib_teleterm_v1_AddClusterRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.AddClusterRequest)) {
@@ -423,6 +428,28 @@ function deserialize_teleport_lib_teleterm_v1_GetServersResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetServersResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_GetUserPreferencesRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetUserPreferencesRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetUserPreferencesRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetUserPreferencesResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetUserPreferencesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetUserPreferencesResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_ListClustersRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListClustersRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListClustersRequest');
@@ -685,6 +712,28 @@ function serialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressRespons
 
 function deserialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateUserPreferencesRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateUserPreferencesResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_WaitForConnectMyComputerNodeJoinRequest(arg) {
@@ -1182,6 +1231,31 @@ listUnifiedResources: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListUnifiedResourcesResponse,
+  },
+  // GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
+getUserPreferences: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetUserPreferencesRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetUserPreferencesRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetUserPreferencesResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetUserPreferencesResponse,
+  },
+  // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
+// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+updateUserPreferences: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
   },
 };
 

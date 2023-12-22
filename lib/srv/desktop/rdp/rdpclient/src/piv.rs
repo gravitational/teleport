@@ -1,24 +1,27 @@
-// Copyright 2021 Gravitational, Inc
+// Teleport
+// Copyright (C) 2023  Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::errors::invalid_data_error;
+use crate::rdpdr::TeleportRdpdrBackendError;
+use ironrdp_pdu::{custom_err, other_err, PduResult};
 use iso7816::aid::Aid;
 use iso7816::command::instruction::Instruction;
 use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
-use rdp::model::error::*;
+use log::{debug, warn};
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use rsa::{BigUint, RsaPrivateKey};
@@ -53,10 +56,9 @@ pub struct Card<const S: usize> {
 }
 
 impl<const S: usize> Card<S> {
-    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> RdpResult<Self> {
-        let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der).map_err(|e| {
-            invalid_data_error(&format!("failed to parse private key from DER: {e:?}"))
-        })?;
+    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> PduResult<Self> {
+        let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der)
+            .map_err(|_e| other_err!("failed to parse private key from DER"))?;
 
         Ok(Self {
             chuid: Self::build_chuid(uuid),
@@ -68,7 +70,7 @@ impl<const S: usize> Card<S> {
         })
     }
 
-    pub fn handle(&mut self, cmd: Command<S>) -> RdpResult<Response> {
+    pub fn handle(&mut self, cmd: Command<S>) -> PduResult<Response> {
         debug!("got command: {:?}", cmd);
         debug!("command data: {}", hex_data(&cmd));
 
@@ -76,9 +78,11 @@ impl<const S: usize> Card<S> {
         let cmd = match self.pending_command.as_mut() {
             None => cmd,
             Some(pending) => {
-                pending
-                    .extend_from_command(&cmd)
-                    .map_err(|_| invalid_data_error("could not build chained command"))?;
+                pending.extend_from_command(&cmd).map_err(|e| {
+                    custom_err!(TeleportRdpdrBackendError(format!(
+                        "could not build chained command: {e:?}"
+                    )))
+                })?;
 
                 pending.clone()
             }
@@ -106,7 +110,7 @@ impl<const S: usize> Card<S> {
         Ok(resp)
     }
 
-    fn handle_select(&mut self, cmd: Command<S>) -> RdpResult<Response> {
+    fn handle_select(&mut self, cmd: Command<S>) -> PduResult<Response> {
         // For our use case, we only allow selecting the PIV application on the smartcard.
         //
         // P1=04 and P2=00 means selection of DF (usually) application by name. Everything else not
@@ -139,7 +143,7 @@ impl<const S: usize> Card<S> {
         Ok(Response::with_data(Status::Success, resp.to_vec()))
     }
 
-    fn handle_verify(&mut self, cmd: Command<S>) -> RdpResult<Response> {
+    fn handle_verify(&mut self, cmd: Command<S>) -> PduResult<Response> {
         if cmd.data() == self.pin.as_bytes() {
             Ok(Response::new(Status::Success))
         } else {
@@ -148,14 +152,14 @@ impl<const S: usize> Card<S> {
         }
     }
 
-    fn handle_get_data(&mut self, cmd: Command<S>) -> RdpResult<Response> {
+    fn handle_get_data(&mut self, cmd: Command<S>) -> PduResult<Response> {
         // See https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf section
         // 3.1.2.
         if cmd.p1 != 0x3F && cmd.p2 != 0xFF {
             return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| invalid_data_error(&format!("TLV invalid: {e:?}")))?;
+            .map_err(|e| custom_err!(TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))))?;
         if *request_tlv.tag() != tlv_tag(0x5C)? {
             return Ok(Response::new(Status::NotFound));
         }
@@ -177,15 +181,15 @@ impl<const S: usize> Card<S> {
         }
     }
 
-    fn handle_get_response(&mut self, _cmd: Command<S>) -> RdpResult<Response> {
-        // CHINK_SIZE is the max response data size in bytes, without resorting to "extended"
+    fn handle_get_response(&mut self, _cmd: Command<S>) -> PduResult<Response> {
+        // CHUNK_SIZE is the max response data size in bytes, without resorting to "extended"
         // messages.
         const CHUNK_SIZE: usize = 256;
         match &mut self.pending_response {
             None => Ok(Response::new(Status::NotFound)),
             Some(cursor) => {
                 let mut chunk = [0; CHUNK_SIZE];
-                let n = cursor.read(&mut chunk)?;
+                let n = cursor.read(&mut chunk).map_err(|e| custom_err!(e))?;
                 let mut chunk = chunk.to_vec();
                 chunk.truncate(n);
                 let remaining = cursor.get_ref().len() as u64 - cursor.position();
@@ -223,7 +227,7 @@ impl<const S: usize> Card<S> {
         result
     }
 
-    fn handle_general_authenticate(&mut self, cmd: Command<S>) -> RdpResult<Response> {
+    fn handle_general_authenticate(&mut self, cmd: Command<S>) -> PduResult<Response> {
         // See section 3.2.4 and example in Appending A.3 from
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 
@@ -233,33 +237,33 @@ impl<const S: usize> Card<S> {
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-78-4.pdf
         // TODO(zmb3): support non-RSA keys, if needed.
         if cmd.p1 != 0x07 {
-            return Err(invalid_data_error(&format!(
+            return Err(custom_err!(TeleportRdpdrBackendError(format!(
                 "unsupported algorithm identifier P1:{:#X} in general authenticate command",
                 cmd.p1
-            )));
+            ))));
         }
         // P2='9A' means PIV Authentication Key (matches our cert '5FC105' in handle_get_data).
         if cmd.p2 != 0x9A {
-            return Err(invalid_data_error(&format!(
+            return Err(custom_err!(TeleportRdpdrBackendError(format!(
                 "unsupported key reference P2:{:#X} in general authenticate command",
                 cmd.p2
-            )));
+            ))));
         }
 
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| invalid_data_error(&format!("TLV invalid: {e:?}")))?;
+            .map_err(|e| custom_err!(TeleportRdpdrBackendError(format!("TLV invalid: {e:?}"))))?;
         if *request_tlv.tag() != tlv_tag(TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE)? {
-            return Err(invalid_data_error(&format!(
+            return Err(custom_err!(TeleportRdpdrBackendError(format!(
                 "general authenticate command TLV invalid: {request_tlv:?}"
-            )));
+            ))));
         }
 
         // Extract the challenge field.
         let request_tlvs = match request_tlv.value() {
             Value::Primitive(_) => {
-                return Err(invalid_data_error(&format!(
+                return Err(custom_err!(TeleportRdpdrBackendError(format!(
                     "general authenticate command TLV invalid: {request_tlv:?}"
-                )));
+                ))));
             }
             Value::Constructed(tlvs) => tlvs,
         };
@@ -271,16 +275,16 @@ impl<const S: usize> Card<S> {
             challenge = match data.value() {
                 Value::Primitive(chal) => Some(chal),
                 Value::Constructed(_) => {
-                    return Err(invalid_data_error(&format!(
+                    return Err(custom_err!(TeleportRdpdrBackendError(format!(
                         "general authenticate command TLV invalid: {request_tlv:?}"
-                    )));
+                    ))));
                 }
             };
         }
         let challenge = challenge.ok_or_else(|| {
-            invalid_data_error(&format!(
+            custom_err!(TeleportRdpdrBackendError(format!(
                 "general authenticate command TLV invalid: {request_tlv:?}, missing challenge data"
-            ))
+            )))
         })?;
 
         // TODO(zmb3): support non-RSA keys, if needed.
@@ -401,13 +405,20 @@ const TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE: u8 = 0x7C;
 const TLV_TAG_CHALLENGE: u8 = 0x81;
 const TLV_TAG_RESPONSE: u8 = 0x82;
 
-fn tlv(tag: u8, value: Value) -> RdpResult<Tlv> {
-    Tlv::new(tlv_tag(tag)?, value)
-        .map_err(|e| invalid_data_error(&format!("TLV with tag {tag:#X} invalid: {e:?}")))
+fn tlv(tag: u8, value: Value) -> PduResult<Tlv> {
+    Tlv::new(tlv_tag(tag)?, value).map_err(|e| {
+        custom_err!(TeleportRdpdrBackendError(format!(
+            "TLV with tag {tag:#X} invalid: {e:?}"
+        )))
+    })
 }
 
-fn tlv_tag(val: u8) -> RdpResult<Tag> {
-    Tag::try_from(val).map_err(|e| invalid_data_error(&format!("TLV tag {val:#X} invalid: {e:?}")))
+fn tlv_tag(val: u8) -> PduResult<Tag> {
+    Tag::try_from(val).map_err(|e| {
+        custom_err!(TeleportRdpdrBackendError(format!(
+            "TLV tag {val:#X} invalid: {e:?}"
+        )))
+    })
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package auth implements certificate signing authority and access control server
 // Authority server is composed of several parts:
@@ -36,6 +38,7 @@ import (
 	"math/big"
 	insecurerand "math/rand"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,6 +46,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -52,7 +56,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -64,6 +67,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -634,7 +638,10 @@ var (
 			Name:      teleport.MetricUpgraderCounts,
 			Help:      "Tracks the number of instances advertising each upgrader",
 		},
-		[]string{teleport.TagUpgrader},
+		[]string{
+			teleport.TagUpgrader,
+			teleport.TagVersion,
+		},
 	)
 
 	accessRequestsCreatedMetric = prometheus.NewCounterVec(
@@ -1205,8 +1212,14 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// set instance metric values
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-	for _, upgrader := range []string{types.UpgraderKindKubeController, types.UpgraderKindSystemdUnit} {
-		upgraderCountsMetric.WithLabelValues(upgrader).Set(float64(imp.InstancesWithUpgrader(upgrader)))
+
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
+		}
 	}
 
 	// create/delete upgrade enroll prompt as appropriate
@@ -1548,7 +1561,7 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 // emitter rather than falling back to the implementation from [Services] (using
 // the audit log directly, which is almost never what you want).
 func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
-	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+	return trace.Wrap(a.emitter.EmitAuditEvent(context.WithoutCancel(ctx), e))
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
@@ -3157,8 +3170,13 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 	return trace.Wrap(err)
 }
 
-// deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
-// for clusters that require second factors, which prevents users from being locked out of their account.
+// deleteMFADeviceSafely deletes the user's mfa device while preventing users
+// from locking themselves out of their account.
+//
+// Deletes are not allowed in the following situations:
+//   - Last MFA device when the cluster requires MFA
+//   - Last resident key credential in a passwordless-capable cluster (avoids
+//     passwordless users from locking themselves out).
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
 	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
@@ -3178,6 +3196,11 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	sfToCount := make(map[constants.SecondFactorType]int)
 	var knownDevices int
 	var deviceToDelete *types.MFADevice
+	var numResidentKeys int
+
+	isResidentKey := func(d *types.MFADevice) bool {
+		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
+	}
 
 	// Find the device to delete and count devices.
 	for _, d := range devs {
@@ -3197,6 +3220,10 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		sfToCount[sf]++
 		knownDevices++
+
+		if isResidentKey(d) {
+			numResidentKeys++
+		}
 	}
 	if deviceToDelete == nil {
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
@@ -3218,6 +3245,20 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		}
 	default:
 		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
+	}
+
+	// Stop users from deleting their last resident key. This prevents
+	// passwordless users from locking themselves out, at the cost of not letting
+	// regular users do it either.
+	//
+	// A better logic would be to apply this only to passwordless users, but we
+	// cannot distinguish users in that manner.
+	// See https://github.com/gravitational/teleport/issues/13219#issuecomment-1148255979.
+	//
+	// TODO(codingllama): Check if the last login type used was passwordless, if
+	//  not then we could let this device be deleted.
+	if authPref.GetAllowPasswordless() && numResidentKeys == 1 && isResidentKey(deviceToDelete) {
+		return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
@@ -3641,6 +3682,10 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	accessExpiry := req.GetAccessExpiry()
 	if accessExpiry.Before(a.GetClock().Now()) {
 		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
+	}
+
+	if req.GetAssumeStartTime() != nil && req.GetAssumeStartTime().After(a.GetClock().Now()) {
+		return nil, trace.BadParameter("access request %q can not be assumed until %v", accessRequestID, req.GetAssumeStartTime())
 	}
 
 	return req, nil
@@ -4474,10 +4519,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			UpdatedBy: authz.ClientUsername(ctx),
 			Expires:   req.GetAccessExpiry(),
 		},
-		RequestID:    params.RequestID,
-		RequestState: params.State.String(),
-		Reason:       params.Reason,
-		Roles:        params.Roles,
+		RequestID:       params.RequestID,
+		RequestState:    params.State.String(),
+		Reason:          params.Reason,
+		Roles:           params.Roles,
+		AssumeStartTime: params.AssumeStartTime,
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {
@@ -5275,9 +5321,9 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
-	if a.accessMonitoringEnabled {
-		features.IdentityGovernance = a.accessMonitoringEnabled
-	}
+	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
+	// (no other changes necessary)
+	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -5287,6 +5333,24 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
 	}, nil
+}
+
+// DELETE IN 16.0
+func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
+	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
+
+	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
+	// if access monitoring is enabled.
+	if versionExists {
+		clientVersion := semver.New(clientVersionString)
+		supportedVersion := semver.New("14.2.1")
+		if clientVersion.LessThan(*supportedVersion) {
+			features.IdentityGovernance = accessMonitoringEnabled
+		}
+	}
+
+	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
+	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
@@ -6027,7 +6091,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
+	if f.IsLegacy() || f.IGSEnabled() {
 		return nil // unlimited
 	}
 	monthlyLimit := f.AccessRequests.MonthlyRequestLimit

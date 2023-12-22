@@ -1,16 +1,18 @@
+Teleport uses [Semantic Versioning](https://semver.org/). Version numbers
+include a major version, minor version, and patch version, separated by dots.
 When running multiple `teleport` binaries within a cluster, the following rules
 apply:
 
 - **Patch and minor** versions are always compatible, for example, any 8.0.1
   component will work with any 8.0.3 component and any 8.1.0 component will work
   with any 8.3.0 component.
-- Servers support clients that are 1 major version behind, but do not support
+- Servers support clients that are one major version behind, but do not support
   clients that are on a newer major version. For example, an 8.x.x Proxy Service
-  is compatible with 7.x.x resource services and 7.x.x `tsh`, but we don't
-  guarantee that a 9.x.x resource service will work with an 8.x.x Proxy Service.
+  instance is compatible with 7.x.x agents and 7.x.x `tsh`, but we don't
+  guarantee that a 9.x.x agent will work with an 8.x.x Proxy Service instance.
   This also means you must not attempt to upgrade from 6.x.x straight to 8.x.x.
   You must upgrade to 7.x.x first.
-- Proxy Services and resource services do not support Auth Services that are on
-  an older major version, and will fail to connect to older Auth Services by
-  default. This behavior can be overridden by passing `--skip-version-check`
-  when starting Proxy Services and resource services.
+- Proxy Service instances and agents do not support Auth Service instances that
+  are on an older major version, and will fail to connect to older Auth Service
+  instances by default. You can override version checks by passing
+  `--skip-version-check` when starting agents and Proxy Service instances.

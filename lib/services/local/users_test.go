@@ -1,17 +1,19 @@
 /*
- * Copyright 2021 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package local_test
@@ -24,6 +26,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +40,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -761,6 +763,34 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 		_, err := identity.GetGlobalWebauthnSessionData(ctx, p.scope, p.id)
 		require.NoError(t, err) // Other keys preserved
 	}
+}
+
+func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+	identity.SetDesyncedClockForTesting(clock)
+
+	ctx := context.Background()
+	sessionData := &wanpb.SessionData{Challenge: []byte("challenge"), UserId: []byte("userid")}
+	err := identity.UpsertWebauthnSessionData(ctx, "user", "login", sessionData)
+	require.NoError(t, err)
+
+	got, err := identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.NoError(t, err)
+	require.Equal(t, sessionData, got)
+
+	// If the session data is expired but not automatically removed from
+	// the backend, it should be manually deleted on retrieval attempt.
+	// Advance the identity service clock and not the backend clock to
+	// emulate this occurrence.
+	clock.Advance(10 * time.Minute)
+	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
+
+	// Another retrieval should result in a not found error since it was deleted during the last get.
+	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
+	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 }
 
 func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {

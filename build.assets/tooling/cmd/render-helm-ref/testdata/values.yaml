@@ -22,6 +22,12 @@ annotations:
   # annotations.pod(object) -- controls the Kubernetes Pod annotations...
   pod: {}
 
+# Just add the title, no description nor table.
+# labels --
+labels:
+  #labels.deployment(object) -- controls ...
+  deployment: {}
+
 # Nested values documented at the parent level.
 # The podSecurityContext is documented as a single value. Its default will
 # be serialized in JSON.

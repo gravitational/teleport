@@ -63,6 +63,24 @@ message AccessListSpec {
 
   // title is a plaintext short description of the access list.
   string title = 8;
+
+  // membership defines how list membership is applied. There are two possible
+  // values:
+  //   `explicit` (default): To be considered ag member of the access list, a
+  //                         user must both meet the `membership_requires`
+  //                         conditions AND be explicitly added to the list.
+  //   `implicit`: Any user meeting the `membership_requires` conditions will automatically
+  //             be cosidered a member of this list.
+  string membership = 9;
+
+  // ownership defines how list ownership of this list is determined. There are
+  // two possible values:
+  //   `explicit` (default): To be considered an owner of the access list, a user
+  //                         must both meet the `ownership_requires` conditions AND be
+  //                         explicitly added to the list.
+  //   `implicit`: Any user meeting the `ownership_requires` conditions will automatically
+  //             be considered an owner of this list.
+  string ownership = 10;
 }
 
 // AccessListOwner is an owner of an access list.
@@ -176,6 +194,10 @@ message MemberSpec {
   // ineligible_status describes if this member is eligible or not
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
+
+  // membership defines how list membership was acquired. There are two possible
+  // values: `explicit` and `implicit`.
+  string membership = 8;
 }
 
 // IneligibleStatus describes how the user is ineligible.

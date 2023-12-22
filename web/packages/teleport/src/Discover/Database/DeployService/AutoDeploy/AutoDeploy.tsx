@@ -1,17 +1,19 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -102,9 +104,9 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     setShowLabelMatchErr(false);
     setAttempt({ status: 'processing' });
     integrationService
-      .deployAwsOidcService(dbMeta.integration?.name, {
+      .deployAwsOidcService(dbMeta.awsIntegration?.name, {
         deploymentMode: 'database-service',
-        region: dbMeta.selectedAwsRdsDb?.region,
+        region: dbMeta.awsRegion,
         subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
         taskRoleArn,
         databaseAgentMatcherLabels: labels,
@@ -164,7 +166,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             <Heading
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
-              region={dbMeta.selectedAwsRdsDb.region}
+              region={dbMeta.awsRegion}
             />
 
             {/* step one */}
@@ -187,7 +189,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                   showLabelMatchErr={showLabelMatchErr}
                   dbLabels={dbLabels}
                   autoFocus={false}
-                  region={dbMeta.selectedAwsRdsDb?.region}
+                  region={dbMeta.awsRegion}
                 />
               </Box>
             </StyledBox>
@@ -239,7 +241,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             {isDeploying && (
               <DeployHints
                 deployFinished={handleDeployFinished}
-                resourceName={(agentMeta as DbMeta).resourceName}
+                resourceName={agentMeta.resourceName}
                 abortDeploying={abortDeploying}
                 deploySvcResp={deploySvcResp}
               />
@@ -301,7 +303,7 @@ const CreateAccessRole = ({
   validator: Validator;
 }) => {
   const [scriptUrl, setScriptUrl] = useState('');
-  const { integration, selectedAwsRdsDb } = dbMeta;
+  const { awsIntegration, awsRegion } = dbMeta;
 
   function generateAutoConfigScript() {
     if (!validator.validate()) {
@@ -309,11 +311,11 @@ const CreateAccessRole = ({
     }
 
     const newScriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
-      integrationName: integration.name,
-      region: selectedAwsRdsDb.region,
+      integrationName: awsIntegration.name,
+      region: awsRegion,
       // arn's are formatted as `don-care-about-this-part/role-arn`.
       // We are splitting by slash and getting the last element.
-      awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
+      awsOidcRoleArn: awsIntegration.spec.roleArn.split('/').pop(),
       taskRoleArn,
     });
 

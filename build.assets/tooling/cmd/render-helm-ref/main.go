@@ -1,18 +1,21 @@
 /*
-Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package main
 
 import (
@@ -140,12 +143,13 @@ type Value struct {
 	Name string
 	Kind string
 
-	Description strings.Builder
+	Description string
 	Default     string
 }
 
 type state struct {
 	isDescription bool
+	description   strings.Builder
 
 	value *Value
 }
@@ -174,8 +178,8 @@ func grabValue(comment string) *Value {
 			// start of a value documentation
 			s.isDescription = true
 			s.value = &Value{Name: name, Kind: kind}
-			s.value.Description.WriteString(remain)
-			s.value.Description.WriteRune('\n')
+			s.description.WriteString(remain)
+			s.description.WriteRune('\n')
 			continue
 		}
 		// We already saw a tag on a previous line
@@ -185,8 +189,12 @@ func grabValue(comment string) *Value {
 			s.value.Default = defaultValue
 			continue
 		}
-		s.value.Description.WriteString(cleanLine(line))
-		s.value.Description.WriteRune('\n')
+		s.description.WriteString(cleanLine(line))
+		s.description.WriteRune('\n')
+	}
+
+	if s.isDescription {
+		s.value.Description = strings.TrimSpace(s.description.String())
 	}
 	return s.value
 }

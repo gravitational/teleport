@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package helpers
 
@@ -22,8 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -77,23 +83,32 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
-	return func() bool {
+	// GetSites will always return the local site
+	expected++
+
+	return func() (ok bool) {
 		clusters, err := tun.GetSites()
 		if err != nil {
 			return false
 		}
 
-		// Check the expected number of clusters are connected, and they have all
-		// connected with the past 10 seconds.
-		if len(clusters) >= expected {
-			for _, cluster := range clusters {
-				if time.Since(cluster.GetLastConnected()).Seconds() > 10.0 {
-					return false
-				}
+		if len(clusters) < expected {
+			return false
+		}
+
+		var live int
+		for _, cluster := range clusters {
+			if time.Since(cluster.GetLastConnected()) > 10*time.Second {
+				continue
+			}
+
+			live++
+			if live >= expected {
+				return true
 			}
 		}
 
-		return true
+		return false
 	}
 }
 
@@ -130,12 +145,18 @@ func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 
 // WaitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, expectedCount int) {
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := tunnel.GetSite(clusterName)
-		if err != nil {
-			return false
+		if !assert.NoError(t, err, "site not found") {
+			return
 		}
-		return cluster.GetTunnelsCount() >= expectedCount
+
+		assert.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
+
+		assert.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
+
+		_, err = cluster.GetClient()
+		assert.NoError(t, err, "cluster not yet available")
 	},
 		30*time.Second,
 		time.Second,
@@ -166,8 +187,6 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
-		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using

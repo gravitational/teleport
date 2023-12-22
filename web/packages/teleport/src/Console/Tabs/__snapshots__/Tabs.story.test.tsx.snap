@@ -1,13 +1,31 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render ConsoleTabs 1`] = `
-.c6 {
+.c10 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c9 {
+.c0 {
+  box-sizing: border-box;
+  margin: -16px;
+  height: 100%;
+  width: 100%;
+}
+
+.c2 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 100%;
+  color: rgba(255,255,255,0.72);
+}
+
+.c4 {
+  box-sizing: border-box;
+}
+
+.c13 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -28,25 +46,25 @@ exports[`render ConsoleTabs 1`] = `
   margin-left: 8px;
 }
 
-.c9:disabled {
+.c13:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c9:disabled {
+.c13:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c9:hover:enabled,
-.c9:focus:enabled {
+.c13:hover:enabled,
+.c13:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c9:active:enabled {
+.c13:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c4 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -54,18 +72,16 @@ exports[`render ConsoleTabs 1`] = `
   margin-right: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin: -16px;
-  height: 100%;
-  width: 100%;
+.c1 {
   display: flex;
 }
 
-.c2 {
-  box-sizing: border-box;
+.c5 {
   display: flex;
   align-items: center;
+}
+
+.c6 {
   max-width: 450px;
   height: 100%;
   border: none;
@@ -76,29 +92,26 @@ exports[`render ConsoleTabs 1`] = `
   transition: none;
 }
 
-.c2:hover,
-.c2:focus {
+.c6:hover,
+.c6:focus {
   color: #FFFFFF;
   transition: color .3s;
 }
 
-.c8 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
+.c12 {
   max-width: 450px;
   height: 100%;
   border: none;
   border-right: 1px solid #0C143D;
 }
 
-.c8:hover,
-.c8:focus {
+.c12:hover,
+.c12:focus {
   color: #FFFFFF;
   transition: color .3s;
 }
 
-.c3 {
+.c7 {
   display: flex;
   flex: 1;
   align-items: center;
@@ -116,7 +129,7 @@ exports[`render ConsoleTabs 1`] = `
   border: none;
 }
 
-.c5 {
+.c9 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,21 +146,17 @@ exports[`render ConsoleTabs 1`] = `
   color: #FFFFFF;
 }
 
-.c5:hover {
+.c9:hover {
   color: #000000;
   background: #FF6257;
 }
 
-.c7 {
+.c11 {
   transition: none;
   color: inherit;
 }
 
-.c1 {
-  box-sizing: border-box;
-  height: 32px;
-  width: 100%;
-  color: rgba(255,255,255,0.72);
+.c3 {
   background: #222C59;
   min-height: 32px;
   border-radius: 4px;
@@ -162,37 +171,37 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 <div
-  class="c0"
+  class="c0 c1"
   height="100%"
   style="position: absolute;"
   width="100%"
 >
   <nav
-    class="c1"
+    class="c2 c3"
     color="text.slightlyMuted"
     height="32px"
     width="100%"
   >
     <div
-      class="c2"
+      class="c4 c5 c6"
       style="flex: 1; flex-basis: 0px; flex-grow: 0;"
     >
       <button
-        class="c3"
+        class="c7"
       >
         <div
-          class="c4"
+          class="c8"
           title="tuguwog"
         >
           tuguwog
         </div>
       </button>
       <button
-        class="c5"
+        class="c9"
         title="Close"
       >
         <span
-          class="c6 c7"
+          class="c10 c11"
         >
           <svg
             fill="currentColor"
@@ -208,25 +217,25 @@ exports[`render ConsoleTabs 1`] = `
       </button>
     </div>
     <div
-      class="c8"
+      class="c4 c5 c12"
       style="flex: 1; flex-basis: 0px; flex-grow: 0;"
     >
       <button
-        class="c3"
+        class="c7"
       >
         <div
-          class="c4"
+          class="c8"
           title="emwonepu"
         >
           emwonepu
         </div>
       </button>
       <button
-        class="c5"
+        class="c9"
         title="Close"
       >
         <span
-          class="c6 c7"
+          class="c10 c11"
         >
           <svg
             fill="currentColor"
@@ -242,25 +251,25 @@ exports[`render ConsoleTabs 1`] = `
       </button>
     </div>
     <div
-      class="c8"
+      class="c4 c5 c12"
       style="flex: 1; flex-basis: 0px; flex-grow: 0;"
     >
       <button
-        class="c3"
+        class="c7"
       >
         <div
-          class="c4"
+          class="c8"
           title="foguzaziw"
         >
           foguzaziw
         </div>
       </button>
       <button
-        class="c5"
+        class="c9"
         title="Close"
       >
         <span
-          class="c6 c7"
+          class="c10 c11"
         >
           <svg
             fill="currentColor"
@@ -276,11 +285,11 @@ exports[`render ConsoleTabs 1`] = `
       </button>
     </div>
     <button
-      class="c9"
+      class="c13"
       title="New Tab"
     >
       <span
-        class="c6 icon icon-add"
+        class="c10 icon icon-add"
       >
         <svg
           fill="currentColor"

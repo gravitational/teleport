@@ -394,15 +394,12 @@ $ tsh db ls
 # aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
 ```
 
-<Admonition type="note" title="Note">
+<Admonition type="note" title="Discovered endpoints">
 
   Primary, reader, and custom endpoints of Aurora clusters have names with the
   format
   `<cluster-id>`, `<cluster-id>-reader`, and
   `<cluster-id>-custom-<endpoint-name>` respectively.
-
-  You can override the `<cluster-id>` part of the name with the
-  `TeleportDatabaseName` AWS tag.
 
 </Admonition>
 

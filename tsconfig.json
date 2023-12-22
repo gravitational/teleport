@@ -11,7 +11,7 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "jsx": "react-jsx",
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noEmitHelpers": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
@@ -50,7 +50,7 @@
   ],
   "references": [{ "path": "./tsconfig.node.json" }],
   "exclude": [
-    "**/vite.config.ts",
+    "**/vite.config.mts",
     "web/packages/build/vite/*",
     "node_modules",
     "**/node_modules/*",

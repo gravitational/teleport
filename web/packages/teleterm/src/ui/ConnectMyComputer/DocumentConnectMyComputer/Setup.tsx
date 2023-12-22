@@ -1,18 +1,20 @@
-/*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -113,23 +115,13 @@ function Information(props: {
         </>
       )}
       <Text>
-        Connect My Computer allows you to add this device to the Teleport
-        cluster with just a few clicks.{' '}
-        <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />
+        <ClusterAndHostnameCopy clusterName={clusterName} hostname={hostname} />{' '}
+        Cluster users with the role <strong>{roleName}</strong> and users with
+        administrator privileges will be able to access your computer as{' '}
+        <strong>{systemUsername}</strong>.
         <br />
         <br />
-        Cluster users with the role <strong>{roleName}</strong> will be able to
-        access your computer as <strong>{systemUsername}</strong>.
-        <br />
-        <br />
-        Note that users with administrator privileges can assign that role to
-        themselves or craft another role which grants access to the node. We
-        recommend using Connect My Computer only in scenarios where no other
-        user could plausibly gain access to the node, such as when exploring a
-        Teleport cluster as its only user or in a home lab.
-        <br />
-        <br />
-        Your computer will be shared while Teleport Connect is open. To stop
+        Your device will be shared while Teleport Connect is open. To stop
         sharing, close Teleport Connect or stop the agent through the Connect My
         Computer tab. Sharing will resume on app restart, unless you stop the
         agent before exiting.
@@ -505,9 +497,8 @@ function ClusterAndHostnameCopy(props: {
 }): JSX.Element {
   return (
     <>
-      The setup process will download and launch a Teleport agent, making your
-      computer available in the <strong>{props.clusterName}</strong> cluster as{' '}
-      <strong>{props.hostname}</strong>.
+      The setup process will make <strong>{props.hostname}</strong> available in
+      the <strong>{props.clusterName}</strong> cluster as an SSH server.
     </>
   );
 }

@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useState } from 'react';
@@ -29,16 +31,19 @@ import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
   UnifiedResourcePreferences,
-  UnifiedTabPreference,
-  UnifiedViewModePreference,
-} from 'teleport/services/userPreferences/types';
+  DefaultTab,
+  ViewMode,
+  LabelsViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
-import { UnifiedResources, useUnifiedResourcesFetch } from './UnifiedResources';
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
+
 import {
-  SharedUnifiedResource,
-  UnifiedResourcesPinning,
-  UnifiedResourcesQueryParams,
-} from './types';
+  UnifiedResources,
+  useUnifiedResourcesFetch,
+  UnifiedResourcesProps,
+} from './UnifiedResources';
+import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 
 export default {
   title: 'Shared/UnifiedResources',
@@ -74,14 +79,13 @@ const story = ({
     updateClusterPinnedResources: async () => undefined,
   },
   params,
+  ...props
 }: {
   fetchFunc: (
     params: UrlResourcesParams,
     signal: AbortSignal
   ) => Promise<ResourcesResponse<SharedUnifiedResource['resource']>>;
-  pinning?: UnifiedResourcesPinning;
-  params?: Partial<UnifiedResourcesQueryParams>;
-}) => {
+} & Omit<Partial<UnifiedResourcesProps>, 'fetchResources'>) => {
   const mergedParams: UnifiedResourcesQueryParams = {
     ...{
       sort: {
@@ -93,8 +97,9 @@ const story = ({
   };
   return () => {
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
-      defaultTab: UnifiedTabPreference.All,
-      viewMode: UnifiedViewModePreference.Card,
+      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
+      viewMode: ViewMode.VIEW_MODE_CARD,
+      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     });
     const { fetch, attempt, resources } = useUnifiedResourcesFetch({
       fetchFunc,
@@ -128,7 +133,6 @@ const story = ({
         pinning={pinning}
         unifiedResourcePreferences={userPrefs}
         updateUnifiedResourcesPreferences={setUserPrefs}
-        onLabelClick={() => undefined}
         NoResources={undefined}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
@@ -138,6 +142,7 @@ const story = ({
             ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
           },
         }))}
+        {...props}
       />
     );
   };
@@ -179,19 +184,35 @@ export const LoadingAfterScrolling = story({
   },
 });
 
-export const Errored = story({
+export const Failed = story({
   fetchFunc: async () => {
     throw new Error('Failed to fetch');
   },
 });
 
-export const ErroredAfterScrolling = story({
+export const FailedAfterScrolling = story({
   fetchFunc: async params => {
     if (params.startKey === 'next-key') {
       throw new Error('Failed to fetch');
     }
     return { agents: allResources, startKey: 'next-key' };
   },
+});
+
+export const FailedToLoadPreferences = story({
+  fetchFunc: async () => ({
+    agents: allResources,
+  }),
+  unifiedResourcePreferencesAttempt: makeErrorAttempt(
+    new Error('Network error')
+  ),
+});
+
+export const LoadingPreferences = story({
+  fetchFunc: async () => ({
+    agents: allResources,
+  }),
+  unifiedResourcePreferencesAttempt: makeProcessingAttempt(),
 });
 
 export const PinningNotSupported = story({

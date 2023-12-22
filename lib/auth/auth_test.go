@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -888,8 +890,9 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test github upsert event
 	github.SetDisplay("alpaca")
-	err = s.a.upsertGithubConnector(ctx, github)
+	upserted, err := s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
@@ -936,8 +939,9 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test oidc upsert event
 	oidc.SetDisplay("alpaca")
-	err = s.a.UpsertOIDCConnector(ctx, oidc)
+	upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
 	s.mockEmitter.Reset()
@@ -1008,7 +1012,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 
 	// test saml upsert event
 	saml.SetDisplay("alapaca")
-	err = s.a.UpsertSAMLConnector(ctx, saml)
+	_, err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())

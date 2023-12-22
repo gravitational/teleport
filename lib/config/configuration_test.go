@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -541,7 +543,7 @@ func TestConfigReading(t *testing.T) {
 				ListenAddress: "tcp://windows_desktop",
 			},
 			PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
-			Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+			ADHosts:    apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 		},
 		Tracing: TracingService{
 			EnabledFlag: "yes",
@@ -1647,7 +1649,7 @@ func makeConfigFixture() string {
 			ListenAddress: "tcp://windows_desktop",
 		},
 		PublicAddr: apiutils.Strings([]string{"winsrv.example.com:3028", "no-port.winsrv.example.com"}),
-		Hosts:      apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
+		ADHosts:    apiutils.Strings([]string{"win.example.com:3389", "no-port.win.example.com"}),
 	}
 
 	// Tracing service.
@@ -2128,7 +2130,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - invalid static host addr",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"badscheme://foo:1:2"}
+				fc.WindowsDesktop.ADHosts = []string{"badscheme://foo:1:2"}
 			},
 		},
 		{
@@ -2160,7 +2162,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "NOK - hosts specified but ldap not specified",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "",
 				}
@@ -2170,7 +2172,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - hosts specified and ldap specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2180,7 +2182,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - no hosts specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.ADHosts = []string{}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "",
 				}
@@ -2190,7 +2192,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			desc:        "OK - no hosts specified and ldap specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
-				fc.WindowsDesktop.Hosts = []string{}
+				fc.WindowsDesktop.ADHosts = []string{}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2250,7 +2252,7 @@ func TestWindowsDesktopService(t *testing.T) {
 			mutate: func(fc *FileConfig) {
 				fc.WindowsDesktop.EnabledFlag = "yes"
 				fc.WindowsDesktop.ListenAddress = "0.0.0.0:3028"
-				fc.WindowsDesktop.Hosts = []string{"127.0.0.1:3389"}
+				fc.WindowsDesktop.ADHosts = []string{"127.0.0.1:3389"}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
 				}
@@ -2784,7 +2786,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
 				DatabaseProtocol:     defaults.ProtocolSQLServer,
-				DatabaseURI:          "localhost:1433",
+				DatabaseURI:          "sqlserver.example.com:1433",
 				DatabaseADKeytabFile: "/etc/keytab",
 				DatabaseADDomain:     "EXAMPLE.COM",
 				DatabaseADSPN:        "MSSQLSvc/sqlserver.example.com:1433",
@@ -2792,7 +2794,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			outDatabase: servicecfg.Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
+				URI:      "sqlserver.example.com:1433",
 				TLS: servicecfg.DatabaseTLS{
 					Mode: servicecfg.VerifyFull,
 				},
@@ -2882,6 +2884,41 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					AccountID:     "123456789012",
 					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID:    "externalID123",
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: servicecfg.DatabaseTLS{
+					Mode: servicecfg.VerifyFull,
+				},
+			},
+		},
+		{
+			desc: "AWS DynamoDB with session tags",
+			inFlags: CommandLineFlags{
+				DatabaseName:             "ddb",
+				DatabaseProtocol:         defaults.ProtocolDynamoDB,
+				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
+				DatabaseAWSSessionTags:   "database_name=hello,something=else",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: servicecfg.DatabaseAWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
+					SessionTags: map[string]string{
+						"database_name": "hello",
+						"something":     "else",
+					},
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,

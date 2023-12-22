@@ -1,24 +1,32 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Flex, Box } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
 export function LoadingCard() {
+  const [randomizedSize] = useState(() => ({
+    name: randomNum(100, 30),
+    description: randomNum(90, 40),
+    labels: new Array(randomNum(4, 0)),
+  }));
+
   return (
     <Flex gap={2} alignItems="start" height="106px" p={3}>
       {/* Checkbox */}
@@ -31,17 +39,21 @@ export function LoadingCard() {
           <ShimmerBox
             height="24px"
             css={`
-              flex-basis: ${randomNum(100, 30)}%;
+              flex-basis: ${randomizedSize.name}%;
             `}
           />
           {/* Action button */}
           <ShimmerBox height="24px" width="90px" />
         </Flex>
         {/* Description */}
-        <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
+        <ShimmerBox
+          height="16px"
+          width={`${randomizedSize.description}%`}
+          mb={2}
+        />
         {/* Labels */}
         <Flex gap={2}>
-          {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
+          {randomizedSize.labels.fill(null).map((_, i) => (
             <ShimmerBox key={i} height="16px" width="60px" />
           ))}
         </Flex>

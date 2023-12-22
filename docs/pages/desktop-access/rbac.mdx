@@ -87,8 +87,8 @@ host_labels:
 
 The regular expression provided in the `match` rule above is applied to the
 desktop's name for desktops that are discovered via LDAP. Hosts that are
-statically defined (in the `hosts` or `non_ad_hosts` sections of your
-configuration) receive an auto-generated name, so host label matching applies
+statically defined (in the `static_hosts` section of your configuration)
+receive an auto-generated name, so host label matching applies
 against the desktop's `addr` in these cases.
 
 #### Static hosts

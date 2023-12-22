@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -7373,7 +7375,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		{
 			test:         "test exact match, one role, can create",
 			canCreate:    true,
-			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7396,7 +7398,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		{
 			test:         "test two roles, 1 exact match, one can create",
 			canCreate:    false,
-			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7428,7 +7430,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		{
 			test:         "test three roles, 2 exact match, both can create",
 			canCreate:    true,
-			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7494,9 +7496,9 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			types.CreateHostUserMode_HOST_USER_MODE_OFF,
 		),
 		createDefaultTCWithMode(
-			"test can create when create host user mode is drop",
+			"test can create when create host user mode is insecure-drop",
 			true,
-			types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		),
 		createDefaultTCWithMode(
 			"test can create when create host user mode is keep",
@@ -7527,7 +7529,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+						CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},

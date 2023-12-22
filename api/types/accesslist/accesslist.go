@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
@@ -111,6 +112,28 @@ func parseReviewDayOfMonth(input string) ReviewDayOfMonth {
 	return 0
 }
 
+// Inclusion values indicate how membership and ownership of an AccessList
+// should be applied.
+type Inclusion string
+
+const (
+	// InclusionUnspecified is the default, un-set inclusion value used to
+	// detect when inclusion is not specified in an access list. The only times
+	// you should encounter this value in practice is when un-marshaling an
+	// AccessList that pre-dates the implementation of dynamic access lists.
+	InclusionUnspecified Inclusion = ""
+
+	// InclusionImplicit indicates that a user need only meet a requirement set
+	// to be considered included in a list. Both list membership and ownership
+	// may be Implicit.
+	InclusionImplicit Inclusion = "implicit"
+
+	// InclusionExplicit indicates that a user must meet a requirement set AND
+	// be explicitly added to an access list to be included in it. Both list
+	// membership and ownership may be Explicit.
+	InclusionExplicit Inclusion = "explicit"
+)
+
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
 // regularly audited.
@@ -136,10 +159,28 @@ type Spec struct {
 	// Audit describes the frequency that this access list must be audited.
 	Audit Audit `json:"audit" yaml:"audit"`
 
+	// Membership defines how list ownership of this list is determined. There
+	// are two possible values:
+	//  Explicit: To be considered an member of the access list, a user must
+	//            both meet the `membership_conditions` AND be explicitly added
+	//            to the list.
+	//  Implicit: Any user meeting the `membership_conditions` will automatically
+	//            be considered an owner of this list.
+	Membership Inclusion `json:"membership" yaml:"membership"`
+
 	// MembershipRequires describes the requirements for a user to be a member of the access list.
 	// For a membership to an access list to be effective, the user must meet the requirements of
 	// MembershipRequires and must be in the members list.
 	MembershipRequires Requires `json:"membership_requires" yaml:"membership_requires"`
+
+	// Ownership defines how list ownership of this list is determined. There
+	// are two possible values:
+	//  Explicit: To be considered an owner of the access list, a user must
+	//            both meet the `ownership_conditions` AND be explicitly added
+	//            to the list.
+	//  Implicit: Any user meeting the `ownership_conditions` will automatically
+	//            be considered an owner of this list.
+	Ownership Inclusion `json:"ownership" yaml:"ownership"`
 
 	// OwnershipRequires describes the requirements for a user to be an owner of the access list.
 	// For ownership of an access list to be effective, the user must meet the requirements of
@@ -200,6 +241,11 @@ type Requires struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
+// IsEmpty returns true when no roles or traits are set
+func (r *Requires) IsEmpty() bool {
+	return len(r.Roles) == 0 && len(r.Traits) == 0
+}
+
 // Grants describes what access is granted by membership to the access list.
 type Grants struct {
 	// Roles are the roles that are granted to users who are members of the access list.
@@ -207,24 +253,6 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
-}
-
-// Member describes a member of an access list.
-type Member struct {
-	// Name is the name of the member of the access list.
-	Name string `json:"name" yaml:"name"`
-
-	// Joined is when the user joined the access list.
-	Joined time.Time `json:"joined" yaml:"joined"`
-
-	// expires is when the user's membership to the access list expires.
-	Expires time.Time `json:"expires" yaml:"expires"`
-
-	// reason is the reason this user was added to the access list.
-	Reason string `json:"reason" yaml:"reason"`
-
-	// added_by is the user that added this user to the access list.
-	AddedBy string `json:"added_by" yaml:"added_by"`
 }
 
 // NewAccessList will create a new access list.
@@ -241,6 +269,23 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
+// checkInclusion validates an Inclusion value, defaulting to "Explicit" if not
+// set. Any other invalid value is an error.
+func checkInclusion(i Inclusion) (Inclusion, error) {
+	switch i {
+	case InclusionUnspecified:
+		return InclusionExplicit, nil
+
+	case InclusionExplicit, InclusionImplicit:
+		return i, nil
+
+	default:
+		return InclusionUnspecified,
+			trace.BadParameter("invalid inclusion mode %s (must be %s or %s)",
+				i, InclusionExplicit, InclusionImplicit)
+	}
+}
+
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessList)
@@ -254,12 +299,17 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("access list title required")
 	}
 
-	if len(a.Spec.Owners) == 0 {
-		return trace.BadParameter("owners are missing")
+	var err error
+	if a.Spec.Ownership, err = checkInclusion(a.Spec.Ownership); err != nil {
+		return trace.Wrap(err, "ownership")
 	}
 
-	if a.Spec.Audit.NextAuditDate.IsZero() {
-		return trace.BadParameter("next audit date is missing")
+	if a.Spec.Membership, err = checkInclusion(a.Spec.Membership); err != nil {
+		return trace.Wrap(err, "membership")
+	}
+
+	if a.Spec.Ownership != InclusionImplicit && len(a.Spec.Owners) == 0 {
+		return trace.BadParameter("owners are missing")
 	}
 
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
@@ -280,6 +330,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
 	default:
 		return trace.BadParameter("recurrence day of month is an invalid value")
+	}
+
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		a.setInitialAuditDate(clockwork.NewRealClock())
 	}
 
 	if a.Spec.Audit.Notifications.Start == 0 {
@@ -355,6 +409,30 @@ func (a *AccessList) CloneResource() types.ResourceWithLabels {
 	var copy *AccessList
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
+}
+
+// HasImplicitOwnership returns true if the supplied AccessList uses
+// implicit ownership
+func (a *AccessList) HasImplicitOwnership() bool {
+	return a.Spec.Ownership == InclusionImplicit
+}
+
+// HasExplicitOwnership returns true if the supplied AccessList uses
+// explicit ownership
+func (a *AccessList) HasExplicitOwnership() bool {
+	return a.Spec.Ownership == InclusionExplicit
+}
+
+// HasImplicitMembership returns true if the supplied AccessList uses
+// implicit membership
+func (a *AccessList) HasImplicitMembership() bool {
+	return a.Spec.Membership == InclusionImplicit
+}
+
+// HasExplicitMembership returns true if the supplied AccessList uses
+// explicit membership
+func (a *AccessList) HasExplicitMembership() bool {
+	return a.Spec.Membership == InclusionExplicit
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
@@ -449,4 +527,33 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 		Alias: (Alias)(n),
 		Start: n.Start.String(),
 	})
+}
+
+// SelectNextReviewDate will select the next review date for the access list.
+func (a *AccessList) SelectNextReviewDate() time.Time {
+	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
+	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
+
+	// If the last day of the month has been specified, use the 0 day of the
+	// next month, which will result in the last day of the target month.
+	if dayOfMonth == int(LastDayOfMonth) {
+		numMonths += 1
+		dayOfMonth = 0
+	}
+
+	currentReviewDate := a.Spec.Audit.NextAuditDate
+	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
+		0, 0, 0, 0, time.UTC)
+
+	return nextDate
+}
+
+// setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
+// The function is extracted from CheckAndSetDefaults for the sake of testing
+// (we need to pass a fake clock).
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
+	// We act as if the AccessList just got reviewed (we just created it, so
+	// we're pretty sure of what it does) and pick the next review date.
+	a.Spec.Audit.NextAuditDate = clock.Now()
+	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
 }

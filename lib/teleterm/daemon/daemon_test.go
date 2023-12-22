@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package daemon
 
@@ -58,7 +62,20 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
+	config := gateway.Config{
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              defaults.ProtocolPostgres,
+		Insecure:              true,
+		WebProxyAddr:          hs.Listener.Addr().String(),
+		TCPPortAllocator:      m.tcpPortAllocator,
+		KubeconfigsDir:        m.t.TempDir(),
+	}
+
+	identity := tlsca.Identity{
 		Username: "user",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -67,22 +84,23 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 			Username:    params.TargetUser,
 		},
 		KubernetesCluster: params.TargetURI.GetKubeName(),
-	})
+	}
 
-	gateway, err := gateway.New(gateway.Config{
-		LocalPort:             params.LocalPort,
-		TargetURI:             params.TargetURI,
-		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
-		TargetSubresourceName: params.TargetSubresourceName,
-		Protocol:              defaults.ProtocolPostgres,
-		CertPath:              keyPairPaths.CertPath,
-		KeyPath:               keyPairPaths.KeyPath,
-		Insecure:              true,
-		WebProxyAddr:          hs.Listener.Addr().String(),
-		TCPPortAllocator:      m.tcpPortAllocator,
-		KubeconfigsDir:        m.t.TempDir(),
-	})
+	ca := gatewaytest.MustGenCACert(m.t)
+
+	if params.TargetURI.IsDB() {
+		keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
+
+		config.CertPath = keyPairPaths.CertPath
+		config.KeyPath = keyPairPaths.KeyPath
+	}
+
+	if params.TargetURI.IsKube() {
+		cert := gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity)
+		config.Cert = cert
+	}
+
+	gateway, err := gateway.New(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,20 +261,13 @@ func TestGatewayCRUD(t *testing.T) {
 				tt.tcpPortAllocator = &gatewaytest.MockTCPPortAllocator{}
 			}
 
-			homeDir := t.TempDir()
 			mockGatewayCreator := &mockGatewayCreator{
 				t:                t,
 				tcpPortAllocator: tt.tcpPortAllocator,
 			}
 
-			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                homeDir,
-				InsecureSkipVerify: true,
-			})
-			require.NoError(t, err)
-
 			daemon, err := New(Config{
-				Storage:        storage,
+				Storage:        fakeStorage{},
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),

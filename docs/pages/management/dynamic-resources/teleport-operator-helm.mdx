@@ -1,0 +1,180 @@
+---
+title: Kubernetes Operator in teleport-cluster Helm chart
+description: Deploy the operator alongside your Helm-deployed Teleport Cluster.
+---
+
+This guide explains how to run the Teleport Kubernetes Operator alongside a Teleport cluster
+deployed via the `teleport-cluster` Helm chart.
+
+<Admonition type="warning">
+If your Teleport cluster is not deployed using the `teleport-cluster` Helm chart
+(Teleport Cloud, manually deployed, deployed via Terraform, ...), you need to follow
+[the standalone operator guide](./teleport-operator-standalone.mdx) instead.
+</Admonition>
+
+## Prerequisites
+
+- Kubernetes cluster (with or without `teleport-cluster` Helm chart already deployed);
+- [Helm](https://helm.sh/docs/intro/quickstart/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+Validate Kubernetes connectivity by running the following command:
+
+```code
+$ kubectl cluster-info
+# Kubernetes control plane is running at https://127.0.0.1:6443
+# CoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+# Metrics-server is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/https:metrics-server:https/proxy
+```
+
+<Admonition type="tip">
+  Users wanting to experiment locally with the operator can use [minikube](https://minikube.sigs.k8s.io/docs/start/)
+  to start a local Kubernetes cluster:
+  ```code
+  $ minikube start
+  ```
+</Admonition>
+
+## Step 1/3. Install teleport-cluster Helm chart with the operator
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+Install the Helm chart for the Teleport Cluster with `operator.enabled=true`
+in the <Var name="teleport-cluster"/> namespace:
+
+<Tabs>
+<TabItem scope="oss" label="Teleport Community Edition">
+
+```code
+$ helm install teleport-cluster teleport/teleport-cluster \
+        --create-namespace --namespace <Var name="teleport-cluster"/> \
+        --set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
+        --set operator.enabled=true \
+        --version (=teleport.version=)
+```
+</TabItem>
+<TabItem scope="enterprise" label="Teleport Enterprise">
+
+Create a namespace for your Teleport cluster resources:
+
+```code
+$ kubectl create namespace <Var name="teleport-cluster"/>
+```
+
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+Create a secret called "license" in the namespace you created:
+
+```code
+$ kubectl -n <Var name="teleport-cluster"/> create secret generic license --from-file=license.pem
+```
+
+Deploy your Teleport cluster and the Teleport Kubernetes Operator:
+
+```code
+$ helm install teleport-cluster teleport/teleport-cluster \
+        --namespace <Var name="teleport-cluster"/> \
+        --set enterprise=true \
+        --set clusterName=teleport-cluster.teleport-cluster.svc.cluster.local \
+        --set operator.enabled=true \
+        --version (=teleport.version=)
+```
+</TabItem>
+
+</Tabs>
+
+This command installs the required Kubernetes CRDs and deploys the Teleport Kubernetes Operator next to the Teleport
+cluster. All resources (except CRDs, which are cluster-scoped) are created in the `teleport-cluster` namespace.
+
+## Step 2/3. Manage Teleport users and roles using `kubectl`
+
+Create a manifest called `teleport-resources.yaml` that describes two custom resources: a `TeleportUser` and a `TeleportRole`:
+
+```yaml
+apiVersion: resources.teleport.dev/v5
+kind: TeleportRole
+metadata:
+  name: myrole
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role']
+        verbs: ['list','create','read','update','delete']
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportUser
+metadata:
+  name: myuser
+spec:
+  roles: ['myrole']
+```
+
+Apply the manifests to the Kubernetes cluster:
+
+```code
+$ kubectl apply -n <Var name="teleport-cluster"/> -f teleport-resources.yaml
+```
+
+List the created Kubernetes resources:
+
+```code
+$ kubectl get teleportroles -n <Var name="teleport-cluster"/>
+# NAME     AGE
+# myrole   10m
+
+$ kubectl get teleportusers -n <Var name="teleport-cluster"/>
+# NAME     AGE
+# myuser   10m
+```
+
+Check the user `myuser` has been created in Teleport and has been granted the role `myrole`:
+```code
+$ AUTH_POD=$(kubectl get pods -n <Var name="teleport-cluster"/> -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ kubectl exec -it "$AUTH_POD" -c teleport -- tctl users ls
+# User                          Roles
+# ----------------------------- -----------------------------
+# bot-teleport-operator-sidecar bot-teleport-operator-sidecar
+# myuser                        myrole
+```
+
+At this point the Teleport Kubernetes Operator is functional and Teleport users and roles can be managed from
+Kubernetes.
+
+## Step 3/3. Explore the Teleport CRDs
+
+Available fields can be browsed with `kubectl explain` in a cluster with Teleport CRDs installed.
+For example the command:
+```code
+$ kubectl explain teleportroles.spec
+```
+Returns the following fields:
+```shell
+KIND:     TeleportRole
+VERSION:  resources.teleport.dev/v5
+
+RESOURCE: spec <Object>
+
+DESCRIPTION:
+    Role resource definition v5 from Teleport
+
+FIELDS:
+   allow	<Object>
+     Allow is the set of conditions evaluated to grant access.
+
+   deny	<Object>
+     Deny is the set of conditions evaluated to deny access. Deny takes priority
+     over allow.
+
+   options	<Object>
+     Options is for OpenSSH options like agent forwarding.
+```
+
+## Troubleshooting
+
+(!docs/pages/includes/diagnostics/kubernetes-operator-troubleshooting.mdx!)
+
+## Next steps
+
+Helm Chart parameters are documented in the [`teleport-cluster` Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx).
+
+See the [Helm Deployment guides](../../deploy-a-cluster/helm-deployments.mdx) detailing specific setups like running Teleport on AWS or GCP.

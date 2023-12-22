@@ -1,24 +1,25 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -74,7 +75,6 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var metadataPtr atomic.Pointer[metadata.Metadata]
 	inner := &sshServerHeartbeatV2{
 		getMetadata: metadata.Get,
 		announcer:   cfg.Announcer,
@@ -82,22 +82,11 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 	inner.getServer = func(ctx context.Context) *types.ServerV2 {
 		server := cfg.GetServer()
 
-		if meta := metadataPtr.Load(); meta == nil {
-			go func() {
-				meta, err := inner.getMetadata(ctx)
-				if err != nil {
-					if ctx.Err() == nil {
-						log.Warnf("Failed to get metadata: %v", err)
-					}
-				} else if meta != nil && meta.CloudMetadata != nil {
-					// Set the metadata immediately to give the heartbeat
-					// a chance to use it.
-					server.SetCloudMetadata(meta.CloudMetadata)
-					metadataPtr.CompareAndSwap(nil, meta)
-				}
-			}()
-		} else if meta.CloudMetadata != nil {
-			// Server isn't cached between heartbeats, so set the metadata again.
+		doneCtx, cancel := context.WithCancel(ctx)
+		cancel() // not a typo
+
+		meta, err := inner.getMetadata(doneCtx)
+		if err == nil && meta != nil && meta.CloudMetadata != nil {
 			server.SetCloudMetadata(meta.CloudMetadata)
 		}
 
@@ -459,6 +448,10 @@ type heartbeatV2Driver interface {
 	SupportsFallback() bool
 }
 
+// metadataGetter returns the instance metadata, unblocking with an error if
+// fetching the metadata takes longer than the context. If the metadata is
+// immediately available, it shall be returned even if the context passed in is
+// already done.
 type metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
 
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.

@@ -317,14 +317,7 @@ $ tsh db ls
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect mongodb-atlas
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db connect --db-user=alice mongodb-atlas
+$ tsh db connect --db-user=alice --db-name dev mongodb-atlas
 ```
 </TabItem>
 <TabItem label="AWS IAM authentication">
@@ -332,14 +325,14 @@ To retrieve credentials for a database and connect to it, you must provide the
 database username in the `role/<role-name>` format:
 
 ```code
-$ tsh db connect --db-user=role/teleport-access mongodb-atlas
+$ tsh db connect --db-user=role/teleport-access --db-name dev mongodb-atlas
 ```
 
 Alternatively, you provide the full ARN as the database username when connecting
 to the database instance:
 
 ```code
-$ tsh db connect --db-user=arn:aws:iam::111111111111:role/teleport-access mongodb-atlas
+$ tsh db connect --db-user=arn:aws:iam::111111111111:role/teleport-access --db-name dev mongodb-atlas
 ```
 </TabItem>
 </Tabs>

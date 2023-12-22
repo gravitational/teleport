@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -30,7 +32,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -56,7 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -82,12 +83,6 @@ func (h *Handler) desktopConnectHandle(
 
 	return nil, nil
 }
-
-const (
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
-	maxRDPScreenWidth  = 8192
-	maxRDPScreenHeight = 8192
-)
 
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
@@ -116,28 +111,23 @@ func (h *Handler) createDesktopConnection(
 		return err
 	}
 
-	q := r.URL.Query()
-	username := q.Get("username")
-	if username == "" {
-		return sendTDPError(trace.BadParameter("missing username"))
-	}
-	width, err := strconv.Atoi(q.Get("width"))
+	username, err := readUsername(r)
 	if err != nil {
-		return sendTDPError(trace.BadParameter("width missing or invalid"))
+		return sendTDPError(err)
 	}
-	height, err := strconv.Atoi(q.Get("height"))
+	log.Debugf("Attempting to connect to desktop using username=%v\n", username)
+
+	// Read the tdp.ClientScreenSpec from the websocket.
+	// This is always the first thing sent by the client.
+	// Certificate issuance may rely on the client sending
+	// a subsequent tdp.MFA message, hence we need to make
+	// sure that this message has been read from the wire
+	// beforehand.
+	screenSpec, err := readClientScreenSpec(ws)
 	if err != nil {
-		return sendTDPError(trace.BadParameter("height missing or invalid"))
+		return sendTDPError(err)
 	}
-
-	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
-		return sendTDPError(trace.BadParameter(
-			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
-			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
-		))
-	}
-
-	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
+	log.Debugf("Received screen spec: %v\n", screenSpec)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -202,7 +192,7 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.WriteMessage(screenSpec)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -363,6 +353,21 @@ func (h *Handler) performMFACeremony(ctx context.Context, authClient auth.Client
 	}
 
 	return newCerts.TLS, nil
+}
+
+func readUsername(r *http.Request) (string, error) {
+	q := r.URL.Query()
+	username := q.Get("username")
+	if username == "" {
+		return "", trace.BadParameter("missing username in URL")
+	}
+
+	return username, nil
+}
+
+func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
+	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
+	return tdpConn.ReadClientScreenSpec()
 }
 
 type connector struct {
