@@ -70,6 +70,7 @@ export const allAccessAcl: Acl = {
   securityReport: fullAccess,
   externalAuditStorage: fullAccess,
   accessGraph: fullAccess,
+  bots: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
