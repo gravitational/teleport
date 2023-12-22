@@ -109,7 +109,7 @@ func TestUserActivityReportSplitting(t *testing.T) {
 	for _, report := range reports {
 		recordsCopy = append(recordsCopy, report.Records...)
 	}
-	require.ElementsMatchf(t, records, recordsCopy, "some user activity records have been lost during splitting")
+	require.Equal(t, records, recordsCopy, "some user activity records have been lost during splitting")
 }
 
 func TestLock(t *testing.T) {
