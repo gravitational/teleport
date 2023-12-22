@@ -23,7 +23,6 @@ package defaults
 import (
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/net/http2"
 	"net/http"
 	"slices"
 	"strings"
@@ -31,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http2"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
