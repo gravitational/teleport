@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package uds
 
 import (
 	"syscall"
@@ -30,11 +30,11 @@ import (
 // descriptors are flagged close-on-exec. This implementation acquires
 // [syscall.ForkLock] as it creates the socketpair and sets the two file
 // descriptors close-on-exec.
-func cloexecSocketpair() (uintptr, uintptr, error) {
+func cloexecSocketpair(t SocketType) (uintptr, uintptr, error) {
 	syscall.ForkLock.RLock()
 	defer syscall.ForkLock.RUnlock()
 
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	fds, err := syscall.Socketpair(syscall.AF_UNIX, t.proto(), 0)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)
 	}

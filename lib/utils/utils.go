@@ -88,6 +88,16 @@ func (*nilCloser) Close() error {
 	return nil
 }
 
+// assert that CloseFunc implement io.Closer.
+var _ io.Closer = (CloseFunc)(nil)
+
+// CloseFunc is a helper used to implement io.Closer on a closure.
+type CloseFunc func() error
+
+func (cf CloseFunc) Close() error {
+	return cf()
+}
+
 // NopWriteCloser returns a WriteCloser with a no-op Close method wrapping
 // the provided Writer w
 func NopWriteCloser(r io.Writer) io.WriteCloser {

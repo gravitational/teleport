@@ -181,7 +181,7 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 	if c.systemctlInstallMethod() {
 		installMethods = append(installMethods, "systemctl")
 	}
-	if c.awsoidcDeployServiceInstallMethod() {
+	if AWSOIDCDeployServiceInstallMethod() {
 		installMethods = append(installMethods, "awsoidc_deployservice")
 	}
 	return installMethods
@@ -205,11 +205,15 @@ func (c *fetchConfig) nodeScriptInstallMethod() bool {
 	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_NODE_SCRIPT")
 }
 
-// awsoidcDeployServiceInstallMethod returns true if the instance was installed using
+// AWSOIDCDeployServiceInstallMethod returns true if the instance was installed using
 // the DeployService action of the AWS OIDC integration.
 // This install method uses Amazon ECS with Fargate deployment method.
-func (c *fetchConfig) awsoidcDeployServiceInstallMethod() bool {
-	return c.boolEnvIsTrue(types.InstallMethodAWSOIDCDeployServiceEnvVar)
+func AWSOIDCDeployServiceInstallMethod() bool {
+	b, err := apiutils.ParseBool(os.Getenv(types.InstallMethodAWSOIDCDeployServiceEnvVar))
+	if err != nil {
+		return false
+	}
+	return b
 }
 
 // systemctlInstallMethod returns true if the instance is running using systemctl.

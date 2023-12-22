@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
@@ -70,6 +71,8 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
+	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&cf.Trace)
+	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&cf.TraceExporter)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
@@ -165,6 +168,26 @@ func Run(args []string, stdout io.Writer) error {
 	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
 		return trace.Wrap(err, "setting up logger")
 	}
+	if cf.Trace {
+		log.WithField("trace_exporter", cf.TraceExporter).Info("Initializing tracing provider. Traces will be exported.")
+		tp, err := initializeTracing(cf.TraceExporter)
+		if err != nil {
+			return trace.Wrap(err, "initializing tracing")
+		}
+		defer func() {
+			ctx, cancel := context.WithTimeout(
+				context.Background(), 5*time.Second,
+			)
+			defer cancel()
+			log.Info("Shutting down tracing provider.")
+			if err := tp.Shutdown(ctx); err != nil {
+				log.WithError(err).Error(
+					"Failed to shut down tracing provider.",
+				)
+			}
+			log.Info("Shut down tracing provider.")
+		}()
+	}
 
 	// If migration is specified, we want to run this before the config is
 	// loaded normally.
@@ -198,6 +221,26 @@ func Run(args []string, stdout io.Writer) error {
 	}
 
 	return err
+}
+
+func initializeTracing(endpoint string) (*tracing.Provider, error) {
+	if endpoint == "" {
+		return nil, trace.BadParameter("trace exporter URL must be provided")
+	}
+
+	provider, err := tracing.NewTraceProvider(context.Background(), tracing.Config{
+		Service:     teleport.ComponentTBot,
+		ExporterURL: endpoint,
+		// We are using 1 here to record all spans as a result of this tbot command. Teleport
+		// will respect the recording flag of remote spans even if the spans it generates
+		// wouldn't otherwise be recorded due to its configured sampling rate.
+		SamplingRate: 1.0,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return provider, nil
 }
 
 func onVersion() error {

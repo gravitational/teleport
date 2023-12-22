@@ -1,17 +1,17 @@
 # syntax=docker/dockerfile:1
 
-FROM centos:7 AS centos-devtoolset
+FROM --platform=$BUILDPLATFORM centos:7 AS centos-devtoolset
 
+ARG BUILDARCH
 ARG DEVTOOLSET
-ARG TARGETARCH
 
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
-RUN if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
+RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
     cat <<EOF > /etc/yum.repos.d/${DEVTOOLSET}-build.repo
 [${DEVTOOLSET}-build]
 name=${DEVTOOLSET} - Build
-baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${TARGETARCH}/
+baseurl=https://buildlogs.centos.org/c7-${DEVTOOLSET}.${BUILDARCH}/
 gpgcheck=0
 enabled=1
 EOF
@@ -20,7 +20,7 @@ EOF
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
     yum update -y && \
-    yum -y install centos-release-scl-rh && \
+    yum install -y centos-release-scl-rh && \
     yum install -y \
         centos-release-scl \
         cmake3 \
@@ -36,7 +36,7 @@ RUN yum install --nogpgcheck -y \
     yum clean all
 
 # Use just created devtool image with newer GCC and Cmake
-FROM centos-devtoolset as clang12
+FROM --platform=$BUILDPLATFORM centos-devtoolset as clang12
 
 ARG DEVTOOLSET
 
@@ -73,17 +73,19 @@ RUN useradd --user-group --create-home --shell=/bin/bash mockbuild
 RUN mkdir -p /opt/custom-packages && cd /opt && \
     yumdownloader --source elfutils-libelf-devel-static && \
     yum-builddep -y elfutils-libelf-devel-static && \
-    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" elfutils-*.src.rpm && \
-    if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cp /root/rpmbuild/RPMS/${TARGETARCH}/elfutils-libelf-devel-static-*.el7.${TARGETARCH}.rpm /opt/custom-packages/
+    export DIST=$(rpm -qp --queryformat '%{RELEASE}' elfutils-*.src.rpm | cut -d '.' -f 2) && \
+    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" --define "dist .${DIST}" elfutils-*.src.rpm && \
+    if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
+    cp /root/rpmbuild/RPMS/${BUILDARCH}/elfutils-libelf-devel-static-*${DIST}.${BUILDARCH}.rpm /opt/custom-packages/
 
 # Recompile and install zlib with -fPIC.
 RUN mkdir -p /opt/custom-packages && cd /opt && \
     yumdownloader --source zlib-static && \
     yum-builddep -y zlib-static && \
-    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" zlib-*.src.rpm && \
-    if [ "${TARGETARCH}" = "arm64" ]; then export TARGETARCH="aarch64"; fi && \
-    cp /root/rpmbuild/RPMS/${TARGETARCH}/zlib-static-*.el7.${TARGETARCH}.rpm /opt/custom-packages/
+    export DIST=$(rpm -qp --queryformat '%{RELEASE}' zlib-*.src.rpm | cut -d '.' -f 2) && \
+    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" --define "dist .${DIST}" zlib-*.src.rpm && \
+    if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
+    cp /root/rpmbuild/RPMS/${BUILDARCH}/zlib-static-*${DIST}.${BUILDARCH}.rpm /opt/custom-packages/
 
 # Create the final image with Clang and custom builds only. We're using this Docker image as a tar.gz
 # mainly because we want to keep our artifacts on GitHub, and GH doesn't support blobs, only Docker images.

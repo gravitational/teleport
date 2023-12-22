@@ -35,6 +35,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -168,6 +168,8 @@ type CommandLineFlags struct {
 	DatabaseAWSElastiCacheGroupID string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
+	// DatabaseAWSSessionTags is the AWS STS session tags.
+	DatabaseAWSSessionTags string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1113,9 +1115,6 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.AutomaticUpgradesChannels != nil {
 		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
-		if err := cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "failed to set up automatic update channels")
-		}
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -1700,6 +1699,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
 				ExternalID:    database.AWS.ExternalID,
 				Region:        database.AWS.Region,
+				SessionTags:   database.AWS.SessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -2264,6 +2264,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+		var sessionTags map[string]string
+		if clf.DatabaseAWSSessionTags != "" {
+			var err error
+			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2282,6 +2290,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				AccountID:     clf.DatabaseAWSAccountID,
 				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
 				ExternalID:    clf.DatabaseAWSExternalID,
+				SessionTags:   sessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

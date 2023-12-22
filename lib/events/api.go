@@ -632,6 +632,13 @@ const (
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
+	// BotCreateEvent is emitted when a bot is created
+	BotCreateEvent = "bot.create"
+	// BotUpdateEvent is emitted when a bot is updated
+	BotUpdateEvent = "bot.update"
+	// BotDeleteEvent is emitted when a bot is deleted
+	BotDeleteEvent = "bot.delete"
+
 	// InstanceJoinEvent is emitted when an instance joins
 	InstanceJoinEvent = "instance.join"
 

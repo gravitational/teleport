@@ -26,6 +26,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gravitational/oxy/ratelimit"
@@ -34,7 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

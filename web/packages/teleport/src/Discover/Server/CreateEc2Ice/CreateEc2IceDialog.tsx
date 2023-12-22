@@ -102,7 +102,7 @@ export function CreateEc2IceDialog({
   }
 
   async function fetchEc2InstanceConnectEndpoint() {
-    const integration = typedAgentMeta.integration;
+    const integration = typedAgentMeta.awsIntegration;
 
     setFetchEc2IceAttempt({ status: 'processing' });
     try {

@@ -1,0 +1,19 @@
+```yaml
+kind: bot
+version: v1
+metadata:
+  # name is a unique identifier for the bot in the cluster.
+  name: robot
+spec:
+  # roles is a list of roles that the bot should be able to generate credentials
+  # for.
+  roles:
+  - editor
+  # traits controls the traits applied to the Bot user. These are fed into the
+  # role templating system and can be used to grant a specific Bot access to
+  # specific resources without the creation of a new role.
+  traits:
+  - name: logins
+    values:
+    - root
+```
