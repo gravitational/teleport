@@ -344,6 +344,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 }
 
 func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
+	t.Parallel()
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
@@ -431,6 +432,7 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 }
 
 func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	clt := env.proxies[0].client
@@ -477,14 +479,14 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	rdss := []rdsTypes.DBInstance{}
 	for _, vpc := range vpcs {
 		rdss = append(rdss, rdsTypes.DBInstance{
-			DBInstanceStatus:     stringPointer("available"),
-			DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", vpc)),
-			DbiResourceId:        stringPointer("db-123"),
-			Engine:               stringPointer("postgres"),
-			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			DBInstanceStatus:     aws.String("available"),
+			DBInstanceIdentifier: aws.String(fmt.Sprintf("db-%v", vpc)),
+			DbiResourceId:        aws.String("db-123"),
+			Engine:               aws.String("postgres"),
+			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 
 			Endpoint: &rdsTypes.Endpoint{
-				Address: stringPointer("endpoint.amazonaws.com"),
+				Address: aws.String("endpoint.amazonaws.com"),
 				Port:    aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
@@ -564,14 +566,14 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 
 	rdss := []rdsTypes.DBInstance{
 		{
-			DBInstanceStatus:     stringPointer("available"),
-			DBInstanceIdentifier: stringPointer("id-vpc1"),
-			DbiResourceId:        stringPointer("db-123"),
-			Engine:               stringPointer("postgres"),
-			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			DBInstanceStatus:     aws.String("available"),
+			DBInstanceIdentifier: aws.String("id-vpc1"),
+			DbiResourceId:        aws.String("db-123"),
+			Engine:               aws.String("postgres"),
+			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 
 			Endpoint: &rdsTypes.Endpoint{
-				Address: stringPointer("endpoint.amazonaws.com"),
+				Address: aws.String("endpoint.amazonaws.com"),
 				Port:    aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
@@ -583,14 +585,14 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 			},
 		},
 		{
-			DBInstanceStatus:     stringPointer("available"),
-			DBInstanceIdentifier: stringPointer("id-vpc1a"),
-			DbiResourceId:        stringPointer("db-123"),
-			Engine:               stringPointer("postgres"),
-			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			DBInstanceStatus:     aws.String("available"),
+			DBInstanceIdentifier: aws.String("id-vpc1a"),
+			DbiResourceId:        aws.String("db-123"),
+			Engine:               aws.String("postgres"),
+			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 
 			Endpoint: &rdsTypes.Endpoint{
-				Address: stringPointer("endpoint.amazonaws.com"),
+				Address: aws.String("endpoint.amazonaws.com"),
 				Port:    aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
@@ -604,14 +606,14 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 			},
 		},
 		{
-			DBInstanceStatus:     stringPointer("available"),
-			DBInstanceIdentifier: stringPointer("id-vpc2"),
-			DbiResourceId:        stringPointer("db-123"),
-			Engine:               stringPointer("postgres"),
-			DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			DBInstanceStatus:     aws.String("available"),
+			DBInstanceIdentifier: aws.String("id-vpc2"),
+			DbiResourceId:        aws.String("db-123"),
+			Engine:               aws.String("postgres"),
+			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 
 			Endpoint: &rdsTypes.Endpoint{
-				Address: stringPointer("endpoint.amazonaws.com"),
+				Address: aws.String("endpoint.amazonaws.com"),
 				Port:    aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
@@ -629,10 +631,6 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 	require.Len(t, resp.VPCMapOfSubnets, 2)
 	require.ElementsMatch(t, []string{"subnet1", "subnet2", "subnet3", "subnet4"}, resp.VPCMapOfSubnets["vpc-1"])
 	require.ElementsMatch(t, []string{"subnet8"}, resp.VPCMapOfSubnets["vpc-2"])
-}
-
-func stringPointer(s string) *string {
-	return &s
 }
 
 type mockListDatabasesClient struct {
