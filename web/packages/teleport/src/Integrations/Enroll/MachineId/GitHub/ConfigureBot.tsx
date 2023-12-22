@@ -5,12 +5,12 @@ import Box from 'design/Box'
 import Select from 'shared/components/Select'
 import Validation from 'shared/components/Validation'
 import { FlowStepProps } from '../Flow/Flow';
-import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Text from 'design/Text';
 import Input from 'design/Input';
 import { FlowButtons } from '../Flow/FlowButtons';
+import { LabelSelector } from 'teleport/components/LabelSelector';
 
-export function ConfigureGitHubBot({ nextStep, prevStep }: FlowStepProps) {
+export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
   const [selectedLabels, setSelectedLabels] = useState([])
   const [login, setLogin] = useState('')
   const [botName, setBotName] = useState('')
@@ -19,6 +19,8 @@ export function ConfigureGitHubBot({ nextStep, prevStep }: FlowStepProps) {
     <Box as="form" onSubmit={(e) => {
       e.preventDefault()
     }}>
+      <Text bold fontSize={4} mb="3">Step 2: Configure Bot Access</Text>
+      <Text fontSize={3} mb="3">These next fields will enable Teleport to scope access to only what is needed by your GitHub Actions workflow.</Text>
       <Validation>
         {({ validator }) => (
           <>
@@ -55,7 +57,7 @@ export function ConfigureGitHubBot({ nextStep, prevStep }: FlowStepProps) {
               />
             </FormItem>
 
-            <FlowButtons isFirst={true} isLast={false} nextStep={nextStep} prevStep={prevStep} />
+            <FlowButtons isFirst={true} nextStep={nextStep} prevStep={prevStep} />
           </>
         )}
       </Validation>
@@ -65,4 +67,5 @@ export function ConfigureGitHubBot({ nextStep, prevStep }: FlowStepProps) {
 
 const FormItem = styled(Box)`
   margin-bottom: ${props => props.theme.space[4]}px;
+  max-width: 500px;
 `

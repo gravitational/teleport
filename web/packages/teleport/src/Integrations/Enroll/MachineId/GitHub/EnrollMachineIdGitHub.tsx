@@ -4,11 +4,12 @@ import { ConnectGitHub } from './ConnectGitHub'
 import cfg from 'teleport/config';
 import { GitHubIcon } from 'design/SVGIcon';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
-import { ConfigureGitHubBot } from './ConfigureGitHubBot';
+import { ConfigureBot } from './ConfigureBot';
+import { AddBotToWorkflow } from './AddBotToWorkflow';
 
 export const MachineIdFlow = {
   title: 'GitHub Actions',
-  link: cfg.getIntegrationEnrollRoute(IntegrationKind.MachineId, MachineIdIntegration.GitHubActions), // TODO
+  link: cfg.getIntegrationEnrollRoute(IntegrationKind.MachineId, MachineIdIntegration.GitHubActions),
   icon: <GitHubIcon size={80} />,
   kind: IntegrationEnrollKind.MachineIDGitHubActions,
   guided: true,
@@ -17,7 +18,7 @@ export const MachineIdFlow = {
 const views: View[] = [
   {
     name: 'Configure Bot Access',
-    component: ConfigureGitHubBot,
+    component: ConfigureBot,
   },
   {
     name: 'Connect GitHub',
@@ -25,7 +26,7 @@ const views: View[] = [
   },
   {
     name: 'Add Bot to GitHub',
-    component: () => <div>Add Bot to GitHub</div>,
+    component: AddBotToWorkflow,
   },
 ]
 

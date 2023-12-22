@@ -51,7 +51,7 @@ export function Flow({ name, title, views, icon }: FlowProps) {
 
   return (
     <>
-      <Flex py="3">
+      <Flex pt="3">
         {icon}
         <Text bold ml="2" mr="4">{name}</Text>
         <StepNavigation

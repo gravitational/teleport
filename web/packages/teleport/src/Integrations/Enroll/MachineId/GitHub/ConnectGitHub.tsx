@@ -100,12 +100,14 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
       <Validation>
         {({ validator }) => (
           <Box mt="3">
+            <Text bold fontSize={4} mb="3">Step 1: Add Your GitHub Account Info</Text>
+
             <FormItem>
               <Text>Full URL to Your Repository*</Text>
               <Input
                 mb={3}
                 label="Full URL to Your Repository *"
-                placeholder="github.com/gravitational/teleport"
+                placeholder="ex. https://github.com/gravitational/teleport"
                 value={repoAddress}
                 onChange={(e) => setRepoAddress(e.target.value)}
               />
@@ -117,7 +119,19 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                 mb={3}
                 // TODO disabled
                 label="Name of the GitHub Actions Workflow"
-                placeholder="teleport-auth"
+                placeholder="ex. deploy"
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+              />
+            </FormItem>
+
+            <FormItem>
+              <Text>GitHub Username</Text>
+              <Input
+                mb={3}
+                // TODO disabled
+                label="Name of the GitHub Actions Workflow"
+                placeholder="ex. deploy"
                 value={workflowName}
                 onChange={(e) => setWorkflowName(e.target.value)}
               />
@@ -125,7 +139,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 
             <FormItem>
               <Flex>
-                <Box>
+                <Box width="100%">
                   <Text ml="1">Git Ref</Text>
                   <Input
                     mb={3}
@@ -134,10 +148,9 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                     value={ref}
                     onChange={(e) => setRef(e.target.value)}
                     style={{ borderRadius: '4px 0 0 4px' }}
-                  // TODO use radius from theme
                   />
                 </Box>
-                <Box width="100px">
+                <Box minWidth="160px">
                   <Text ml="1">Ref Type</Text>
                   <RefTypeSelect>
                     <ReactSelect
@@ -153,7 +166,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                 </Box>
               </Flex>
             </FormItem>
-            <FlowButtons isFirst={false} isLast={false} nextStep={nextStep} prevStep={prevStep} />
+            <FlowButtons nextStep={nextStep} prevStep={prevStep} />
           </Box>
         )}
       </Validation>
@@ -166,11 +179,20 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 const RefTypeSelect = styled(StyledSelect)`
 .react-select__control {
   border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.react-select__control:hover {
+  border: 1px solid rgba(0,0,0,0.54);
+  border-left: none;
+}
 `
 
 const FormItem = styled(Box)`
   margin-bottom: ${props => props.theme.space[4]}px;
+  max-width: 500px;
 `
+
 /**
  * parseGitHubUrl parses a URL for a github repository. It throws if parsing the URL fails
  * or the URL doesn't look like a github repository URL
