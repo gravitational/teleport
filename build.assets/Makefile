@@ -119,7 +119,7 @@ build-enterprise-binaries: buildbox-centos7 webassets
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) FIPS=yes clean full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) FIPS=yes clean full
 
 #
 # Builds a Docker container which is used for building official Teleport binaries
@@ -435,7 +435,7 @@ release-amd64:
 
 .PHONY: release-amd64-fips
 release-amd64-fips:
-	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+	$(MAKE) release-centos7-fips ARCH=amd64 FIDO2=yes PIV=yes FIPS=yes
 
 .PHONY: release-386
 release-386:
@@ -447,7 +447,7 @@ release-arm64:
 
 .PHONY: release-arm64-fips
 release-arm64-fips:
-	$(MAKE) release-centos7-fips ARCH=arm64 FIPS=yes
+	$(MAKE) release-centos7-fips ARCH=arm64 FIDO2=yes PIV=yes FIPS=yes
 
 # We depend on webassets to pre-build them in the buildbox-node container
 # so that we don't need to install node.js and rust on the buildbox-arm container.
@@ -495,7 +495,7 @@ release: $(BUILDBOX_TARGET)
 release-fips: buildbox-centos7-fips webassets
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
-		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
@@ -516,7 +516,7 @@ release-centos7: buildbox-centos7 webassets
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
-# We depend on webassets to pre-build them in the buildbox-node container
+# We depend on webassets to pre-build them in the buildbox-node container,
 # as the version of node.js on CentOS 7 is too old. The enterprise Makefile
 # does not clean the web assets on the `release` target so there is no need
 # to call release-unix-preserving-webassets like we do for the non-fips release.
@@ -524,7 +524,7 @@ release-centos7: buildbox-centos7 webassets
 .PHONY:release-centos7-fips
 release-centos7-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
-		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
+		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
 #
 # Create a Windows Teleport package using the build container.

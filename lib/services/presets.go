@@ -129,6 +129,7 @@ func NewPresetEditorRole() types.Role {
 				Rules: []types.Rule{
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
+					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),
 					types.NewRule(types.KindGithub, RW()),

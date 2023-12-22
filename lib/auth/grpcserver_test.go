@@ -57,6 +57,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -811,6 +812,13 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		})
 	})
 	mfaDevices := addOneOfEachMFADevice(t, clientWithoutDevice, clock, origin)
+
+	mfaPromptFunc := mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		return mfaDevices.WebDev.SolveAuthn(chal)
+	})
+	promptConstructor := func(...mfa.PromptOpt) mfa.Prompt { return mfaPromptFunc }
+	clientWithoutDevice.SetMFAPromptConstructor(promptConstructor)
+	clientWithDevice.SetMFAPromptConstructor(promptConstructor)
 
 	// Create a public key for UserCertsRequest.
 	_, pub, err := testauthority.New().GenerateKeyPair()
