@@ -187,7 +187,6 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logrus := logrus.StandardLogger()
 	log := logrus.WithField(trace.Component, componentName)
 
 	if cfg.AuthMode == AzureADAuth {
@@ -308,7 +307,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
 				" WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
-			NonNil(i.Key), NonNil(i.Value), zeronull.Timestamptz(i.Expires), zeronull.UUID(revision))
+			NonNil(i.Key), NonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -334,7 +333,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision",
-			NonNil(i.Key), NonNil(i.Value), zeronull.Timestamptz(i.Expires), zeronull.UUID(revision))
+			NonNil(i.Key), NonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -355,7 +354,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith back
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
-			NonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), zeronull.UUID(revision),
+			NonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
 			NonNil(replaceWith.Key), NonNil(expected.Value))
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -382,7 +381,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
-			NonNil(i.Value), zeronull.Timestamptz(i.Expires), zeronull.UUID(revision), NonNil(i.Key))
+			NonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, NonNil(i.Key))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -413,8 +412,8 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 			"UPDATE kv SET value = $1, expires = $2, revision = $3 "+
 				"WHERE kv.key = $4 AND kv.revision = $5 AND "+
 				"(kv.expires IS NULL OR kv.expires > now())",
-			NonNil(i.Value), zeronull.Timestamptz(i.Expires), zeronull.UUID(newRevision),
-			NonNil(i.Key), zeronull.UUID(expectedRevision))
+			NonNil(i.Value), zeronull.Timestamptz(i.Expires), newRevision,
+			NonNil(i.Key), expectedRevision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -571,7 +570,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 		tag, err := b.pool.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
 				"(kv.expires IS NULL OR kv.expires > now())",
-			NonNil(key), zeronull.UUID(expectedRevision))
+			NonNil(key), expectedRevision)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -614,7 +613,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET expires = $1, revision = $2"+
 				" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
-			zeronull.Timestamptz(expires.UTC()), zeronull.UUID(revision), NonNil(lease.Key))
+			zeronull.Timestamptz(expires.UTC()), revision, NonNil(lease.Key))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
