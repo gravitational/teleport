@@ -49,6 +49,8 @@ const (
 	TerminalService_ReviewAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
 	TerminalService_GetRequestableRoles_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
 	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
+	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
+	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
 	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
 	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
 	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
@@ -112,6 +114,10 @@ type TerminalServiceClient interface {
 	GetRequestableRoles(ctx context.Context, in *GetRequestableRolesRequest, opts ...grpc.CallOption) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// PromoteAccessRequest promotes an access request to an access list.
+	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
 	// AddCluster adds a cluster to profile
@@ -312,6 +318,24 @@ func (c *terminalServiceClient) GetRequestableRoles(ctx context.Context, in *Get
 func (c *terminalServiceClient) AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
 	err := c.cc.Invoke(ctx, TerminalService_AssumeRole_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error) {
+	out := new(PromoteAccessRequestResponse)
+	err := c.cc.Invoke(ctx, TerminalService_PromoteAccessRequest_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
+	out := new(GetSuggestedAccessListsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -624,6 +648,10 @@ type TerminalServiceServer interface {
 	GetRequestableRoles(context.Context, *GetRequestableRolesRequest) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error)
+	// PromoteAccessRequest promotes an access request to an access list.
+	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
 	// AddCluster adds a cluster to profile
@@ -748,6 +776,12 @@ func (UnimplementedTerminalServiceServer) GetRequestableRoles(context.Context, *
 }
 func (UnimplementedTerminalServiceServer) AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AssumeRole not implemented")
+}
+func (UnimplementedTerminalServiceServer) PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromoteAccessRequest not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
@@ -1067,6 +1101,42 @@ func _TerminalService_AssumeRole_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).AssumeRole(ctx, req.(*AssumeRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_PromoteAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteAccessRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).PromoteAccessRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_PromoteAccessRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).PromoteAccessRequest(ctx, req.(*PromoteAccessRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_GetSuggestedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSuggestedAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetSuggestedAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1590,6 +1660,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AssumeRole",
 			Handler:    _TerminalService_AssumeRole_Handler,
+		},
+		{
+			MethodName: "PromoteAccessRequest",
+			Handler:    _TerminalService_PromoteAccessRequest_Handler,
+		},
+		{
+			MethodName: "GetSuggestedAccessLists",
+			Handler:    _TerminalService_GetSuggestedAccessLists_Handler,
 		},
 		{
 			MethodName: "GetKubes",
