@@ -29,6 +29,10 @@ $ tctl tokens add --type=discovery
 
 ## Step 2/4. Configure the Discovery service
 
+<Admonition type="note">
+  If you’re following auto-discovery setup in Access Management web UI, use the template generated from the web UI instead.
+</Admonition>
+
 Enabling AWS database discovery requires that the `discovery_service.aws`
 section includes at least one entry and that `discovery_service.aws.types`
 includes one of database types listed in the sample YAML below. 
@@ -84,6 +88,10 @@ Adjust the keys under `discovery_service.aws` to match your AWS databases.
 (!docs/pages/kubernetes-access/discovery/includes/discovery-group.mdx!)
 
 ## Step 3/4. Bootstrap IAM permissions
+
+<Admonition type="note">
+  If you’re following auto-discovery setup in Access Management web UI, skip this step.
+</Admonition>
 
 Create an IAM role and attach it to the host that will run the Discovery
 Service.
