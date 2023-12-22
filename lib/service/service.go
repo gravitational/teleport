@@ -87,8 +87,11 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -143,6 +146,18 @@ import (
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
+
+func init() {
+	backend.MustRegister(lite.New, lite.GetName())
+	backend.MustRegister(dynamo.New, dynamo.GetName())
+	backend.MustRegister(func(ctx context.Context, params backend.Params) (backend.Backend, error) {
+		return firestore.New(ctx, params, firestore.Options{})
+	}, firestore.GetName())
+	backend.MustRegister(func(ctx context.Context, params backend.Params) (backend.Backend, error) {
+		return etcdbk.New(ctx, params)
+	}, etcdbk.GetName())
+	backend.MustRegister(pgbk.NewFromParams, pgbk.Name, pgbk.AltName)
+}
 
 const (
 	// AuthIdentityEvent is generated when the Auth Servers identity has been
@@ -5443,7 +5458,8 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	ctx := context.TODO()
 	process.log.Debugf("Using %v backend.", process.Config.Auth.StorageConfig.Type)
-	bk, err := process.Config.Backend(ctx)
+	bc := process.Config.Auth.StorageConfig
+	bk, err := backend.New(ctx, bc.Type, bc.Params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

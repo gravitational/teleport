@@ -41,9 +41,14 @@ const (
 	Forever time.Duration = 0
 )
 
-// ErrIncorrectRevision is returned from conditional operations when revisions
-// do not match the expected value.
-var ErrIncorrectRevision = &trace.CompareFailedError{Message: "resource revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state, or use --force to overwrite"}
+var (
+	// ErrIncorrectRevision is returned from conditional operations when revisions
+	// do not match the expected value.
+	ErrIncorrectRevision = &trace.CompareFailedError{Message: "resource revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state, or use --force to overwrite"}
+	// newbks contains globally registered functions for intializing new backend
+	// implementations.
+	newbks = map[string]newbk{}
+)
 
 // Backend implements abstraction over local or remote storage backend.
 // Item keys are assumed to be valid UTF8, which may be enforced by the
@@ -104,6 +109,47 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
+}
+
+// newbk intializes a [Backend].
+type newbk interface {
+	new(context.Context, Params) (Backend, error)
+}
+
+// newbkfn is a function that can initialize a [Backend]. The function can return
+// any type that implements [Backend].
+type newbkfn[T Backend] func(context.Context, Params) (T, error)
+
+// new converts a generic backend type to the [Backend] interface. This allows
+// any backend intialization function to implement the newbk interface.
+func (fn newbkfn[T]) new(ctx context.Context, params Params) (Backend, error) {
+	return fn(ctx, params)
+}
+
+// MustRegister registers a [Backend] implementation. Panicking if it has already
+// been registered.
+func MustRegister[T Backend](fn newbkfn[T], types ...string) {
+	for _, t := range types {
+		if _, ok := newbks[t]; ok {
+			panic("backend already registered")
+		}
+	}
+	for _, bkType := range types {
+		newbks[bkType] = fn
+	}
+}
+
+// Backend initializes a new [Backend] implementation based on the service config.
+func New(ctx context.Context, bkType string, params Params) (Backend, error) {
+	newbk, ok := newbks[bkType]
+	if !ok {
+		return nil, trace.BadParameter("unsupported secrets storage type: %q", bkType)
+	}
+	bk, err := newbk.new(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return bk, nil
 }
 
 // IterateRange is a helper for stepping over a range
