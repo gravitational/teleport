@@ -20,9 +20,10 @@ import React, { lazy } from 'react';
 
 import cfg from 'teleport/config';
 import { Route } from 'teleport/components/Router';
-import { IntegrationKind } from 'teleport/services/integrations';
+import { IntegrationKind, MachineIdIntegration } from 'teleport/services/integrations';
 
 const EnrollAwsOidc = lazy(() => import('./AwsOidc'));
+const EnrollMachineIdGitHub = lazy(() => import('./MachineId/GitHub'));
 
 export function getRoutesToEnrollIntegrations() {
   return [
@@ -32,5 +33,9 @@ export function getRoutesToEnrollIntegrations() {
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
       component={EnrollAwsOidc}
     />,
+    <Route
+      key={MachineIdIntegration.GitHubActions}
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.MachineId, MachineIdIntegration.GitHubActions)}
+      component={EnrollMachineIdGitHub} />,
   ];
 }

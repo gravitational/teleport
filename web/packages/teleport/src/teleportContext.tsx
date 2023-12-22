@@ -36,6 +36,7 @@ import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import { storageService } from './services/storageService';
+import { botService } from './services/bot/bot';
 
 class TeleportContext implements types.Context {
   // stores
@@ -65,6 +66,7 @@ class TeleportContext implements types.Context {
   automaticUpgradesTargetVersion = cfg.automaticUpgradesTargetVersion;
   assistEnabled = cfg.assistEnabled;
   agentService = agentService;
+  botService = botService;
 
   // lockedFeatures are the features disabled in the user's cluster.
   // Mainly used to hide features and/or show CTAs when the user cluster doesn't support it.

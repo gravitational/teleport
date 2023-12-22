@@ -147,7 +147,7 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
-    integrationEnroll: '/web/integrations/new/:type?',
+    integrationEnroll: '/web/integrations/new/:type?/:flow?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
@@ -303,6 +303,8 @@ const cfg = {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
+
+    bot: '/v1/webapi/sites/:clusterId/machineid/bot/:joinMethod'
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -392,8 +394,8 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
+  getIntegrationEnrollRoute(type?: string, flow?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type, flow });
   },
 
   getNodesRoute(clusterId: string) {
@@ -943,6 +945,13 @@ const cfg = {
         ...params,
       })
     );
+  },
+
+  getBotUrl(clusterId: string, joinMethod: string) {
+    return generatePath(cfg.api.bot, {
+      clusterId,
+      joinMethod
+    })
   },
 
   init(backendConfig = {}) {

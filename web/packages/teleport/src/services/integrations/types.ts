@@ -52,7 +52,13 @@ export type Integration<
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   ExternalAuditStorage = 'external-audit-storage',
+  MachineId = 'machine-id',
 }
+
+export enum MachineIdIntegration {
+  GitHubActions = 'github-actions'
+}
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
