@@ -4,8 +4,6 @@ import {
   isBefore,
   secondsToMilliseconds,
   formatDuration,
-  // Duration not found in 'date-fns' - false positive for some reason
-  // eslint-disable-next-line import/named
   Duration,
 } from 'date-fns';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -28,11 +26,18 @@ export function useAssumedRolesBar(assumedRequest: AssumedRequest) {
   );
 
   const [dropRequestAttempt, dropRequest] = useAsync(() => {
-    return retryWithRelogin(ctx, rootClusterUri, () =>
-      // only passing the 'unassumed' role id as the backend will
-      // persist any other access requests currently available that
-      // are not present in the dropIds array
-      ctx.clustersService.assumeRole(rootClusterUri, [], [assumedRequest.id])
+    return retryWithRelogin(
+      ctx,
+      rootClusterUri,
+      () =>
+        // only passing the 'unassumed' role id as the backend will
+        // persist any other access requests currently available that
+        // are not present in the dropIds array
+        ctx.clustersService.assumeRole(rootClusterUri, [], [assumedRequest.id])
+      // TODO(gzdunek): We should refresh the resources,
+      // the same as after assuming a role in `useAssumeAccess`.
+      // Unfortunately, we can't do this because we don't have access to `ResourcesContext`.
+      // Consider moving it into `ResourcesService`.
     ).catch(err => {
       ctx.notificationsService.notifyError({
         title: 'Could not switch back the role',

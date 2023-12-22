@@ -1512,19 +1512,8 @@ exports[`loaded pending role based request state 1`] = `
 
 .c39 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c41 {
-  box-sizing: border-box;
   max-width: 500px;
-  padding: 8px;
-  height: 150px;
-  width: 100%;
-  color: #FFFFFF;
-  border: 1px solid;
-  border-radius: 4px;
-  border-color: rgba(255,255,255,0.54);
+  margin-bottom: 24px;
 }
 
 .c44 {
@@ -1772,7 +1761,7 @@ exports[`loaded pending role based request state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c7 {
@@ -1855,6 +1844,43 @@ exports[`loaded pending role based request state 1`] = `
   justify-content: space-between;
 }
 
+.c41 {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  box-sizing: border-box;
+  min-height: 50px;
+  height: 80px;
+  font-size: 16px;
+  padding: 16px;
+  outline: none;
+  width: 100%;
+  color: #FFFFFF;
+  background: inherit;
+  margin-top: 4px;
+  resize: vertical;
+}
+
+.c41::placeholder {
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
+}
+
+.c41:hover,
+.c41:focus,
+.c41:active {
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c41:read-only {
+  cursor: not-allowed;
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
+}
+
 .c33 {
   display: flex;
   align-items: center;
@@ -1882,18 +1908,8 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c42 {
-  outline: none;
-  background: transparent;
-}
-
-.c42::placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c42:hover,
-.c42:focus,
-.c42:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  font-size: 14px;
+  min-height: 100px;
 }
 
 .c19 {
@@ -2179,14 +2195,12 @@ exports[`loaded pending role based request state 1`] = `
                   font-size="0"
                 >
                   Message
+                  <textarea
+                    autocomplete="off"
+                    class="c41 c42"
+                    placeholder="Optional message..."
+                  />
                 </label>
-                <textarea
-                  class="c41 c42"
-                  color="text.main"
-                  height="150px"
-                  placeholder="Optional message..."
-                  width="100%"
-                />
               </div>
               <button
                 class="c43"
@@ -2350,19 +2364,8 @@ exports[`loaded pending search based request state 1`] = `
 
 .c43 {
   box-sizing: border-box;
-  margin-bottom: 24px;
-}
-
-.c45 {
-  box-sizing: border-box;
   max-width: 500px;
-  padding: 8px;
-  height: 150px;
-  width: 100%;
-  color: #FFFFFF;
-  border: 1px solid;
-  border-radius: 4px;
-  border-color: rgba(255,255,255,0.54);
+  margin-bottom: 24px;
 }
 
 .c48 {
@@ -2610,7 +2613,7 @@ exports[`loaded pending search based request state 1`] = `
   display: block;
   font-size: 12px;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 0px;
 }
 
 .c7 {
@@ -2691,6 +2694,43 @@ exports[`loaded pending search based request state 1`] = `
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.c45 {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  box-sizing: border-box;
+  min-height: 50px;
+  height: 80px;
+  font-size: 16px;
+  padding: 16px;
+  outline: none;
+  width: 100%;
+  color: #FFFFFF;
+  background: inherit;
+  margin-top: 4px;
+  resize: vertical;
+}
+
+.c45::placeholder {
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
+}
+
+.c45:hover,
+.c45:focus,
+.c45:active {
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c45:read-only {
+  cursor: not-allowed;
+}
+
+.c45:disabled {
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c31 {
@@ -2792,18 +2832,8 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c46 {
-  outline: none;
-  background: transparent;
-}
-
-.c46::placeholder {
-  color: rgba(255,255,255,0.54);
-}
-
-.c46:hover,
-.c46:focus,
-.c46:active {
-  border: 1px solid rgba(255,255,255,0.72);
+  font-size: 14px;
+  min-height: 100px;
 }
 
 .c19 {
@@ -3207,14 +3237,12 @@ exports[`loaded pending search based request state 1`] = `
                   font-size="0"
                 >
                   Message
+                  <textarea
+                    autocomplete="off"
+                    class="c45 c46"
+                    placeholder="Optional message..."
+                  />
                 </label>
-                <textarea
-                  class="c45 c46"
-                  color="text.main"
-                  height="150px"
-                  placeholder="Optional message..."
-                  width="100%"
-                />
               </div>
               <button
                 class="c47"

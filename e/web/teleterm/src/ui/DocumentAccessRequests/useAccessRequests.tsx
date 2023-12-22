@@ -28,7 +28,6 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const loggedInUser = useWorkspaceLoggedInUser();
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>();
   const { attempt, setAttempt } = useAttempt('');
-  const { attempt: assumeRoleAttempt, run: runAssumeRole } = useAttempt('');
 
   function goBack() {
     documentsService.update(doc.uri, {
@@ -65,16 +64,6 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
     }
   };
 
-  async function assumeRole(request: AccessRequest) {
-    runAssumeRole(() =>
-      retryWithRelogin(ctx, clusterUri, () =>
-        // pass the requestId to the requestIds array on its own, and nothing into the dropids array
-        // since we are only 'assuming' one requestId at a time
-        ctx.clustersService.assumeRole(rootClusterUri, [request.id], [])
-      )
-    );
-  }
-
   useEffect(() => {
     // only fetch when visitng RequestList
     if (doc.state === 'browsing') {
@@ -97,8 +86,6 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
     ctx,
     attempt,
     accessRequests,
-    assumeRoleAttempt,
-    assumeRole,
     onViewRequest,
     doc,
     getRequests,

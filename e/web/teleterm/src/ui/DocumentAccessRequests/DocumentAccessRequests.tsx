@@ -4,6 +4,10 @@ import * as types from 'teleterm/ui/services/workspacesService';
 
 import Document from 'teleterm/ui/Document';
 
+import { Attempt } from 'shared/hooks/useAsync';
+
+import { useAssumeAccess } from 'e-teleterm/ui/DocumentAccessRequests/useAssumeAccess';
+
 import useAccessRequests from './useAccessRequests';
 import { RequestList } from './RequestList/RequestList';
 import { ReviewAccessRequest } from './ReviewAccessRequest';
@@ -11,9 +15,15 @@ import { NewRequest } from './NewRequest';
 
 export function DocumentAccessRequests(props: DocumentProps) {
   const state = useAccessRequests(props.doc);
+  const { assumeRole, assumeRoleAttempt, assumeAccessList } = useAssumeAccess();
   return (
     <Document doc={props.doc} visible={props.visible}>
-      <DocumentAccessRequestsViews {...state} />
+      <DocumentAccessRequestsViews
+        {...state}
+        assumeRole={assumeRole}
+        assumeRoleAttempt={assumeRoleAttempt}
+        assumeAccessList={assumeAccessList}
+      />
     </Document>
   );
 }
@@ -27,7 +37,12 @@ export function DocumentAccessRequestsViews({
   getRequests,
   goBack,
   onViewRequest,
-}: DocumentAccessRequestsProps) {
+  assumeAccessList,
+}: DocumentAccessRequestsProps & {
+  assumeRole(requestId: string): void;
+  assumeRoleAttempt: Attempt<void>;
+  assumeAccessList(): void;
+}) {
   if (doc.state === 'creating') {
     return <NewRequest />;
   }
@@ -38,12 +53,13 @@ export function DocumentAccessRequestsViews({
 
   return (
     <RequestList
-      assumeRole={assumeRole}
+      assumeRole={accessRequest => assumeRole(accessRequest.id)}
       attempt={attempt}
       requests={accessRequests}
       getRequests={getRequests}
       viewRequest={(id: string) => onViewRequest(id)}
       assumeRoleAttempt={assumeRoleAttempt}
+      assumeAccessList={assumeAccessList}
     />
   );
 }

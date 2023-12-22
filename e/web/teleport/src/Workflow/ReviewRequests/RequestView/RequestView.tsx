@@ -31,7 +31,6 @@ import {
   AccessRequest,
 } from 'e-teleport/services/workflow';
 import { PromotedMessage } from 'e-teleport/Workflow/Shared';
-import { AccessList } from 'e-teleport/services/accessmanagement';
 
 import { formattedName } from '../formattedName';
 
@@ -39,6 +38,7 @@ import RequestDelete from './RequestDelete';
 import RequestReview from './RequestReview';
 import RolesRequested from './RolesRequested';
 import useRequestView from './useRequestView';
+import { SuggestedAccessList } from './types';
 
 import type {
   RequestFlags,
@@ -55,13 +55,14 @@ export interface RequestViewProps {
   user: string;
   getFlags(accessRequest: AccessRequest): RequestFlags;
   fetchRequestAttempt: Attempt<AccessRequest>;
-  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>;
+  fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>;
   toggleConfirmDelete(): void;
   confirmDelete: boolean;
   submitReview(s: SubmitReview): void;
   submitReviewAttempt: Attempt<AccessRequest>;
   assumeRole(accessRequest: AccessRequest): void;
   assumeRoleAttempt: Attempt<void>;
+  assumeAccessList(): void;
 }
 
 export function RequestView({
@@ -75,12 +76,11 @@ export function RequestView({
   submitReviewAttempt,
   assumeRoleAttempt,
   fetchSuggestedAccessListsAttempt,
+  assumeAccessList,
 }: RequestViewProps) {
   if (
     !hasFinished(fetchRequestAttempt) ||
-    (fetchSuggestedAccessListsAttempt !== null
-      ? !hasFinished(fetchSuggestedAccessListsAttempt)
-      : false)
+    !hasFinished(fetchSuggestedAccessListsAttempt)
   ) {
     return (
       <Box textAlign="center" m={10}>
@@ -217,7 +217,7 @@ export function RequestView({
                 <Reviews reviews={request.reviews} />
               )}
               {request.state === 'PENDING' &&
-                fetchSuggestedAccessListsAttempt?.status === 'success' &&
+                fetchSuggestedAccessListsAttempt.status === 'success' &&
                 fetchSuggestedAccessListsAttempt.data.length > 0 && (
                   <SuggestedAccessListTimestamp
                     accessLists={fetchSuggestedAccessListsAttempt.data}
@@ -253,9 +253,7 @@ export function RequestView({
               request={request}
               self={flags.ownRequest}
               py={4}
-              // TODO(lisa): temp hack to not render the re-login button for
-              // teleterm.
-              showWebReloginBtn={!!fetchSuggestedAccessListsAttempt}
+              assumeAccessList={assumeAccessList}
             />
           )}
         </Box>
@@ -583,7 +581,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
 export function SuggestedAccessListTimestamp({
   accessLists,
 }: {
-  accessLists: AccessList[];
+  accessLists: SuggestedAccessList[];
 }) {
   return (
     <Flex pt={3} style={{ position: 'relative' }}>

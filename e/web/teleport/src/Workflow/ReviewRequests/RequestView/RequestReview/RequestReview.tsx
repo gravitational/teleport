@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import {
-  ButtonPrimary,
-  Text,
-  Box,
-  LabelInput,
-  Alert,
-  Flex,
-  Label,
-} from 'design';
+import { ButtonPrimary, Text, Box, Alert, Flex, Label } from 'design';
 import { Warning } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -17,22 +9,22 @@ import { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAsync';
 import { requiredField } from 'shared/components/Validation/rules';
 import { HoverTooltip } from 'shared/components/ToolTip';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
 
 import { AccessRequest, RequestState } from 'e-teleport/services/workflow';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
-import { AccessList } from 'e-teleport/services/accessmanagement';
 
-import { SubmitReview } from '../types';
+import { SuggestedAccessList, SubmitReview } from '../types';
 
 type ReviewStateOption = Option<RequestState, React.ReactElement> & {
   disabled?: boolean;
 };
 
-type SuggestedAcessListOption = Option<AccessList, React.ReactElement>;
+type SuggestedAcessListOption = Option<SuggestedAccessList, React.ReactElement>;
 
 export interface RequestReviewProps {
   submitReview(s: SubmitReview): void;
-  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>;
+  fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>;
   shortTermDuration: string;
   user: string;
   submitReviewAttempt: Attempt<AccessRequest>;
@@ -123,10 +115,9 @@ export default function RequestReview({
                   <HorizontalLine />
                   <FieldSelect
                     ml={1}
-                    width="600px"
-                    label={`Select a suggested Access List to add ${request.user} as a member to`}
+                    maxWidth="600px"
+                    label={`Select a suggested Access List to add ${request.user} as a member to:`}
                     rule={requiredField('Required')}
-                    placeholder={`Select a suggested Access List to add ${request.user} as a member to`}
                     value={
                       selectedAccessList
                         ? {
@@ -143,37 +134,18 @@ export default function RequestReview({
                 </Box>
               )}
             </Box>
-            <Box mb={4}>
-              <LabelInput mb={1}>Message</LabelInput>
-              <Box
-                width="100%"
-                maxWidth="500px"
-                height="150px"
-                as="textarea"
-                p={2}
-                borderRadius={2}
-                placeholder="Optional message..."
-                color="text.main"
-                border="1px solid"
-                borderColor="text.muted"
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                autoFocus
-                css={`
-                  outline: none;
-                  background: transparent;
-                  ::placeholder {
-                    color: ${({ theme }) => theme.colors.text.muted};
-                  }
-                  &:hover,
-                  &:focus,
-                  &:active {
-                    border: 1px solid
-                      ${props => props.theme.colors.text.slightlyMuted};
-                  }
+            <FieldTextArea
+              label="Message"
+              placeholder="Optional message..."
+              value={reason}
+              mb={4}
+              maxWidth="500px"
+              textAreaCss={`
+                  font-size: 14px;
+                  min-height: 100px;
                 `}
-              />
-            </Box>
+              onChange={e => setReason(e.target.value)}
+            />
             <ButtonPrimary
               disabled={submitReviewAttempt.status === 'processing'}
               onClick={() => onSubmitReview(validator)}
@@ -188,12 +160,9 @@ export default function RequestReview({
 }
 
 function makeSuggestedAccessListOptions(
-  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>
+  fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>
 ): SuggestedAcessListOption[] {
-  if (
-    !fetchSuggestedAccessListsAttempt ||
-    fetchSuggestedAccessListsAttempt.status !== 'success'
-  ) {
+  if (fetchSuggestedAccessListsAttempt.status !== 'success') {
     return [];
   }
 
@@ -231,27 +200,10 @@ function makeSuggestedAccessListOptions(
 }
 
 function makeReviewStateOptions(
-  fetchSuggestedAccessListsAttempt: Attempt<AccessList[]>,
+  fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>,
   shortTermDuration: string,
   request: AccessRequest
 ): ReviewStateOption[] {
-  // TODO(lisa): teleterm uses the same components, temporary hack
-  // to "disable" promoting for teleterm until feature is ready in teleterm.
-  if (!fetchSuggestedAccessListsAttempt) {
-    return [
-      { value: 'DENIED', label: <>Reject request</> },
-      {
-        value: 'APPROVED',
-        label: (
-          <>
-            Approve request
-            {shortTermDuration ? ` (${shortTermDuration})` : ''}
-          </>
-        ),
-      },
-    ];
-  }
-
   const promotedTxt =
     'Approve long-term access via Access List with the requested resources';
 
@@ -265,7 +217,7 @@ function makeReviewStateOptions(
   } else {
     let msg = 'No Access Lists will grant the requested resources';
     if (fetchSuggestedAccessListsAttempt.status === 'error') {
-      msg = `Error: ${fetchSuggestedAccessListsAttempt.statusText}`;
+      msg = fetchSuggestedAccessListsAttempt.statusText;
     } else if (request.resources.length === 0) {
       msg = 'Only supported for resource based access requests';
     }

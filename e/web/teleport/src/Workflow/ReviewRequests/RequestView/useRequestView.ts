@@ -7,7 +7,7 @@ import history from 'teleport/services/history';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
-import { getBaseRequestFlags } from 'e-teleport/Workflow/Shared';
+import { getBaseRequestFlags, reloginWebUi } from 'e-teleport/Workflow/Shared';
 
 import type { SubmitReview, RequestFlags } from './types';
 
@@ -93,6 +93,7 @@ export default function useRequestView(ctx: TeleportContextE) {
     assumeRole: runAssumeRole,
     assumeRoleAttempt,
     fetchSuggestedAccessListsAttempt,
+    assumeAccessList: reloginWebUi,
   };
 }
 

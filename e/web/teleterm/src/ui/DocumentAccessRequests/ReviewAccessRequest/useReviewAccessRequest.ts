@@ -3,12 +3,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { AccessRequest } from 'e-teleport/services/workflow';
 import {
   SubmitReview,
+  SuggestedAccessList,
   RequestFlags,
 } from 'e-teleport/Workflow/ReviewRequests/RequestView/types';
 
-import { AssumedRequest, LoggedInUser } from 'teleterm/services/tshd/types';
+import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { isUnimplementedError } from 'teleterm/services/tshd/errors';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
@@ -53,9 +55,6 @@ export function useReviewAccessRequest({
       ctx.clustersService.deleteAccessRequest(rootClusterUri, requestId)
     )
   );
-  const [assumeRoleAttempt, runAssumeRole] = useAsync(() =>
-    retry(() => ctx.clustersService.assumeRole(rootClusterUri, [requestId], []))
-  );
   const [submitReviewAttempt, runSubmitReview] = useAsync(
     (review: SubmitReview) =>
       retry(async () => {
@@ -65,16 +64,44 @@ export function useReviewAccessRequest({
         }
 
         const updatedAccessRequest =
-          await ctx.clustersService.reviewAccessRequest(rootClusterUri, {
-            state: review.state,
-            reason: review.reason,
-            roles: fetchRequestAttempt.data.roles,
-            id: requestId,
-          });
+          review.state === 'PROMOTED' && review.promotedToAccessList
+            ? await ctx.clustersService.promoteAccessRequest({
+                rootClusterUri,
+                accessRequestId: requestId,
+                reason: review.reason,
+                accessListId: review.promotedToAccessList.id,
+              })
+            : await ctx.clustersService.reviewAccessRequest(rootClusterUri, {
+                state: review.state,
+                reason: review.reason,
+                roles: fetchRequestAttempt.data.roles,
+                id: requestId,
+              });
 
         return makeUiAccessRequest(updatedAccessRequest);
       })
   );
+  const [fetchSuggestedAccessListsAttempt, runFetchSuggestedAccessLists] =
+    useAsync(
+      useCallback(async () => {
+        try {
+          const suggestions = await ctx.tshd.getSuggestedAccessLists({
+            rootClusterUri,
+            accessRequestId: requestId,
+          });
+
+          return suggestions.map(makeUiAccessList);
+        } catch (e) {
+          if (isUnimplementedError(e)) {
+            // TODO(gzdunek): DELETE IN 16.0.0
+            throw new Error(
+              'To approve long-term access via Access List in Teleport Connect, update your cluster to 13.4.13 or 14.3.'
+            );
+          }
+          throw e;
+        }
+      }, [ctx.tshd, requestId, rootClusterUri])
+    );
 
   function getFlags(request: AccessRequest): RequestFlags {
     if (loggedInUser) {
@@ -89,7 +116,16 @@ export function useReviewAccessRequest({
     if (fetchRequestAttempt.status === '') {
       runFetchRequest();
     }
-  }, [fetchRequestAttempt.status, runFetchRequest]);
+
+    if (fetchSuggestedAccessListsAttempt.status === '') {
+      runFetchSuggestedAccessLists();
+    }
+  }, [
+    fetchRequestAttempt.status,
+    fetchSuggestedAccessListsAttempt.status,
+    runFetchRequest,
+    runFetchSuggestedAccessLists,
+  ]);
 
   async function deleteRequest(): Promise<void> {
     const [, error] = await runDeleteRequest();
@@ -101,22 +137,21 @@ export function useReviewAccessRequest({
   return {
     user: loggedInUser,
     getFlags,
-    assumeRole: runAssumeRole,
     fetchRequestAttempt,
     submitReviewAttempt,
-    assumeRoleAttempt,
     deleteDialogOpen,
     setDeleteDialogOpen,
     deleteRequestAttempt,
     deleteRequest,
     submitReview: runSubmitReview,
+    fetchSuggestedAccessListsAttempt,
   };
 }
 
 function getRequestFlags(
   request: AccessRequest,
-  user: LoggedInUser,
-  assumedMap: Record<string, AssumedRequest>
+  user: tsh.LoggedInUser,
+  assumedMap: Record<string, tsh.AssumedRequest>
 ): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
@@ -138,5 +173,27 @@ function getRequestFlags(
     canReview: !ownRequest && isPendingState,
     isPromoted,
     ownRequest,
+  };
+}
+
+// Should be kept in sync with accessmanagement.makeAccessList().
+function makeUiAccessList(al: tsh.AccessList): SuggestedAccessList {
+  const spec = al.spec;
+  const metadata = al.header.metadata;
+
+  return {
+    id: metadata.name,
+    title: spec.title,
+    description: spec.description,
+    grants: {
+      roles: spec.grants.rolesList.sort(),
+      traits: spec.grants.traitsList.reduce<Record<string, string[]>>(
+        (accumulator, trait) => {
+          accumulator[trait.key] = trait.valuesList;
+          return accumulator;
+        },
+        {}
+      ),
+    },
   };
 }

@@ -15,8 +15,14 @@ export type RequestFlags = {
   isPromoted: boolean;
 };
 
+/** Subset of `AccessList` properties required to show a suggestion. */
+export type SuggestedAccessList = Pick<
+  AccessList,
+  'id' | 'title' | 'description' | 'grants'
+>;
+
 export type SubmitReview = {
   state: RequestState;
   reason: string;
-  promotedToAccessList?: AccessList;
+  promotedToAccessList?: SuggestedAccessList;
 };

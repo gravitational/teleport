@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Label, Alert, ButtonBorder, Flex, ButtonPrimary, Box } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Attempt as AsyncAttempt } from 'shared/hooks/useAsync';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
 import { formattedName } from 'e-teleport/Workflow/ReviewRequests/formattedName';
@@ -26,13 +27,14 @@ export function RequestList({
   assumeRoleAttempt,
   assumeRole,
   getRequests,
+  assumeAccessList,
 }: Props) {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
         <Alert kind="danger" children={attempt.statusText} />
       )}
-      {assumeRoleAttempt.status === 'failed' && (
+      {assumeRoleAttempt.status === 'error' && (
         <Alert kind="danger" children={assumeRoleAttempt.statusText} />
       )}
       <Flex justifyContent="end" pb={4}>
@@ -96,7 +98,8 @@ export function RequestList({
                 request as Row,
                 assumeRole,
                 assumeRoleAttempt,
-                viewRequest
+                viewRequest,
+                assumeAccessList
               ),
           },
         ]}
@@ -131,8 +134,9 @@ function requestMatcher(
 const renderActionCell = (
   request: Row,
   assumeRole: (request: Row) => void,
-  assumeRoleAttempt: Attempt,
-  viewRequest: (id: string) => void
+  assumeRoleAttempt: AsyncAttempt<void>,
+  viewRequest: (id: string) => void,
+  assumeAccessList: () => void
 ) => {
   return (
     <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
@@ -153,6 +157,7 @@ const renderActionCell = (
           <ButtonPromotedInfo
             request={request}
             ownRequest={request.ownRequest}
+            assumeAccessList={assumeAccessList}
           />
         )}
         <ButtonBorder
@@ -216,7 +221,8 @@ type Props = {
   attempt: Attempt;
   requests: AccessRequest[];
   assumeRole: (request: AccessRequest) => void;
-  assumeRoleAttempt: Attempt;
+  assumeRoleAttempt: AsyncAttempt<void>;
   getRequests: () => void;
   viewRequest: (requestId: string) => void;
+  assumeAccessList: () => void;
 };

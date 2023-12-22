@@ -8,6 +8,8 @@ import { ArrowBack } from 'design/Icon';
 import { RequestDelete } from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestDelete/RequestDelete';
 import { RequestView } from 'e-teleport/Workflow/ReviewRequests/RequestView/RequestView';
 
+import { useAssumeAccess } from '../useAssumeAccess';
+
 import { useReviewAccessRequest } from './useReviewAccessRequest';
 
 export function ReviewAccessRequest(props: {
@@ -16,17 +18,17 @@ export function ReviewAccessRequest(props: {
 }) {
   const {
     fetchRequestAttempt,
-    assumeRole,
     submitReviewAttempt,
     submitReview,
     deleteDialogOpen,
-    assumeRoleAttempt,
     setDeleteDialogOpen,
     deleteRequest,
     deleteRequestAttempt,
     user,
     getFlags,
+    fetchSuggestedAccessListsAttempt,
   } = useReviewAccessRequest(props);
+  const { assumeRole, assumeRoleAttempt, assumeAccessList } = useAssumeAccess();
 
   function getDialogDelete() {
     const hasRequest =
@@ -79,11 +81,11 @@ export function ReviewAccessRequest(props: {
         confirmDelete={false} // never show the embedded request delete
         toggleConfirmDelete={() => setDeleteDialogOpen(true)}
         submitReview={submitReview}
-        assumeRole={assumeRole}
+        assumeRole={() => assumeRole(props.requestId)}
         assumeRoleAttempt={assumeRoleAttempt}
         submitReviewAttempt={submitReviewAttempt}
-        // TODO(lisa): temporary hack to disable promoting for teleterm.
-        fetchSuggestedAccessListsAttempt={null}
+        fetchSuggestedAccessListsAttempt={fetchSuggestedAccessListsAttempt}
+        assumeAccessList={assumeAccessList}
       />
       {getDialogDelete()}
     </Layout>

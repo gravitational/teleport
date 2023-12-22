@@ -17,7 +17,7 @@ import { ArrowFatLinesUp } from 'design/Icon';
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'e-teleport/config';
 import { AccessRequest, Resource } from 'e-teleport/services/workflow';
-import { ButtonPromotedInfo } from 'e-teleport/Workflow/Shared';
+import { ButtonPromotedInfo, reloginWebUi } from 'e-teleport/Workflow/Shared';
 
 import { formattedName } from '../formattedName';
 
@@ -245,7 +245,7 @@ const renderActionCell = (request: Row, assumeRole: (request: Row) => void) => {
           <ButtonPromotedInfo
             request={request}
             ownRequest={request.ownRequest}
-            showWebReloginBtn={true}
+            assumeAccessList={reloginWebUi}
           />
         )}
         <ButtonBorder

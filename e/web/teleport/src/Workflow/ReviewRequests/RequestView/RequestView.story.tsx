@@ -190,6 +190,7 @@ const sample: RequestViewProps = {
   assumeRole: () => null,
   fetchSuggestedAccessListsAttempt: makeSuccessAttempt([]),
   assumeRoleAttempt: makeEmptyAttempt(),
+  assumeAccessList: () => null,
 };
 
 const sampleFlags: RequestFlags = {

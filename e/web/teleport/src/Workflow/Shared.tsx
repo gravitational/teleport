@@ -12,29 +12,15 @@ export function PromotedMessage({
   px,
   py,
   self,
-  showWebReloginBtn = false,
+  assumeAccessList,
 }: {
   request: AccessRequest;
   self: boolean;
   px?: number;
   py?: number;
-  showWebReloginBtn?: boolean;
+  assumeAccessList(): void;
 }) {
   const { promotedAccessListTitle, user } = request;
-
-  let relogin;
-  if (self) {
-    if (showWebReloginBtn) {
-      relogin = (
-        <ButtonPrimary mt={3} onClick={() => session.logout()}>
-          Re-login to gain access
-        </ButtonPrimary>
-      );
-    } else {
-      // TODO(lisa): temp work around for teleterm.
-      relogin = <>Re-login to gain access.</>;
-    }
-  }
 
   return (
     <Box px={px} py={py}>
@@ -54,7 +40,11 @@ export function PromotedMessage({
           </>
         )}
       </Text>
-      {relogin}
+      {self && (
+        <ButtonPrimary mt={3} onClick={assumeAccessList}>
+          Re-login to gain access
+        </ButtonPrimary>
+      )}
     </Box>
   );
 }
@@ -81,14 +71,18 @@ export function getBaseRequestFlags(
   };
 }
 
+export function reloginWebUi(): void {
+  session.logout();
+}
+
 export const ButtonPromotedInfo = ({
   request,
   ownRequest,
-  showWebReloginBtn = false,
+  assumeAccessList,
 }: {
   request: AccessRequest;
   ownRequest: boolean;
-  showWebReloginBtn?: boolean;
+  assumeAccessList(): void;
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -121,7 +115,7 @@ export const ButtonPromotedInfo = ({
         <PromotedMessage
           request={request}
           self={ownRequest}
-          showWebReloginBtn={showWebReloginBtn}
+          assumeAccessList={assumeAccessList}
           px={4}
           py={4}
         />
