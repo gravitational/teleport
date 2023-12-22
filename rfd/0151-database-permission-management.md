@@ -204,16 +204,18 @@ spec:
 #### Import process
 
 The database objects are imported by the database agent when establishing a new
-user session to the database. In this context, they are immediately used for
-permission calculation.
+user session to the database. In this context, they are immediate inputs for
+permission calculation; the desired per-object permissions are subsequently
+written back to the database.
 
-Imported objects are also stored in the backend, where TAG can access them.
+Imported objects are also stored in the backend, where TAG can access them. This
+enables the TAG to visualise the permissions.
 
 Additionally, the imports will be done on a predetermined schedule (e.g. every
 10 minutes), and stored in the backend. If the database engine supports it, the
 sync may also happen when a schema change is detected. For example, in Postgres
 we case use
-(trigger+notify)[https://medium.com/launchpad-lab/postgres-triggers-with-listen-notify-565b44ccd782].
+[trigger+notify](https://medium.com/launchpad-lab/postgres-triggers-with-listen-notify-565b44ccd782).
 
 #### Import result: the `db_object` resource
 
@@ -307,13 +309,22 @@ spec:
 #### Applying permissions
 
 The permissions will be applied to the user after the user is provisioned in the
-database. After the session is finished, the user is removed/deactivated, and
-_all_ permissions must be revoked. Additionally, the permissions _may_ be
-updated if a schema change is detected. The permissions also _may_ be updated if
-the role definition in the backend changes, but the cost of implementing such a
-feature should be weighed against the benefits it would provide. The list of
-roles for a given user is unchanging in the scope of a single connection, so
-this is not an element that may change.
+database. The exact mechanism will be database-specific; for example, in SQL
+databases like Postgres or MySQL this will be done through appropriate `GRANT`
+statements, executed through a helper stored procedure.
+
+After the session is finished, the user is removed/deactivated, and _all_
+permissions must be revoked. Again, for SQL databases, a corresponding `REVOKE`
+statements will be issued. To ensure complete removal of all permissions, the
+stored procedure will iterate over all schemas and objects within, revoking the
+access to each individual object.
+
+Additionally, the permissions _may_ be updated if a schema change is detected.
+
+The permissions also _may_ be updated if the role definition in the backend
+changes, but the cost of implementing such a feature should be weighed against
+the benefits it would provide. The list of roles for a given user is unchanging
+in the scope of a single connection, so this is not an element that may change.
 
 To avoid confusion regarding the source of access, `db_permissions` will only be
 considered if no `db_roles` are configured for user.
