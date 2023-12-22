@@ -24,6 +24,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +41,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -50,6 +50,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -78,6 +79,13 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 	require.NoError(t, err)
 	client, err := srv.NewClient(TestUser(u.username))
 	require.NoError(t, err)
+
+	// GenerateUserCerts requires MFA.
+	client.SetMFAPromptConstructor(func(po ...mfa.PromptOpt) mfa.Prompt {
+		return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return u.webDev.SolveAuthn(chal)
+		})
+	})
 
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -1813,6 +1821,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
 	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
+	authContext.AdminActionAuthorized = true
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
