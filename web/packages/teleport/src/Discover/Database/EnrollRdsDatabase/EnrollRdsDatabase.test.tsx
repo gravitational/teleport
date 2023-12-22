@@ -102,7 +102,7 @@ function getMockedContexts() {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
-      integration: {
+      awsIntegration: {
         kind: 'aws-oidc',
         name: 'aws-oidc-integration',
         resourceType: 'integration',
