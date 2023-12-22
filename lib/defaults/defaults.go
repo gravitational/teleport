@@ -23,6 +23,7 @@ package defaults
 import (
 	"crypto/tls"
 	"fmt"
+	"golang.org/x/net/http2"
 	"net/http"
 	"slices"
 	"strings"
@@ -120,6 +121,12 @@ const (
 
 	// HTTPRequestTimeout is a default timeout for HTTP requests
 	HTTPRequestTimeout = 30 * time.Second
+
+	// HTTP2ReadIdleTimeout is the amount of time to wait before sending a ping on idle connection
+	HTTP2ReadIdleTimeout = 30 * time.Second
+
+	// HTTP2PingTimeout is the amount of time to wait for ping response
+	HTTP2PingTimeout = 5 * time.Second
 
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
@@ -810,6 +817,13 @@ func Transport() (*http.Transport, error) {
 	// connections open forever and will cause memory leaks in a long-running
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
+
+	tr2, err := http2.ConfigureTransports(tr)
+	if err != nil {
+		return tr, trace.BadParameter("http2 transport already configured")
+	}
+	tr2.ReadIdleTimeout = HTTP2ReadIdleTimeout
+	tr2.PingTimeout = HTTP2PingTimeout
 
 	return tr, nil
 }
