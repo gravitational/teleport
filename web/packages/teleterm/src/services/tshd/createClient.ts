@@ -934,6 +934,53 @@ export default function createClient(
         });
       });
     },
+    promoteAccessRequest(
+      params: api.PromoteAccessRequestRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<types.AccessRequest> {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.PromoteAccessRequestRequest()
+          .setRootClusterUri(params.rootClusterUri)
+          .setAccessRequestId(params.accessRequestId)
+          .setAccessListId(params.accessListId)
+          .setReason(params.reason);
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.promoteAccessRequest(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              const res = response.toObject();
+              resolve(res.request);
+            }
+          });
+        });
+      });
+    },
+    getSuggestedAccessLists(
+      params: api.GetSuggestedAccessListsRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<types.AccessList[]> {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.GetSuggestedAccessListsRequest()
+          .setRootClusterUri(params.rootClusterUri)
+          .setAccessRequestId(params.accessRequestId);
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.getSuggestedAccessLists(
+            req,
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                const res = response.toObject();
+                resolve(res.accessListsList);
+              }
+            }
+          );
+        });
+      });
+    },
   };
 
   return client;
