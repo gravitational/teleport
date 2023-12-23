@@ -5463,7 +5463,17 @@ func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return bk, nil
+
+	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component: teleport.ComponentBackend,
+		Backend:   backend.NewSanitizer(bk),
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.setReporter(reporter)
+	return reporter, nil
 }
 
 func (process *TeleportProcess) setReporter(reporter *backend.Reporter) {
