@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -41,7 +42,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -799,30 +799,27 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 	require.Error(t, err)
 }
 
-func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
-	now := time.Now()
-	events, _, err := auth.SearchEvents(
-		now.Add(-time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		nil,
-		0,
-		types.EventOrderDescending,
-		"")
-
-	require.NoError(t, err)
-	return events
-}
-
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	av := mustSearchEvents(t, s.root.GetAuthServer())
-	for _, e := range av {
-		if e.GetCode() == events.AuthAttemptFailureCode {
-			require.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
-			return
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		now := time.Now()
+		es, _, err := s.root.GetAuthServer().SearchEvents(
+			now.Add(-time.Hour),
+			now.Add(time.Hour),
+			apidefaults.Namespace,
+			nil,
+			0,
+			types.EventOrderDescending,
+			"")
+		assert.NoError(t, err)
+
+		for _, e := range es {
+			if e.GetCode() == events.AuthAttemptFailureCode {
+				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
+				return
+			}
 		}
-	}
-	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
+	}, 5*time.Second, 500*time.Millisecond)
 }
 
 func TestFormatCommand(t *testing.T) {
