@@ -1206,94 +1206,122 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 }
 
 func TestDatabaseFromRDSProxy(t *testing.T) {
-	var port int64 = 9999
-	dbProxy := &rds.DBProxy{
-		DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
-		DBProxyName:  aws.String("testproxy"),
-		EngineFamily: aws.String(rds.EngineFamilyMysql),
-		Endpoint:     aws.String("proxy.rds.test"),
-		VpcId:        aws.String("test-vpc-id"),
+	tests := []struct {
+		desc         string
+		engineFamily string
+		wantProtocol string
+		wantPort     int
+	}{
+		{
+			desc:         "mysql",
+			engineFamily: rds.EngineFamilyMysql,
+			wantProtocol: "mysql",
+			wantPort:     3306,
+		},
+		{
+			desc:         "postgres",
+			engineFamily: rds.EngineFamilyPostgresql,
+			wantProtocol: "postgres",
+			wantPort:     5432,
+		},
+		{
+			desc:         "sqlserver",
+			engineFamily: rds.EngineFamilySqlserver,
+			wantProtocol: "sqlserver",
+			wantPort:     1433,
+		},
 	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			dbProxy := &rds.DBProxy{
+				DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
+				DBProxyName:  aws.String("testproxy"),
+				EngineFamily: aws.String(test.engineFamily),
+				Endpoint:     aws.String("proxy.rds.test"),
+				VpcId:        aws.String("test-vpc-id"),
+			}
 
-	dbProxyEndpoint := &rds.DBProxyEndpoint{
-		Endpoint:            aws.String("custom.proxy.rds.test"),
-		DBProxyEndpointName: aws.String("custom"),
-		DBProxyName:         aws.String("testproxy"),
-		DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
-		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+			dbProxyEndpoint := &rds.DBProxyEndpoint{
+				Endpoint:            aws.String("custom.proxy.rds.test"),
+				DBProxyEndpointName: aws.String("custom"),
+				DBProxyName:         aws.String("testproxy"),
+				DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
+				TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
+			}
+
+			tags := []*rds.Tag{{
+				Key:   aws.String("key"),
+				Value: aws.String("val"),
+			}}
+
+			t.Run("default endpoint", func(t *testing.T) {
+				expected, err := types.NewDatabaseV3(types.Metadata{
+					Name:        "testproxy",
+					Description: "RDS Proxy in ca-central-1",
+					Labels: map[string]string{
+						"key":                         "val",
+						types.DiscoveryLabelAccountID: "123456789012",
+						types.CloudLabel:              types.CloudAWS,
+						types.DiscoveryLabelRegion:    "ca-central-1",
+						types.DiscoveryLabelEngine:    test.engineFamily,
+						types.DiscoveryLabelVPCID:     "test-vpc-id",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: test.wantProtocol,
+					URI:      fmt.Sprintf("proxy.rds.test:%d", test.wantPort),
+					AWS: types.AWS{
+						Region:    "ca-central-1",
+						AccountID: "123456789012",
+						RDSProxy: types.RDSProxy{
+							ResourceID: "prx-abcdef",
+							Name:       "testproxy",
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				actual, err := NewDatabaseFromRDSProxy(dbProxy, tags)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expected, actual))
+			})
+
+			t.Run("custom endpoint", func(t *testing.T) {
+				expected, err := types.NewDatabaseV3(types.Metadata{
+					Name:        "testproxy-custom",
+					Description: "RDS Proxy endpoint in ca-central-1",
+					Labels: map[string]string{
+						"key":                            "val",
+						types.DiscoveryLabelAccountID:    "123456789012",
+						types.CloudLabel:                 types.CloudAWS,
+						types.DiscoveryLabelRegion:       "ca-central-1",
+						types.DiscoveryLabelEngine:       test.engineFamily,
+						types.DiscoveryLabelVPCID:        "test-vpc-id",
+						types.DiscoveryLabelEndpointType: "READ_ONLY",
+					},
+				}, types.DatabaseSpecV3{
+					Protocol: test.wantProtocol,
+					URI:      fmt.Sprintf("custom.proxy.rds.test:%d", test.wantPort),
+					AWS: types.AWS{
+						Region:    "ca-central-1",
+						AccountID: "123456789012",
+						RDSProxy: types.RDSProxy{
+							ResourceID:         "prx-abcdef",
+							Name:               "testproxy",
+							CustomEndpointName: "custom",
+						},
+					},
+					TLS: types.DatabaseTLS{
+						ServerName: "proxy.rds.test",
+					},
+				})
+				require.NoError(t, err)
+
+				actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, tags)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expected, actual))
+			})
+		})
 	}
-
-	tags := []*rds.Tag{{
-		Key:   aws.String("key"),
-		Value: aws.String("val"),
-	}}
-
-	t.Run("default endpoint", func(t *testing.T) {
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "testproxy",
-			Description: "RDS Proxy in ca-central-1",
-			Labels: map[string]string{
-				"key":                         "val",
-				types.DiscoveryLabelAccountID: "123456789012",
-				types.CloudLabel:              types.CloudAWS,
-				types.DiscoveryLabelRegion:    "ca-central-1",
-				types.DiscoveryLabelEngine:    "MYSQL",
-				types.DiscoveryLabelVPCID:     "test-vpc-id",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "proxy.rds.test:9999",
-			AWS: types.AWS{
-				Region:    "ca-central-1",
-				AccountID: "123456789012",
-				RDSProxy: types.RDSProxy{
-					ResourceID: "prx-abcdef",
-					Name:       "testproxy",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		actual, err := NewDatabaseFromRDSProxy(dbProxy, port, tags)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
-
-	t.Run("custom endpoint", func(t *testing.T) {
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "testproxy-custom",
-			Description: "RDS Proxy endpoint in ca-central-1",
-			Labels: map[string]string{
-				"key":                            "val",
-				types.DiscoveryLabelAccountID:    "123456789012",
-				types.CloudLabel:                 types.CloudAWS,
-				types.DiscoveryLabelRegion:       "ca-central-1",
-				types.DiscoveryLabelEngine:       "MYSQL",
-				types.DiscoveryLabelVPCID:        "test-vpc-id",
-				types.DiscoveryLabelEndpointType: "READ_ONLY",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "custom.proxy.rds.test:9999",
-			AWS: types.AWS{
-				Region:    "ca-central-1",
-				AccountID: "123456789012",
-				RDSProxy: types.RDSProxy{
-					ResourceID:         "prx-abcdef",
-					Name:               "testproxy",
-					CustomEndpointName: "custom",
-				},
-			},
-			TLS: types.DatabaseTLS{
-				ServerName: "proxy.rds.test",
-			},
-		})
-		require.NoError(t, err)
-
-		actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, port, tags)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
 }
 
 func TestAuroraMySQLVersion(t *testing.T) {

@@ -44,7 +44,6 @@ func buildContainerImagePipelines() []pipeline {
 	branchMajorSemver, imageUpdateSemvers := buildPipelineVersions()
 
 	triggers := []*TriggerInfo{
-		NewTagTrigger(branchMajorSemver),
 		NewPromoteTrigger(branchMajorSemver),
 		NewCronTrigger(imageUpdateSemvers),
 	}

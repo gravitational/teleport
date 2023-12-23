@@ -41,9 +41,8 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
 				RDS: &mocks.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-					DBProxyTargetPort: 9999,
+					DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
@@ -53,9 +52,8 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 			name: "fetch vpc1",
 			inputClients: &cloud.TestCloudClients{
 				RDS: &mocks.RDSMock{
-					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-					DBProxyTargetPort: 9999,
+					DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
@@ -67,14 +65,14 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
 	rdsProxy := mocks.RDSProxy(name, region, vpcID)
-	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, 9999, nil)
+	rdsProxyDatabase, err := services.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
 	return rdsProxy, rdsProxyDatabase
 }
 
 func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
 	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
-	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, 9999, nil)
+	rdsProxyEndpointDatabase, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, nil)
 	require.NoError(t, err)
 	return rdsProxyEndpoint, rdsProxyEndpointDatabase
 }

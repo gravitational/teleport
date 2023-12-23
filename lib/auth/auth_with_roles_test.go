@@ -5034,40 +5034,6 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, clien
 	return nil
 }
 
-func TestUnimplementedClients(t *testing.T) {
-	ctx := context.Background()
-	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	server := &ServerWithRoles{
-		authServer: testAuth.AuthServer,
-	}
-
-	require.NoError(t, err)
-
-	t.Run("DevicesClient", func(t *testing.T) {
-		_, err := server.DevicesClient().ListDevices(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("LoginRuleClient", func(t *testing.T) {
-		_, err := server.LoginRuleClient().ListLoginRules(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("PluginClient", func(t *testing.T) {
-		_, err := server.PluginsClient().ListPlugins(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("SAMLIdPClient", func(t *testing.T) {
-		_, err := server.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-}
-
 // getTestHeadlessAuthenticationID returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
@@ -5293,6 +5259,75 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	}
 }
 
+func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	m := &eventstest.MockAuditLog{
+		Emitter: &eventstest.MockEmitter{},
+	}
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir(), AuditLog: m})
+	require.NoError(t, err)
+
+	// Server used to create users and roles.
+	setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
+	require.NoError(t, err)
+	setupServer := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *setupAuthContext,
+	}
+
+	user, err := types.NewUser("some-user")
+	require.NoError(t, err)
+
+	localUser := authz.LocalUser{Username: "test", Identity: tlsca.Identity{Username: "test"}}
+
+	// test create user, happy path
+	err = setupServer.CreateUser(authz.ContextWithUser(ctx, localUser), user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+
+	// test create user with existing user
+	err = setupServer.CreateUser(ctx, user)
+	require.True(t, trace.IsAlreadyExists(err))
+	require.Nil(t, m.Emitter.LastEvent())
+
+	// test createdBy gets set to default
+	user2, err := types.NewUser("some-other-user")
+	require.NoError(t, err)
+	err = setupServer.CreateUser(ctx, user2)
+	require.NoError(t, err)
+	require.Equal(t, teleport.UserSystem, m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+
+	// test update on non-existent user
+	user3, err := types.NewUser("non-existent-user")
+	require.NoError(t, err)
+	err = setupServer.UpdateUser(ctx, user3)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, m.Emitter.LastEvent())
+
+	// test update user
+	err = setupServer.UpdateUser(authz.ContextWithUser(ctx, localUser), user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserUpdatedEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+
+	err = setupServer.UpsertUser(authz.ContextWithUser(ctx, localUser), user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+
+	err = setupServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
+	require.Equal(t, teleport.UserSystem, m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	m.Emitter.Reset()
+}
+
 func TestGenerateCertAuthorityCRL(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -5309,7 +5344,10 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	}
 
 	// Create a test user.
-	_, err = CreateUser(setupServer, "username")
+	user, err := types.NewUser("username")
+	require.NoError(t, err)
+
+	err = setupServer.CreateUser(ctx, user)
 	require.NoError(t, err)
 
 	for _, tc := range []struct {

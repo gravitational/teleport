@@ -271,7 +271,7 @@ func WithDialer(dialer contextDialer) RunSSHOption {
 }
 
 // RunSSH runs a command on an SSH server and returns the output.
-func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, opts ...RunSSHOption) ([]byte, error) {
+func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, opts ...RunSSHOption) ([]byte, []byte, error) {
 	var options runSSHOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -279,26 +279,28 @@ func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, op
 
 	conn, err := options.dialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, cfg)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
 	defer sshClient.Close()
 	session, err := sshClient.NewSession()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer session.Close()
 
 	// Execute the command.
-	var b bytes.Buffer
-	session.Stdout = &b
+	var stdout bytes.Buffer
+	session.Stdout = &stdout
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
 	err = session.Run(command)
-	return b.Bytes(), trace.Wrap(err)
+	return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err)
 }
 
 // ChannelReadWriter represents the data streams of an ssh.Channel-like object.

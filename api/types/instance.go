@@ -157,6 +157,10 @@ type Instance interface {
 	// upgraders.
 	GetExternalUpgrader() string
 
+	// GetExternalUpgraderVersion gets the reported upgrader version. This value corresponds
+	// to the TELEPORT_EXT_UPGRADER_VERSION env var that is set when agents are configured.
+	GetExternalUpgraderVersion() string
+
 	// SyncLogAndResourceExpiry filters expired entries from the control log and updates
 	// the resource-level expiry. All calculations are performed relative to the value of
 	// the LastSeen field, and the supplied TTL is used only as a default. The actual TTL
@@ -272,6 +276,10 @@ func (i *InstanceV1) SetLastSeen(t time.Time) {
 
 func (i *InstanceV1) GetExternalUpgrader() string {
 	return i.Spec.ExternalUpgrader
+}
+
+func (i *InstanceV1) GetExternalUpgraderVersion() string {
+	return i.Spec.ExternalUpgraderVersion
 }
 
 func (i *InstanceV1) GetControlLog() []InstanceControlLogEntry {

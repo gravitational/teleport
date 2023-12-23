@@ -133,6 +133,8 @@ spec:
         {{- if .Values.updater.enabled }}
         - name: TELEPORT_EXT_UPGRADER
           value: kube
+        - name: TELEPORT_EXT_UPGRADER_VERSION
+          value: {{ include "teleport-kube-agent.version" . }}
         {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}

@@ -38,14 +38,6 @@ type kubernetesRoleSettings struct {
 	append       bool
 }
 
-// kuberentesS3Settings contains all info needed to download from S3 in a kubernetes pipeline
-type kubernetesS3Settings struct {
-	region       string
-	source       string
-	target       string
-	configVolume volumeRef
-}
-
 // assumeRoleCommands is a helper to build the role assumption commands on a *nix platform
 func assumeRoleCommands(profile, configPath string, appendFile bool) []string {
 	if profile == "" { // set a default profile if none is specified
@@ -92,23 +84,5 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 		},
 		Volumes:  []volumeRef{s.configVolume},
 		Commands: assumeRoleCommands(s.profile, configPath, s.append),
-	}
-}
-
-// kubernetesUploadToS3Step generates an S3 upload step
-func kubernetesUploadToS3Step(s kubernetesS3Settings) step {
-	return step{
-		Name:  "Upload to S3",
-		Image: "amazon/aws-cli",
-		Pull:  "if-not-exists",
-		Environment: map[string]value{
-			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
-			"AWS_REGION":    {raw: s.region},
-		},
-		Volumes: []volumeRef{s.configVolume},
-		Commands: []string{
-			`cd ` + s.source,
-			`aws s3 sync . s3://$AWS_S3_BUCKET/` + s.target,
-		},
 	}
 }

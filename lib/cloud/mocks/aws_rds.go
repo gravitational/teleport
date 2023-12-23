@@ -33,12 +33,11 @@ import (
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances       []*rds.DBInstance
-	DBClusters        []*rds.DBCluster
-	DBProxies         []*rds.DBProxy
-	DBProxyEndpoints  []*rds.DBProxyEndpoint
-	DBEngineVersions  []*rds.DBEngineVersion
-	DBProxyTargetPort int64
+	DBInstances      []*rds.DBInstance
+	DBClusters       []*rds.DBCluster
+	DBProxies        []*rds.DBProxy
+	DBProxyEndpoints []*rds.DBProxyEndpoint
+	DBEngineVersions []*rds.DBEngineVersion
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -187,15 +186,6 @@ func (m *RDSMock) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rd
 		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
 	}
 	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
-}
-
-func (m *RDSMock) DescribeDBProxyTargetsWithContext(ctx aws.Context, input *rds.DescribeDBProxyTargetsInput, options ...request.Option) (*rds.DescribeDBProxyTargetsOutput, error) {
-	// only mocking to return a port here
-	return &rds.DescribeDBProxyTargetsOutput{
-		Targets: []*rds.DBProxyTarget{{
-			Port: aws.Int64(m.DBProxyTargetPort),
-		}},
-	}, nil
 }
 
 func (m *RDSMock) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {

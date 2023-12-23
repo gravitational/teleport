@@ -48,7 +48,7 @@ const (
 // Role contains a set of permissions or settings
 type Role interface {
 	// Resource provides common resource methods.
-	Resource
+	ResourceWithLabels
 
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
@@ -1643,6 +1643,44 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
 }
 
+// GetLabel retrieves the label with the provided key.
+func (r *RoleV6) GetLabel(key string) (value string, ok bool) {
+	v, ok := r.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns all resource's labels.
+func (r *RoleV6) GetAllLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// GetStaticLabels returns the resource's static labels.
+func (r *RoleV6) GetStaticLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// SetStaticLabels sets the resource's static labels.
+func (r *RoleV6) SetStaticLabels(labels map[string]string) {
+	r.Metadata.Labels = labels
+}
+
+// Origin returns the origin value of the resource.
+func (r *RoleV6) Origin() string {
+	return r.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (r *RoleV6) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
+}
+
+// MatchSearch goes through select field values of a resource
+// and tries to match against the list of search values.
+func (r *RoleV6) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
 // LabelMatcherKinds is the complete list of resource kinds that support label
 // matchers.
 var LabelMatcherKinds = []string{
@@ -1676,9 +1714,10 @@ func (a AccessReviewConditions) IsEmpty() bool {
 }
 
 const (
-	createHostUserModeOffString  = "off"
-	createHostUserModeDropString = "drop"
-	createHostUserModeKeepString = "keep"
+	createHostUserModeOffString          = "off"
+	createHostUserModeDropString         = "drop"
+	createHostUserModeKeepString         = "keep"
+	createHostUserModeInsecureDropString = "insecure-drop"
 )
 
 func (h CreateHostUserMode) encode() (string, error) {
@@ -1691,6 +1730,8 @@ func (h CreateHostUserMode) encode() (string, error) {
 		return createHostUserModeDropString, nil
 	case CreateHostUserMode_HOST_USER_MODE_KEEP:
 		return createHostUserModeKeepString, nil
+	case CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		return createHostUserModeInsecureDropString, nil
 	}
 	return "", trace.BadParameter("invalid host user mode %v", h)
 }
@@ -1728,6 +1769,8 @@ func (h *CreateHostUserMode) decode(val any) error {
 		*h = CreateHostUserMode_HOST_USER_MODE_DROP
 	case createHostUserModeKeepString:
 		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
+	case createHostUserModeInsecureDropString:
+		*h = CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
 	default:
 		return trace.BadParameter("invalid host user mode %v", val)
 	}

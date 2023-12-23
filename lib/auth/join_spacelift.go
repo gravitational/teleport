@@ -18,11 +18,13 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
 
@@ -44,6 +46,13 @@ func (a *Server) checkSpaceliftJoinRequest(ctx context.Context, req *types.Regis
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", pt)
+	}
+
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, fmt.Errorf(
+			"spacelift joining: %w",
+			ErrRequiresEnterprise,
+		)
 	}
 
 	claims, err := a.spaceliftIDTokenValidator.Validate(

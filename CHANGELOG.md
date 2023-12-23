@@ -1,5 +1,33 @@
 # Changelog
 
+## 13.4.11 (12/13/23)
+
+* Prevent Cloud tenants from being a leaf cluster. [#35688](https://github.com/gravitational/teleport/pull/35688)
+* Fixed regression of Kubernetes Server Address when Teleport runs in multiplex mode. [#35634](https://github.com/gravitational/teleport/pull/35634)
+* Fixed bug where configuration errors with an individual SSO connector impacted other connectors. [#35575](https://github.com/gravitational/teleport/pull/35575)
+* Fixed GCP VM auto-discovery not using instances' internal IP address. [#35522](https://github.com/gravitational/teleport/pull/35522)
+* Fixed bot being unable to view or approve access requests issue. [#35511](https://github.com/gravitational/teleport/pull/35511)
+* Fixed panic on potential nil value when requesting `/webapi/presetroles`. [#35462](https://github.com/gravitational/teleport/pull/35462)
+* Properly identify the Teleport user responsible for modifying user resources. [#35450](https://github.com/gravitational/teleport/pull/35450)
+* Added insecure-drop host user creation mode. [#35404](https://github.com/gravitational/teleport/pull/35404)
+* Updated Go to 1.20.12. [#35372](https://github.com/gravitational/teleport/pull/35372)
+* Desktop connections default to RDP port 3389 if not otherwise specified. [#35344](https://github.com/gravitational/teleport/pull/35344)
+* Added cluster_auth_preferences to the shortcuts for cluster_auth_preference. [#35328](https://github.com/gravitational/teleport/pull/35328)
+* Prevent EKS fetcher not having correct IAM permissions from stopping whole Discovery service start up. [#35323](https://github.com/gravitational/teleport/pull/35323)
+* Added email-based credential reset UI for Cloud users. [#35239](https://github.com/gravitational/teleport/pull/35239)
+* Fixed a possible panic when downgrading Teleport Roles to older versions. [#35237](https://github.com/gravitational/teleport/pull/35237)
+* OSS Teleport packages will now be published to OS package repos when private releases are cut. [#35224](https://github.com/gravitational/teleport/pull/35224)
+* Improved streaming event handling for Kubernetes API by flushing response after each event, ensuring complete, well-formed chunks. [#35196](https://github.com/gravitational/teleport/pull/35196)
+* Updated Teleport distroless OCI images to Debian 12. [#35111](https://github.com/gravitational/teleport/pull/35111)
+* Fixed FIPS distroless OCI image to run with the `--fips` flag. [#35111](https://github.com/gravitational/teleport/pull/35111)
+* Allow Teleport to complete abandoned uploads faster in HA deployments. [#35103](https://github.com/gravitational/teleport/pull/35103)
+* Added new email-based UI for inviting new local users on Teleport Cloud clusters. [#35076](https://github.com/gravitational/teleport/pull/35076)
+* Fixed issue with the absence of membership expiry circumventing membership requirements check. [#35056](https://github.com/gravitational/teleport/pull/35056)
+* Added read verb to suggested role spec when enrolling new resources. [#35052](https://github.com/gravitational/teleport/pull/35052)
+* Fixed `tsh db connect <mongodb>` to give reason on connection errors. [#34909](https://github.com/gravitational/teleport/pull/34909)
+* Fixed an issue "Allowed Users" in "tsh db ls" shows wrong user for databases with Automatic User Provisioning enabled. [#34851](https://github.com/gravitational/teleport/pull/34851)
+* Override the version of tsh kubectl with the upstream kubectl version used. [#34826](https://github.com/gravitational/teleport/pull/34826)
+
 ## 13.4.10 (11/22/23)
 
 * Device trust data is now collected concurrently on Windows [#34838](https://github.com/gravitational/teleport/pull/34838)

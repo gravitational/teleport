@@ -101,13 +101,13 @@ func inspectVersionCounts(counts map[string]int) (median string, total int, ok b
 
 // instanceMetricsPeriodic is an aggregator for general instance metrics.
 type instanceMetricsPeriodic struct {
-	upgraderCounts map[string]int
+	upgraderCounts map[string]map[string]int
 	totalInstances int
 }
 
 func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
 	return &instanceMetricsPeriodic{
-		upgraderCounts: make(map[string]int),
+		upgraderCounts: make(map[string]map[string]int),
 	}
 }
 
@@ -115,23 +115,23 @@ func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
 func (i *instanceMetricsPeriodic) VisitInstance(instance types.Instance) {
 	i.totalInstances++
 	if upgrader := instance.GetExternalUpgrader(); upgrader != "" {
-		i.upgraderCounts[upgrader]++
+		if _, exists := i.upgraderCounts[upgrader]; !exists {
+			i.upgraderCounts[upgrader] = make(map[string]int)
+		}
+		i.upgraderCounts[upgrader][instance.GetExternalUpgraderVersion()]++
 	}
 }
 
 // TotalEnrolledInUpgrades gets the total number of instances that have some upgrader defined.
 func (i *instanceMetricsPeriodic) TotalEnrolledInUpgrades() int {
 	var total int
-	for _, count := range i.upgraderCounts {
-		total += count
+	for _, upgraderVersion := range i.upgraderCounts {
+		for _, count := range upgraderVersion {
+			total += count
+		}
 	}
 
 	return total
-}
-
-// InstancesWithUpgrader gets the number of instances that advertise the given upgrader.
-func (i *instanceMetricsPeriodic) InstancesWithUpgrader(upgrader string) int {
-	return i.upgraderCounts[upgrader]
 }
 
 // TotalInstances gets the total number of known instances.

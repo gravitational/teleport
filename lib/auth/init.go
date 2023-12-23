@@ -740,7 +740,7 @@ type PresetRoleManager interface {
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
 func GetPresetRoles() []types.Role {
-	return []types.Role{
+	presets := []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
@@ -752,6 +752,20 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
 	}
+
+	// Certain `New$FooRole()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	filtered := make([]types.Role, 0, len(presets))
+	for _, role := range presets {
+		if role == nil {
+			continue
+		}
+
+		filtered = append(filtered, role)
+	}
+
+	return filtered
 }
 
 // createPresetRoles creates preset role resources

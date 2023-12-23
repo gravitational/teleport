@@ -18,6 +18,7 @@ package regular
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/timetools"
+	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -300,6 +302,46 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 	t.Cleanup(func() { f.ssh.assertCltClose(t, client.Close()) })
 	require.NoError(t, agent.ForwardToAgent(client.Client, keyring))
 	return f
+}
+
+// TestTerminalSizeRequest validates that terminal size requests are processed and
+// responded to appropriately. Namely, it ensures that a response is sent if the client
+// requests a reply whether processing the request was successful or not.
+func TestTerminalSizeRequest(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	t.Run("Invalid session", func(t *testing.T) {
+		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte("1234"))
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Empty(t, resp)
+	})
+
+	t.Run("Active session", func(t *testing.T) {
+		se, err := f.ssh.clt.NewSession(ctx)
+		require.NoError(t, err)
+		defer se.Close()
+
+		require.NoError(t, se.Shell(ctx))
+
+		expectedSize := term.Winsize{Height: 100, Width: 200}
+		require.NoError(t, se.WindowChange(ctx, int(expectedSize.Height), int(expectedSize.Width)))
+
+		sessions, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		require.Len(t, sessions, 1)
+
+		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte(sessions[0].GetSessionID()))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.NotNil(t, resp)
+
+		var ws term.Winsize
+		require.NoError(t, json.Unmarshal(resp, &ws))
+		require.Empty(t, cmp.Diff(expectedSize, ws, cmp.AllowUnexported(term.Winsize{})))
+	})
 }
 
 // TestMultipleExecCommands asserts that multiple SSH exec commands can not be
