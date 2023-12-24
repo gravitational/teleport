@@ -62,7 +62,7 @@ require (
 	github.com/bufbuild/connect-go v1.10.0
 	github.com/buildkite/bintest/v3 v3.2.0
 	github.com/charmbracelet/bubbles v0.16.1
-	github.com/charmbracelet/bubbletea v0.24.2
+	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/lipgloss v0.9.1
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
