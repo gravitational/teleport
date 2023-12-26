@@ -20,6 +20,7 @@ package common_test
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -60,10 +63,12 @@ func TestAdminActionMFA(t *testing.T) {
 
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
+	t.Run("AuthSign", s.testAuthSign)
 	t.Run("Roles", s.testRoles)
 	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
 	t.Run("UserGroups", s.testUserGroups)
+	t.Run("CertAuthority", s.testCertAuthority)
 	t.Run("OIDCConnector", s.testOIDCConnector)
 	t.Run("SAMLConnector", s.testSAMLConnector)
 	t.Run("GithubConnector", s.testGithubConnector)
@@ -174,6 +179,39 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	})
 }
 
+func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
+	ctx := context.Background()
+
+	user, err := types.NewUser("teleuser")
+	require.NoError(t, err)
+	_, err = s.authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.DeleteUser(ctx, user.GetName()))
+	})
+
+	identityFilePath := filepath.Join(t.TempDir(), "identity")
+
+	t.Run("AuthCommands", func(t *testing.T) {
+		t.Run("Impersonation", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("auth sign --out=%v --user=%v --overwrite", identityFilePath, user.GetName()),
+				cliCommand: &tctl.AuthCommand{},
+			})
+		})
+
+		// Renewing certs for yourself should not require admin MFA.
+		t.Run("RenewCerts", func(t *testing.T) {
+			err := runTestCase(t, ctx, s.userClientNoMFA, adminActionTestCase{
+				command:    fmt.Sprintf("auth sign --out=%v --user=admin --overwrite", identityFilePath),
+				cliCommand: &tctl.AuthCommand{},
+			})
+			require.NoError(t, err)
+		})
+	})
+}
+
 func (s *adminActionTestSuite) testRoles(t *testing.T) {
 	ctx := context.Background()
 
@@ -226,6 +264,11 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 	user.SetRoles([]string{role.GetName()})
 	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, s.authServer.DeleteUser(ctx, user.GetName()))
+		require.NoError(t, s.authServer.DeleteRole(ctx, role.GetName()))
+	})
 
 	accessRequest, err := services.NewAccessRequest(user.GetName(), teleport.PresetAccessRoleName)
 	require.NoError(t, err)
@@ -376,6 +419,58 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 				return s.authServer.DeleteUserGroup(ctx, userGroup.GetName())
 			},
 		})
+	})
+}
+
+func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
+	ctx := context.Background()
+
+	priv, pub, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "clustername",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      pub,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	createCertAuthority := func() error {
+		return s.authServer.CreateCertAuthority(ctx, ca)
+	}
+
+	getCertAuthority := func() (types.Resource, error) {
+		return s.authServer.GetCertAuthority(ctx, ca.GetID(), false)
+	}
+
+	deleteCertAuthority := func() error {
+		return s.authServer.DeleteCertAuthority(ctx, ca.GetID())
+	}
+
+	s.testResourceCommand(t, ctx, resourceCommandTestCase{
+		resource:        ca,
+		resourceCreate:  createCertAuthority,
+		resourceCleanup: deleteCertAuthority,
+	})
+
+	s.testEditCommand(t, ctx, editCommandTestCase{
+		resourceRef:     getResourceRef(ca),
+		resourceCreate:  createCertAuthority,
+		resourceGet:     getCertAuthority,
+		resourceCleanup: deleteCertAuthority,
 	})
 }
 
@@ -841,6 +936,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	adminRole, err := types.NewRole(username, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			GroupLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{types.Wildcard},
+				Roles: []string{types.Wildcard},
+			},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.Wildcard},
@@ -1001,6 +1100,8 @@ func getResourceRef(r types.Resource) string {
 	case types.KindClusterAuthPreference, types.KindNetworkRestrictions, types.KindClusterNetworkingConfig, types.KindSessionRecordingConfig:
 		// singleton resources are referred to by kind alone.
 		return kind
+	case types.KindCertAuthority:
+		return fmt.Sprintf("%v/%v/%v", r.GetKind(), r.(types.CertAuthority).GetType(), r.GetName())
 	default:
 		return fmt.Sprintf("%v/%v", r.GetKind(), r.GetName())
 	}

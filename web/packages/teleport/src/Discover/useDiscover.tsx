@@ -50,6 +50,7 @@ import type {
   AwsRdsDatabase,
   Ec2InstanceConnectEndpoint,
   Integration,
+  Regions,
 } from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
@@ -233,7 +234,7 @@ export function DiscoverProvider({
   function resumeDiscoverFlow() {
     const { discover, integration } = location.state;
 
-    updateAgentMeta({ integration } as DbMeta);
+    updateAgentMeta({ awsIntegration: integration });
 
     startDiscoverFlow(
       discover.resourceSpec,
@@ -453,22 +454,38 @@ export function useDiscover<T = any>(): DiscoverContextState<T> {
 }
 
 type BaseMeta = {
-  // resourceName provides a consistent field to refer to for
-  // the resource name since resources can refer to its name
-  // by different field names.
-  // Eg. used in Finish (last step) component.
-  resourceName: string;
-  // agentMatcherLabels are labels that will be used by the agent
-  // to pick up the newly created database (looks for matching labels).
-  // At least one must match.
-  agentMatcherLabels: ResourceLabel[];
+  /**
+   * resourceName provides a consistent field to refer to since
+   * different resources can refer to its name by different field names.
+   * Eg. used in Finish (last step) component.
+   * This field is set when user has finished enrolling a resource.
+   */
+  resourceName?: string;
+  /**
+   * agentMatcherLabels are labels (defined in the enrolled resource)
+   * that are suggested to the user to be used as label matcher for
+   * an agent.
+   *
+   * This field is set when user has finished enrolling a resource.
+   */
+  agentMatcherLabels?: ResourceLabel[];
+
+  /**
+   * awsIntegration is set to the selected AWS integration.
+   * This field is set when a user wants to enroll AWS resources.
+   */
+  awsIntegration?: Integration;
+  /**
+   * awsRegion is set to the selected AWS region.
+   * This field is set when a user wants to enroll AWS resources.
+   */
+  awsRegion?: Regions;
 };
 
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  integration?: Integration;
   ec2Ice?: Ec2InstanceConnectEndpoint;
 };
 
@@ -478,7 +495,6 @@ export type DbMeta = BaseMeta & {
   // TODO(lisa): when we can enroll multiple RDS's, turn this into an array?
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db?: Database;
-  integration?: Integration;
   selectedAwsRdsDb?: AwsRdsDatabase;
   // serviceDeployedMethod flag will be undefined if user skipped
   // deploying service (service already existed).
