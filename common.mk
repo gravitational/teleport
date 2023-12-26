@@ -19,7 +19,7 @@ ifeq ("$(OS)","linux")
 ifneq (,$(filter "$(ARCH)","amd64" "arm64"))
 # We only support BPF in native builds
 ifeq ($(IS_NATIVE_BUILD),"yes")
-ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
+ifneq ("$(wildcard ${SYSROOT}/usr/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
@@ -41,7 +41,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-STATIC_LIBS += -L/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf -lelf -lz
+STATIC_LIBS += -L/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf -lelf -lzstd -lz
 # Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
 CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"

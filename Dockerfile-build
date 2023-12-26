@@ -1,0 +1,45 @@
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    autoconf \
+    automake \
+    autopoint \
+    bison \
+    flex \
+    libtool \
+    sed \
+    w3m \
+    xsltproc \
+    xz-utils \
+    cmake \
+    gettext \
+    git \
+    make \
+    pkg-config \
+    wget \
+    curl \
+    clang \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-amd64.tar.gz | tar xz && \
+    /opt/go/bin/go version
+ENV GOPATH="~/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/go/bin:$PATH"
+
+# Create a non-root user with id 1000 - ubuntu
+RUN useradd -m -u 1000 ubuntu
+USER ubuntu
+WORKDIR /home/ubuntu
+
+# Install Rust
+ARG RUST_VERSION
+ENV PATH=/home/ubuntu/.cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup target add aarch64-unknown-linux-gnu
