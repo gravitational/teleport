@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -1791,6 +1791,8 @@ type DatabaseAWS struct {
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
+	// SessionTags is a list of AWS STS session tags.
+	SessionTags map[string]string `yaml:"session_tags,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.

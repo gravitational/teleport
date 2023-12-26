@@ -15,9 +15,11 @@ on:
   pull_request:
     paths-ignore:
       - 'web/**'
+      - 'gen/proto/js/**'
   merge_group:
     paths-ignore:
       - 'web/**'
+      - 'gen/proto/js/**'
 
 jobs:
   lint:
