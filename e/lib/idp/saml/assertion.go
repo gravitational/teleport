@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -116,11 +117,22 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		}
 	}
 
+	// default assertion
 	attributes = addAttribute(attributes, uidFriendlyName, uidName, session.UserName)
 	attributes = addAttribute(attributes, eduPersonAffiliationFriendlyName, eduPersonAffiliationName, session.Groups...)
 	attributes = addAttribute(attributes, subjectIDFriendlyName, subjectIDName, session.SubjectID)
 
-	attributes = append(attributes, session.CustomAttributes...)
+	// custom attribute mapping
+	attrs := attributesToMappableUserSpec(session.CustomAttributes)
+	attrs.Username = session.UserName
+	_, teleportSPSSODescriptor := local.GetTeleportSPSSODescriptor(req.ServiceProviderMetadata.SPSSODescriptors)
+	for _, acs := range teleportSPSSODescriptor.AttributeConsumingServices {
+		evaluatedAttributes, err := evaluateAttributes(acs.RequestedAttributes, attrs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		attributes = append(attributes, evaluatedAttributes...)
+	}
 
 	// allow for some clock skew in the validity period using the
 	// issuer's apparent clock.
@@ -278,4 +290,27 @@ func attribute(friendlyName, name, format string, values ...string) saml.Attribu
 		NameFormat:   format,
 		Values:       attributeValues,
 	}
+}
+
+// attributesToMappableUserSpec unpacks saml session custom attributes to samlMappableUserSpec.
+func attributesToMappableUserSpec(customAttrs []saml.Attribute) samlMappableUserSpec {
+	var mappableAttrs samlMappableUserSpec
+	mappableAttrs.Traits = make(map[string][]string, 0)
+	for _, attr := range customAttrs {
+		switch attr.Name {
+		case "roles":
+			mappableAttrs.Roles = samlAttributeValuesToSlice(attr.Values)
+		default:
+			mappableAttrs.Traits[attr.Name] = samlAttributeValuesToSlice(attr.Values)
+		}
+	}
+	return mappableAttrs
+}
+
+func samlAttributeValuesToSlice(attrVals []saml.AttributeValue) []string {
+	var attrValues []string = make([]string, 0, len(attrVals))
+	for _, values := range attrVals {
+		attrValues = append(attrValues, values.Value)
+	}
+	return attrValues
 }

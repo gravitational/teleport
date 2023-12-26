@@ -66,6 +66,11 @@ func (s *Service) createSession(r *http.Request, identity *tlsca.Identity) (*sam
 		Index:      indexHex,
 		UserName:   identity.Username,
 		Groups:     identity.Groups,
+		CustomAttributes: samlMappableAttributeToCustomAttribute(samlMappableUserSpec{
+			Username: identity.Username,
+			Traits:   identity.Traits,
+			Roles:    identity.Groups,
+		}),
 	}
 	webSession, err := samlSessionToWebSession(session)
 	if err != nil {
@@ -89,7 +94,6 @@ func webSessionToSAMLSession(internalSession types.WebSession) (*saml.Session, e
 	}
 
 	data := internalSession.GetSAMLSession()
-
 	session := &saml.Session{
 		ID:         data.ID,
 		CreateTime: data.CreateTime,
@@ -214,4 +218,16 @@ func samlSessionToWebSession(session *saml.Session) (types.WebSession, error) {
 	}
 
 	return internalSession, nil
+}
+
+// samlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
+// which will eventually be added to SAML session custom attributes.
+func samlMappableAttributeToCustomAttribute(userSpec samlMappableUserSpec) []saml.Attribute {
+	var customAttributes []saml.Attribute = make([]saml.Attribute, 0)
+	for k, v := range userSpec.Traits {
+		customAttributes = addAttribute(customAttributes, k, k, v...)
+	}
+	customAttributes = addAttribute(customAttributes, "roles", "roles", userSpec.Roles...)
+	customAttributes = addAttribute(customAttributes, "username", "username", userSpec.Username)
+	return customAttributes
 }

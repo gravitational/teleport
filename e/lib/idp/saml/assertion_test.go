@@ -40,6 +40,28 @@ func TestMakeAssertion(t *testing.T) {
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: newTestEntityDescriptor("sp1"),
 			EntityID:         "sp1",
+			AttributeMapping: []*types.SAMLAttributeMapping{
+				{
+					Name:  "customUId",
+					Value: "strings.upper(uid)",
+				},
+				{
+					Name:  "firstname",
+					Value: "user.spec.traits.firstname",
+				},
+				{
+					Name:  "username",
+					Value: "user.metadata.name",
+				},
+				{
+					Name:  "roles",
+					Value: "user.spec.roles",
+				},
+				{
+					Name:  "roles2",
+					Value: `eduPersonAffiliation.add("superadmin")`,
+				},
+			},
 		},
 	)
 	require.NoError(t, err)
@@ -75,6 +97,14 @@ func TestMakeAssertion(t *testing.T) {
 	session := &saml.Session{
 		UserName: "test-user",
 		Groups:   []string{"group1", "group2"},
+		CustomAttributes: samlMappableAttributeToCustomAttribute(samlMappableUserSpec{
+			Traits: map[string][]string{
+				"groups":    {"g1", "g2"},
+				"firstname": {"userf"},
+			},
+			Username: "test-user",
+			Roles:    []string{"r1", "r2"},
+		}),
 	}
 
 	// req.Validate mutates the original request.
@@ -134,12 +164,20 @@ func TestMakeAssertion(t *testing.T) {
 		Assertion: testAssertion(clock, req.Assertion.Conditions, testReq.RemoteAddr, "auth-id", "https://sptest.iamshowcase.com/acs",
 			attribute("uid", "urn:oid:0.9.2342.19200300.100.1.1", uriNameFormat, "test-user"),
 			attribute("eduPersonAffiliation", "urn:oid:1.3.6.1.4.1.5923.1.1.1.1", uriNameFormat, "group1", "group2"),
+			attribute("customUId", "customUId", unspecifiedNameFormat, "TEST-USER"),
+			attribute("firstname", "firstname", unspecifiedNameFormat, "userf"),
+			attribute("username", "username", unspecifiedNameFormat, "test-user"),
+			attribute("roles", "roles", unspecifiedNameFormat, "r1", "r2"),
+			attribute("roles2", "roles2", unspecifiedNameFormat, "r1", "r2", "superadmin"),
 		),
 		Now: clock.Now(),
 	}
 
 	// Ignore the HTTP request, identity provider, etree elements, and assertion IDs here.
 	require.Empty(t, cmp.Diff(expectedReq, req,
+		cmpopts.SortSlices(func(a, b saml.AttributeValue) bool {
+			return a.Value < b.Value
+		}),
 		cmpopts.IgnoreTypes(&saml.IdentityProvider{}, &http.Request{}, &etree.Element{}),
 		cmpopts.IgnoreFields(saml.Assertion{}, "ID")))
 
