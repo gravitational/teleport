@@ -21,10 +21,10 @@ or use PAM.
 
 ##### Packages no longer published to legacy Debian and RPM repos
 
-`deb.releases.teleport.dev` and `rpm.rleases.teleport.dev` were deprecated in
+`deb.releases.teleport.dev` and `rpm.relases.teleport.dev` were deprecated in
 Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
 published to these repos. Teleport 14 and prior packages will continue to be
-published to these repos for the remainder of those releases' lifecycles.
+published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
