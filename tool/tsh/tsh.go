@@ -4140,10 +4140,15 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 	if len(accessListsToReview) > 0 {
 		fmt.Printf("Access lists that need to be reviewed:\n")
-		now := time.Now()
-
 		for _, accessList := range accessListsToReview {
-			fmt.Printf("\t%s (%s left to review)\n", accessList.GetName(), accessList.Spec.Audit.NextAuditDate.Sub(now).Round(time.Second).String())
+			d := time.Until(accessList.Spec.Audit.NextAuditDate).Round(time.Minute)
+			var msg string
+			if d > 0 {
+				msg = fmt.Sprintf("%v left to review", d.String())
+			} else {
+				msg = fmt.Sprintf("review was required %v ago", (-d).String())
+			}
+			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
 		}
 		fmt.Println()
 	}
