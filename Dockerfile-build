@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 ARG GOLANG_VERSION
 RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-amd64.tar.gz | tar xz && \
     /opt/go/bin/go version
-ENV GOPATH="~/go" \
+ENV GOPATH="/home/ubuntu/go" \
     GOROOT="/opt/go" \
     PATH="/opt/go/bin:$PATH"
 

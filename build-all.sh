@@ -11,19 +11,19 @@ export RUST_VERSION=1.71.1
 # Switch depending on the architecture which is passed as the script argument
 case $1 in
     "arm64")
-        export ARCH="aarch64"
+        export ARCH="arm64"
         export SYSROOT="${HOME}/x-tools/aarch64-centos7-linux-gnu/aarch64-unknown-linux-gnu/sysroot"
         ;;
     "arm")
         export ARCH="arm"
         export SYSROOT="${HOME}/x-tools/arm-centos7-linux-gnueabi/arm-unknown-linux-gnueabi/sysroot"
         ;;
-    "x86")
+    "i686")
         export ARCH="x86"
         export SYSROOT="${HOME}/x-tools/i686-centos7-linux-gnu/i686-unknown-linux-gnu/sysroot"
         ;;
     *)
-        export ARCH="x86_64"
+        export ARCH="amd64"
         export SYSROOT="${HOME}/x-tools/x86_64-centos7-linux-gnu/x86_64-centos7-linux-gnu/sysroot"
 
         export PATH="${HOME}/x-tools/x86_64-centos7-linux-gnu/bin:$PATH"
@@ -99,11 +99,12 @@ make install
 
 cd ..
 
+# Build teleport
+GOOS=linux GOARCH=${ARCH} CGO_ENABLED=1 make
 
 # working
 
-GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CGO_CFLAGS="--sysroot=${SYSROOT} -I${SYSROOT}/include -I/usr/libbpf-1.2.2/include" CGO_LDFLAGS="--sysroot=${SYSROOT} -Wl,-Bstatic -L${SYSROOT}/usr/lib/ -L/usr/libbpf-1.2.2/lib64/ -lbpf -lelf -lz -L/usr/libbpf-1.2.2/lib64/ -lbpf -lelf -lzstd -lz -Wl,-Bdynamic -Wl,--as-needed" go build -tags "webassets_embed pam  bpf  desktop_access_rdp " -o build/teleport  -ldflags '-w -s ' -trimpath ./tool/teleport
-
+#GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CGO_CFLAGS="--sysroot=${SYSROOT} -I${SYSROOT}/include -I/usr/libbpf-1.2.2/include" CGO_LDFLAGS="--sysroot=${SYSROOT} -Wl,-Bstatic -L${SYSROOT}/usr/lib/ -L/usr/libbpf-1.2.2/lib64/ -lbpf -lelf -lz -L/usr/libbpf-1.2.2/lib64/ -lbpf -lelf -lzstd -lz -Wl,-Bdynamic -Wl,--as-needed" go build -tags "webassets_embed pam  bpf  desktop_access_rdp " -o build/teleport  -ldflags '-w -s ' -trimpath ./tool/teleport
 
 # check
-# readelf -a build/teleport | grep -w -Eo "GLIBC_2\.[0-9]+(\.[0-9]+)?" | sort -u
+readelf -a build/teleport | grep -w -Eo "GLIBC_2\.[0-9]+(\.[0-9]+)?" | sort -u
