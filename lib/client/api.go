@@ -2041,8 +2041,8 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
-	// clear screen between runs:
-	term.Stdout().Write([]byte("\x1bc"))
+	term.Clear() // clear screen between runs:
+	term.SetCursorPos(1, 1)
 
 	player, err := player.New(&player.Config{
 		SessionID: *sid,
@@ -2080,8 +2080,9 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				playing = !playing
 			case keyLeft, keyDown:
 				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				term.Stdout().Write([]byte("\x1bc"))
 				player.SetPos(max(current-skipDuration, 0)) // rewind
+				term.Clear()
+				term.SetCursorPos(1, 1)
 			case keyRight, keyUp:
 				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
 				player.SetPos(current + skipDuration) // advance forward
@@ -2112,7 +2113,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		case *apievents.SessionPrint:
 			term.Stdout().Write(evt.Data)
 			if evt.Time != lastTime {
-				timestampFrame(term, evt.Time.Format(time.DateTime))
+				term.SetWindowTitle(evt.Time.Format(time.Stamp))
 			}
 			lastTime = evt.Time
 		default:

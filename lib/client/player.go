@@ -20,13 +20,11 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -68,28 +66,4 @@ func (p *playFromFileStreamer) StreamSessionEvents(
 	}()
 
 	return evts, errs
-}
-
-// timestampFrame prints 'event timestamp' in the top right corner of the
-// terminal after playing every 'print' event
-func timestampFrame(term *terminal.Terminal, message string) {
-	const (
-		saveCursor    = "7"
-		restoreCursor = "8"
-	)
-	width, _, err := term.Size()
-	if err != nil {
-		return
-	}
-	esc := func(s string) {
-		os.Stdout.Write([]byte("\x1b" + s))
-	}
-	esc(saveCursor)
-	defer esc(restoreCursor)
-
-	// move cursor to -10:0
-	// TODO(timothyb89): message length does not account for unicode characters
-	// or ANSI sequences.
-	esc(fmt.Sprintf("[%d;%df", 0, int(width)-len(message)))
-	os.Stdout.WriteString(message)
 }
