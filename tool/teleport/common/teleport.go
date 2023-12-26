@@ -68,6 +68,9 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
+	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
+	// This command does nothing in OSS.
+	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -495,6 +498,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-database", "The name of the Glue database used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueDatabase)
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
+
+	if options.EnableCloudAWSCredCmd {
+		app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
+	}
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
