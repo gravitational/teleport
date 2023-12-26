@@ -138,7 +138,7 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 
 	// Put the session chunk in the cache so that upcoming requests can use it for
 	// 5 minutes or the time until the certificate expires, whichever comes first.
-	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
+	ttl := min(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
 	if err = s.cache.set(identity.RouteToApp.SessionID, sess, ttl); err != nil {
 		return nil, trace.Wrap(err)
 	}

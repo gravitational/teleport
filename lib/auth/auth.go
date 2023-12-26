@@ -4284,7 +4284,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(sessionTTL, BearerTokenTTL)
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
