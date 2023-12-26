@@ -25,44 +25,27 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
-export function LabelsCreater({
+export function LabelsInput({
   labels = [],
   setLabels,
   disableBtns = false,
-  isLabelOptional = false,
   noDuplicateKey = false,
   autoFocus = false,
-  keyFieldName = 'Key',
-  valueFieldName = 'Value',
-  inputWidthPx = 170,
 }: {
-  labels: DiscoverLabel[];
-  setLabels(l: DiscoverLabel[]): void;
+  labels: ResourceLabel[];
+  setLabels(l: ResourceLabel[]): void;
   disableBtns?: boolean;
-  isLabelOptional?: boolean;
   noDuplicateKey?: boolean;
   autoFocus?: boolean;
-  keyFieldName?: string,
-  valueFieldName?: string,
-  inputWidthPx?: number,
 }) {
   const validator = useValidation() as Validator;
 
   function addLabel() {
-    // Prevent adding more rows if there are
-    // empty input fields. After checking,
-    // reset the validator so the newly
-    // added empty input boxes are not
-    // considered an error.
-    if (!validator.validate()) {
-      return;
-    }
-    validator.reset();
     setLabels([...labels, { name: '', value: '' }]);
   }
 
   function removeLabel(index: number) {
-    if (!isLabelOptional && labels.length === 1) {
+    if (labels.length === 1) {
       // Since at least one label is required
       // instead of removing the last row, clear
       // the input and turn on error.
@@ -85,23 +68,14 @@ export function LabelsCreater({
   ) => {
     const { value } = event.target;
     const newList = [...labels];
-
-    // Check for any dup key:
-    if (noDuplicateKey && labelField === 'name') {
-      const isDupKey = labels.some(l => l.name === value);
-      newList[index] = { ...newList[index], [labelField]: value, isDupKey };
-    } else {
-      newList[index] = { ...newList[index], [labelField]: value };
-    }
+    newList[index] = { ...newList[index], [labelField]: value };
     setLabels(newList);
   };
 
   const requiredUniqueKey = value => () => {
     // Check for empty length and duplicate key.
     let notValid = !value || value.length === 0;
-    if (noDuplicateKey) {
-      notValid = notValid || labels.some(l => l.isDupKey);
-    }
+
     return {
       valid: !notValid,
       message: '', // err msg doesn't matter as it isn't diaplsyed.
@@ -112,14 +86,14 @@ export function LabelsCreater({
     <>
       {labels.length > 0 && (
         <Flex mt={2}>
-          <Box width={`${inputWidthPx}px`} mr="3">
-            {keyFieldName}{' '}
+          <Box width="350px" mr="3">
+            Label for Resources the User Can Access{' '}
             <span css={{ fontSize: '12px', fontWeight: 'lighter' }}>
               (required field)
             </span>
           </Box>
           <Box>
-            {valueFieldName}{' '}
+            Label Value{' '}
             <span css={{ fontSize: '12px', fontWeight: 'lighter' }}>
               (required field)
             </span>
@@ -137,45 +111,38 @@ export function LabelsCreater({
                   autoFocus={autoFocus}
                   value={label.name}
                   placeholder="label key"
-                  width={`${inputWidthPx}px`}
+                  width="350px"
                   mr={3}
                   mb={0}
                   onChange={e => handleChange(e, index, 'name')}
-                  readonly={disableBtns || label.isFixed}
-                  markAsError={label.isDupKey}
+                  readonly={disableBtns}
                 />
                 <FieldInput
                   rule={requiredField('required')}
                   value={label.value}
                   placeholder="label value"
-                  width={`${inputWidthPx}px`}
+                  width="350px"
                   mb={0}
                   mr={2}
                   onChange={e => handleChange(e, index, 'value')}
-                  readonly={disableBtns || label.isFixed}
+                  readonly={disableBtns}
                 />
-                {!label.isFixed && (
-                  <ButtonIcon
-                    size={1}
-                    title="Remove Label"
-                    onClick={() => removeLabel(index)}
-                    css={`
+                <ButtonIcon
+                  size={1}
+                  title="Remove Label"
+                  onClick={() => removeLabel(index)}
+                  css={`
                       &:disabled {
                         opacity: 0.65;
                         pointer-events: none;
                       }
                     `}
-                    disabled={disableBtns}
-                  >
-                    <Icons.Trash size="medium" />
-                  </ButtonIcon>
-                )}
+                  disabled={disableBtns}
+                >
+                  <Icons.Trash size="medium" />
+                </ButtonIcon>
               </Flex>
-              {label.isDupKey && (
-                <Text color="red" fontSize="12px">
-                  Duplicate key not allowed
-                </Text>
-              )}
+
             </Box>
           );
         })}
@@ -207,12 +174,3 @@ export function LabelsCreater({
     </>
   );
 }
-
-export type DiscoverLabel = ResourceLabel & {
-  // isFixed is a flag to mean label is
-  // unmodifiable and undeletable.
-  isFixed?: boolean;
-  // isDupKey is a flag to mean this label
-  // has duplicate key.
-  isDupKey?: boolean;
-};
