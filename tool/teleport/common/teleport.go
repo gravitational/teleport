@@ -62,6 +62,9 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
+	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
+	// This command does nothing in OSS.
+	EnableCloudAWSCredCmd bool
 }
 
 const agentlessKeysDir = "/etc/teleport/agentless"
@@ -424,6 +427,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
 	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by.").StringVar(&ccf.AdditionalPrincipals)
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
+
+	if options.EnableCloudAWSCredCmd {
+		app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
+	}
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
