@@ -375,12 +375,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
 	}
 
-	if automaticUpgrades(cfg.ClusterFeatures) && cfg.AutomaticUpgradesChannels == nil {
-		cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
+		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
 
-	if cfg.AutomaticUpgradesChannels != nil {
-		err := cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+	if h.cfg.AutomaticUpgradesChannels != nil {
+		err := h.cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -838,6 +838,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
