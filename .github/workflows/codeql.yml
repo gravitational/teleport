@@ -34,18 +34,18 @@ jobs:
       if: ${{ matrix.language == 'go' }}
 
     - name: Initialize the CodeQL tools for scanning
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         queries: security-extended
       timeout-minutes: 5
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+      uses: github/codeql-action/autobuild@v3
       timeout-minutes: 30
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}"
       timeout-minutes: 10
