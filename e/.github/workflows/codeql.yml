@@ -3,6 +3,10 @@ name: "CodeQL"
 on:
   schedule:
     - cron: '0 13 * * *' # At 1:00 PM UTC every day
+  pull_request:
+    paths:
+      - '.github/workflows/codeql.yml'
+  # merge_group is intentionally excluded, because we don't require this workflow
 
 jobs:
   analyze:
