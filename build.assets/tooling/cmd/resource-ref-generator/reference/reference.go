@@ -307,7 +307,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 				PackageName: file.Name.Name,
 			}] = resource.DeclarationInfo{
 				Decl:        l,
-				FilePath:    info.Name(),
+				FilePath:    path,
 				PackageName: file.Name.Name,
 			}
 
