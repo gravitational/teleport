@@ -431,7 +431,8 @@ enter/arm: buildbox-arm
 # AMD64 builds are done on CentOS 7 build boxes for broader glibc compatibility.
 .PHONY: release-amd64
 release-amd64:
-	$(MAKE) release-centos7 ARCH=amd64 FIDO2=yes PIV=yes
+	docker build -f Dockerfile-build --build-arg GOLANG_VERSION=$(GOLANG_VERSION) --build-arg RUST_VERSION=$(RUST_VERSION) -t teleport-multibuild .
+	docker run -it --rm -v $(shell pwd)/toolchains/:/home/ubuntu/x-tools -v $(shell pwd)/..:/home/ubuntu/teleport -w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh amd64"
 
 .PHONY: release-amd64-fips
 release-amd64-fips:

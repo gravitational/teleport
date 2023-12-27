@@ -2,19 +2,9 @@
 
 set -e
 
-# mkdir -p toolchains
-# DOCKER_BUILDKIT=0 BUILDKIT_PROGRESS=plain docker build -t teleport-builder-base -f Dockerfile-ct-ng .
-# docker run -v `pwd`/toolchains:/home/ctng/x-tools --rm docker.io/library/teleport-builder-base bash -c "cd amd64 && ct-ng build"
-# docker run -v `pwd`/toolchains:/home/ctng/x-tools --rm docker.io/library/teleport-builder-base bash -c "cd i686 && ct-ng build"
-# docker run -v `pwd`/toolchains:/home/ctng/x-tools --rm docker.io/library/teleport-builder-base bash -c "cd arm64 && ct-ng build"
-# docker run -v `pwd`/toolchains:/home/ctng/x-tools --rm docker.io/library/teleport-builder-base bash -c "cd arm && ct-ng build"
-
-
 export GOLANG_VERSION=go1.21.5
 
 export RUST_VERSION=1.71.1
-# docker build -f Dockerfile-build --build-arg GOLANG_VERSION="$GOLANG_VERSION" --build-arg RUST_VERSION="$RUST_VERSION" -t teleport-multibuild .
-# docker run -it --rm -v ${HOME}/x-tools/:/home/ubuntu/x-tools -v `pwd`:/home/ubuntu/teleport -w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild
 
 # Switch depending on the architecture which is passed as the script argument
 case $1 in
