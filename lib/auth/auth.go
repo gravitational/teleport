@@ -1561,6 +1561,28 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
+// GetClusterID returns the cluster ID.
+func (a *Server) GetClusterID(opts ...services.MarshalOption) (string, error) {
+	clusterName, err := a.GetClusterName(opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName.GetClusterID(), nil
+}
+
+// GetAnonymizationKey returns the anonymization key that identifies this client.
+// It falls back to the cluster ID if the anonymization key is not set in license file.
+func (a *Server) GetAnonymizationKey(opts ...services.MarshalOption) (string, error) {
+	if a.license == nil {
+		return a.GetClusterID(opts...)
+	}
+	anonymizationKey := string(a.license.AnonymizationKey)
+	if anonymizationKey == "" {
+		return a.GetClusterID(opts...)
+	}
+	return anonymizationKey, nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
