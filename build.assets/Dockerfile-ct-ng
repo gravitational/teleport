@@ -32,20 +32,26 @@ RUN wget https://github.com/crosstool-ng/crosstool-ng/releases/download/crosstoo
 
 ENV PATH="/home/ctng/.local/ct-ng/bin:$PATH"
 
-ARG TARGET_ARCH
-RUN mkdir -p /home/ctng/build
-COPY ./ct-ng-configs/${TARGET_ARCH}.config /home/ctng/build/.config
+RUN mkdir -p /home/ctng/build/amd64 && \
+    mkdir -p /home/ctng/build/i686 && \
+    mkdir -p /home/ctng/build/arm64 && \
+    mkdir -p /home/ctng/build/arm && \
+    mkdir -p /home/ctng/src
+COPY ./ct-ng-configs/amd64.config /home/ctng/build/amd64/.config
+COPY ./ct-ng-configs/i686.config /home/ctng/build/i686/.config
+COPY ./ct-ng-configs/arm64.config /home/ctng/build/arm64/.config
+COPY ./ct-ng-configs/arm.config /home/ctng/build/arm/.config
 
 WORKDIR /home/ctng/build
-RUN ct-ng build
 
-FROM ubuntu:22.04
-
-# Create a non-root user with id 1000 - ubuntu
-RUN useradd -m -u 1000 ubuntu
-USER ubuntu
-WORKDIR /home/ubuntu
-
-COPY --from=ct-ng /home/ctng/x-tools /home/ubuntu/x-tools
+#
+#FROM ubuntu:22.04
+#
+## Create a non-root user with id 1000 - ubuntu
+#RUN useradd -m -u 1000 ubuntu
+#USER ubuntu
+#WORKDIR /home/ubuntu
+#
+#COPY --from=ct-ng /home/ctng/x-tools /home/ubuntu/x-tools
 
 
