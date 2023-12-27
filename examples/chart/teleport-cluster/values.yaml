@@ -32,7 +32,7 @@ teleportVersionOverride: ""
 
 # The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
 #
-# `auth` allows to set chart values only for the auth Kubernetes resources.
+# `auth` allows you to set chart values only for Kubernetes resources related to the Teleport Auth Service.
 # This is merged with chart-scoped values and takes precedence in case of conflict.
 # For example:
 #
@@ -56,7 +56,7 @@ auth:
   #     client_idle_timeout_message: "Connection closed after 2hours without activity"
   teleportConfig: {}
 
-# `proxy` allows to set chart values only for the proxy Kubernetes resources.
+# `proxy` allows you to set chart values only for Kubernetes resources related to the Teleport Proxy Service. 
 # This is merged with chart-scoped values and takes precedence in case of conflict.
 # For example:
 # proxy:

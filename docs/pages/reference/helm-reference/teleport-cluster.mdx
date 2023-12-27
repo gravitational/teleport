@@ -102,7 +102,7 @@ This name will be shown to Teleport users connecting to the Kubernetes cluster.
 The `teleport-cluster` chart deploys two sets of pods, one for the Auth Service
 and another for the Proxy Service.
 
-`auth` allows to set chart values only for the auth Kubernetes resources.
+`auth` allows you to set chart values only for Kubernetes resources related to the Teleport Auth Service.
 This is merged with chart-scoped values and takes precedence in case of conflict.
 
 For example, to override the [`postStart`](#postStart) value only for auth pods:
@@ -155,11 +155,11 @@ auth:
 The `teleport-cluster` charts deploys two sets of pods: one for the Auth Service
 and another for the Proxy Service.
 
-`proxy` allows to set chart values only for the proxy Kubernetes resources.
+`proxy` allows you to set chart values only for Kubernetes resources related to the Teleport Proxy Service.
 This is merged with chart-scoped values and takes precedence in case of conflict.
 
-For example, to override the [`postStart`](#postStart) value only for proxy pods
-and annotate the proxy Kubernetes Service:
+For example, to override the [`postStart`](#postStart) value only for Teleport Proxy Service pods
+and annotate the Kubernetes Service deployed for the Teleport Proxy Service:
 ```yaml
 # By default all pods postStart command should be "echo starting"
 postStart: ["echo", "starting"]
@@ -169,7 +169,7 @@ proxy:
   postStart: ["curl", "http://hook"]
   imagePullPolicy: Always
 
-  # We also annotate only the Kubernetes Service sending traffic to proxy pods.
+  # We also annotate only the Kubernetes Service sending traffic to Proxy Service pods.
   annotations:
     service:
       external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
