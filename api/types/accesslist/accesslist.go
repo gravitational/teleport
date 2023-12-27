@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
@@ -311,10 +312,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	if a.Spec.Audit.NextAuditDate.IsZero() {
-		return trace.BadParameter("next audit date is missing")
-	}
-
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
 		a.Spec.Audit.Recurrence.Frequency = SixMonths
 	}
@@ -333,6 +330,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
 	default:
 		return trace.BadParameter("recurrence day of month is an invalid value")
+	}
+
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		a.setInitialAuditDate(clockwork.NewRealClock())
 	}
 
 	if a.Spec.Audit.Notifications.Start == 0 {
@@ -526,4 +527,33 @@ func (n Notifications) MarshalJSON() ([]byte, error) {
 		Alias: (Alias)(n),
 		Start: n.Start.String(),
 	})
+}
+
+// SelectNextReviewDate will select the next review date for the access list.
+func (a *AccessList) SelectNextReviewDate() time.Time {
+	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
+	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
+
+	// If the last day of the month has been specified, use the 0 day of the
+	// next month, which will result in the last day of the target month.
+	if dayOfMonth == int(LastDayOfMonth) {
+		numMonths += 1
+		dayOfMonth = 0
+	}
+
+	currentReviewDate := a.Spec.Audit.NextAuditDate
+	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
+		0, 0, 0, 0, time.UTC)
+
+	return nextDate
+}
+
+// setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
+// The function is extracted from CheckAndSetDefaults for the sake of testing
+// (we need to pass a fake clock).
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
+	// We act as if the AccessList just got reviewed (we just created it, so
+	// we're pretty sure of what it does) and pick the next review date.
+	a.Spec.Audit.NextAuditDate = clock.Now()
+	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
 }

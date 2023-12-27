@@ -177,7 +177,7 @@ type TLSServer struct {
 	// kubeClusterWatcher monitors changes to kube cluster resources.
 	kubeClusterWatcher *services.KubeClusterWatcher
 	// reconciler reconciles proxied kube clusters with kube_clusters resources.
-	reconciler *services.Reconciler
+	reconciler *services.Reconciler[types.KubeCluster]
 	// monitoredKubeClusters contains all kube clusters the proxied kube_clusters are
 	// reconciled against.
 	monitoredKubeClusters monitoredKubeClusters
@@ -301,7 +301,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
-		ReadDeadline: 10 * time.Second,
+		DetectTimeout: 10 * time.Second,
 	}
 	for _, opt := range options {
 		opt(&muxConfig)

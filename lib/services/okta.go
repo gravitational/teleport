@@ -93,13 +93,7 @@ func MarshalOktaImportRule(importRule types.OktaImportRule, opts ...MarshalOptio
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *i
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			i = &copy
-		}
-		return utils.FastMarshal(i)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, i))
 	default:
 		return nil, trace.BadParameter("unsupported Okta import rule resource %T", i)
 	}
@@ -154,13 +148,7 @@ func MarshalOktaAssignment(assignment types.OktaAssignment, opts ...MarshalOptio
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *a
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			a = &copy
-		}
-		return utils.FastMarshal(a)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, a))
 	default:
 		return nil, trace.BadParameter("unsupported Okta assignment resource %T", a)
 	}

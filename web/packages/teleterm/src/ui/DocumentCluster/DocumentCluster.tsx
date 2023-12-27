@@ -206,7 +206,7 @@ function PrintState(props: {
   );
 }
 
-const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4 })`
+const Layout = styled(Box).attrs({ mx: 'auto', px: 4, pt: 3 })`
   flex-direction: column;
   display: flex;
   flex: 1;

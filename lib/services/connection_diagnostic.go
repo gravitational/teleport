@@ -63,16 +63,7 @@ func MarshalConnectionDiagnostic(s types.ConnectionDiagnostic, opts ...MarshalOp
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *s
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			s = &copy
-		}
-
-		return utils.FastMarshal(s)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, s))
 	}
 
 	return nil, trace.BadParameter("unrecognized connection diagnostic version %T", s)

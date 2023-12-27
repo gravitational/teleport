@@ -355,6 +355,12 @@ message RequestStateSetter {
   // Roles, if present, overrides the existing set of roles associated
   // with the access request.
   repeated string Roles = 6 [(gogoproto.jsontag) = "roles,omitempty"];
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // RequestID is the unique identifier of an access request.
@@ -2644,11 +2650,23 @@ service AuthService {
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
 
   // CreateBot creates a new bot user.
-  rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+  //
+  // Deprecated: Use [teleport.machineid.v1.BotService] instead.
+  rpc CreateBot(CreateBotRequest) returns (CreateBotResponse) {
+    option deprecated = true;
+  }
   // DeleteBot deletes a bot user.
-  rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty);
+  //
+  // Deprecated: Use [teleport.machineid.v1.BotService] instead.
+  rpc DeleteBot(DeleteBotRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // GetBotUsers gets all users with bot labels.
-  rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2);
+  //
+  // Deprecated: Use [teleport.machineid.v1.BotService] instead.
+  rpc GetBotUsers(GetBotUsersRequest) returns (stream types.UserV2) {
+    option deprecated = true;
+  }
 
   // GetUser gets a user resource by name.
   //

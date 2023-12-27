@@ -108,15 +108,7 @@ func MarshalTunnelConnection(tunnelConnection types.TunnelConnection, opts ...Ma
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *tunnelConnection
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			tunnelConnection = &copy
-		}
-		return utils.FastMarshal(tunnelConnection)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, tunnelConnection))
 	default:
 		return nil, trace.BadParameter("unrecognized tunnel connection version %T", tunnelConnection)
 	}

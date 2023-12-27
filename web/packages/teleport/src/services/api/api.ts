@@ -97,12 +97,22 @@ const api = {
     if (!shouldRetry) {
       throw new ApiError(parseError(json), response);
     }
+
+    let webauthnResponse;
+    try {
+      webauthnResponse = await auth.getWebauthnResponse();
+    } catch (err) {
+      throw new Error(
+        'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
+      );
+    }
+
     const paramsWithMfaHeader = {
       ...params,
       headers: {
         ...params.headers,
         [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: await auth.getWebauthnResponse(),
+          webauthnAssertionResponse: webauthnResponse,
         }),
       },
     };

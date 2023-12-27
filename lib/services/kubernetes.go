@@ -76,13 +76,7 @@ func MarshalKubeServer(kubeServer types.KubeServer, opts ...MarshalOption) ([]by
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *server
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			server = &copy
-		}
-		return utils.FastMarshal(server)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, server))
 	default:
 		return nil, trace.BadParameter("unsupported kube server resource %T", server)
 	}
@@ -137,13 +131,7 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *cluster
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			cluster = &copy
-		}
-		return utils.FastMarshal(cluster)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, cluster))
 	default:
 		return nil, trace.BadParameter("unsupported kube cluster resource %T", cluster)
 	}

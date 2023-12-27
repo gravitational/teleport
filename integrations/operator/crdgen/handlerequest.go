@@ -102,6 +102,12 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		},
 		{name: "ProvisionTokenV2"},
 		{name: "OktaImportRuleV1"},
+		{
+			name: "AccessList",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
 	}
 
 	for _, resource := range resources {

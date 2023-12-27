@@ -24,6 +24,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import wasm from 'vite-plugin-wasm';
 
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
@@ -41,10 +42,12 @@ export function createViteConfig(
 
     if (mode === 'development') {
       if (process.env.PROXY_TARGET) {
+        // eslint-disable-next-line no-console
         console.log(
           `  \x1b[32m✔ Proxying requests to ${target.toString()}\x1b[0m`
         );
       } else {
+        // eslint-disable-next-line no-console
         console.warn(
           `  \x1b[33m⚠ PROXY_TARGET was not set, defaulting to ${DEFAULT_PROXY_TARGET}\x1b[0m`
         );
@@ -84,6 +87,7 @@ export function createViteConfig(
           projects: [resolve(rootDirectory, 'tsconfig.json')],
         }),
         transformPlugin(),
+        wasm(),
       ],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
@@ -105,6 +109,21 @@ export function createViteConfig(
         // The format of the regex needs to assume that the slashes are escaped, for example:
         // \/v1\/webapi\/sites\/:site\/connect
         [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/connect`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        // /webapi/sites/:site/desktops/:desktopName/connect
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+          {
+            target: `wss://${target}`,
+            changeOrigin: false,
+            secure: false,
+            ws: true,
+          },
+        // /webapi/sites/:site/desktopplayback/:sid
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,

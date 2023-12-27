@@ -25,9 +25,9 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // Set of certificates corresponding to a single public key.
 type Certs struct {
-	// SSH X509 cert (PEM-encoded).
+	// SSH certificate marshaled in the authorized key format.
 	SSH []byte `protobuf:"bytes,1,opt,name=SSH,proto3" json:"ssh,omitempty"`
-	// TLS X509 cert (PEM-encoded).
+	// TLS X.509 certificate (PEM-encoded).
 	TLS []byte `protobuf:"bytes,2,opt,name=TLS,proto3" json:"tls,omitempty"`
 	// TLSCACerts is a list of TLS certificate authorities.
 	TLSCACerts [][]byte `protobuf:"bytes,3,rep,name=TLSCACerts,proto3" json:"tls_ca_certs,omitempty"`

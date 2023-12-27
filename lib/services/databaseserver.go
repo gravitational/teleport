@@ -38,15 +38,7 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *databaseServer
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			databaseServer = &copy
-		}
-		return utils.FastMarshal(databaseServer)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, databaseServer))
 	default:
 		return nil, trace.BadParameter("unrecognized database server version %T", databaseServer)
 	}

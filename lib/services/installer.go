@@ -69,15 +69,7 @@ func MarshalInstaller(installer types.Installer, opts ...MarshalOption) ([]byte,
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *installer
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			installer = &copy
-		}
-		return utils.FastMarshal(installer)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, installer))
 	default:
 		return nil, trace.BadParameter("unrecognized installer version %T", installer)
 	}
