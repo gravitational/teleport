@@ -57,6 +57,9 @@ type Options struct {
 	// InitOnly when set to true, initializes config and aux
 	// endpoints but does not start the process
 	InitOnly bool
+	// EnableCloudAWSCredCmd enables hidden cloud aws cred command when true.
+	// This command does nothing in OSS.
+	EnableCloudAWSCredCmd bool
 }
 
 // Run inits/starts the process according to the provided options
@@ -471,6 +474,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters).")
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
 	integrationConfListDatabasesCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Role)
+
+	if options.EnableCloudAWSCredCmd {
+		app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
+	}
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
