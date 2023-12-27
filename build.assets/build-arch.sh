@@ -146,4 +146,4 @@ WEBASSETS_SKIP_BUILD=1 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
 # check
 readelf -a build/teleport | grep -w -Eo "GLIBC_2\.[0-9]+(\.[0-9]+)?" | sort -u
 
-mv build build-${ARCH}
+mv -f build build-${ARCH}
