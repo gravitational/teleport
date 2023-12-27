@@ -58,6 +58,8 @@ case $1 in
         ;;
 esac
 
+
+function build_3rdparty() {
 rm -rf 3rdparty-${ARCH}
 mkdir -p 3rdparty-${ARCH}
 
@@ -120,15 +122,26 @@ git clone https://github.com/linux-pam/linux-pam.git
 cd linux-pam
 
 ./autogen.sh
-./configure --prefix="${SYSROOT}" --disable-doc  --disable-examples --includedir="${SYSROOT}/include/security" --host=${ARCH}
+CFLAGS=-fPIC ./configure --prefix="${SYSROOT}" --disable-doc  --disable-examples --includedir="${SYSROOT}/include/security" --host=${ARCH}
 make -j$(nproc)
 make install
 
 cd ..
 
-cd ../..
+touch ready
+
+cd ..
+}
+
+# Build 3rdparty if not already built
+if [ ! -f 3rdparty-${ARCH}/ready ]; then
+    build_3rdparty
+fi
+
+cd ..
 # Build teleport
-GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
+WEBASSETS_SKIP_BUILD=1 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} go env
+WEBASSETS_SKIP_BUILD=1 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
 
 # check
 readelf -a build/teleport | grep -w -Eo "GLIBC_2\.[0-9]+(\.[0-9]+)?" | sort -u

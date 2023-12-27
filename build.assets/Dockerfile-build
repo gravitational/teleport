@@ -7,7 +7,6 @@ RUN apt-get update && apt-get install -y \
     autopoint \
     bison \
     flex \
-    libtool \
     sed \
     w3m \
     xsltproc \
@@ -19,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     wget \
     curl \
-    clang \
+    clang-12 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go
