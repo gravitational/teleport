@@ -1173,7 +1173,7 @@ private_key:
 						Field{
 							Name:        "private_key",
 							Description: "The private key of the resource.",
-							Type:        "Base 64-encoded string",
+							Type:        "base64-encoded string",
 						},
 					},
 				},

@@ -219,6 +219,20 @@ func (y yamlString) customFieldData() []PackageInfo {
 	return []PackageInfo{}
 }
 
+type yamlBase64 struct{}
+
+func (y yamlBase64) formatForTable() string {
+	return "base64-encoded string"
+}
+
+func (y yamlBase64) formatForExampleYAML(indents int) string {
+	return "BASE64_STRING"
+}
+
+func (y yamlBase64) customFieldData() []PackageInfo {
+	return []PackageInfo{}
+}
+
 type yamlNumber struct{}
 
 func (y yamlNumber) formatForTable() string {
