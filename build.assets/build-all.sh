@@ -2,7 +2,7 @@
 
 set -e
 
-#BUILDKIT_PROGRESS=plain docker build -t teleport-builder-base --build-arg TARGET_ARCH=amd64 -f Dockerfile-ct-ng .
+#DOCKER_BUILDKIT=0 BUILDKIT_PROGRESS=plain docker build -t teleport-builder-base --build-arg TARGET_ARCH=amd64 -f Dockerfile-ct-ng .
 #docker run -it --rm docker.io/library/teleport-builder-base
 
 
@@ -132,7 +132,7 @@ make install
 
 cd ..
 
-cd ..
+cd ../..
 # Build teleport
 GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
 

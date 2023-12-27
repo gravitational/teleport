@@ -34,7 +34,7 @@ ENV PATH="/home/ctng/.local/ct-ng/bin:$PATH"
 
 ARG TARGET_ARCH
 RUN mkdir -p /home/ctng/build
-COPY ./build.assets/ct-ng-configs/${TARGET_ARCH}.config /home/ctng/build/.config
+COPY ./ct-ng-configs/${TARGET_ARCH}.config /home/ctng/build/.config
 
 WORKDIR /home/ctng/build
 RUN ct-ng build
