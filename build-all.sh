@@ -12,6 +12,7 @@ export RUST_VERSION=1.71.1
 case $1 in
     "arm64")
         export ARCH="arm64"
+        export GO_ARCH="arm64"
         export SYSROOT="${HOME}/x-tools/aarch64-centos7-linux-gnu/aarch64-centos7-linux-gnu/sysroot"
 
         export PATH="${HOME}/x-tools/aarch64-centos7-linux-gnu/bin:$PATH"
@@ -22,6 +23,7 @@ case $1 in
         ;;
     "arm")
         export ARCH="arm"
+        export GO_ARCH="arm"
         export SYSROOT="${HOME}/x-tools/armv7-centos7-linux-gnueabi/armv7-centos7-linux-gnueabi/sysroot"
 
         export PATH="${HOME}/x-tools/armv7-centos7-linux-gnueabi/bin:$PATH"
@@ -30,8 +32,9 @@ case $1 in
         export LD="armv7-centos7-linux-gnueabi-ld --sysroot=${SYSROOT}"
         export PKG_CONFIG_PATH="${SYSROOT}/lib/pkgconfig"
         ;;
-    "i686")
+    "386")
         export ARCH="i686"
+        export GO_ARCH="386"
         export SYSROOT="${HOME}/x-tools/i686-centos7-linux-gnu/i686-centos7-linux-gnu/sysroot"
 
         export PATH="${HOME}/x-tools/i686-centos7-linux-gnu/bin:$PATH"
@@ -42,6 +45,7 @@ case $1 in
         ;;
     "amd64")
         export ARCH="amd64"
+        export GO_ARCH="amd64"
         export SYSROOT="${HOME}/x-tools/x86_64-centos7-linux-gnu/x86_64-centos7-linux-gnu/sysroot"
 
         export PATH="${HOME}/x-tools/x86_64-centos7-linux-gnu/bin:$PATH"
@@ -126,7 +130,7 @@ cd ..
 
 cd ..
 # Build teleport
-GOOS=linux GOARCH=${ARCH} CGO_ENABLED=1 ARCH=${ARCH} make
+GOOS=linux CGO_ENABLED=1 ARCH=${GO_ARCH} make
 
 # check
 readelf -a build/teleport | grep -w -Eo "GLIBC_2\.[0-9]+(\.[0-9]+)?" | sort -u
