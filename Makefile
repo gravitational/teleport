@@ -229,22 +229,12 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-# True if $ARCH == amd64 || $ARCH == arm64
-ifeq ("$(ARCH)","arm64")
-	ifeq ($(IS_NATIVE_BUILD),"no")
-		CGOFLAG += CC=aarch64-linux-gnu-gcc
-	endif
-else ifeq ("$(ARCH)","arm")
+ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
-# ARM builds need to specify the correct C compiler
-ifeq ($(IS_NATIVE_BUILD),"no")
-CC=arm-linux-gnueabihf-gcc
-endif
-
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
-endif
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
+endif # ARCH == arm
 endif # OS == linux
 
 # Windows requires extra parameters to cross-compile with CGO.
