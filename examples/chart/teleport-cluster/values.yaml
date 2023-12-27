@@ -31,9 +31,10 @@ kubeClusterName: ""
 teleportVersionOverride: ""
 
 # The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
-# `auth` contains values specific for the auth pods. You can use it to
-#  set specific values for auth pods, taking precedence over chart-scoped values.
-# For example, to override the [`postStart`](#postStart) value only for auth pods:
+#
+# `auth` allows to set chart values only for the auth Kubernetes resources.
+# This is merged with chart-scoped values and takes precedence in case of conflict.
+# For example:
 #
 # auth:
 #  postStart: ["curl", "http://hook"]
@@ -55,11 +56,15 @@ auth:
   #     client_idle_timeout_message: "Connection closed after 2hours without activity"
   teleportConfig: {}
 
-# proxy contains values specific for the proxy pods
-# You can override chart-scoped values, for example
+# `proxy` allows to set chart values only for the proxy Kubernetes resources.
+# This is merged with chart-scoped values and takes precedence in case of conflict.
+# For example:
 # proxy:
 #   postStart: ["curl", "http://hook"]
 #   imagePullPolicy: Always
+#   annotations:
+#     service:
+#       external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
 proxy:
   # proxy.teleportConfig contains YAML teleport configuration for proxy pods
   # The configuration will be merged with the chart-generated configuration
