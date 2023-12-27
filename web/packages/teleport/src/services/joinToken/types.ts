@@ -47,7 +47,8 @@ export type JoinRole =
   | 'Db'
   | 'Kube'
   | 'WindowsDesktop'
-  | 'Discovery';
+  | 'Discovery'
+  | 'Bot';
 
 // JoinMethod is the method used for new nodes to join the cluster.
 // Same hard-corded value as the backend.
@@ -55,7 +56,7 @@ export type JoinRole =
 //   presenting a secret token.
 // - 'ec2' is a method where node will join with the EC2 join method
 // - 'iam' is a method where node will join with the IAM join method
-export type JoinMethod = 'token' | 'ec2' | 'iam';
+export type JoinMethod = 'token' | 'ec2' | 'iam' | 'github';
 
 // JoinRule is a rule that a joining node must match in order to use the
 // associated token.
@@ -64,6 +65,19 @@ export type JoinRule = {
   // awsArn is used for the IAM join method.
   awsArn?: string;
 };
+
+export type GitHubJoinRule = {
+  allow: {
+    repository: string
+    repository_owner: string
+    sub?: string
+    workflow?: string
+    environment?: string
+    actor?: string
+    ref?: string
+    ref_type?: string
+  }[]
+}
 
 export type JoinTokenRequest = {
   // roles is a list of join roles, since there can be more than
@@ -78,4 +92,6 @@ export type JoinTokenRequest = {
   // means adding the labels to `db_service.resources.labels`.
   suggestedAgentMatcherLabels?: ResourceLabel[];
   method?: JoinMethod;
+  botName?: string;
+  gitHub?: GitHubJoinRule;
 };

@@ -7,7 +7,7 @@ import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { ConfigureBot } from './ConfigureBot';
 import { AddBotToWorkflow } from './AddBotToWorkflow';
 
-export const MachineIdFlow = {
+export const GitHubActionsFlow = {
   title: 'GitHub Actions',
   link: cfg.getIntegrationEnrollRoute(IntegrationKind.MachineId, MachineIdIntegration.GitHubActions),
   icon: <GitHubIcon size={80} />,
@@ -32,6 +32,6 @@ const views: View[] = [
 
 export function EnrollMachineIdGitHub() {
   return (
-    <Flow title="GitHub Actions and Machine ID Integration" icon={<GitHubIcon size={20} />} views={views} name={MachineIdFlow.title} />
+    <Flow title="GitHub Actions and Machine ID Integration" icon={<GitHubIcon size={20} />} views={views} name={GitHubActionsFlow.title} />
   )
 }

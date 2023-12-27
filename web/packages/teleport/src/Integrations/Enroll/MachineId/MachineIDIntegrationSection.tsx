@@ -43,7 +43,7 @@ import { IntegrationTile } from '../common';
 import { ConfigureBot } from './GitHub';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-import { MachineIdFlow } from './GitHub/EnrollMachineIdGitHub';
+import { GitHubActionsFlow } from './GitHub/EnrollMachineIdGitHub';
 
 interface Integration {
   title: string;
@@ -55,7 +55,7 @@ interface Integration {
 
 
 const integrations: Integration[] = [
-  MachineIdFlow,
+  GitHubActionsFlow,
   {
     title: 'CircleCI',
     link: 'https://goteleport.com/docs/machine-id/deployment/circleci/',

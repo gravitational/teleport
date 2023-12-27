@@ -1,19 +1,20 @@
 export enum BotJoinMethod {
-  GitHub = 'github',
+  GitHub = 'github-actions',
 }
 
-export type Bot = {
-  name: string
-  roles: string[]
+
+export type GitHubBotConfig = {
+  botName: string,
+  rules: RepositoryRule[],
+  labels: object,
 }
 
-export type GitHubBotConfig = Bot & {
+type RepositoryRule = {
   repository: string
-  subject: string
   repositoryOwner: string
-  workflow: string
-  environment: string
-  actor: string
-  ref: string
-  refType: 'branch' | 'tag'
+  workflow?: string
+  environment?: string
+  actor?: string
+  ref?: string
+  refType?: 'branch' | 'tag'
 }

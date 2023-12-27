@@ -306,7 +306,7 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    bot: '/v1/webapi/sites/:clusterId/machineid/bot/:joinMethod'
+    bot: '/v1/webapi/sites/:clusterId/integrations/machine-id/:joinMethod'
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
