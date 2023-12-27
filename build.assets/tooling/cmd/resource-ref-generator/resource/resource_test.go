@@ -1138,6 +1138,47 @@ expiry: 5h
 			},
 			declSources: []string{},
 		},
+		{
+			description: "byte slice",
+			source: `
+package mypkg
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // PrivateKey is the private key of the resource.
+    PrivateKey []byte BACKTICKjson:"private_key"BACKTICK
+}
+`,
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Metadata",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Metadata",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+private_key:
+  data: BASE64_STRING
+`,
+					Fields: []Field{
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "private_key",
+							Description: "The private key of the resource.",
+							Type:        "Base 64-encoded string",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
