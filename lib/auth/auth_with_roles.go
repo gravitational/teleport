@@ -2790,11 +2790,15 @@ func isRoleImpersonation(req proto.UserCertsRequest) bool {
 	return req.UseRoleRequests || len(req.RoleRequests) > 0
 }
 
-// Determines if a given user is a bot user by checking for the existence of an
-// internal bot metadata label.
-func isBotUser(user types.User) bool {
-	_, ok := user.GetLabel(types.BotLabel)
-	return ok
+// getBotName returns the name of the bot embedded in the user metadata, if any.
+// For non-bot users, returns "".
+func getBotName(user types.User) string {
+	name, ok := user.GetLabel(types.BotLabel)
+	if ok {
+		return name
+	}
+
+	return ""
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
@@ -3039,7 +3043,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
-		bot:                    isBotUser(user),
+		botName:                getBotName(user),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()

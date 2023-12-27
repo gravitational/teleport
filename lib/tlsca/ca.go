@@ -181,8 +181,9 @@ type Identity struct {
 	Renewable bool
 	// Generation counts the number of times this certificate has been renewed.
 	Generation uint64
-	// Bot indicates this identity belongs to a Machine ID bot user
-	Bot bool
+	// BotName indicates the name of the Machine ID bot this identity was issued
+	// to, if any.
+	BotName string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -764,11 +765,11 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
-	if id.Bot {
+	if id.BotName != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  BotASN1ExtensionOID,
-				Value: types.True,
+				Value: id.BotName,
 			})
 	}
 
@@ -1005,7 +1006,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(BotASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				id.Bot = val == types.True
+				id.BotName = val
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
@@ -1061,6 +1062,11 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		}
 	}
 
+	userKind := events.UserKind_USER_KIND_HUMAN
+	if id.BotName != "" {
+		userKind = events.UserKind_USER_KIND_BOT
+	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1068,7 +1074,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AzureIdentity:     id.RouteToApp.AzureIdentity,
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		AccessRequests:    id.ActiveRequests,
-		Bot:               id.Bot,
+		UserKind:          userKind,
 		TrustedDevice:     device,
 	}
 }
