@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
-func TestGitHubBotCreate(t *testing.T) {
+func TestCreateBot(t *testing.T) {
 	s := newWebSuite(t)
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -20,29 +21,28 @@ func TestGitHubBotCreate(t *testing.T) {
 
 	clusterName := env.server.ClusterName()
 
-	createGitHubBotEndpoint := pack.clt.Endpoint(
+	endpoint := pack.clt.Endpoint(
 		"webapi",
 		"sites",
 		clusterName,
-		"integrations",
 		"machine-id",
-		"github-actions",
+		"bot",
 	)
 
 	ctx := context.Background()
 
-	resp, err := pack.clt.PostJSON(ctx, createGitHubBotEndpoint, CreateGitHubBotRequest{
+	resp, err := pack.clt.PostJSON(ctx, endpoint, CreateGitHubBotRequest{
 		BotName: "test-bot",
 		Roles:   []string{"bot-role-0", "bot-role-1"},
 	})
 	require.NoError(t, err)
 
-	var expected struct {
+	var ret struct {
 		Message string `json:"message"`
 	}
-	err = json.Unmarshal(resp.Bytes(), &expected)
+	err = json.Unmarshal(resp.Bytes(), &ret)
 	require.NoError(t, err)
-	require.Equal(t, expected.Message, "ok")
+	require.Equal(t, "ok", ret.Message)
 
 	// fetch users and assert that the bot we created exists
 	getUsersResp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users"), nil)
@@ -62,7 +62,7 @@ func TestGitHubBotCreate(t *testing.T) {
 
 	// Make sure an unauthenticated client can't create bots
 	publicClt := s.client(t)
-	_, err = publicClt.PostJSON(ctx, createGitHubBotEndpoint, CreateGitHubBotRequest{
+	_, err = publicClt.PostJSON(ctx, endpoint, CreateGitHubBotRequest{
 		BotName: "bot-name",
 		Roles:   []string{"bot-role-0", "bot-role-1"},
 	})

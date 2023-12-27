@@ -3,23 +3,29 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 type CreateGitHubBotRequest struct {
 	// BotName is the name of the bot
-	BotName string               `json:"botName"`
-	Roles   []string             `json:"roles"`
-	Traits  []*machineidv1.Trait `json:"traits"`
+	BotName string `json:"botName"`
+	// Roles are the roles that the bot will be able to impersonate
+	Roles []string `json:"roles"`
+	// Traits are the traits that will be associated with the bot for the purposes of role
+	// templating.
+	// Where multiple specified with the same name, these will be merged by the
+	// server.
+	Traits []*machineidv1.Trait `json:"traits"`
 }
 
-// githubBotCreate creates a GitHub Join Token and a bot using the token
-func (h *Handler) gitHubBotCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+// createBot creates a bot
+func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req *CreateGitHubBotRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
