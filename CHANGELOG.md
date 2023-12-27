@@ -23,6 +23,17 @@ rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
 
+#### `tsh play` now streams PTY playback
+
+Prior to Teleport 15, `tsh play` would download the entire session recording
+before starting playback. As a result, playback of large recordings could be
+slow to start. In Teleport 15 session recordings are streamed from the auth
+server, allowing playback to start before the entire session is downloaded and
+unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
 #### `drop` host user creation mode
 
 The `drop` host user creation mode has been removed in Teleport 15. It is replaced
