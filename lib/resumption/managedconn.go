@@ -43,7 +43,7 @@ const (
 // connections actually return ECONNRESET on the first syscall experiencing the
 // error, then EPIPE afterwards; we don't bother emulating that detail and
 // always return EPIPE instead.
-var errBrokenPipe = syscall.EPIPE
+var errBrokenPipe error = syscall.EPIPE
 
 func newManagedConn() *managedConn {
 	c := new(managedConn)
