@@ -21,6 +21,7 @@
 'use strict';
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_service_pb = require('../../../../teleport/lib/teleterm/v1/service_pb.js');
+var teleport_accesslist_v1_accesslist_pb = require('../../../../teleport/accesslist/v1/accesslist_pb.js');
 var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/lib/teleterm/v1/access_request_pb.js');
 var teleport_lib_teleterm_v1_auth_settings_pb = require('../../../../teleport/lib/teleterm/v1/auth_settings_pb.js');
 var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/teleterm/v1/cluster_pb.js');
@@ -428,6 +429,28 @@ function deserialize_teleport_lib_teleterm_v1_GetServersResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetServersResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_GetUserPreferencesRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetUserPreferencesRequest');
@@ -591,6 +614,28 @@ function serialize_teleport_lib_teleterm_v1_LogoutRequest(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_LogoutRequest(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.LogoutRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromoteAccessRequestRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromoteAccessRequestResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_RemoveClusterRequest(arg) {
@@ -927,6 +972,30 @@ assumeRole: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_AssumeRoleRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
+  },
+  // PromoteAccessRequest promotes an access request to an access list.
+promoteAccessRequest: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse,
+  },
+  // GetSuggestedAccessLists returns suggested access lists for an access request.
+getSuggestedAccessLists: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse,
   },
   // GetKubes returns filtered, sorted, and paginated kubes
 getKubes: {

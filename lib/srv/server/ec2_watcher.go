@@ -153,6 +153,7 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
 		pollInterval:   time.Minute,
+		triggerFetchC:  make(<-chan struct{}),
 		InstancesC:     make(chan Instances),
 		missedRotation: missedRotation,
 	}

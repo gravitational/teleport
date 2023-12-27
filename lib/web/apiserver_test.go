@@ -43,6 +43,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -68,7 +69,6 @@ import (
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -2268,7 +2268,13 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	wsrwc := &WebsocketIO{Conn: ws}
+	tdpConn := tdp.NewConn(wsrwc)
+
+	// desktopConnectHandle first needs a ClientScreenSpec message in order to continue.
+	tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: 100, Height: 100})
+
+	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
 	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
@@ -2279,7 +2285,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -5571,7 +5577,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		initialConnectorName string
 		resultConnectorName  string
 	}{{
-		name:                 "first cloud sign-in changes connector to `passwordless`",
+		name:                 "first cloud sign-in changes connector to passwordless",
 		cloud:                true,
 		numberOfUsers:        1,
 		authPreferenceType:   constants.Local,
@@ -5609,107 +5615,109 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 	}}
 
 	for _, tc := range tt {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestFeatures: modules.Features{
-				Cloud: tc.cloud,
-			},
-		})
-
-		const RPID = "localhost"
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:          tc.authPreferenceType,
-				ConnectorName: tc.initialConnectorName,
-				SecondFactor:  constants.SecondFactorOn,
-				Webauthn: &types.Webauthn{
-					RPID: RPID,
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
 				},
-			},
-		})
-
-		// user and role
-		users := make([]types.User, tc.numberOfUsers)
-
-		for i := 0; i < tc.numberOfUsers; i++ {
-			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
-			require.NoError(t, err)
-
-			user.SetCreatedBy(types.CreatedBy{
-				User: types.UserRef{Name: "other_user"},
 			})
 
-			role := services.RoleForUser(user)
+			const RPID = "localhost"
 
-			role, err = s.server.Auth().UpsertRole(s.ctx, role)
+			s := newWebSuiteWithConfig(t, webSuiteConfig{
+				authPreferenceSpec: &types.AuthPreferenceSpecV2{
+					Type:          tc.authPreferenceType,
+					ConnectorName: tc.initialConnectorName,
+					SecondFactor:  constants.SecondFactorOn,
+					Webauthn: &types.Webauthn{
+						RPID: RPID,
+					},
+				},
+			})
+
+			// user and role
+			users := make([]types.User, tc.numberOfUsers)
+
+			for i := 0; i < tc.numberOfUsers; i++ {
+				user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+				require.NoError(t, err)
+
+				user.SetCreatedBy(types.CreatedBy{
+					User: types.UserRef{Name: "other_user"},
+				})
+
+				role := services.RoleForUser(user)
+
+				role, err = s.server.Auth().UpsertRole(s.ctx, role)
+				require.NoError(t, err)
+
+				user.AddRole(role.GetName())
+
+				user, err = s.server.Auth().CreateUser(s.ctx, user)
+				require.NoError(t, err)
+
+				users[i] = user
+			}
+
+			initialUser := users[0]
+
+			clt := s.client(t)
+
+			// create register challenge
+			token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+				Name: initialUser.GetName(),
+			})
 			require.NoError(t, err)
 
-			user.AddRole(role.GetName())
-
-			user, err = s.server.Auth().CreateUser(s.ctx, user)
+			res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+				TokenID:     token.GetName(),
+				DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			})
 			require.NoError(t, err)
 
-			users[i] = user
-		}
+			cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
-		initialUser := users[0]
+			// use passwordless as auth method
+			device, err := mocku2f.Create()
+			require.NoError(t, err)
 
-		clt := s.client(t)
+			device.SetPasswordless()
 
-		// create register challenge
-		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
-			Name: initialUser.GetName(),
+			ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+			require.NoError(t, err)
+
+			// send sign-in response to server
+			body, err := json.Marshal(changeUserAuthenticationRequest{
+				WebauthnCreationResponse: ccr,
+				TokenID:                  token.GetName(),
+				DeviceName:               "passwordless-device",
+				Password:                 tc.password,
+			})
+			require.NoError(t, err)
+
+			req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			csrfToken, err := csrf.GenerateToken()
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, csrfToken)
+			req.Header.Set(csrf.HeaderName, csrfToken)
+			req.Header.Set("Content-Type", "application/json")
+
+			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, re.Code())
+
+			// check if auth preference connectorName is set
+			authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.resultConnectorName, authPreference.GetConnectorName(), "Found unexpected auth connector name")
 		})
-		require.NoError(t, err)
-
-		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
-			TokenID:     token.GetName(),
-			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-		})
-		require.NoError(t, err)
-
-		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
-
-		// use passwordless as auth method
-		device, err := mocku2f.Create()
-		require.NoError(t, err)
-
-		device.SetPasswordless()
-
-		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
-		require.NoError(t, err)
-
-		// send sign-in response to server
-		body, err := json.Marshal(changeUserAuthenticationRequest{
-			WebauthnCreationResponse: ccr,
-			TokenID:                  token.GetName(),
-			DeviceName:               "passwordless-device",
-			Password:                 tc.password,
-		})
-		require.NoError(t, err)
-
-		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
-		require.NoError(t, err)
-
-		csrfToken, err := csrf.GenerateToken()
-		require.NoError(t, err)
-		addCSRFCookieToReq(req, csrfToken)
-		req.Header.Set(csrf.HeaderName, csrfToken)
-		req.Header.Set("Content-Type", "application/json")
-
-		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-			return clt.Client.HTTPClient().Do(req)
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, re.Code())
-
-		// check if auth preference connectorName is set
-		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
-		require.NoError(t, err)
-
-		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
 	}
 }
 
