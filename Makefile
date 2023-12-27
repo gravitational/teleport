@@ -102,8 +102,7 @@ CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
-
-$(info AAA CARGO_TARGET_${OS}_${ARCH})
+CARGO_TARGET_linux_arm := armv7-unknown-linux-gnueabi
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 

@@ -22,7 +22,13 @@ case $1 in
         ;;
     "arm")
         export ARCH="arm"
-        export SYSROOT="${HOME}/x-tools/arm-centos7-linux-gnueabi/arm-unknown-linux-gnueabi/sysroot"
+        export SYSROOT="${HOME}/x-tools/armv7-centos7-linux-gnueabi/armv7-centos7-linux-gnueabi/sysroot"
+
+        export PATH="${HOME}/x-tools/armv7-centos7-linux-gnueabi/bin:$PATH"
+        export CC="armv7-centos7-linux-gnueabi-cc --sysroot=${SYSROOT} -I${SYSROOT}/include -fPIC" # Hacky but works
+        export CXX="armv7-centos7-linux-gnueabi-c++ --sysroot=${SYSROOT}"
+        export LD="armv7-centos7-linux-gnueabi-ld --sysroot=${SYSROOT}"
+        export PKG_CONFIG_PATH="${SYSROOT}/lib/pkgconfig"
         ;;
     "i686")
         export ARCH="i686"
