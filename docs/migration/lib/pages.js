@@ -1,73 +1,8 @@
 const fs = require('fs');
-var getDirName = require('path').dirname;
-const path = require('path');
+const { readAllFilesFromDirectory, writeFile } = require('./utility');
 
 // Location of the current documentation pages
 const PAGES_DIRECTORY = '../pages'
-
-function writeFile(path, contents) {
-  fs.mkdir(getDirName(path), { recursive: true}, function (err) {
-    if (err) return;
-
-    fs.writeFileSync(path, contents, 'utf8');
-  });
-}
-
-function* readAllFiles(dir) {
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const file of files) {
-    if (file.isDirectory()) {
-      yield* readAllFiles(path.join(dir, file.name));
-    } else {
-      yield path.join(dir, file.name);
-    }
-  }
-}
-
-const teleportMintConfig = {
-  $schema: 'https://mintlify.com/schema.json',
-  name: 'Teleport',
-  logo: {
-    light: '/logo/light.png',
-    dark: '/logo/dark.png',
-  },
-  favicon: '/favicon.png',
-  colors: {
-    primary: '#512FC9',
-    light: '#7956F5',
-    dark: '#512FC9',
-  },
-  topAnchor: {
-    name: 'OpenSource',
-    icon: 'code',
-  },
-  anchors: [
-    {
-      name: "Manage Access",
-      icon: "shield-halved",
-      url: "access-controls"
-    },
-    {
-      name: "Management",
-      icon: "people-group",
-      url: "management"
-    }
-  ],
-  feedback: {
-    thumbsRating: true,
-  },
-  topbarCtaButton: {
-    name: 'Get Started',
-    url: 'https://goteleport.com/pricing/',
-  },
-  topbarLinks: [
-    {
-      name: 'Sign In',
-      url: 'https://teleport.sh/',
-    },
-  ],
-};
 
 /*
   Snippets with Mintlify works like React components.
@@ -133,7 +68,6 @@ const migrationFunctions = {
     page
       .replace(/<Details([^>]+)>/g, '<Accordion$1>')
       .replace(/<\/Details>/g, '</Accordion>'),
-  // TODO
   snippet: migrateReusableSnippet,
   variable: migrateReusableVariable,
 };
@@ -141,7 +75,8 @@ const migrationFunctions = {
 
 
 function migratePages() {
-  for (const pagePath of readAllFiles(PAGES_DIRECTORY)) {
+  // Build global variables page
+  for (const pagePath of readAllFilesFromDirectory(PAGES_DIRECTORY)) {
     const pageContent = fs.readFileSync(pagePath, 'utf8');
 
     let migratedPage = pageContent;
@@ -156,60 +91,6 @@ function migratePages() {
   }
 }
 
-function migrateConfigNavigation(navigation) {
-  return navigation.map((nav) => {
-    if (nav.slug) {
-      if (nav.slug === '/') {
-        return 'index';
-      }
-      // Remove leading and trailing slash
-      return nav.slug.replace(/^\/+/g, '').replace(/\/\s*$/, '');
-    }
-
-    let migratedNav = {
-      group: nav.title,
-    };
-
-    if (nav.entries) {
-      migratedNav.pages = migrateConfigNavigation(nav.entries);
-    }
-
-    return migratedNav;
-  });
-}
-
-function migrateConfigRedirects(redirects) {
-  // Preserve unique values
-  const redirectsMap = {};
-  redirects.forEach((redirect) => {
-    redirectsMap[redirect.source] = redirect.destination
-  });
-
-  return Object.entries(redirectsMap).map(([source, destination]) => {
-    return {
-      source,
-      destination,
-    };
-  })
-}
-
-function migrateConfig() {
-  const configContent = fs.readFileSync(`../config.json`, 'utf8');
-  const { navigation, redirects } = JSON.parse(configContent);
-
-  const migratedConfig = {
-    ...teleportMintConfig,
-    navigation: migrateConfigNavigation(navigation),
-    redirects: migrateConfigRedirects(redirects),
-  };
-
-  writeFile(
-    `./output/mint.json`,
-    JSON.stringify(migratedConfig, null, 2),
-  );
-}
-
 module.exports = {
   migratePages,
-  migrateConfig,
 };
