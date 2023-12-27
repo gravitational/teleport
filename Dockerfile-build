@@ -42,4 +42,4 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup --version && \
     cargo --version && \
     rustc --version && \
-    rustup target add aarch64-unknown-linux-gnu
+    rustup target add aarch64-unknown-linux-gnu i686-unknown-linux-gnu armv7-unknown-linux-gnueabihf

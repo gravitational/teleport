@@ -12,7 +12,13 @@ export RUST_VERSION=1.71.1
 case $1 in
     "arm64")
         export ARCH="arm64"
-        export SYSROOT="${HOME}/x-tools/aarch64-centos7-linux-gnu/aarch64-unknown-linux-gnu/sysroot"
+        export SYSROOT="${HOME}/x-tools/aarch64-centos7-linux-gnu/aarch64-centos7-linux-gnu/sysroot"
+
+        export PATH="${HOME}/x-tools/aarch64-centos7-linux-gnu/bin:$PATH"
+        export CC="aarch64-centos7-linux-gnu-cc --sysroot=${SYSROOT} -I${SYSROOT}/include" # Hacky but works
+        export CXX="aarch64-centos7-linux-gnu-c++ --sysroot=${SYSROOT}"
+        export LD="aarch64-centos7-linux-gnu-ld --sysroot=${SYSROOT}"
+        export PKG_CONFIG_PATH="${SYSROOT}/lib/pkgconfig"
         ;;
     "arm")
         export ARCH="arm"
@@ -34,10 +40,13 @@ case $1 in
         ;;
 esac
 
+rm -rf 3rdparty-${ARCH}
 mkdir -p 3rdparty-${ARCH}
 
 cd 3rdparty-${ARCH}
 
+# Unlock sysroot
+chmod -R +w "${SYSROOT}"
 
 # Build and install
 
@@ -47,6 +56,15 @@ cd zlib
 ./configure --prefix="${SYSROOT}"
 make -j$(nproc)
 make install
+
+cd ..
+
+#libzstd
+git clone https://github.com/facebook/zstd.git
+cd zstd
+
+make -j$(nproc)
+make install PREFIX=${SYSROOT}
 
 cd ..
 
@@ -60,16 +78,7 @@ make install PREFIX=${SYSROOT}/
 
 cd ..
 
-#libzstd
-git clone https://github.com/facebook/zstd.git
-cd zstd
-
-make -j$(nproc)
-make install PREFIX=${SYSROOT}
-
-cd ..
-
-#libbpt
+#libbpf
 git clone https://github.com/libbpf/libbpf.git
 cd libbpf/src
 
@@ -82,7 +91,7 @@ wget https://zenlayer.dl.sourceforge.net/project/libtirpc/libtirpc/1.3.4/libtirp
 tar xvf libtirpc-1.3.4.tar.bz2
 cd libtirpc-1.3.4
 
-./configure --prefix="${SYSROOT}" --disable-gssapi
+./configure --prefix="${SYSROOT}" --disable-gssapi --host=${ARCH}-centos7-linux-gnu
 make -j$(nproc)
 make install
 
@@ -93,18 +102,15 @@ git clone https://github.com/linux-pam/linux-pam.git
 cd linux-pam
 
 ./autogen.sh
-./configure --prefix="${SYSROOT}" --disable-doc  --disable-examples --includedir="${SYSROOT}/include/security"
+./configure --prefix="${SYSROOT}" --disable-doc  --disable-examples --includedir="${SYSROOT}/include/security" --host=${ARCH}
 make -j$(nproc)
 make install
 
 cd ..
 
+cd ..
 # Build teleport
 GOOS=linux GOARCH=${ARCH} CGO_ENABLED=1 make
-
-# working
-
-#GOOS=linux GOARCH=amd64 CGO_ENABLED=1 CGO_CFLAGS="--sysroot=${SYSROOT} -I${SYSROOT}/include -I/usr/libbpf-1.2.2/include" CGO_LDFLAGS="--sysroot=${SYSROOT} -Wl,-Bstatic -L${SYSROOT}/usr/lib/ -L/usr/libbpf-1.2.2/lib64/ -lbpf -lelf -lz -L/usr/libbpf-1.2.2/lib64/ -lbpf -lelf -lzstd -lz -Wl,-Bdynamic -Wl,--as-needed" go build -tags "webassets_embed pam  bpf  desktop_access_rdp " -o build/teleport  -ldflags '-w -s ' -trimpath ./tool/teleport
 
 # check
 readelf -a build/teleport | grep -w -Eo "GLIBC_2\.[0-9]+(\.[0-9]+)?" | sort -u
