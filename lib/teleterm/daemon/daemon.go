@@ -31,7 +31,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -293,16 +295,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	_, clusterClient, err := s.ResolveClusterURI(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	withPromptReasonOpt, err := WithPromptReasonSessionMFA(targetURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
-
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -310,7 +302,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
-		MFAPrompt:             mfaPrompt,
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -345,18 +337,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	var cert tls.Certificate
 
 	reissueGatewayCerts := func() error {
-		cluster, clusterClient, err := s.ResolveClusterURI(g.TargetURI())
+		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		withPromptReasonOpt, err := WithPromptReasonSessionMFA(g.TargetURI())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		mfaPrompt := clusterClient.NewMFAPrompt(withPromptReasonOpt)
-
-		cert, err = cluster.ReissueGatewayCerts(ctx, g, mfaPrompt)
+		cert, err = cluster.ReissueGatewayCerts(ctx, g)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -563,6 +549,74 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		Roles:           response.RequestableRoles,
 		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
+}
+
+// PromoteAccessRequest promotes an access request to an access list.
+func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.ResourceURI, req *accesslistv1.AccessRequestPromoteRequest) (*clusters.AccessRequest, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response *clusters.AccessRequest
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		promoteResponse, err := authClient.AccessListClient().AccessRequestPromote(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessRequest := promoteResponse.AccessRequest
+		response = &clusters.AccessRequest{
+			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
+			AccessRequest: accessRequest,
+		}
+		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI uri.ResourceURI, accessRequestID string) ([]*accesslist.AccessList, error) {
+	_, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response []*accesslist.AccessList
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		accessLists, err := authClient.AccessListClient().GetSuggestedAccessLists(ctx, accessRequestID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		response = accessLists
+		return nil
+	})
+
+	return response, trace.Wrap(err)
 }
 
 // GetAccessRequests returns all access requests with filtered input
