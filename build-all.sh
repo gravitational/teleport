@@ -2,6 +2,10 @@
 
 set -e
 
+#BUILDKIT_PROGRESS=plain docker build -t teleport-builder-base --build-arg TARGET_ARCH=amd64 -f Dockerfile-ct-ng .
+#docker run -it --rm docker.io/library/teleport-builder-base
+
+
 export GOLANG_VERSION=go1.21.5
 
 export RUST_VERSION=1.71.1
