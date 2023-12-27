@@ -60,8 +60,9 @@ type ClusterWithDetails struct {
 	*Cluster
 	// Auth server features
 	Features *proto.Features
-	// AnonymizationKey used to anonymize the cluster user and resource names for collecting usage statistics.
-	AnonymizationKey string
+	// AuthClusterID is the unique cluster ID that is set once
+	// during the first auth server startup.
+	AuthClusterID string
 	// SuggestedReviewers for the given user.
 	SuggestedReviewers []string
 	// RequestableRoles for the given user.
@@ -86,7 +87,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 	var (
 		authPingResponse proto.PingResponse
 		caps             *types.AccessCapabilities
-		anonymizationKey string
+		authClusterID    string
 		acl              *api.ACL
 		user             types.User
 	)
@@ -126,7 +127,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		anonymizationKey = clusterName.GetAnonymizationKey()
+		authClusterID = clusterName.GetClusterID()
 
 		user, err = authClient.GetCurrentUser(ctx)
 		if err != nil {
@@ -167,7 +168,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		SuggestedReviewers: caps.SuggestedReviewers,
 		RequestableRoles:   caps.RequestableRoles,
 		Features:           authPingResponse.ServerFeatures,
-		AnonymizationKey:   anonymizationKey,
+		AuthClusterID:      authClusterID,
 		ACL:                acl,
 		UserType:           user.GetUserType(),
 		ProxyVersion:       clusterPingResponse.ServerVersion,

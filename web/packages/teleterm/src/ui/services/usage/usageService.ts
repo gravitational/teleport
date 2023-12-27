@@ -58,7 +58,7 @@ export class UsageService {
       return;
     }
     const { arch, platform, osVersion, appVersion } = this.runtimeSettings;
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       clusterLogin: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -83,7 +83,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       protocolUse: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -104,7 +104,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       accessRequestCreate: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -121,7 +121,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       accessRequestReview: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -137,7 +137,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       accessRequestAssumeRole: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -156,7 +156,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       fileTransferRun: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -184,7 +184,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       connectMyComputerSetup: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -203,7 +203,7 @@ export class UsageService {
       );
       return;
     }
-    this.reportEvent(clusterProperties.anonymizationKey, {
+    this.reportEvent(clusterProperties.authClusterId, {
       connectMyComputerAgentStart: {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
@@ -216,7 +216,7 @@ export class UsageService {
   }
 
   private async reportEvent(
-    anonymizationKey: string,
+    authClusterId: string,
     prehogEventReq: PrehogEventReq
   ): Promise<void> {
     const isCollectingUsageMetricsEnabled = this.configService.get(
@@ -229,7 +229,7 @@ export class UsageService {
 
     try {
       await this.tshClient.reportUsageEvent({
-        anonymizationKey,
+        authClusterId,
         prehogReq: {
           distinctId: this.runtimeSettings.installationId,
           timestamp: new Date(),
@@ -248,12 +248,12 @@ export class UsageService {
   private getClusterProperties(uri: ClusterOrResourceUri) {
     const rootClusterUri = routing.ensureRootClusterUri(uri);
     const cluster = this.findCluster(rootClusterUri);
-    if (!(cluster && cluster.loggedInUser && cluster.anonymizationKey)) {
+    if (!(cluster && cluster.loggedInUser && cluster.authClusterId)) {
       return;
     }
 
     return {
-      anonymizationKey: cluster.anonymizationKey,
+      authClusterId: cluster.authClusterId,
       clusterName: cluster.name,
       userName: cluster.loggedInUser.name,
     };

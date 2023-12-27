@@ -21,7 +21,7 @@ import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
-const SENSITIVE_PROPERTIES = ['passw', 'anoymizationKey'];
+const SENSITIVE_PROPERTIES = ['passw', 'authClusterId'];
 
 export type UnaryInterceptor = (
   options: grpc.InterceptorOptions,

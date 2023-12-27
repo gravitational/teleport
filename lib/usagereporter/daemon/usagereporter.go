@@ -25,6 +25,7 @@ import (
 
 	"github.com/bufbuild/connect-go"
 	"github.com/gravitational/trace"
+	"github.com/xtgo/uuid"
 
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
@@ -131,7 +132,9 @@ func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv
 	}
 
 	// anonymized
-	anonymizer, err := utils.NewHMACAnonymizer(req.GetAnonymizationKey()) // anonymizationKey is sent with each event that needs to be anonymized
+	// NOTE: for simplicity reasons the teleterm anonymization doesn't match the on-prem teleport anonymization.
+	// see https://github.com/gravitational/teleport/pull/35652#issuecomment-1865135970 for details
+	anonymizer, err := newClusterAnonymizer(req.GetAuthClusterId()) // authClusterId is sent with each event that needs to be anonymized
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,4 +174,12 @@ func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv
 	}
 
 	return nil, trace.BadParameter("unexpected Event usage type %T", req)
+}
+
+func newClusterAnonymizer(authClusterID string) (utils.Anonymizer, error) {
+	_, err := uuid.Parse(authClusterID)
+	if err != nil {
+		return nil, trace.BadParameter("Invalid auth cluster ID %s", authClusterID)
+	}
+	return utils.NewHMACAnonymizer(authClusterID)
 }

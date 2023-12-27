@@ -41,11 +41,6 @@ type ClusterName interface {
 	// GetClusterID gets the ID of the cluster.
 	GetClusterID() string
 
-	// SetAnonymizationKey sets the anonymization key.
-	SetAnonymizationKey(string)
-	// GetAnonymizationKey returns the anonymization key.
-	GetAnonymizationKey() string
-
 	// Clone performs a deep copy.
 	Clone() ClusterName
 }
@@ -142,19 +137,6 @@ func (c *ClusterNameV2) SetClusterID(id string) {
 // GetClusterID gets the ID of the cluster.
 func (c *ClusterNameV2) GetClusterID() string {
 	return c.Spec.ClusterID
-}
-
-// SetAnonymizationKey sets the anonymization key.
-func (c *ClusterNameV2) SetAnonymizationKey(key string) {
-	c.Spec.AnonymizationKey = key
-}
-
-func (c *ClusterNameV2) GetAnonymizationKey() string {
-	anonKey := c.Spec.AnonymizationKey
-	if anonKey == "" {
-		anonKey = c.Spec.ClusterID
-	}
-	return anonKey
 }
 
 // Clone performs a deep copy.

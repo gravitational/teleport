@@ -118,7 +118,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	}
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
 	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
-	apiCluster.AnonymizationKey = cluster.AnonymizationKey
+	apiCluster.AuthClusterId = cluster.AuthClusterID
 	apiCluster.LoggedInUser.Acl = cluster.ACL
 	userType, err := clusters.UserTypeFromString(cluster.UserType)
 	if err != nil {
