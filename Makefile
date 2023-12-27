@@ -101,6 +101,9 @@ CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
+
+$(info AAA CARGO_TARGET_${OS}_${ARCH})
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 
@@ -115,17 +118,12 @@ ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
-# Do not build RDP client on ARM or 386.
-ifneq ("$(ARCH)","arm")
-ifneq ("$(ARCH)","386")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
 
-endif
-endif
 endif
 
 # Set C_ARCH for building libfido2 and dependencies. ARCH is the Go
