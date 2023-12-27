@@ -422,6 +422,15 @@ func makeSectionName(original string) string {
 	return s
 }
 
+// isByteSlice returns whether t is a []byte.
+func isByteSlice(t *ast.ArrayType) bool {
+	i, ok := t.Elt.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	return i.Name == "byte"
+}
+
 // getYAMLTypeForExpr takes an AST type expression and recursively
 // traverses it to populate a yamlKindNode. Each iteration converts a
 // single *ast.Expr into a single yamlKindNode, returning the new node.
@@ -463,6 +472,10 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string) (yamlKindNode, error) {
 			valueKind: v,
 		}, nil
 	case *ast.ArrayType:
+		// Bite slices marshal to base64 strings
+		if isByteSlice(t) {
+			return yamlBase64{}, nil
+		}
 		e, err := getYAMLTypeForExpr(t.Elt, pkg)
 		if err != nil {
 			return nil, err
