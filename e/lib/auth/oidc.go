@@ -525,11 +525,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			return nil, trace.Wrap(oidcErr, "Invalid parameters received from OIDC provider.")
 		}
 
-		// TODO: use max when Go 1.21 releases
-		if maxAge < authGracePeriod {
-			maxAge = authGracePeriod
-		}
-
+		maxAge = max(maxAge, authGracePeriod)
 		if time.Since(authTime) > maxAge {
 			oidcErr := trace.OAuth2(oauth2.ErrorAccessDenied, "user needs to reauthenticate", q)
 			return nil, trace.Wrap(oidcErr, "Reauthentication is required.")
