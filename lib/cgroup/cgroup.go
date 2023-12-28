@@ -31,11 +31,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -142,13 +144,25 @@ func (s *Service) Remove(sessionID string) error {
 
 	// Move all PIDs to the root controller. This has to be done before a cgroup
 	// can be removed.
-	err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids)
-	if err != nil {
+	if err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// The rmdir syscall is used to remove a cgroup.
-	err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID))
+	for i := 0; i < 10; i++ {
+		// The rmdir syscall is used to remove a cgroup.
+		if err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID)); err != nil {
+			// Retry on EBUSY errors.
+			if errors.Is(err, unix.EBUSY) {
+				// If the cgroup is busy, sleep for a bit and try again.
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		break
+	}
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,7 +223,9 @@ func writePids(path string, pids []string) error {
 
 	for _, pid := range pids {
 		_, err := f.WriteString(pid + "\n")
-		if err != nil {
+		// ignore no such process that can be returned if the process has already
+		// exited.
+		if err != nil && !errors.Is(err, unix.ESRCH) {
 			return trace.Wrap(err)
 		}
 	}
@@ -217,7 +233,7 @@ func writePids(path string, pids []string) error {
 	return trace.Wrap(f.Sync())
 }
 
-// cleanupHierarchy removes any cgroups for any exisiting sessions.
+// cleanupHierarchy removes any cgroups for any existing sessions.
 func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 

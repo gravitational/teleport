@@ -186,7 +186,6 @@ buildbox:
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
@@ -228,7 +227,6 @@ buildbox-centos7:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7) \
@@ -354,6 +352,18 @@ fix-imports: buildbox
 	docker run \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport fix-imports/host
+
+# Generate BPF bytecode in a container, so local setup is not required.
+.PHONY: bpf-bytecode
+bpf-bytecode:
+	docker build \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		-f Dockerfile-bpf -t bpf-builder .
+	docker run --rm -v "$$(pwd)/../":/teleport -w /teleport bpf-builder \
+		make bpf-bytecode
 
 #
 # Removes the docker image

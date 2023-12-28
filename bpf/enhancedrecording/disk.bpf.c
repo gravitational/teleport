@@ -25,13 +25,23 @@ struct val_t {
 };
 
 struct data_t {
+    // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
+    // PID is the ID of the process.
     u64 pid;
-    int ret;
-    char comm[TASK_COMM_LEN];
-    char fname[NAME_MAX];
+    // Return_code is the return code of open.
+    int return_code;
+    // Command is name of the executable opening the file.
+    char command[TASK_COMM_LEN];
+    // File_path is the full path to the file being opened.
+    char file_path[NAME_MAX];
+    // Flags are the flags passed to open.
     int flags;
 };
+
+// Force emitting struct data_t into the ELF. bpf2go needs this
+// to generate the Go bindings.
+const struct data_t *unused __attribute__((unused));
 
 BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
 
@@ -46,6 +56,15 @@ BPF_COUNTER(lost);
 static int enter_open(const char *filename, int flags) {
     struct val_t val = {};
     u64 id = bpf_get_current_pid_tgid();
+    u64 cgroup = bpf_get_current_cgroup_id();
+    u64 *is_monitored;
+
+    // Check if the cgroup should be monitored.
+    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    if (is_monitored == NULL) {
+        // cgroup has not been marked for monitoring, ignore.
+        return 0;
+    }
 
     val.pid = id >> 32;
     val.fname = filename;
@@ -76,15 +95,15 @@ static int exit_open(int ret) {
         return 0;
     }
 
-    if (bpf_get_current_comm(&data.comm, sizeof(data.comm)) != 0) {
-        data.comm[0] = '\0';
+    if (bpf_get_current_comm(&data.command, sizeof(data.command)) != 0) {
+        data.command[0] = '\0';
     }
 
-    bpf_probe_read_user(&data.fname, sizeof(data.fname), (void *)valp->fname);
+    bpf_probe_read_user(&data.file_path, sizeof(data.file_path), (void *)valp->fname);
 
     data.pid = valp->pid;
     data.flags = valp->flags;
-    data.ret = ret;
+    data.return_code = ret;
     data.cgroup = cgroup;
 
     if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)

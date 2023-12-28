@@ -25,7 +25,6 @@ import "C"
 import (
 	"bytes"
 	"context"
-	"embed"
 	"encoding/binary"
 	"net"
 	"slices"
@@ -45,8 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-//go:embed bytecode
-var embedFS embed.FS
+// Multi-arch setup, as mentioned in https://github.com/cilium/ebpf/issues/305
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target amd64 -cflags "-D__TARGET_ARCH_x86" -tags bpf -type data_t command ../../bpf/enhancedrecording/command.bpf.c
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target amd64 -cflags "-D__TARGET_ARCH_x86" -tags bpf -type data_t -no-global-types disk ../../bpf/enhancedrecording/disk.bpf.c
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target amd64 -cflags "-D__TARGET_ARCH_x86" -tags bpf -type ipv4_data_t -type ipv6_data_t network ../../bpf/enhancedrecording/network.bpf.c
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target arm64 -cflags "-D__TARGET_ARCH_arm64" -tags bpf -type data_t command ../../bpf/enhancedrecording/command.bpf.c
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target arm64 -cflags "-D__TARGET_ARCH_arm64" -tags bpf -no-global-types -type data_t disk ../../bpf/enhancedrecording/disk.bpf.c
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target arm64 -cflags "-D__TARGET_ARCH_arm64" -tags bpf -type ipv4_data_t -type ipv6_data_t network ../../bpf/enhancedrecording/network.bpf.c
 
 // ArgsCacheSize is the number of args events to store before dropping args
 // events.
@@ -343,7 +347,7 @@ func (s *Service) processNetworkEvents() {
 // emitCommandEvent will parse and emit command events to the Audit Log.
 func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawExecEvent
+	var event commandDataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
@@ -351,7 +355,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	ctx, ok := s.watch.Get(event.Cgroup)
 	if !ok {
 		return
 	}
@@ -418,14 +422,14 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				UserTraits:      ctx.UserTraits.Clone(),
 			},
 			BPFMetadata: apievents.BPFMetadata{
-				CgroupID: event.CgroupID,
+				CgroupID: event.Cgroup,
 				Program:  ConvertString(unsafe.Pointer(&event.Command)),
-				PID:      event.PID,
+				PID:      event.Pid,
 			},
-			PPID:       event.PPID,
-			ReturnCode: event.ReturnCode,
-			Path:       args[0],
-			Argv:       args[1:],
+			PPID:       event.Ppid,
+			ReturnCode: event.Retval,
+			Path:       argv[0],
+			Argv:       argv[1:],
 		}
 		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
 			logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)
@@ -439,7 +443,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 // emitDiskEvent will parse and emit disk events to the Audit Log.
 func (s *Service) emitDiskEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawOpenEvent
+	var event diskDataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
@@ -447,7 +451,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	ctx, ok := s.watch.Get(event.Cgroup)
 	if !ok {
 		return
 	}
@@ -480,12 +484,12 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.CgroupID,
+			CgroupID: event.Cgroup,
 			Program:  ConvertString(unsafe.Pointer(&event.Command)),
-			PID:      event.PID,
+			PID:      event.Pid,
 		},
 		Flags:      event.Flags,
-		Path:       ConvertString(unsafe.Pointer(&event.Path)),
+		Path:       ConvertString(unsafe.Pointer(&event.FilePath)),
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
@@ -495,7 +499,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
 func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawConn4Event
+	var event networkIpv4DataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
@@ -503,7 +507,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	ctx, ok := s.watch.Get(event.Cgroup)
 	if !ok {
 		return
 	}
@@ -514,8 +518,8 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	srcAddr := ipv4HostToIP(event.SrcAddr)
-	dstAddr := ipv4HostToIP(event.DstAddr)
+	srcAddr := ipv4HostToIP(event.Saddr)
+	dstAddr := ipv4HostToIP(event.Daddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -538,11 +542,11 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.CgroupID,
+			CgroupID: event.Cgroup,
 			Program:  ConvertString(unsafe.Pointer(&event.Command)),
-			PID:      uint64(event.PID),
+			PID:      uint64(event.Pid),
 		},
-		DstPort:    int32(event.DstPort),
+		DstPort:    int32(event.Dport),
 		DstAddr:    dstAddr.String(),
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 4,
@@ -555,7 +559,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 // emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
 func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawConn6Event
+	var event networkIpv6DataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
@@ -563,7 +567,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	ctx, ok := s.watch.Get(event.Cgroup)
 	if !ok {
 		return
 	}
@@ -574,8 +578,8 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	srcAddr := ipv6HostToIP(event.SrcAddr)
-	dstAddr := ipv6HostToIP(event.DstAddr)
+	srcAddr := net.IP(event.Saddr.In6U.U6Addr8[:])
+	dstAddr := net.IP(event.Daddr.In6U.U6Addr8[:])
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -598,11 +602,11 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.CgroupID,
+			CgroupID: event.Cgroup,
 			Program:  ConvertString(unsafe.Pointer(&event.Command)),
-			PID:      uint64(event.PID),
+			PID:      uint64(event.Pid),
 		},
-		DstPort:    int32(event.DstPort),
+		DstPort:    int32(event.Dport),
 		DstAddr:    dstAddr.String(),
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 6,
@@ -615,15 +619,6 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 func ipv4HostToIP(addr uint32) net.IP {
 	val := make([]byte, 4)
 	binary.LittleEndian.PutUint32(val, addr)
-	return val
-}
-
-func ipv6HostToIP(addr [4]uint32) net.IP {
-	val := make([]byte, 16)
-	binary.LittleEndian.PutUint32(val[0:], addr[0])
-	binary.LittleEndian.PutUint32(val[4:], addr[1])
-	binary.LittleEndian.PutUint32(val[8:], addr[2])
-	binary.LittleEndian.PutUint32(val[12:], addr[3])
 	return val
 }
 

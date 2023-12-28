@@ -27,6 +27,8 @@ build
 !/web/packages/build
 /web/packages/shared/libs/ironrdp/pkg/**
 *.o
+# Do not ignore BPF bytecode files
+!/lib/bpf/*.o
 *.a
 *.so
 *.syso
