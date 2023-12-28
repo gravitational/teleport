@@ -7,22 +7,21 @@ import useTeleport from 'teleport/useTeleport';
 import Text from 'design/Text';
 import * as Icons from 'design/Icon';
 import Select, { Option, StyledSelect } from 'shared/components/Select';
-import { GitHubBotConfig } from 'teleport/services/bot/types';
+import { BotConfig } from 'teleport/services/bot/types';
 import Input from 'design/Input';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Validation, { Validator } from 'shared/components/Validation';
-import { FlowStepProps } from '../../Flow/Flow';
-import { FlowButtons } from '../../Flow/FlowButtons';
+import { FlowStepProps } from '../shared/GuidedFlow';
+import { FlowButtons } from '../shared/FlowButtons';
 import Flex from 'design/Flex';
 import Card from 'design/Card';
 import ButtonIcon from 'design/ButtonIcon';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
+import { RefTypeOption, Rule, defaultRule, useGitHubFlow } from './useGitHubFlow';
 
-type RefType = 'branch' | 'tag'
 
-type RefTypeOption = Option<RefType>;
 const refTypeOptions: RefTypeOption[] = [
   {
     label: 'Branch',
@@ -34,78 +33,14 @@ const refTypeOptions: RefTypeOption[] = [
   }
 ]
 
-// TODO move type to another file?
-type Rule = {
-  workflowName: string,
-  environment: string,
-  ref: string,
-  refType: RefTypeOption,
-  repoAddress: string,
-  actor: string,
-}
-
-const defaultRule: Rule = {
-  workflowName: '',
-  environment: '',
-  ref: '',
-  refType: { label: 'Branch', value: 'branch' },
-  repoAddress: '',
-  actor: '',
-}
-
 export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
-  // For now, I'm keeping everything here to avoid refactoring too much
-  // in case design doesn't end up as I assume it will.
-  // TODOs:
-  // - Loading and failed states
-  // - Permission checking
-  // - General styling
-  // - A previous way to select type (join method) of bot. I'm assuming its GitHub here
-  // - Form validation
-
-  const ctx = useTeleport();
-
-  const [rules, setRules] = useState<Rule[]>([defaultRule])
-
-  // const { run, attempt } = useAttempt()
-
-  // function handleSubmit(validator: Validator) {
-  //   if (!validator.validate()) {
-  //     return;
-  //   }
-
-  //   const repoUrl = `https://${repoAddress}`
-  //   const { repository, repositoryOwner } = parseGitHubUrl(repoUrl)
-  //   // validator should avoid getting into this
-  //   if (!repository || !repositoryOwner) {
-  //     // invalid repo url
-  //   }
-
-  //   ctx.botService.createGitHubBot({
-  //     actor: actorName,
-  //     environment: 'todo',
-  //     name: botName,
-  //     ref: ref,
-  //     refType: refType.value,
-  //     repository: repository,
-  //     repositoryOwner: repositoryOwner,
-  //     subject: 'todo',
-  //     workflow: 'todo',
-  //     roles: [],
-  //   })
-  // }
-
-  function handleRepoAddress(event: React.FormEvent<HTMLInputElement>) {
-    console.log(event)
-    // const url = event.target?.value
-  }
+  const { repoRules, setRepoRules, addEmptyRepoRule } = useGitHubFlow()
 
   function handleNext(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
 
-    // TODO save values in flow-wide state
     nextStep();
   }
 
@@ -113,23 +48,13 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
     index: number,
     field: keyof Rule,
     value: Rule[typeof field]) {
-    // const { value } = event.target
-    const newRules = [...rules]
+    const newRules = [...repoRules]
     newRules[index] = { ...newRules[index], [field]: value }
-    setRules(newRules);
+    setRepoRules(newRules);
   }
 
   return (
-    <Box as="form" onSubmit={(e) => {
-      e.preventDefault()
-    }}>
-      {/* {attempt.status === 'processing' && (
-        <Box>Loading...</Box>
-      )}
-      {attempt.status === 'success' && */}
-      {/* TODO: validate input */}
-
-
+    <Box>
       <Validation>
         {({ validator }) => (
           <>
@@ -137,7 +62,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               <Text bold fontSize={4} mb="3">Step 2: Input Your GitHub Account Info</Text>
               <Text mb="3">These fields will be combined with your machine user’s permissions to create a join token and generate a sample GitHub Actions file.</Text>
 
-              {rules.map((rule, i) =>
+              {repoRules.map((rule, i) =>
               (
                 <Card p="4" maxWidth="540px" key={i} mb="4">
                   <Box>
@@ -148,7 +73,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                           <ButtonIcon
                             size={1}
                             title="Remove Rule"
-                            onClick={() => setRules(rules.filter((r, index) => index !== i))}
+                            onClick={() => setRepoRules(repoRules.filter((r, index) => index !== i))}
                           >
                             <Icons.Trash size="medium" />
                           </ButtonIcon>
@@ -160,7 +85,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                           rule={requireValidRepository}
                           label=" "
                           placeholder="ex. https://github.com/gravitational/teleport"
-                          value={rules[i].repoAddress}
+                          value={repoRules[i].repoAddress}
                           onChange={(e) => handleChange(i, "repoAddress", e.target.value)}
                         />
                       </FormItem>
@@ -173,7 +98,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                               label="Git Ref"
                               placeholder="main"
                               style={{ borderRadius: '4px 0 0 4px' }}
-                              value={rules[i].ref}
+                              value={repoRules[i].ref}
                               onChange={(e) => handleChange(i, "ref", e.target.value)}
                             />
                           </Box>
@@ -182,7 +107,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                             <RefTypeSelect>
                               <ReactSelect
                                 isMulti={false}
-                                value={rules[i].refType}
+                                value={repoRules[i].refType}
                                 onChange={(o) => handleChange(i, "refType", o)}
                                 options={refTypeOptions}
                                 menuPlacement="auto"
@@ -195,12 +120,11 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                       </FormItem>
 
                       <FormItem>
-                        <Text>Name of the GitHub Actions Workflow *</Text>
+                        <Text>Name of the GitHub Actions Workflow</Text>
                         <FieldInput
                           // TODO disabled
                           placeholder="ex. cd"
-                          rule={requiredField("Workflow name is required")}
-                          value={rules[i].workflowName}
+                          value={repoRules[i].workflowName}
                           onChange={(e) => handleChange(i, "workflowName", e.target.value)}
                         />
                       </FormItem>
@@ -210,7 +134,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                         <Input
                           // TODO disabled
                           placeholder="ex. development"
-                          value={rules[i].environment}
+                          value={repoRules[i].environment}
                           onChange={(e) => handleChange(i, "environment", e.target.value)}
                         />
                       </FormItem>
@@ -220,7 +144,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                         <Input
                           // TODO disabled
                           placeholder="ex. octocat"
-                          value={rules[i].actor}
+                          value={repoRules[i].actor}
                           onChange={(e) => handleChange(i, "actor", e.target.value)}
                         />
                         <Text fontWeight="lighter" fontSize="1" style={{ fontStyle: "italic" }}>If left blank, any GitHub user can trigger the workflow</Text>
@@ -232,7 +156,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               )
               )}
               <Box mb="4">
-                <ButtonSecondary onClick={() => setRules([...rules, defaultRule])}>+ Add Another Set of Repository Rules</ButtonSecondary>
+                <ButtonSecondary onClick={addEmptyRepoRule}>+ Add Another Set of Repository Rules</ButtonSecondary>
               </Box>
               <FlowButtons nextStep={() => handleNext(validator)} prevStep={prevStep} />
             </Box>

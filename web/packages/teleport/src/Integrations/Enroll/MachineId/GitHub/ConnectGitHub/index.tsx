@@ -1,1 +1,0 @@
-export { ConnectGitHub } from './ConnectGitHub'

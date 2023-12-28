@@ -26,7 +26,7 @@ export type FlowProps = {
   icon: JSX.Element;
 }
 
-export function Flow({ name, title, views, icon }: FlowProps) {
+export function GuidedFlow({ name, title, views, icon }: FlowProps) {
   if (views.length < 1) {
     return null
   }

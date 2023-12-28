@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom'
 
-import { FlowStepProps } from './Flow';
+import { FlowStepProps } from './GuidedFlow';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import cfg from 'teleport/config';
 

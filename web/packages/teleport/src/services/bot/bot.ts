@@ -1,11 +1,11 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import type { GitHubBotConfig } from './types'
+import type { BotConfig } from './types'
 
 export const botService = {
-  createGitHubBot(config: GitHubBotConfig): Promise<void> {
+  createBot(config: BotConfig): Promise<void> {
     return api.
-      post(cfg.getBotUrl(cfg.proxyCluster, "github-actions"), config)
+      post(cfg.getBotUrl(cfg.proxyCluster), config)
   }
 }

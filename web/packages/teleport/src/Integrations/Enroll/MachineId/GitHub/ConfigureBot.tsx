@@ -4,39 +4,36 @@ import styled from 'styled-components'
 import Box from 'design/Box'
 import Select from 'shared/components/Select'
 import Validation, { Validator } from 'shared/components/Validation'
-import { FlowStepProps } from '../Flow/Flow';
+import { FlowStepProps } from '../shared/GuidedFlow';
 import Text from 'design/Text';
 import Input from 'design/Input';
-import { FlowButtons } from '../Flow/FlowButtons';
+import { FlowButtons } from '../shared/FlowButtons';
 import { LabelsInput } from './LabelsInput';
 import { ResourceLabel } from 'teleport/services/agents';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
+import { useGitHubFlow } from './useGitHubFlow';
 
 export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
-  const [labels, setLabels] = useState<ResourceLabel[]>([{ name: '*', value: '*' }]);
   const [missingLabels, setMissingLabels] = useState(false)
-  const [login, setLogin] = useState('')
-  const [botName, setBotName] = useState('')
+
+  const { botConfig, setBotConfig } = useGitHubFlow()
 
   function handleNext(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
 
-    if (labels.length < 1 || labels[0].name === "") {
+    if (botConfig.labels.length < 1 || botConfig.labels[0].name === "") {
       setMissingLabels(true)
       return;
     }
 
-    // TODO save values in flow-wide state
     nextStep();
   }
 
   return (
-    <Box as="form" onSubmit={(e) => {
-      e.preventDefault()
-    }}>
+    <Box>
       <Text>
         GitHub Actions is a popular CI/CD platform that works as a part of the larger GitHub ecosystem. Teleport Machine ID allows GitHub Actions to securely interact with Teleport protected resources without the need for long-lived credentials. Through this integration, Teleport will create a bot-specific role that scopes its permissions in your Teleport instance to the necessary resources and provide inputs for your GitHub Actions YAML configuration.
       </Text>
@@ -52,8 +49,8 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               <Text>These first fields will enable Teleport to scope access to only what is needed by your GitHub Actions workflow.</Text>
               {missingLabels && <Text mt="1" color="error.main">At least one label is required</Text>}
               <LabelsInput
-                labels={labels}
-                setLabels={setLabels}
+                labels={botConfig.labels}
+                setLabels={(labels) => setBotConfig({ ...botConfig, labels: labels })}
                 disableBtns={false} // TODO
               />
             </Box>
@@ -62,8 +59,8 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               <FieldInput
                 mb={3}
                 placeholder="ex. ubuntu"
-                value={login}
-                onChange={(e) => setLogin(e.target.value)}
+                value={botConfig.login}
+                onChange={(e) => setBotConfig({ ...botConfig, login: e.target.value })}
               />
             </FormItem>
 
@@ -73,8 +70,8 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 rule={requiredField("Name for Machine User is required")}
                 mb={3}
                 placeholder="ex. github-actions-cd"
-                value={botName}
-                onChange={(e) => setBotName(e.target.value)}
+                value={botConfig.name}
+                onChange={(e) => setBotConfig({ ...botConfig, name: e.target.value })}
               />
             </FormItem>
 

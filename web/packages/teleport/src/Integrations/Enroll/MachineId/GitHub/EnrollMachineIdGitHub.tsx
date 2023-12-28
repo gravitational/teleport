@@ -1,11 +1,12 @@
 import { IntegrationKind, MachineIdIntegration } from 'teleport/services/integrations';
-import { Flow, View } from '../Flow/Flow'
+import { GuidedFlow, View } from '../shared/GuidedFlow'
 import { ConnectGitHub } from './ConnectGitHub'
 import cfg from 'teleport/config';
 import { GitHubIcon } from 'design/SVGIcon';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { ConfigureBot } from './ConfigureBot';
 import { AddBotToWorkflow } from './AddBotToWorkflow';
+import { GitHubFlowProvider } from './useGitHubFlow';
 
 export const GitHubActionsFlow = {
   title: 'GitHub Actions',
@@ -32,6 +33,8 @@ const views: View[] = [
 
 export function EnrollMachineIdGitHub() {
   return (
-    <Flow title="GitHub Actions and Machine ID Integration" icon={<GitHubIcon size={20} />} views={views} name={GitHubActionsFlow.title} />
+    <GitHubFlowProvider>
+      <GuidedFlow title="GitHub Actions and Machine ID Integration" icon={<GitHubIcon size={20} />} views={views} name={GitHubActionsFlow.title} />
+    </GitHubFlowProvider>
   )
 }

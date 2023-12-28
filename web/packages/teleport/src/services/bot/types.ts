@@ -1,12 +1,7 @@
-export enum BotJoinMethod {
-  GitHub = 'github-actions',
-}
-
-
-export type GitHubBotConfig = {
+export type BotConfig = {
   botName: string,
-  rules: RepositoryRule[],
   labels: object,
+  roles: string[],
 }
 
 type RepositoryRule = {

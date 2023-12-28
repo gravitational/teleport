@@ -148,7 +148,10 @@ export function LabelsInput({
         })}
       </Box>
       <ButtonText
-        onClick={addLabel}
+        onClick={(e) => {
+          e.preventDefault();
+          addLabel();
+        }}
         css={`
           padding-left: 0px;
           &:disabled {

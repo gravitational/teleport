@@ -1,12 +1,20 @@
 import React from 'react'
-import { FlowStepProps } from '../Flow/Flow';
+import { FlowStepProps } from '../shared/GuidedFlow';
 import Box from 'design/Box';
 import Text from 'design/Text';
 import TextEditor from 'shared/components/TextEditor';
 import Flex from 'design/Flex';
-import { FlowButtons } from '../Flow/FlowButtons';
+import { FlowButtons } from '../shared/FlowButtons';
+import { useGitHubFlow } from './useGitHubFlow';
+import useTeleport from 'teleport/useTeleport';
 
 export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
+  const { tokenName } = useGitHubFlow()
+  const ctx = useTeleport();
+  const cluster = ctx.storeUser.state.cluster;
+
+  const yaml = getWorkflowExampleYaml(cluster.authVersion, cluster.publicURL, tokenName)
+
   return (
     <Box mb="0">
       <Text bold fontSize={4} mb="3">Step 3: Connect Your Machine User in a GitHub Actions Workflow</Text>
@@ -15,7 +23,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
         <TextEditor
           readOnly={true}
           bg="levels.deep"
-          data={[{ content: TODO, type: 'yaml' }]}
+          data={[{ content: yaml, type: 'yaml' }]}
           onChange={console.log}
         />
       </Flex>
@@ -24,7 +32,8 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
   )
 }
 
-const TODO = `on:
+function getWorkflowExampleYaml(version: string, proxyAddr: string, tokenName: string): string {
+  return `on:
 push:
   branches:
   - main
@@ -35,7 +44,8 @@ demo:
     # able to authenticate with the cluster.
     id-token: write
     contents: read
-  name: <populated by Teleport with data from previous step>
+  # if you added a workflow name in the previous step, make sure you use the same value here
+  name: machine-id-example
   runs-on: ubuntu-latest
   steps:
   - name: Checkout repository
@@ -43,14 +53,14 @@ demo:
   - name: Fetch Teleport binaries
     uses: teleport-actions/setup@v1
     with:
-      version: 14.2.3
+      version: ${version}
   # server access example
   - name: Fetch credentials using Machine ID
     id: auth
     uses: teleport-actions/auth@v2
     with:
-      proxy: <populated by Teleport with data from previous step>
-      token: <populated by Teleport with data from previous step>
+      proxy: ${proxyAddr}
+      token: ${tokenName}
       # Enable the submission of anonymous usage telemetry. This
       # helps us shape the future development of \`tbot\`. You can disable this
       # by omitting this.
@@ -65,13 +75,11 @@ demo:
   - name: Fetch credentials using Machine ID
     uses: teleport-actions/auth-k8s@v2
     with:
-      proxy: <populated by Teleport>
-      token: <populated by Teleport with data from previous step>
+      proxy: ${proxyAddr}
+      token: ${tokenName}
       # Use the name of your Kubernetes cluster
       kubernetes-cluster: my-kubernetes-cluster
-      # Enable the submission of anonymous usage telemetry. This helps us
-      # shape the future development of \`tbot\`. You can disable this by
-      # omitting this.
       anonymous-telemetry: 1
   - name: List pods
     run: kubectl get pods -A`
+}
