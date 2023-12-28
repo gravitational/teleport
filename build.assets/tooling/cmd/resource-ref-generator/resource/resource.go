@@ -792,7 +792,6 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	// For any fields within decl that have a custom type, look up the
 	// declaration for that type and create a separate reference entry for
 	// it.
-	deps := []PackageInfo{}
 	for _, f := range rs.fields {
 		// Don't make separate reference entries for embedded structs
 		// since they are part of the containing struct for the purposes
@@ -817,24 +816,21 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 					key.DeclName,
 				)
 			}
-		}
-		deps = append(deps, c...)
-	}
-	for _, d := range deps {
-		gd, ok := allDecls[d]
-		if !ok {
-			continue
-		}
-		r, err := ReferenceDataFromDeclaration(gd, allDecls, allMethods)
-		if errors.Is(err, NotAGenDeclError{}) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
+			gd, ok := allDecls[d]
+			if !ok {
+				continue
+			}
+			r, err := ReferenceDataFromDeclaration(gd, allDecls, allMethods)
+			if errors.Is(err, NotAGenDeclError{}) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
 
-		for k, v := range r {
-			refs[k] = v
+			for k, v := range r {
+				refs[k] = v
+			}
 		}
 	}
 	return refs, nil
