@@ -435,7 +435,11 @@ teleport-build-docker:
 # AMD64 builds are done on CentOS 7 build boxes for broader glibc compatibility.
 .PHONY: release-amd64
 release-amd64: teleport-build-docker
-	docker run -it --rm -v $(shell pwd)/toolchains/:/home/ubuntu/x-tools -v $(shell pwd)/..:/home/ubuntu/teleport -w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh amd64"
+	docker run -it --rm -v toolchain:/home/ubuntu/x-tools \
+	-v 3rdparty:/home/ubuntu/teleport/build.assets/3rdparty \
+	-v $(shell pwd)/build-arch.sh:/home/ubuntu/teleport/build.assets/build-arch.sh:ro \
+	-v $(shell pwd)/..:/home/ubuntu/teleport \
+	-w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh amd64"
 
 .PHONY: release-amd64-fips
 release-amd64-fips:
@@ -443,11 +447,19 @@ release-amd64-fips:
 
 .PHONY: release-386
 release-386: teleport-build-docker
-	docker run -it --rm -v $(shell pwd)/toolchains/:/home/ubuntu/x-tools -v $(shell pwd)/..:/home/ubuntu/teleport -w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh 386"
+	docker run -it --rm -v toolchain:/home/ubuntu/x-tools \
+    	-v 3rdparty:/home/ubuntu/teleport/build.assets/3rdparty \
+    	-v $(shell pwd)/build-arch.sh:/home/ubuntu/teleport/build.assets/build-arch.sh:ro \
+    	-v $(shell pwd)/..:/home/ubuntu/teleport \
+    	-w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh 386"
 
 .PHONY: release-arm64
 release-arm64: teleport-build-docker
-	docker run -it --rm -v $(shell pwd)/toolchains/:/home/ubuntu/x-tools -v $(shell pwd)/..:/home/ubuntu/teleport -w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh arm64"
+	docker run -it --rm -v toolchain:/home/ubuntu/x-tools \
+    	-v 3rdparty:/home/ubuntu/teleport/build.assets/3rdparty \
+    	-v $(shell pwd)/build-arch.sh:/home/ubuntu/teleport/build.assets/build-arch.sh:ro \
+    	-v $(shell pwd)/..:/home/ubuntu/teleport \
+    	-w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh arm64"
 
 .PHONY: release-arm64-fips
 release-arm64-fips:
@@ -458,8 +470,11 @@ release-arm64-fips:
 # Therefore we set RELEASE_TARGET to release-unix-preserving-webassets.
 .PHONY: release-arm
 release-arm: teleport-build-docker
-	docker run -it --rm -v $(shell pwd)/toolchains/:/home/ubuntu/x-tools -v $(shell pwd)/..:/home/ubuntu/teleport -w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh arm"
-
+	docker run -it --rm -v toolchain:/home/ubuntu/x-tools \
+    	-v 3rdparty:/home/ubuntu/teleport/build.assets/3rdparty \
+    	-v $(shell pwd)/build-arch.sh:/home/ubuntu/teleport/build.assets/build-arch.sh:ro \
+    	-v $(shell pwd)/..:/home/ubuntu/teleport \
+    	-w /home/ubuntu/teleport -u 1000:1000 teleport-multibuild bash -c "cd build.assets && ./build-arch.sh arm"
 # Compatibility targets for when we had separate Ubuntu and CentOS 7 targets for AMD64
 # TODO(camscale): Remove these when drone no longer calls them.
 .PHONY: release-amd64-centos7

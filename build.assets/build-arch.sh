@@ -60,10 +60,10 @@ esac
 
 
 function build_3rdparty() {
-rm -rf 3rdparty-${ARCH}
-mkdir -p 3rdparty-${ARCH}
+rm -rf 3rdparty/${ARCH}
+mkdir -p 3rdparty/${ARCH}
 
-cd 3rdparty-${ARCH}
+cd 3rdparty/${ARCH}
 
 # Unlock sysroot
 chmod -R +w "${SYSROOT}"
@@ -130,11 +130,11 @@ cd ..
 
 touch ready
 
-cd ..
+cd ../..
 }
 
 # Build 3rdparty if not already built
-if [ ! -f 3rdparty-${ARCH}/ready ]; then
+if [ ! -f 3rdparty/${ARCH}/ready ]; then
     build_3rdparty
 fi
 
