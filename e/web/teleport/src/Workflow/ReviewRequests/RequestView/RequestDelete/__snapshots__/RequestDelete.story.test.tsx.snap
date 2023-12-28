@@ -15,14 +15,9 @@ exports[`approved role escalation 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  margin-bottom: 4px;
 }
 
-.c11 {
-  box-sizing: border-box;
-}
-
-.c17 {
+.c14 {
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
@@ -31,17 +26,17 @@ exports[`approved role escalation 1`] = `
   border-radius: 4px;
 }
 
-.c19 {
+.c16 {
   box-sizing: border-box;
   margin-right: 8px;
 }
 
-.c21 {
+.c18 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c22 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -67,22 +62,22 @@ exports[`approved role escalation 1`] = `
   padding: 0px 24px;
 }
 
-.c22:hover,
-.c22:focus {
+.c19:hover,
+.c19:focus {
   background: #B29DFF;
 }
 
-.c22:active {
+.c19:active {
   background: #C5B6FF;
 }
 
-.c22:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c23 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -109,22 +104,22 @@ exports[`approved role escalation 1`] = `
   margin-right: 16px;
 }
 
-.c23:hover,
-.c23:focus {
+.c20:hover,
+.c20:focus {
   background: #FF8179;
 }
 
-.c23:active {
+.c20:active {
   background: #FFA19A;
 }
 
-.c23:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c24 {
+.c21 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -150,16 +145,16 @@ exports[`approved role escalation 1`] = `
   padding: 0px 24px;
 }
 
-.c24:hover,
-.c24:focus {
+.c21:hover,
+.c21:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c24:active {
+.c21:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c24:disabled {
+.c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -176,6 +171,15 @@ exports[`approved role escalation 1`] = `
   color: #FFFFFF;
 }
 
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
 .c13 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -183,31 +187,11 @@ exports[`approved role escalation 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 4px;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c16 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
   margin-bottom: 8px;
-  margin-top: 8px;
+  margin-top: 16px;
 }
 
-.c15 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -234,21 +218,18 @@ exports[`approved role escalation 1`] = `
 
 .c10 {
   display: flex;
-  flex-wrap: wrap;
-}
-
-.c12 {
-  display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.c18 {
+.c15 {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.c20 {
+.c17 {
   display: flex;
 }
 
@@ -334,52 +315,40 @@ exports[`approved role escalation 1`] = `
           class="c9 c10"
         >
           <div
-            class="c11 c12"
+            class="c11"
+          >
+            You are about to delete a request from 
+            <strong>
+              admin
+            </strong>
+             for the following roles:
+          </div>
+          <div
+            class="c9"
           >
             <div
-              class="c13"
+              class="c12"
+              kind="secondary"
             >
-              You are about to delete a request from
-            </div>
-            <div
-              class="c14"
-              title="admin"
-            >
-              admin
-            </div>
-             
-            <div
-              class="c13"
-            >
-              for the following roles:
-            </div>
-            <div
-              class="c11"
-            >
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                dba
-              </div>
+              dba
             </div>
           </div>
         </div>
         <div
-          class="c16"
+          class="c13"
         >
           Since this access request has already been approved, deleting the request now will NOT remove the user's access to these roles. If you would like to lock the user's access to the requested roles, you can run:
         </div>
         <div
-          class="c17 c18"
+          class="c14 c15"
           color="light"
         >
           <div
-            class="c19 c20"
+            class="c16 c17"
             style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
             <div
-              class="c21"
+              class="c18"
               style="user-select: none;"
             >
               $
@@ -389,7 +358,7 @@ exports[`approved role escalation 1`] = `
             </div>
           </div>
           <button
-            class="c22"
+            class="c19"
             kind="primary"
             style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
           >
@@ -398,16 +367,16 @@ exports[`approved role escalation 1`] = `
         </div>
       </div>
       <div
-        class="c11"
+        class="c9"
       >
         <button
-          class="c23"
+          class="c20"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c24"
+          class="c21"
           kind="secondary"
         >
           Cancel
@@ -454,14 +423,9 @@ exports[`failed state 1`] = `
 
 .c10 {
   box-sizing: border-box;
-  margin-bottom: 4px;
 }
 
-.c12 {
-  box-sizing: border-box;
-}
-
-.c17 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -488,22 +452,22 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c17:hover,
-.c17:focus {
+.c14:hover,
+.c14:focus {
   background: #FF8179;
 }
 
-.c17:active {
+.c14:active {
   background: #FFA19A;
 }
 
-.c17:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c18 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -529,16 +493,16 @@ exports[`failed state 1`] = `
   padding: 0px 24px;
 }
 
-.c18:hover,
-.c18:focus {
+.c15:hover,
+.c15:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c18:active {
+.c15:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c18:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -555,27 +519,16 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
 }
 
-.c14 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 4px;
 }
 
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c16 {
+.c13 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -602,12 +555,9 @@ exports[`failed state 1`] = `
 
 .c11 {
   display: flex;
-  flex-wrap: wrap;
-}
-
-.c13 {
-  display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .c1 {
@@ -698,49 +648,37 @@ exports[`failed state 1`] = `
           class="c10 c11"
         >
           <div
-            class="c12 c13"
+            class="c12"
+          >
+            You are about to delete a request from 
+            <strong>
+              admin
+            </strong>
+             for the following roles:
+          </div>
+          <div
+            class="c10"
           >
             <div
-              class="c14"
+              class="c13"
+              kind="secondary"
             >
-              You are about to delete a request from
-            </div>
-            <div
-              class="c15"
-              title="admin"
-            >
-              admin
-            </div>
-             
-            <div
-              class="c14"
-            >
-              for the following roles:
-            </div>
-            <div
-              class="c12"
-            >
-              <div
-                class="c16"
-                kind="secondary"
-              >
-                dba
-              </div>
+              dba
             </div>
           </div>
         </div>
       </div>
       <div
-        class="c12"
+        class="c10"
       >
         <button
-          class="c17"
+          class="c14"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c18"
+          class="c15"
           kind="secondary"
         >
           Cancel
@@ -766,14 +704,9 @@ exports[`loaded state 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  margin-bottom: 4px;
 }
 
-.c11 {
-  box-sizing: border-box;
-}
-
-.c16 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -800,22 +733,22 @@ exports[`loaded state 1`] = `
   margin-right: 16px;
 }
 
-.c16:hover,
-.c16:focus {
+.c13:hover,
+.c13:focus {
   background: #FF8179;
 }
 
-.c16:active {
+.c13:active {
   background: #FFA19A;
 }
 
-.c16:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -841,16 +774,16 @@ exports[`loaded state 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c14:hover,
+.c14:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c17:active {
+.c14:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c17:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -867,27 +800,16 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c13 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 4px;
 }
 
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c15 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -914,12 +836,9 @@ exports[`loaded state 1`] = `
 
 .c10 {
   display: flex;
-  flex-wrap: wrap;
-}
-
-.c12 {
-  display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .c1 {
@@ -1004,49 +923,37 @@ exports[`loaded state 1`] = `
           class="c9 c10"
         >
           <div
-            class="c11 c12"
+            class="c11"
+          >
+            You are about to delete a request from 
+            <strong>
+              admin
+            </strong>
+             for the following roles:
+          </div>
+          <div
+            class="c9"
           >
             <div
-              class="c13"
+              class="c12"
+              kind="secondary"
             >
-              You are about to delete a request from
-            </div>
-            <div
-              class="c14"
-              title="admin"
-            >
-              admin
-            </div>
-             
-            <div
-              class="c13"
-            >
-              for the following roles:
-            </div>
-            <div
-              class="c11"
-            >
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                dba
-              </div>
+              dba
             </div>
           </div>
         </div>
       </div>
       <div
-        class="c11"
+        class="c9"
       >
         <button
-          class="c16"
+          class="c13"
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c17"
+          class="c14"
           kind="secondary"
         >
           Cancel
@@ -1072,14 +979,9 @@ exports[`processing state 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  margin-bottom: 4px;
 }
 
-.c11 {
-  box-sizing: border-box;
-}
-
-.c16 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1106,22 +1008,22 @@ exports[`processing state 1`] = `
   margin-right: 16px;
 }
 
-.c16:hover,
-.c16:focus {
+.c13:hover,
+.c13:focus {
   background: #FF8179;
 }
 
-.c16:active {
+.c13:active {
   background: #FFA19A;
 }
 
-.c16:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1147,16 +1049,16 @@ exports[`processing state 1`] = `
   padding: 0px 24px;
 }
 
-.c17:hover,
-.c17:focus {
+.c14:hover,
+.c14:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c17:active {
+.c14:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c17:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -1173,27 +1075,16 @@ exports[`processing state 1`] = `
   color: #FFFFFF;
 }
 
-.c13 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  margin-right: 4px;
 }
 
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-}
-
-.c15 {
+.c12 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1220,12 +1111,9 @@ exports[`processing state 1`] = `
 
 .c10 {
   display: flex;
-  flex-wrap: wrap;
-}
-
-.c12 {
-  display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .c1 {
@@ -1310,50 +1198,38 @@ exports[`processing state 1`] = `
           class="c9 c10"
         >
           <div
-            class="c11 c12"
+            class="c11"
+          >
+            You are about to delete a request from 
+            <strong>
+              admin
+            </strong>
+             for the following roles:
+          </div>
+          <div
+            class="c9"
           >
             <div
-              class="c13"
+              class="c12"
+              kind="secondary"
             >
-              You are about to delete a request from
-            </div>
-            <div
-              class="c14"
-              title="admin"
-            >
-              admin
-            </div>
-             
-            <div
-              class="c13"
-            >
-              for the following roles:
-            </div>
-            <div
-              class="c11"
-            >
-              <div
-                class="c15"
-                kind="secondary"
-              >
-                dba
-              </div>
+              dba
             </div>
           </div>
         </div>
       </div>
       <div
-        class="c11"
+        class="c9"
       >
         <button
-          class="c16"
+          class="c13"
           disabled=""
           kind="warning"
         >
           Delete Request
         </button>
         <button
-          class="c17"
+          class="c14"
           disabled=""
           kind="secondary"
         >

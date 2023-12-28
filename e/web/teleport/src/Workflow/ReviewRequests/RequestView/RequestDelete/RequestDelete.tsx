@@ -70,23 +70,16 @@ export function RequestDelete({
         {deleteRequestAttempt.status === 'error' && (
           <Alert kind="danger" children={deleteRequestAttempt.statusText} />
         )}
-        <Flex flexWrap="wrap" mb={1}>
-          <Flex alignItems="baseline">
-            <Text mr={1} typography="body2">
-              You are about to delete a request from
-            </Text>
-            <Text mr={1} typography="body2" title={user} bold>
-              {user}
-            </Text>{' '}
-            <Text mr={1} typography="body2">
-              for the following roles:
-            </Text>
-            <RolesRequested roles={roles} />
-          </Flex>
+        <Flex flexWrap="wrap" gap={1} alignItems="baseline">
+          <Text typography="body2">
+            You are about to delete a request from <strong>{user}</strong> for
+            the following roles:
+          </Text>
+          <RolesRequested roles={roles} />
         </Flex>
         {requestState === 'APPROVED' && (
           <>
-            <Text mt={2} mb={2} typography="body2">
+            <Text mt={3} mb={2} typography="body2">
               Since this access request has already been approved, deleting the
               request now will NOT remove the user's access to these roles. If
               you would like to lock the user's access to the requested roles,
