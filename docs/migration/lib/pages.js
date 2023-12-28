@@ -1,25 +1,43 @@
 const fs = require('fs');
-const { readAllFilesFromDirectory, writeFile, findFrontmatterEndIndex } = require('./utility');
+const { readAllFilesFromDirectory, writeFile, findFrontmatterEndIndex, toPascalCase } = require('./utility');
 
 // Location of the current documentation pages
 const PAGES_DIRECTORY = '../pages'
 
-/*
-  Snippets with Mintlify works like React components.
-  
-  1. Move the file inside the /snippets folder.
-  2. Add an import statement to the top of the file. Example: import File from '/snippets/name.mdx'
-  3. Add the code the same way you would a component. Example: <File />
+const variablesRegex = /\(=\s*(.*?)\s*=\)/g;
+const snippetsRegex = /\(!docs\/pages\/(.*\/(.*)\.mdx)!\)/g;
 
+// TODO: Add moving all includes folders into snippets
+// TODO: Consider for cases where snippets and variables are inside code blocks or other MDX syntax
+// TODO: Add setup for properties
+function migrateReusableSnippets(page) {
+  const matches = page.matchAll(snippetsRegex);
   
-  The migration script is intentionally not provided as choosing the name for snippet components should be decided by the writers for usability.
-*/
-function migrateReusableSnippet(page) {
-  return page;
+  const snippetsMap = {};
+  for (const match of matches) {
+    const snippet = match[1];
+    snippetsMap[snippet] = toPascalCase(match[2]);
+  }
+
+  const uniqueSnippets = Object.entries(snippetsMap);
+
+  if (uniqueSnippets.length === 0) {
+    return page;
+  }
+
+  let newPage = page;
+
+  const importStatement = `${uniqueSnippets.reduce((acc, [path, component]) => acc + `import ${component} from "/snippets/${path}";\n`, '')}\n`
+  const frontmatterEndIndex = findFrontmatterEndIndex(page);
+  newPage = page.slice(0, frontmatterEndIndex) + importStatement + page.slice(frontmatterEndIndex)
+  
+  return newPage.replace(snippetsRegex, (_, _path, filename) => {
+    return `<${toPascalCase(filename)} />`
+  });
 }
 
-function migrateReusableVariable(page) {
-  const matches = page.matchAll(/\(=\s*(.*?)\s*=\)/g);
+function migrateReusableVariables(page) {
+  const matches = page.matchAll(variablesRegex);
   
   const variablesMap = {};
   for (const match of matches) {
@@ -36,11 +54,11 @@ function migrateReusableVariable(page) {
 
   let newPage = page;
 
-  const importStatement = `import { ${Object.keys(variablesMap).join(', ')} } from '/snippets/variables.mdx'\n\n`
+  const importStatement = `import { ${uniqueVariables.join(', ')} } from '/snippets/variables.mdx'\n\n`
   const frontmatterEndIndex = findFrontmatterEndIndex(page);
   newPage = page.slice(0, frontmatterEndIndex) + importStatement + page.slice(frontmatterEndIndex)
 
-  return newPage.replace(/\(=\s*(.*?)\s*=\)/g, '{$1}');
+  return newPage.replace(variablesRegex, '{$1}');
 }
 
 const migrationFunctions = {
@@ -79,8 +97,8 @@ const migrationFunctions = {
     page
       .replace(/<Details([^>]+)>/g, '<Accordion$1>')
       .replace(/<\/Details>/g, '</Accordion>'),
-  variable: migrateReusableVariable,
-  snippet: migrateReusableSnippet,
+  variable: migrateReusableVariables,
+  snippet: migrateReusableSnippets,
 };
 
 function migratePages() {
