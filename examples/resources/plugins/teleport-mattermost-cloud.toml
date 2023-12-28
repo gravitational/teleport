@@ -1,7 +1,8 @@
 # example mattermost configuration TOML file
 [teleport]
 auth_server = "myinstance.teleport.sh:443"                   # Teleport Cloud proxy HTTPS address
-identity = "/var/lib/teleport/plugins/mattermost/auth.pem"   # Identity file path
+identity = "/var/lib/teleport/plugins/mattermost/identity"   # Identity file path
+refresh_identity = true                                      # Refresh identity file on a periodic basis.
 
 [mattermost]
 url = "https://mattermost.example.com" # Mattermost Server URL
