@@ -514,21 +514,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
-// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
-// sync.OnceValue
-func onceValue[T any](f func() T) func() T {
-	var (
-		value T
-		once  sync.Once
-	)
-	return func() T {
-		once.Do(func() {
-			value = f()
-		})
-		return value
-	}
-}
-
 // We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
 // because each time this is called, they create a new underlying metric. If
 // something (e.g tbot) is repeatedly creating new clients and closing them,
@@ -536,13 +521,13 @@ func onceValue[T any](f func() T) func() T {
 // up.
 // See https://github.com/gravitational/teleport/issues/30759
 // See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
 	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
 	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.StreamClientInterceptor()
 })
 
-var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
 	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
 	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.UnaryClientInterceptor()

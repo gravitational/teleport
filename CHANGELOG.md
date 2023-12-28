@@ -19,6 +19,20 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
+##### Packages no longer published to legacy Debian and RPM repos
+
+`deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
+Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
+published to these repos. Teleport 14 and prior packages will continue to be
+published to these repos for the remainder of those releases' lifecycle.
+
+All users are recommended to switch to `apt.releases.teleport.dev` and
+`yum.releases.teleport.dev` repositories as described in installation
+[instructions](docs/pages/installation.mdx).
+
+The legacy package repos will be shut off in mid 2025 after Teleport 14
+has been out of support for many months.
+
 #### Container images
 
 Teleport 15 contains several breaking changes to improve the default security

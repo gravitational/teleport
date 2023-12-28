@@ -42,8 +42,9 @@ import (
 	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	podmaintenance "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 var (
@@ -128,8 +129,8 @@ func main() {
 	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
 	maintenanceTriggers := maintenance.Triggers{
 		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL),
-		maintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
-		maintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
+		podmaintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
+		podmaintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
 	}
 
 	var imageValidators img.Validators

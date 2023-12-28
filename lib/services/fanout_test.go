@@ -187,37 +187,3 @@ func BenchmarkFanoutRegistration(b *testing.B) {
 		wg.Wait()
 	}
 }
-
-/*
-goos: linux
-goarch: amd64
-pkg: github.com/gravitational/teleport/lib/services
-cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
-BenchmarkFanoutSetRegistration-16    	       3	 394211563 ns/op
-*/
-func BenchmarkFanoutSetRegistration(b *testing.B) {
-	const iterations = 100_000
-	ctx := context.Background()
-
-	for n := 0; n < b.N; n++ {
-		f := NewFanoutSet()
-		f.SetInit([]types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}})
-
-		var wg sync.WaitGroup
-
-		for i := 0; i < iterations; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				w, err := f.NewWatcher(ctx, types.Watch{
-					Name:  "test",
-					Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
-				})
-				require.NoError(b, err)
-				w.Close()
-			}()
-		}
-
-		wg.Wait()
-	}
-}
