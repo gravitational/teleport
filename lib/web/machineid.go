@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
-type CreateGitHubBotRequest struct {
+type CreateBotRequest struct {
 	// BotName is the name of the bot
 	BotName string `json:"botName"`
 	// Roles are the roles that the bot will be able to impersonate
@@ -42,7 +42,7 @@ type CreateGitHubBotRequest struct {
 
 // createBot creates a bot
 func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var req *CreateGitHubBotRequest
+	var req *CreateBotRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,7 +58,7 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 			},
 			Spec: &machineidv1.BotSpec{
 				Roles:  req.Roles,
-				Traits: []*machineidv1.Trait{},
+				Traits: req.Traits,
 			},
 		},
 	})
