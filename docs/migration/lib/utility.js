@@ -22,7 +22,17 @@ function writeFile(path, contents) {
   });
 }
 
+function findFrontmatterEndIndex(markdown) {
+  const frontmatterPattern = /^---\s*[\s\S]*?---\s*/m;
+  const match = frontmatterPattern.exec(markdown);
+  if (match) {
+    return match.index + match[0].length;
+  }
+  return 0;
+}
+
 module.exports = {
   readAllFilesFromDirectory,
-  writeFile
+  writeFile,
+  findFrontmatterEndIndex
 };

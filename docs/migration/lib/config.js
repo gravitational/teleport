@@ -1,6 +1,9 @@
 const fs = require('fs');
 const { writeFile } = require('./utility');
 
+// Directory of the primary config file
+const CONFIG_DIRECTORY = '../config.json'
+
 const initialMintConfig = {
   $schema: 'https://mintlify.com/schema.json',
   name: 'Teleport',
@@ -82,15 +85,27 @@ function migrateConfigRedirects(redirects) {
   })
 }
 
+function addVariablesSnippetsFile(variables) {
+  const variablesSnippets = `${Object.entries(variables)
+    .reduce((acc, [variable, value]) => acc + `export const ${variable} = ${JSON.stringify(value, null, 2)};\n\n`, '')}`;
+  
+  writeFile(
+    `./output/snippets/variables.mdx`,
+    variablesSnippets,
+  );
+}
+
 function migrateConfig() {
-  const configContent = fs.readFileSync(`../config.json`, 'utf8');
-  const { navigation, redirects } = JSON.parse(configContent);
+  const configContent = fs.readFileSync(CONFIG_DIRECTORY, 'utf8');
+  const { navigation, redirects, variables } = JSON.parse(configContent);
 
   const migratedConfig = {
     ...initialMintConfig,
     navigation: migrateConfigNavigation(navigation),
     redirects: migrateConfigRedirects(redirects),
   };
+
+  addVariablesSnippetsFile(variables);
 
   writeFile(
     `./output/mint.json`,
@@ -99,5 +114,5 @@ function migrateConfig() {
 }
 
 module.exports = {
-  migrateConfig,
+  migrateConfig
 };

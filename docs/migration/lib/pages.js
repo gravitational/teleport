@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { readAllFilesFromDirectory, writeFile } = require('./utility');
+const { readAllFilesFromDirectory, writeFile, findFrontmatterEndIndex } = require('./utility');
 
 // Location of the current documentation pages
 const PAGES_DIRECTORY = '../pages'
@@ -18,18 +18,29 @@ function migrateReusableSnippet(page) {
   return page;
 }
 
-/*
-  Variables with Mintlify also works like JS/React exports
-  
-  1. Create a new file called /snippets/variables.mdx
-  2. Add the variable inside the file the same way you would export a variable. Example: export const name = 'John Smith'
-  3. Import the variable. Example: import { name } from '/snippets/variables.mdx';
-  4. Use the variable inside curly brackets. Example {name}
-
-  The migration script is also intentionally not provided as the variable names should be decided by the writers for usability.
-*/
 function migrateReusableVariable(page) {
-  return page;
+  const matches = page.matchAll(/\(=\s*(.*?)\s*=\)/g);
+  
+  const variablesMap = {};
+  for (const match of matches) {
+    const variable = match[1];
+    const variableParent = variable.substr(0, variable.indexOf('.'));
+    variablesMap[variableParent] = true;
+  }
+
+  const uniqueVariables = Object.keys(variablesMap);
+
+  if (uniqueVariables.length === 0) {
+    return page;
+  }
+
+  let newPage = page;
+
+  const importStatement = `import { ${Object.keys(variablesMap).join(', ')} } from '/snippets/variables.mdx'\n\n`
+  const frontmatterEndIndex = findFrontmatterEndIndex(page);
+  newPage = page.slice(0, frontmatterEndIndex) + importStatement + page.slice(frontmatterEndIndex)
+
+  return newPage.replace(/\(=\s*(.*?)\s*=\)/g, '{$1}');
 }
 
 const migrationFunctions = {
@@ -68,11 +79,9 @@ const migrationFunctions = {
     page
       .replace(/<Details([^>]+)>/g, '<Accordion$1>')
       .replace(/<\/Details>/g, '</Accordion>'),
-  snippet: migrateReusableSnippet,
   variable: migrateReusableVariable,
+  snippet: migrateReusableSnippet,
 };
-
-
 
 function migratePages() {
   // Build global variables page
