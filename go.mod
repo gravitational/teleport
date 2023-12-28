@@ -52,7 +52,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/glue v1.72.4
 	github.com/aws/aws-sdk-go-v2/service/iam v1.28.5
 	github.com/aws/aws-sdk-go-v2/service/rds v1.64.6
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.5
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.7
 	github.com/aws/aws-sdk-go-v2/service/sns v1.26.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.29.5
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.5
