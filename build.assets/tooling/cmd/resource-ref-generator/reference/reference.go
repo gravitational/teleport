@@ -297,11 +297,13 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			stringAssignments[k] = v
 		}
 
+		pn := resource.NamedImports(file)
 		for _, decl := range file.Decls {
 			di := resource.DeclarationInfo{
-				Decl:        decl,
-				FilePath:    info.Name(),
-				PackageName: file.Name.Name,
+				Decl:         decl,
+				FilePath:     info.Name(),
+				PackageName:  file.Name.Name,
+				NamedImports: pn,
 			}
 			l, ok := decl.(*ast.GenDecl)
 			if !ok {
@@ -320,9 +322,10 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 				DeclName:    spec.Name.Name,
 				PackageName: file.Name.Name,
 			}] = resource.DeclarationInfo{
-				Decl:        l,
-				FilePath:    path,
-				PackageName: file.Name.Name,
+				Decl:         l,
+				FilePath:     path,
+				PackageName:  file.Name.Name,
+				NamedImports: pn,
 			}
 
 		}
