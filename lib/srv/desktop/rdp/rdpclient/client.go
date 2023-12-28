@@ -60,7 +60,7 @@ package rdpclient
 // Flags to include the static Rust library.
 #cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
 #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
-#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
+#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/armv7-unknown-linux-gnueabi/release
 #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
 #cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
@@ -361,7 +361,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		case tdp.MouseMove:
 			mouseX, mouseY = m.X, m.Y
 			if errCode := C.client_write_rdp_pointer(
-				C.ulong(c.handle),
+				C.size_t(c.handle),
 				C.CGOMousePointerEvent{
 					x:      C.uint16_t(m.X),
 					y:      C.uint16_t(m.Y),
@@ -385,7 +385,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 				button = C.PointerButtonNone
 			}
 			if errCode := C.client_write_rdp_pointer(
-				C.ulong(c.handle),
+				C.size_t(c.handle),
 				C.CGOMousePointerEvent{
 					x:      C.uint16_t(mouseX),
 					y:      C.uint16_t(mouseY),
@@ -413,7 +413,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 				wheel = C.PointerWheelNone
 			}
 			if errCode := C.client_write_rdp_pointer(
-				C.ulong(c.handle),
+				C.size_t(c.handle),
 				C.CGOMousePointerEvent{
 					x:           C.uint16_t(mouseX),
 					y:           C.uint16_t(mouseY),
@@ -426,7 +426,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			}
 		case tdp.KeyboardButton:
 			if errCode := C.client_write_rdp_keyboard(
-				C.ulong(c.handle),
+				C.size_t(c.handle),
 				C.CGOKeyboardEvent{
 					code: C.uint16_t(m.KeyCode),
 					down: m.State == tdp.ButtonPressed,
@@ -440,7 +440,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			}
 			if len(m) > 0 {
 				if errCode := C.client_update_clipboard(
-					C.ulong(c.handle),
+					C.size_t(c.handle),
 					(*C.uint8_t)(unsafe.Pointer(&m[0])),
 					C.uint32_t(len(m)),
 				); errCode != C.ErrCodeSuccess {
@@ -453,7 +453,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			if c.cfg.AllowDirectorySharing {
 				driveName := C.CString(m.Name)
 				defer C.free(unsafe.Pointer(driveName))
-				if errCode := C.client_handle_tdp_sd_announce(C.ulong(c.handle), C.CGOSharedDirectoryAnnounce{
+				if errCode := C.client_handle_tdp_sd_announce(C.size_t(c.handle), C.CGOSharedDirectoryAnnounce{
 					directory_id: C.uint32_t(m.DirectoryID),
 					name:         driveName,
 				}); errCode != C.ErrCodeSuccess {
@@ -464,7 +464,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			if c.cfg.AllowDirectorySharing {
 				path := C.CString(m.Fso.Path)
 				defer C.free(unsafe.Pointer(path))
-				if errCode := C.client_handle_tdp_sd_info_response(C.ulong(c.handle), C.CGOSharedDirectoryInfoResponse{
+				if errCode := C.client_handle_tdp_sd_info_response(C.size_t(c.handle), C.CGOSharedDirectoryInfoResponse{
 					completion_id: C.uint32_t(m.CompletionID),
 					err_code:      m.ErrCode,
 					fso: C.CGOFileSystemObject{
@@ -482,7 +482,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			if c.cfg.AllowDirectorySharing {
 				path := C.CString(m.Fso.Path)
 				defer C.free(unsafe.Pointer(path))
-				if errCode := C.client_handle_tdp_sd_create_response(C.ulong(c.handle), C.CGOSharedDirectoryCreateResponse{
+				if errCode := C.client_handle_tdp_sd_create_response(C.size_t(c.handle), C.CGOSharedDirectoryCreateResponse{
 					completion_id: C.uint32_t(m.CompletionID),
 					err_code:      m.ErrCode,
 					fso: C.CGOFileSystemObject{
@@ -498,7 +498,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			}
 		case tdp.SharedDirectoryDeleteResponse:
 			if c.cfg.AllowDirectorySharing {
-				if errCode := C.client_handle_tdp_sd_delete_response(C.ulong(c.handle), C.CGOSharedDirectoryDeleteResponse{
+				if errCode := C.client_handle_tdp_sd_delete_response(C.size_t(c.handle), C.CGOSharedDirectoryDeleteResponse{
 					completion_id: C.uint32_t(m.CompletionID),
 					err_code:      m.ErrCode,
 				}); errCode != C.ErrCodeSuccess {
@@ -531,7 +531,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
 				}
 
-				if errCode := C.client_handle_tdp_sd_list_response(C.ulong(c.handle), C.CGOSharedDirectoryListResponse{
+				if errCode := C.client_handle_tdp_sd_list_response(C.size_t(c.handle), C.CGOSharedDirectoryListResponse{
 					completion_id:   C.uint32_t(m.CompletionID),
 					err_code:        m.ErrCode,
 					fso_list_length: C.uint32_t(fsoListLen),
@@ -549,7 +549,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 					readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
 				}
 
-				if errCode := C.client_handle_tdp_sd_read_response(C.ulong(c.handle), C.CGOSharedDirectoryReadResponse{
+				if errCode := C.client_handle_tdp_sd_read_response(C.size_t(c.handle), C.CGOSharedDirectoryReadResponse{
 					completion_id:    C.uint32_t(m.CompletionID),
 					err_code:         m.ErrCode,
 					read_data_length: C.uint32_t(m.ReadDataLength),
@@ -560,7 +560,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			}
 		case tdp.SharedDirectoryWriteResponse:
 			if c.cfg.AllowDirectorySharing {
-				if errCode := C.client_handle_tdp_sd_write_response(C.ulong(c.handle), C.CGOSharedDirectoryWriteResponse{
+				if errCode := C.client_handle_tdp_sd_write_response(C.size_t(c.handle), C.CGOSharedDirectoryWriteResponse{
 					completion_id: C.uint32_t(m.CompletionID),
 					err_code:      m.ErrCode,
 					bytes_written: C.uint32_t(m.BytesWritten),
@@ -570,7 +570,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			}
 		case tdp.SharedDirectoryMoveResponse:
 			if c.cfg.AllowDirectorySharing {
-				if errCode := C.client_handle_tdp_sd_move_response(C.ulong(c.handle), C.CGOSharedDirectoryMoveResponse{
+				if errCode := C.client_handle_tdp_sd_move_response(C.size_t(c.handle), C.CGOSharedDirectoryMoveResponse{
 					completion_id: C.uint32_t(m.CompletionID),
 					err_code:      m.ErrCode,
 				}); errCode != C.ErrCodeSuccess {
@@ -585,7 +585,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
 			if errCode := C.client_handle_tdp_rdp_response_pdu(
-				C.ulong(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
+				C.size_t(c.handle), rdpResponsePDU, C.uint32_t(pduLen),
 			); errCode != C.ErrCodeSuccess {
 				return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 			}
