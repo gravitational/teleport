@@ -1417,6 +1417,59 @@ type AddressInfo struct {
 	}
 }
 
+func TestNamedImports(t *testing.T) {
+	cases := []struct {
+		description string
+		input       string
+		expected    map[string]string
+	}{
+		{
+			description: "single-line format",
+			input: `package mypkg
+import alias "otherpkg"
+`,
+			expected: map[string]string{
+				"alias": "otherpkg",
+			},
+		},
+		{
+			description: "multi-line format",
+			input: `package mypkg
+import (
+    alias "first"
+    alias2 "second"
+)
+`,
+			expected: map[string]string{
+				"alias":  "first",
+				"alias2": "second",
+			},
+		},
+		{
+			description: "multi-segment package path",
+			input: `package mypkg
+import alias "my/multi/segment/package"
+`,
+			expected: map[string]string{
+				"alias": "package",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset,
+				"myfile.go",
+				c.input,
+				parser.ParseComments,
+			)
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, NamedImports(f))
+		})
+	}
+}
+
 func TestMakeFieldTableInfo(t *testing.T) {
 	cases := []struct {
 		description string
