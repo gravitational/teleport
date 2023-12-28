@@ -807,6 +807,15 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		c := f.kind.customFieldData()
 
 		for _, d := range c {
+			// Find the package name to use to look up the declaration from
+			// its identifier.
+			i, ok := decl.NamedImports[d.PackageName]
+			// The file that made the declaration provided a name for the
+			// package associated with the identifier, so find the full
+			// package path and use that to look up the declaration.
+			if ok {
+				d.PackageName = strings.Trim(i, "\"")
+			}
 			gd, ok := allDecls[d]
 			if !ok {
 				return nil, fmt.Errorf(`%v: field type %v.%v of %v.%v was not declared anywhere in the source, and was probably declared in a third-party package or the standard library. Add "Example YAML:\n---\n" as a comment above fields with this type.`,
