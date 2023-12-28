@@ -684,6 +684,19 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 	return fieldsToProcess, nil
 }
 
+// PackageNames creates a mapping from the provided name of each package import
+// to the original package path.
+func PackageNames(file *ast.File) map[string]string {
+	m := make(map[string]string)
+	for _, i := range file.Imports {
+		if i.Name == nil {
+			continue
+		}
+		m[i.Name.Name] = i.Path.Value
+	}
+	return m
+}
+
 // ReferenceDataFromDeclaration gets data for the reference by examining decl.
 // Looks up decl's fields in allDecls and methods in allMethods.
 func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo, allMethods map[PackageInfo][]MethodInfo) (map[PackageInfo]ReferenceEntry, error) {
