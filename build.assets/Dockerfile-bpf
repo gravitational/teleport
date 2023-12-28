@@ -1,0 +1,26 @@
+# Minmal container fo generating BPF bytecode
+FROM debian:12
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    clang \
+    llvm \
+    curl \
+    libbpf-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+ARG GOLANG_VERSION
+ARG BUILDARCH
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+    chmod a+w /var/lib && \
+    chmod a-w /
+ENV GOPATH="/home/bpf/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:"
+
+ARG UID
+ARG GID
+RUN groupadd bpf --gid=$GID -o && \
+    useradd bpf --uid=$UID --gid=$GID --create-home --shell=/bin/sh
+
+USER bpf
