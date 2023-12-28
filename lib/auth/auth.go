@@ -38,6 +38,7 @@ import (
 	"math/big"
 	insecurerand "math/rand"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,7 +56,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -4284,7 +4284,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(sessionTTL, BearerTokenTTL)
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {

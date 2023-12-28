@@ -143,8 +143,9 @@ source "amazon-ebs" "teleport-aws-linux" {
     http_put_response_hop_limit = 2
   }
   run_tags = {
-    Name    = local.ami_name
-    purpose = local.resource_purpose_tag_value
+    Name                     = local.ami_name
+    purpose                  = local.resource_purpose_tag_value
+    "teleport.dev/is_public" = true
   }
   run_volume_tags = {
     Name = local.ami_name

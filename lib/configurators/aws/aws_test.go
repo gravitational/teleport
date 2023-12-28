@@ -766,7 +766,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
+					Actions:   awslib.SliceOrString{"sts:AssumeRole", "sts:TagSession"},
 				},
 			},
 		},

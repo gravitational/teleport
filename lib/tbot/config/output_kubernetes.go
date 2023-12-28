@@ -59,6 +59,12 @@ func (o *KubernetesOutput) templates() []template {
 }
 
 func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"KubernetesOutput/Render",
+	)
+	defer span.End()
+
 	dest := o.GetDestination()
 	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")

@@ -68,7 +68,8 @@ type fakeAuthorizer struct {
 
 func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	return &authz.Context{
-		Checker: f.checker,
+		Checker:               f.checker,
+		AdminActionAuthorized: true,
 	}, nil
 }
 
@@ -373,7 +374,6 @@ func TestRBAC(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.NotNil(t, ca)
-
 			},
 			authorizer: fakeAuthorizer{
 				checker: &fakeChecker{
@@ -392,7 +392,6 @@ func TestRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-
 			p := newTestPack(t)
 
 			trust := local.NewCAService(p.mem)
@@ -654,7 +653,6 @@ func TestDeleteCertAuthority(t *testing.T) {
 				ca, err := service.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{Domain: "test", Type: string(types.HostCA)})
 				require.True(t, trace.IsNotFound(err), "got unexpected error retrieving a deleted ca: %v", err)
 				require.Nil(t, ca)
-
 			},
 		},
 	}
@@ -730,7 +728,6 @@ func TestUpsertCertAuthority(t *testing.T) {
 				// Validate that only the rotation was changed
 				require.Nil(t, hostCA.Spec.Rotation)
 				require.NotNil(t, ca.Spec.Rotation)
-
 			},
 		},
 	}

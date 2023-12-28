@@ -96,10 +96,10 @@ actions which modify the following administrative resources.
     - `UpsertLoginRule`, `CreateLoginRule`, `DeleteLoginRule`
 - Certificates
   - CA management
-    - http: `rotateCertAuthority`, `rotateExternalCertAuthority`, `upsertCertAuthority`, `deleteCertAuthority`
+    - `UpsertCertAuthority`, `DeleteCertAuthority`
+    - http: `rotateCertAuthority`, `rotateExternalCertAuthority`
   - Host certs
-    - `GenerateHostCerts`
-    - http: `generateHostCert`
+    - `GenerateHostCerts`, `GenerateHostCert`
   - User certs
     - `GenerateUserCerts`
   - Web sessions

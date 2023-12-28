@@ -22,14 +22,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"regexp"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -937,18 +933,7 @@ func TestJoinScript(t *testing.T) {
 	t.Run("using repo", func(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
 			currentStableCloudVersion := "v99.1.1"
-
-			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(currentStableCloudVersion))
-			}))
-			defer httpTestServer.Close()
-
-			versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
-			require.NoError(t, err)
-
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionURL: versionURL}, m)
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersion: currentStableCloudVersion}, m)
 			require.NoError(t, err)
 
 			// list of packages must include the updater

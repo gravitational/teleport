@@ -25,6 +25,8 @@ rules:
       - teleportprovisiontokens/status
       - teleportoktaimportrules
       - teleportoktaimportrules/status
+      - teleportaccesslists
+      - teleportaccesslists/status
     verbs:
       - get
       - list

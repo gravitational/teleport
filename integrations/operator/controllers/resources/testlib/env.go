@@ -58,6 +58,12 @@ import (
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = apiruntime.NewScheme()
 
+// MaxTimeDiff is used when writing tests comparing times. Timestamps suffer
+// from being serialized/deserialized with different precisions, the final value
+// might be a bit different from the initial one. If the difference is less than
+// MaxTimeDiff, we consider the values equal.
+const MaxTimeDiff = 2 * time.Millisecond
+
 func init() {
 	utilruntime.Must(core.AddToScheme(scheme))
 	utilruntime.Must(resourcesv1.AddToScheme(scheme))
@@ -127,6 +133,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindLoginRule, unrestricted),
 				types.NewRule(types.KindToken, unrestricted),
 				types.NewRule(types.KindOktaImportRule, unrestricted),
+				types.NewRule(types.KindAccessList, unrestricted),
 			},
 		},
 	})
@@ -165,13 +172,14 @@ func clientWithCreds(t *testing.T, authAddr string, creds client.Credentials) *c
 }
 
 type TestSetup struct {
-	TeleportClient *client.Client
-	K8sClient      kclient.Client
-	K8sRestConfig  *rest.Config
-	Namespace      *core.Namespace
-	Operator       manager.Manager
-	OperatorCancel context.CancelFunc
-	OperatorName   string
+	TeleportClient           *client.Client
+	K8sClient                kclient.Client
+	K8sRestConfig            *rest.Config
+	Namespace                *core.Namespace
+	Operator                 manager.Manager
+	OperatorCancel           context.CancelFunc
+	OperatorName             string
+	stepByStepReconciliation bool
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -213,6 +221,9 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = resources.NewOktaImportRuleReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = resources.NewAccessListReconciler(s.K8sClient, s.TeleportClient).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -269,6 +280,10 @@ func WithTeleportClient(clt *client.Client) TestOption {
 	}
 }
 
+func StepByStep(setup *TestSetup) {
+	setup.stepByStepReconciliation = true
+}
+
 // SetupTestEnv creates a Kubernetes server, a teleport server and starts the operator
 func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	// Hack to get the path of this file in order to find the crd path no matter
@@ -308,12 +323,14 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 
 	setupTeleportClient(t, setup)
 
-	// Create and start the Kubernetes operator
-	setup.StartKubernetesOperator(t)
-
-	t.Cleanup(func() {
-		setup.StopKubernetesOperator()
-	})
+	// If the test wants to do step by step reconciliation, we don't start
+	// an operator in the background.
+	if !setup.stepByStepReconciliation {
+		setup.StartKubernetesOperator(t)
+		t.Cleanup(func() {
+			setup.StopKubernetesOperator()
+		})
+	}
 
 	return setup
 }
