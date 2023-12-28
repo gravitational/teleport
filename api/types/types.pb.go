@@ -6233,6 +6233,9 @@ type AccessReview struct {
 	// This field is only populated when the request is in the PROMOTED state.
 	AccessList *PromotedAccessList `protobuf:"bytes,9,opt,name=accessList,proto3" json:"access_list,omitempty"`
 	// AssumeStartTime is the time the requested roles can be assumed.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	AssumeStartTime      *time.Time `protobuf:"bytes,10,opt,name=AssumeStartTime,proto3,stdtime" json:"assume_start_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -6479,6 +6482,9 @@ type AccessRequestSpecV3 struct {
 	// This field is only populated when the request is in the PROMOTED state.
 	AccessList *PromotedAccessList `protobuf:"bytes,20,opt,name=accessList,proto3" json:"access_list,omitempty"`
 	// AssumeStartTime is the time the requested roles can be assumed.
+	// Example YAML:
+	// ---
+	// "2023-01-31T00:00:00-00:00"
 	AssumeStartTime      *time.Time `protobuf:"bytes,21,opt,name=AssumeStartTime,proto3,stdtime" json:"assume_start_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
