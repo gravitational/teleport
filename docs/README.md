@@ -7,3 +7,5 @@ for details on how to make and test changes to Teleport docs.
 ## Linting and checking for bad links
 
 Run `make -C build.assets test-docs` from the root directory of this repo.
+
+This is just a test.
