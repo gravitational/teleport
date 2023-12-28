@@ -656,7 +656,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 		// package associated with the identifier, so find the full
 		// package path and use that to look up the declaration.
 		case ok:
-			pkg = strings.Trim(i, "\"")
+			pkg = i
 		case l.packageName != "":
 			pkg = l.packageName
 		// If the field's type has no package name, assume the field's
@@ -705,7 +705,14 @@ func NamedImports(file *ast.File) map[string]string {
 		if i.Name == nil {
 			continue
 		}
-		m[i.Name.Name] = i.Path.Value
+		s := strings.Trim(i.Path.Value, "\"")
+		p := strings.Split(s, "/")
+		// Consumers check the named imports map against the final path
+		// segment of a package path.
+		if len(p) > 1 {
+			s = p[len(p)-1]
+		}
+		m[i.Name.Name] = s
 	}
 	return m
 }
@@ -814,7 +821,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 			// package associated with the identifier, so find the full
 			// package path and use that to look up the declaration.
 			if ok {
-				d.PackageName = strings.Trim(i, "\"")
+				d.PackageName = i
 			}
 			gd, ok := allDecls[d]
 			if !ok {
