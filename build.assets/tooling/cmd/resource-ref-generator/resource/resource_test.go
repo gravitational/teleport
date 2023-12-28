@@ -1185,6 +1185,80 @@ package mypkg
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
+    // Spec contains information about the server.
+    Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
+}
+`,
+			declSources: []string{`package types
+
+import alias "otherpkg"
+
+// ServerSpecV1 includes aspects of a proxied server.
+type ServerSpecV1 struct {
+  Info alias.AddressInfo BACKTICKjson:"info"BACKTICK
+}`,
+
+				`package otherpkg
+// AddressInfo provides information about an address.
+type AddressInfo struct {
+    // The address of the server.
+    Address string BACKTICKjson:"address"BACKTICK
+}`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "Server",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "Server",
+					Description: "Includes information about a server registered with Teleport.",
+					SourcePath:  "myfile.go",
+					YAMLExample: `name: "string"
+spec: # [...]
+`,
+					Fields: []Field{
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)"},
+					},
+				},
+				PackageInfo{
+					DeclName:    "ServerSpecV1",
+					PackageName: "types",
+				}: {
+					SectionName: "Server Spec",
+					Description: "Includes aspects of a proxied server.",
+					SourcePath:  "myfile0.go",
+					YAMLExample: `address: "string"
+`,
+					Fields: []Field{
+						Field{
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
+						},
+					},
+				},
+				PackageInfo{
+					DeclName:    "AddressInfo",
+					PackageName: "otherpkg",
+				}: {
+					SectionName: "Address Info",
+					Description: "Provides information about an address",
+					SourcePath:  "myfile1.go",
+					YAMLExample: `address: "string"
+`,
+				},
+			},
+		},
+		{
+			description: "named import in named struct field",
+			source: `
+package mypkg
+
+// Server includes information about a server registered with Teleport.
+type Server struct {
     // Name is the name of the resource.
     Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
     // Spec contains information about the server.
@@ -1197,11 +1271,12 @@ import alias "otherpkg"
 
 // ServerSpecV1 includes aspects of a proxied server.
 type ServerSpecV1 struct {
-  alias.ServerSpec
+  Info alias.AddressInfo BACKTICKjson:"info"BACKTICK
 }`,
-				`package otherpkg
 
-type ServerSpec struct {
+				`package otherpkg
+// AddressInfo provides information about an address.
+type AddressInfo struct {
     // The address of the server.
     Address string BACKTICKjson:"address"BACKTICK
 }`,
