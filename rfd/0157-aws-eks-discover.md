@@ -41,8 +41,8 @@ General steps of the workflow:
 3. Setup access
 4. Test connection
 
-AWS Integration for EKS will require permissions to list/describe EKS clusters and associate an identity provider
-to an EKS cluster (details [below](#eks-identity-provider-association)). AWS permissions config:
+AWS Integration for EKS will require permissions to list/describe EKS clusters as well as permissions to list/create/delete access entries and 
+associate access policies for an EKS cluster (details [below](#eks-access-entries)). AWS permissions config:
 
 ```json
 {
@@ -53,10 +53,10 @@ to an EKS cluster (details [below](#eks-identity-provider-association)). AWS per
             "Action": [
                 "eks:DescribeCluster",
                 "eks:ListClusters",
-                "eks:AssociateIdentityProviderConfig",
-                "eks:DisassociateIdentityProviderConfig",
-                "eks:ListIdentityProviderConfigs",
-                "eks:DescribeIdentityProviderConfig"
+                "eks:ListAccessEntries",
+                "eks:CreateAccessEntry",
+                "eks:DeleteAccessEntry",
+                "eks:AssociateAccessPolicy"
             ],
             "Resource": "*"
         }
@@ -76,7 +76,7 @@ will be enabled by default.
 
 Users will have two main options for enrolling EKS clusters:
  - Enroll specific selected cluster from the list of available ones.
- - Set up automatic discovery and enrollment of the clusters using OIDC integration.
+ - Set up automatic discovery and enrollment of the clusters.
 
 Cluster enrollment will be done through the installation of the Teleport agent using the Helm chart
 `teleport-kube-agent`.
@@ -84,7 +84,7 @@ Cluster enrollment will be done through the installation of the Teleport agent u
 ### Enrolling Selected Clusters
 
 For the enrollment of just the selected clusters, users will be further given two choices:
-- Use EKS OIDC identity provider association to enroll a cluster with just the API.
+- Use EKS Access entries to enroll a cluster with just the API.
 - As a backup option - manually run a Helm command that we generated for them.
 
 For completely automated cluster enrollment through the API, the Helm Go SDK will be used -
@@ -101,9 +101,9 @@ the AWS integration. EKS discovery in that mode will rely on the AWS integration
 to find clusters and then install the Helm chart on them. The algorithm will be as follows:
 - List EKS clusters through the AWS integration.
 - Cross-check to see which EKS clusters are already registered in the system, using labels we inject on Helm chart installation.
-- Once a new EKS cluster is found, associate our OIDC provider with it and wait for association to be in active state.
-- Using the associated provider, generate an access token and install the kube agent through the Helm chart.
-- Disassociate our OIDC provider from the EKS cluster.
+- Once a new EKS cluster is found, create EKS access entry for Teleport AWS Integration role and associate cluster admin policy.
+- Using the created access entry, get access to the EKS cluster and install the kube agent through the Helm chart.
+- Remove access entry from the EKS cluster.
 
 Users will be able to filter EKS clusters for discovery by using labels.
 
@@ -111,49 +111,22 @@ A dynamic discovery configuration will be created as a result of users setting u
 This configuration can be picked up by any discovery service. In the Teleport cloud, the Discovery service will be available by default,
 meaning users will not need to perform any additional actions.
 
-### EKS Identity Provider Association
+### EKS Access Entries
 
-AWS EKS supports a method of authentication that involves associating an OIDC identity provider with the cluster.
-Such an associated identity provider can issue access tokens (JWT) that grant access to the EKS cluster groups and users.
-Since Teleport already supports OIDC providers, we can easily use this approach. It will require slight
-modifications to the AWS OIDC integration code to allow it to issue JWTs for an EKS cluster. To associate an OIDC provider with an
-EKS cluster, the selected AWS integration needs to issue an API call `eks:AssociateIdentityProviderConfig`
-with the following configuration (includes example parameters):
+AWS has recently introduced a new authentication method for EKS clusters - "access entries". 
+These access entries can be created through the AWS API and give permissions to an IAM user or role.
+Permissions can be granted in two ways: either directly through the access entry by specifying username/groups for the 
+IAM role, or by associating one of the predefined access policies to the access entry.
 
-```yaml
----
-apiVersion: eksctl.io/v1alpha5
-kind: ClusterConfig
-
-metadata:
-  name: eks-cluster-name
-  region: us-east-1
-
-identityProviders:
-  - name: TeleportProvider
-    type: oidc
-    issuerUrl: https://teleport.example.com
-    clientId: kubernetes
-    usernameClaim: teleport-eks-oidc-user
-    groupsClaim: teleport-eks-oidc-groups
-```
-
-To access the target EKS cluster in API mode, we will generate an access token using the associated OIDC provider.
-That token will grant access to the `system:masters` group, so the Helm chart installation will be able to set up
-all the required infrastructure for the Teleport kube agent, including service accounts.
-
-AWS supports the association of only one OIDC identity provider with an EKS
-cluster at a time. Therefore, if a client's EKS cluster already has one associated, Teleport will not be able to
-proceed with API-only cluster enrollment. As a fallback, they can use the manual Helm command we generate.
-The client can authenticate through other means (AWS IAM or their own OIDC identity provider) to run this command.
-We will indicate in the table with the list of the available clusters if some of them cannot be automatically enrolled due
-to an already associated identity provider.
+Teleport will create an access entry for the role AWS integration is running with, and then will associate
+cluster admin policy to this access entry. It will allow AWS integration to authenticate with the EKS cluster and 
+perform operations required for the installation of the kube agent chart.
 
 ### Plan of implementation
 
 Implementation will be done in two main steps:
 
-1. Introducing an UI flow for the enrollment of selected EKS cluster using API-only enrollment for selected EKS cluster with the use of an associated OIDC identity provider.
+1. Introducing an UI flow for the enrollment of selected EKS cluster using API-only enrollment with EKS access entries.
 2. Adding the capability to set up automatic discovery and enrollment of EKS clusters.
 
 First step is functionally complete and allows building upon it to implement the next step.
@@ -175,22 +148,14 @@ message UIDiscoverEKSClusterEnrollEvent {
 ## Security
 
 New permissions will be required for the AWS OIDC integration to perform the necessary tasks. It will need 
-to be able to list EKS clusters as well as associate an OIDC provider with them. An associated OIDC provider 
-can generate authentication tokens that give full control over the cluster, so a careful approach to their 
-security should be taken.
-
-Tokens will be signed by a dedicated OIDC Certificate Authority (which already exists and is used for 
-AWS integration communications), ensuring that tokens don't overlap with regular CAs access by the users, 
-like the User CA or JWTSigner CA. The audience field value `kubernetes` will also be unique to this type of token. 
-And also user/group claim field names, such as `teleport-eks-oidc-groups`, will specify them as used for this purpose only.
-
-End users will never have access to the process of generating these tokens; we will use them only to perform the 
+to be able to list EKS clusters as well as create access entries and associate access policies for those clusters.
+Access entries with associated cluster admin policies will be only used during the EKS cluster enrollment process, so 
+end users will never have direct access to the cluster admin role. It will be used only for the
 initial installation of the `teleport-kube-agent` Helm chart. The agent itself will be configured with the standard 
 service account permissions it requires.
 
-After the Helm chart installation succeeds, Teleport will no longer need to have an OIDC provider associated with 
-the enrolled EKS cluster. Clients can then remove the association or even impose a block on OIDC provider 
-associations for the cluster if they wish.
+After the Helm chart installation is finished, Teleport will no longer need to have an EKS access entry associated with the
+integration role, therefore it will be deleted.
 
 ## Future considerations
 
@@ -201,20 +166,11 @@ Also, as an alternative to the simple Helm command for manual fallback, we could
 inside AWS CloudShell. Such a script might lessen the friction by preparing Helm access to the cluster, so
 users don't need to do it themselves. It could also be used for enrolling more than one cluster at a time.
 
-In this RFD, we propose the usage of the `system:masters` group for the initial token that allows us to install 
-the Helm chart onto the EKS cluster. This is a reliable way to enroll a cluster, since we know this group is 
-present on AWS EKS clusters and gives us enough permission to perform the required actions. However, 
-it might not be the best option from a security standpoint. Some users might want to limit the scope of that initial 
-token by providing Teleport with a preconfigured cluster role. As a possible improvement, we can offer users a way to 
-configure what user/group claims Teleport will use for the initial token.
-
-At the moment, the association of an OIDC provider with an EKS cluster allows for the best automation regarding cluster
-enrollment. This approach completely sidesteps the IAM method of EKS authentication, which currently lacks the flexibility
-we would require. Currently, IAM authentication in EKS is controlled by the `aws-auth` config map, which needs to be
-manually edited to allow IAM roles to have access to the cluster, and there's no API for that. Amazon is working on
-implementing an API for controlling `aws-auth`, but it's still work in progress (https://github.com/aws/containers-roadmap/issues/185).
-Once the aforementioned API is implemented, we might review the access pattern for the AWS EKS integration and compare the OIDC provider
-solution with the new API.
+In this RFD, we propose the usage of the cluster admin policy that allows us to install 
+the Helm chart onto the EKS cluster. This is a reliable way to enroll a cluster, since we know cluster admin policy
+gives us enough permission to perform the required actions. However, some users might want to limit Teleport's scope of access
+to the EKS cluster even during the cluster enrolment. As a possible improvement, we can offer users a way to configure 
+what user/groups Teleport's access entry should have (for example, it could be done through the tags of the EKS cluster).
 
 ## Alternative
 
