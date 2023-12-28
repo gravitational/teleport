@@ -257,19 +257,6 @@ func (g GenerationError) Error() string {
 	return final
 }
 
-// packageNames creates a mapping from the provided name of each package import
-// to the original package path.
-func packageNames(file *ast.File) map[string]string {
-	m := make(map[string]string)
-	for _, i := range file.Imports {
-		if i.Name == nil {
-			continue
-		}
-		m[i.Name.Name] = i.Path.Value
-	}
-	return m
-}
-
 // Generate uses the provided user-facing configuration to write the resource
 // reference to out.
 func Generate(out io.Writer, conf GeneratorConfig) error {
