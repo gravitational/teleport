@@ -1,15 +1,8 @@
-export type BotConfig = {
-  botName: string,
-  labels: object,
-  roles: string[],
-}
+import { ResourceLabel } from '../agents';
 
-type RepositoryRule = {
-  repository: string
-  repositoryOwner: string
-  workflow?: string
-  environment?: string
-  actor?: string
-  ref?: string
-  refType?: 'branch' | 'tag'
-}
+export type BotConfig = {
+  botName: string;
+  labels: ResourceLabel[];
+  roles: string[];
+  login: string;
+};

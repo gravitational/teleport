@@ -1,4 +1,4 @@
-import { parseGitHubUrl } from './ConnectGitHub'
+import { parseGitHubUrl } from './ConnectGitHub';
 
 describe('parseGitHubUrl', () => {
   const testCases = [
@@ -16,21 +16,21 @@ describe('parseGitHubUrl', () => {
       url: 'www.example.com/company/project',
       expected: { repositoryOwner: 'company', repository: 'project' },
       shouldThrow: false,
-    }
+    },
   ];
   test.each(testCases)(
     'should return repo="$expected.repository" and owner="$expected.repositoryOwner" and throw=$shouldThrow for url=$url',
     ({ url, expected, shouldThrow }) => {
       if (shouldThrow) {
         try {
-          const { repositoryOwner, repository } = parseGitHubUrl(url)
-          expect(repositoryOwner).toBe(expected.repositoryOwner)
-          expect(repository).toBe(expected.repository)
+          const { repositoryOwner, repository } = parseGitHubUrl(url);
+          expect(repositoryOwner).toBe(expected.repositoryOwner);
+          expect(repository).toBe(expected.repository);
         } catch (err) {
-          shouldThrow ? expect(err).not.toBe(null) : expect(err).toBe(null)
+          shouldThrow ? expect(err).not.toBeNull() : expect(err).toBeNull();
         }
-        return
+        return;
       }
     }
   );
-})
+});

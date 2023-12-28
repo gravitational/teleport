@@ -42,9 +42,9 @@ export function LabelsCreater({
   isLabelOptional?: boolean;
   noDuplicateKey?: boolean;
   autoFocus?: boolean;
-  keyFieldName?: string,
-  valueFieldName?: string,
-  inputWidthPx?: number,
+  keyFieldName?: string;
+  valueFieldName?: string;
+  inputWidthPx?: number;
 }) {
   const validator = useValidation() as Validator;
 

@@ -1,24 +1,39 @@
-import React from 'react'
-import { FlowStepProps } from '../shared/GuidedFlow';
+import React from 'react';
+
 import Box from 'design/Box';
 import Text from 'design/Text';
 import TextEditor from 'shared/components/TextEditor';
 import Flex from 'design/Flex';
-import { FlowButtons } from '../shared/FlowButtons';
-import { useGitHubFlow } from './useGitHubFlow';
+
 import useTeleport from 'teleport/useTeleport';
 
+import { FlowButtons } from '../shared/FlowButtons';
+
+import { FlowStepProps } from '../shared/GuidedFlow';
+
+import { useGitHubFlow } from './useGitHubFlow';
+
 export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
-  const { tokenName } = useGitHubFlow()
+  const { tokenName } = useGitHubFlow();
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
-  const yaml = getWorkflowExampleYaml(cluster.authVersion, cluster.publicURL, tokenName)
+  const yaml = getWorkflowExampleYaml(
+    cluster.authVersion,
+    cluster.publicURL,
+    tokenName
+  );
 
   return (
     <Box mb="0">
-      <Text bold fontSize={4} mb="3">Step 3: Connect Your Machine User in a GitHub Actions Workflow</Text>
-      <Text fontSize={3} mb="3">Teleport has created a role, a machine user, and a join token. Below is an example GitHub Actions workflow doc to help you get started. You can find this again from the machine user’s options dropdown</Text>
+      <Text bold fontSize={4} mb="3">
+        Step 3: Connect Your Machine User in a GitHub Actions Workflow
+      </Text>
+      <Text fontSize={3} mb="3">
+        Teleport has created a role, a machine user, and a join token. Below is
+        an example GitHub Actions workflow doc to help you get started. You can
+        find this again from the machine user’s options dropdown
+      </Text>
       <Flex flex="1" height="630px" mb="3">
         <TextEditor
           readOnly={true}
@@ -29,10 +44,14 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
       </Flex>
       <FlowButtons isLast={true} nextStep={nextStep} prevStep={prevStep} />
     </Box>
-  )
+  );
 }
 
-function getWorkflowExampleYaml(version: string, proxyAddr: string, tokenName: string): string {
+function getWorkflowExampleYaml(
+  version: string,
+  proxyAddr: string,
+  tokenName: string
+): string {
   return `on:
 push:
   branches:
@@ -81,5 +100,5 @@ demo:
       kubernetes-cluster: my-kubernetes-cluster
       anonymous-telemetry: 1
   - name: List pods
-    run: kubectl get pods -A`
+    run: kubectl get pods -A`;
 }

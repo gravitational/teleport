@@ -67,17 +67,21 @@ export type JoinRule = {
 };
 
 export type GitHubJoinRule = {
-  allow: {
-    repository: string
-    repository_owner: string
-    sub?: string
-    workflow?: string
-    environment?: string
-    actor?: string
-    ref?: string
-    ref_type?: string
-  }[]
-}
+  allow: GitHubRepoRule[];
+};
+
+export type RefType = 'branch' | 'tag';
+
+export type GitHubRepoRule = {
+  repository: string;
+  repository_owner: string;
+  sub?: string;
+  workflow?: string;
+  environment?: string;
+  actor?: string;
+  ref?: string;
+  ref_type?: RefType;
+};
 
 export type JoinTokenRequest = {
   // roles is a list of join roles, since there can be more than

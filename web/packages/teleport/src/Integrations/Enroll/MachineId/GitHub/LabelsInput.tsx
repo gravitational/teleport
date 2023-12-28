@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, Flex, ButtonIcon, ButtonText, Text } from 'design';
+import { Box, Flex, ButtonIcon, ButtonText } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
@@ -29,13 +29,11 @@ export function LabelsInput({
   labels = [],
   setLabels,
   disableBtns = false,
-  noDuplicateKey = false,
   autoFocus = false,
 }: {
   labels: ResourceLabel[];
   setLabels(l: ResourceLabel[]): void;
   disableBtns?: boolean;
-  noDuplicateKey?: boolean;
   autoFocus?: boolean;
 }) {
   const validator = useValidation() as Validator;
@@ -132,23 +130,22 @@ export function LabelsInput({
                   title="Remove Label"
                   onClick={() => removeLabel(index)}
                   css={`
-                      &:disabled {
-                        opacity: 0.65;
-                        pointer-events: none;
-                      }
-                    `}
+                    &:disabled {
+                      opacity: 0.65;
+                      pointer-events: none;
+                    }
+                  `}
                   disabled={disableBtns}
                 >
                   <Icons.Trash size="medium" />
                 </ButtonIcon>
               </Flex>
-
             </Box>
           );
         })}
       </Box>
       <ButtonText
-        onClick={(e) => {
+        onClick={e => {
           e.preventDefault();
           addLabel();
         }}

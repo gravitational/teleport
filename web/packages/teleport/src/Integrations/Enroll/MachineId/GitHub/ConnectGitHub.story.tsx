@@ -18,10 +18,12 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { ContextProvider } from 'teleport';
 
-import { ConnectGitHub } from './ConnectGitHub';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+
+import { ConnectGitHub } from './ConnectGitHub';
 
 const Provider = props => {
   const ctx = createTeleportContext({ customAcl: props.customAcl });

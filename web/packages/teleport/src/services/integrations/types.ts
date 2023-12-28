@@ -56,7 +56,7 @@ export enum IntegrationKind {
 }
 
 export enum MachineIdIntegration {
-  GitHubActions = 'github-actions'
+  GitHubActions = 'github-actions',
 }
 
 export type IntegrationSpecAwsOidc = {

@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import {
   AnsibleIcon,
   AWSIcon,
   AzureIcon,
   CircleCIIcon,
   GCPIcon,
-  GitHubIcon,
   GitLabIcon,
   JenkinsIcon,
   KubernetesIcon,
@@ -31,7 +32,6 @@ import {
 } from 'design/SVGIcon';
 import { Box, Flex, Link as ExternalLink, Text } from 'design';
 import { Link } from 'react-router-dom';
-import React from 'react';
 
 import {
   IntegrationEnrollEvent,
@@ -40,9 +40,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import { IntegrationTile } from '../common';
-import { ConfigureBot } from './GitHub';
-import cfg from 'teleport/config';
-import { IntegrationKind } from 'teleport/services/integrations';
+
 import { GitHubActionsFlow } from './GitHub/EnrollMachineIdGitHub';
 
 interface Integration {
@@ -52,7 +50,6 @@ interface Integration {
   kind: IntegrationEnrollKind;
   guided: boolean;
 }
-
 
 const integrations: Integration[] = [
   GitHubActionsFlow,
@@ -141,53 +138,51 @@ export const MachineIDIntegrationSection = () => {
         </Text>
       </Box>
       <Flex mb={2} gap={3} flexWrap="wrap">
-        {integrations.map(i =>
+        {integrations.map(i => (
           <Box key={i.title}>
-            {i.guided ? <GuidedTile integration={i} /> : <ExternalLinkTile integration={i} />}
+            {i.guided ? (
+              <GuidedTile integration={i} />
+            ) : (
+              <ExternalLinkTile integration={i} />
+            )}
           </Box>
-        )}
+        ))}
       </Flex>
     </>
   );
 };
 
 function ExternalLinkTile({ integration }: { integration: Integration }) {
-  return (<IntegrationTile
-    as={ExternalLink}
-    href={integration.link}
-    target="_blank"
-    onClick={() => {
-      userEventService.captureIntegrationEnrollEvent({
-        event: IntegrationEnrollEvent.Started,
-        eventData: {
-          id: crypto.randomUUID(),
-          kind: integration.kind,
-        },
-      });
-    }}
-  >
-    <TileContent icon={integration.icon} title={integration.title} />
-  </IntegrationTile>)
+  return (
+    <IntegrationTile
+      as={ExternalLink}
+      href={integration.link}
+      target="_blank"
+      onClick={() => {
+        userEventService.captureIntegrationEnrollEvent({
+          event: IntegrationEnrollEvent.Started,
+          eventData: {
+            id: crypto.randomUUID(),
+            kind: integration.kind,
+          },
+        });
+      }}
+    >
+      <TileContent icon={integration.icon} title={integration.title} />
+    </IntegrationTile>
+  );
 }
 
 function GuidedTile({ integration }: { integration: Integration }) {
   // TODO guided badge
-  return (<IntegrationTile
-    as={Link}
-    to={integration.link}
-  // TODO: route
-  // onClick={() => {
-  //   userEventService.captureIntegrationEnrollEvent({
-  //     event: IntegrationEnrollEvent.Started,
-  //     eventData: {
-  //       id: crypto.randomUUID(),
-  //       kind: integration.kind,
-  //     },
-  //   });
-  // }}
-  >
-    <TileContent icon={integration.icon} title={integration.title} />
-  </IntegrationTile >)
+  return (
+    <IntegrationTile
+      as={Link}
+      to={integration.link}
+    >
+      <TileContent icon={integration.icon} title={integration.title} />
+    </IntegrationTile>
+  );
 }
 
 function TileContent({ icon, title }) {
@@ -197,5 +192,6 @@ function TileContent({ icon, title }) {
         {icon}
       </Box>
       <Text>{title}</Text>
-    </>)
+    </>
+  );
 }

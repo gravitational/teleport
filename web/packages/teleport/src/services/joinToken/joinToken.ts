@@ -42,7 +42,7 @@ class JoinTokenService {
           bot_name: req.botName,
           github: req.gitHub,
         },
-        signal,
+        signal
       )
       .then(makeJoinToken);
   }
