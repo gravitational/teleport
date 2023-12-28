@@ -1223,6 +1223,31 @@ spec: # [...]
 							Description: "The name of the resource.",
 							Type:        "string",
 						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)"},
+					},
+				},
+				PackageInfo{
+					DeclName:    "ServerSpecV1",
+					PackageName: "types",
+				}: {
+					SectionName: "Server Spec",
+					Description: "Includes aspects of a proxied server.",
+					SourcePath:  "myfile0.go",
+					YAMLExample: `address: "string"
+`,
+					Fields: []Field{
+						Field{
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
+						},
+					},
+				},
+			},
+		},
 		{
 			description: "named import in named struct field",
 			source: `
