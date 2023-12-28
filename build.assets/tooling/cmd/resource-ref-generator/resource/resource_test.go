@@ -1259,8 +1259,6 @@ package mypkg
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
-    // Name is the name of the resource.
-    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
     // Spec contains information about the server.
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
@@ -1294,11 +1292,6 @@ spec: # [...]
 `,
 					Fields: []Field{
 						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
-						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
 							Type:        "[Server Spec](#server-spec)"},
@@ -1320,6 +1313,16 @@ spec: # [...]
 							Type:        "string",
 						},
 					},
+				},
+				PackageInfo{
+					DeclName:    "AddressInfo",
+					PackageName: "otherpkg",
+				}: {
+					SectionName: "Address Info",
+					Description: "Provides information about an address",
+					SourcePath:  "myfile1.go",
+					YAMLExample: `address: "string"
+`,
 				},
 			},
 		},
