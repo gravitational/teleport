@@ -2262,6 +2262,9 @@ message AccessReview {
   PromotedAccessList accessList = 9 [(gogoproto.jsontag) = "access_list,omitempty"];
 
   // AssumeStartTime is the time the requested roles can be assumed.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp AssumeStartTime = 10 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,
@@ -2450,6 +2453,9 @@ message AccessRequestSpecV3 {
   PromotedAccessList accessList = 20 [(gogoproto.jsontag) = "access_list,omitempty"];
 
   // AssumeStartTime is the time the requested roles can be assumed.
+  // Example YAML:
+  // ---
+  // "2023-01-31T00:00:00-00:00"
   google.protobuf.Timestamp AssumeStartTime = 21 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = true,

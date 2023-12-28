@@ -197,6 +197,9 @@ var SystemConnectors = []string{
 }
 
 // SecondFactorType is the type of 2FA authentication.
+// Example YAML:
+// ---
+// off|otp|webauthn|on|optional
 type SecondFactorType string
 
 const (
@@ -265,6 +268,9 @@ func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
 
 // LockingMode determines how a (possibly stale) set of locks should be applied
 // to an interaction.
+// Example YAML:
+// ---
+// strict|best_effort
 type LockingMode string
 
 const (
@@ -334,6 +340,9 @@ const (
 
 // SessionRecordingMode determines how session recording will behave in failure
 // scenarios.
+// Example YAML:
+// ---
+// strict|best_effort
 type SessionRecordingMode string
 
 const (
