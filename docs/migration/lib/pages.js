@@ -112,7 +112,9 @@ function migratePages() {
       migratedPage = migrationFunction(migratedPage);
     }
 
-    const outputPagePath = `./output${pagePath.replace(PAGES_DIRECTORY, '')}`;
+    const relativePagePath = pagePath.replace(PAGES_DIRECTORY, '');
+    const isSnippet = relativePagePath.includes('/includes/');
+    const outputPagePath = isSnippet ? `./output/snippets${relativePagePath}` : `./output${relativePagePath}`;
 
     writeFile(outputPagePath, migratedPage);
   }
