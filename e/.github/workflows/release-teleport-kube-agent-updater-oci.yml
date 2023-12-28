@@ -144,8 +144,8 @@ jobs:
       allow-overwrites: false
       image-build-args: |
         BUILDBOX=${{ needs.configure.outputs.buildbox }}
-      image-build-context: ./teleport/integrations/kube-agent-updater/.
-      image-build-dockerfile: Dockerfile
+      image-build-context: ./teleport/.
+      image-build-dockerfile: ./integrations/kube-agent-updater/Dockerfile
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
