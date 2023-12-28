@@ -278,7 +278,7 @@ const TextWithSmallerLineHeight = styled(Text)`
 
 const HorizontalLine = styled.div`
   width: 2px;
-  height: 155px;
+  height: 92px;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   position: absolute;
   top: -10px;

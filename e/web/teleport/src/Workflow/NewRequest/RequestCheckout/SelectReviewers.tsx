@@ -201,7 +201,16 @@ function Reviewers({
         <Text mr={2} fontSize={1}>
           Reviewers (optional)
         </Text>
-        <ButtonBorder onClick={toggleEditReviewers} size="small" width="50px">
+        <ButtonBorder
+          onClick={e => {
+            // By stopping propagation,
+            // we prevent this event from being interpreted as an outside click.
+            e.stopPropagation();
+            toggleEditReviewers();
+          }}
+          size="small"
+          width="50px"
+        >
           {editReviewers ? 'Done' : 'Add'}
         </ButtonBorder>
       </Flex>
