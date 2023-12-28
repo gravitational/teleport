@@ -170,6 +170,12 @@ jobs:
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version-file: 'go.mod'
+
       # FIPS and Teleport Connect builds need VERSION set in the environment as those
       # builds do not go through the top-level teleport Makefile, which sets it for
       # other builds.
@@ -202,6 +208,10 @@ jobs:
             cp "e/build/artifacts/teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz" build/artifacts
             cp "build/artifacts/teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz" \
                "build/artifacts/teleport-ent-v${VERSION}-linux-amd64-centos7-fips-bin.tar.gz"
+          elif [ "$RELEASE_TARGET" = 'release-arm64-fips' ]; then
+            # FIPS builds end up in e/build/artifacts as $RELEASE_DIR does not pass through
+            # to the docker build.
+            cp "e/build/artifacts/teleport-ent-v${VERSION}-linux-arm64-fips-bin.tar.gz" build/artifacts
           fi
 
       - name: Build Teleport Connect
