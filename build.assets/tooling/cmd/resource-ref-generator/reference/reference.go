@@ -243,6 +243,20 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 	return m
 }
 
+type GenerationError struct {
+	messages []error
+}
+
+func (g GenerationError) Error() string {
+	// Begin with a newline to format the first list item below the outer
+	// error.
+	final := "\n"
+	for _, e := range g.messages {
+		final += fmt.Sprintf("- %v\n", e)
+	}
+	return final
+}
+
 // Generate uses the provided user-facing configuration to write the resource
 // reference to out.
 func Generate(out io.Writer, conf GeneratorConfig) error {
@@ -328,6 +342,7 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 		Fields:    make(map[resource.PackageInfo]resource.ReferenceEntry),
 	}
 
+	errs := GenerationError{messages: []error{}}
 	allEntries := make(map[resource.PackageInfo]resource.ReferenceEntry)
 	for k, decl := range typeDecls {
 		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
@@ -341,11 +356,14 @@ func Generate(out io.Writer, conf GeneratorConfig) error {
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.DeclName, decl.FilePath, err)
+			errs.messages = append(errs.messages, fmt.Errorf("issue creating a reference entry for declaration %v.%v in file %v: %v", k.PackageName, k.DeclName, decl.FilePath, err))
 		}
 		for pi, e := range entries {
 			allEntries[pi] = e
 		}
+	}
+	if len(errs.messages) > 0 {
+		return errs
 	}
 
 	// Add each reference entry to its appropriate place in the
