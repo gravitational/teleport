@@ -1265,6 +1265,7 @@ import alias "otherpkg"
 
 // ServerSpecV1 includes aspects of a proxied server.
 type ServerSpecV1 struct {
+  // Address information.
   Info alias.AddressInfo BACKTICKjson:"info"BACKTICK
 }`,
 
@@ -1283,8 +1284,7 @@ type AddressInfo struct {
 					SectionName: "Server",
 					Description: "Includes information about a server registered with Teleport.",
 					SourcePath:  "myfile.go",
-					YAMLExample: `name: "string"
-spec: # [...]
+					YAMLExample: `spec: # [...]
 `,
 					Fields: []Field{
 						Field{
@@ -1300,10 +1300,27 @@ spec: # [...]
 					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
-					YAMLExample: `address: "string"
+					YAMLExample: `info: # [...]
 `,
 					Fields: []Field{
 						Field{
+							Name:        "info",
+							Description: "Address information.",
+							Type:        "[Address Info](#address-info)",
+						},
+					},
+				},
+				PackageInfo{
+					DeclName:    "AddressInfo",
+					PackageName: "otherpkg",
+				}: {
+					SectionName: "Address Info",
+					Description: "Provides information about an address.",
+					SourcePath:  "myfile1.go",
+					YAMLExample: `address: "string"
+`,
+					Fields: []Field{
+						{
 							Name:        "address",
 							Description: "The address of the server.",
 							Type:        "string",
