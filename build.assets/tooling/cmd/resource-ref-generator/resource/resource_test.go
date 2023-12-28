@@ -1185,6 +1185,8 @@ package mypkg
 
 // Server includes information about a server registered with Teleport.
 type Server struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
     // Spec contains information about the server.
     Spec types.ServerSpecV1 BACKTICKjson:"spec"BACKTICK
 }
@@ -1195,12 +1197,11 @@ import alias "otherpkg"
 
 // ServerSpecV1 includes aspects of a proxied server.
 type ServerSpecV1 struct {
-  Info alias.AddressInfo BACKTICKjson:"info"BACKTICK
+  alias.ServerSpec
 }`,
-
 				`package otherpkg
-// AddressInfo provides information about an address.
-type AddressInfo struct {
+
+type ServerSpec struct {
     // The address of the server.
     Address string BACKTICKjson:"address"BACKTICK
 }`,
@@ -1218,40 +1219,10 @@ spec: # [...]
 `,
 					Fields: []Field{
 						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)"},
-					},
-				},
-				PackageInfo{
-					DeclName:    "ServerSpecV1",
-					PackageName: "types",
-				}: {
-					SectionName: "Server Spec",
-					Description: "Includes aspects of a proxied server.",
-					SourcePath:  "myfile0.go",
-					YAMLExample: `address: "string"
-`,
-					Fields: []Field{
-						Field{
-							Name:        "address",
-							Description: "The address of the server.",
+							Name:        "name",
+							Description: "The name of the resource.",
 							Type:        "string",
 						},
-					},
-				},
-				PackageInfo{
-					DeclName:    "AddressInfo",
-					PackageName: "otherpkg",
-				}: {
-					SectionName: "Address Info",
-					Description: "Provides information about an address",
-					SourcePath:  "myfile1.go",
-					YAMLExample: `address: "string"
-`,
-				},
-			},
-		},
 		{
 			description: "named import in named struct field",
 			source: `
@@ -1313,16 +1284,6 @@ spec: # [...]
 							Type:        "string",
 						},
 					},
-				},
-				PackageInfo{
-					DeclName:    "AddressInfo",
-					PackageName: "otherpkg",
-				}: {
-					SectionName: "Address Info",
-					Description: "Provides information about an address",
-					SourcePath:  "myfile1.go",
-					YAMLExample: `address: "string"
-`,
 				},
 			},
 		},
