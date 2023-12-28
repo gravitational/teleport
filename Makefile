@@ -374,7 +374,7 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 # This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
-$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
+$(BUILDDIR)/teleport: ensure-webassets rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
@@ -438,32 +438,30 @@ tctl-app:
 
 #
 # BPF support (IF ENABLED)
-# Requires a recent version of clang and libbpf installed.
+# Requires clang 11+
 #
-ifeq ("$(with_bpf)","yes")
-$(ER_BPF_BUILDDIR):
-	mkdir -p $(ER_BPF_BUILDDIR)
 
-# Build BPF code
-$(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(LLVM_STRIP) -g $@ # strip useless DWARF info
+# Enable target only if /usr/include/linux/bpf.h exists and clang is installed.
+# This is a requirement for building BPF bytecode.
 
-.PHONY: bpf-er-bytecode
-bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
 
 .PHONY: bpf-bytecode
-bpf-bytecode: bpf-er-bytecode
+bpf-bytecode:
+ifneq ("$(wildcard /usr/include/linux/bpf.h)","")
+ifneq ("$(wildcard /usr/include/bpf/bpf_helpers.h)","")
+ifneq ("$(shell which clang --version 2>/dev/null)","")
+	go generate ./lib/bpf/bpf.go
+else
+$(error "clang is required to build BPF bytecode")
+endif # clang installed
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
 
-else
-.PHONY: bpf-bytecode
-bpf-bytecode:
-endif
+endif # /usr/include/bpf/bpf_helpers.h exists
+endif # /usr/include/linux/bpf.h exists
 
 .PHONY: rdpclient
 rdpclient:
@@ -513,10 +511,6 @@ clean: clean-ui clean-build
 clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-# Check if the variable is set to prevent calling remove on the root directory.
-ifneq ($(ER_BPF_BUILDDIR),)
-	rm -f $(ER_BPF_BUILDDIR)/*.o
-endif
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
@@ -905,7 +899,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
+test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -987,7 +981,7 @@ test-go-chaos:
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) ensure-gotestsum
+test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR) ensure-gotestsum
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)

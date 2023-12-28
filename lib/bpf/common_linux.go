@@ -21,46 +21,4 @@
 
 package bpf
 
-import (
-	"unsafe"
-
-	"github.com/aquasecurity/libbpfgo"
-	"github.com/gravitational/trace"
-)
-
 const monitoredCGroups = "monitored_cgroups"
-
-type session struct {
-	module *libbpfgo.Module
-}
-
-// startSession registers the given cgroup in the BPF module. Only registered
-// cgroups will return events to the userspace.
-func (s *session) startSession(cgroupID uint64) error {
-	cgroupMap, err := s.module.GetMap(monitoredCGroups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dummyVal := 0
-	err = cgroupMap.Update(unsafe.Pointer(&cgroupID), unsafe.Pointer(&dummyVal))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// endSession removes the previously registered cgroup from the BPF module.
-func (s *session) endSession(cgroupID uint64) error {
-	cgroupMap, err := s.module.GetMap(monitoredCGroups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cgroupMap.DeleteKey(unsafe.Pointer(&cgroupID)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}

@@ -39,7 +39,6 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.4.0 // replaced
 	github.com/alicebob/miniredis/v2 v2.33.0
 	github.com/andybalholm/brotli v1.1.0
-	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/aws/aws-sdk-go-v2 v1.30.4
@@ -75,6 +74,7 @@ require (
 	github.com/charmbracelet/bubbles v0.19.0
 	github.com/charmbracelet/bubbletea v0.27.0
 	github.com/charmbracelet/lipgloss v0.13.0
+	github.com/cilium/ebpf v0.12.3
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.23
