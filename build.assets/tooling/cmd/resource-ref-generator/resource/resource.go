@@ -52,6 +52,9 @@ type DeclarationInfo struct {
 	FilePath    string
 	Decl        ast.Decl
 	PackageName string
+	// Maps the file-scoped name of each import (if given) to the
+	// corresponding full package path.
+	NamedImports map[string]string
 }
 
 // Field represents a row in a table that provides information about a field in
@@ -684,9 +687,9 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 	return fieldsToProcess, nil
 }
 
-// PackageNames creates a mapping from the provided name of each package import
+// NamedImports creates a mapping from the provided name of each package import
 // to the original package path.
-func PackageNames(file *ast.File) map[string]string {
+func NamedImports(file *ast.File) map[string]string {
 	m := make(map[string]string)
 	for _, i := range file.Imports {
 		if i.Name == nil {
