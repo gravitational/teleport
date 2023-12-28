@@ -1179,7 +1179,7 @@ private_key: BASE64_STRING
 			},
 		},
 		{
-			description: "package alias",
+			description: "named import in embedded struct field",
 			source: `
 package mypkg
 
@@ -1203,7 +1203,7 @@ type ServerSpecV1 struct {
 
 type ServerSpec struct {
     // The address of the server.
-    Address  BACKTICKjson:"address"BACKTICK
+    Address string BACKTICKjson:"address"BACKTICK
 }`,
 			},
 			expected: map[PackageInfo]ReferenceEntry{
@@ -1236,7 +1236,8 @@ spec: # [...]
 					SectionName: "Server Spec",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "myfile0.go",
-					YAMLExample: `address: "string"`,
+					YAMLExample: `address: "string"
+`,
 					Fields: []Field{
 						Field{
 							Name:        "address",
@@ -1285,9 +1286,10 @@ spec: # [...]
 				// Store type declarations in the map.
 				for _, def := range d.Decls {
 					allDecls = append(allDecls, DeclarationInfo{
-						Decl:        def,
-						FilePath:    fmt.Sprintf("myfile%v.go", n),
-						PackageName: d.Name.Name,
+						Decl:         def,
+						FilePath:     fmt.Sprintf("myfile%v.go", n),
+						PackageName:  d.Name.Name,
+						NamedImports: NamedImports(d),
 					})
 
 					l, ok := def.(*ast.GenDecl)
@@ -1305,9 +1307,10 @@ spec: # [...]
 						DeclName:    spec.Name.Name,
 						PackageName: d.Name.Name,
 					}] = DeclarationInfo{
-						Decl:        l,
-						FilePath:    fmt.Sprintf("myfile%v.go", n),
-						PackageName: d.Name.Name,
+						Decl:         l,
+						FilePath:     fmt.Sprintf("myfile%v.go", n),
+						PackageName:  d.Name.Name,
+						NamedImports: NamedImports(d),
 					}
 				}
 
@@ -1317,9 +1320,10 @@ spec: # [...]
 			assert.NoError(t, err)
 
 			r, err := ReferenceDataFromDeclaration(DeclarationInfo{
-				FilePath:    "myfile.go",
-				Decl:        gd,
-				PackageName: f.Name.Name,
+				FilePath:     "myfile.go",
+				Decl:         gd,
+				PackageName:  f.Name.Name,
+				NamedImports: NamedImports(f),
 			}, pkgToDecl, allMethods)
 			if tc.errorSubstring == "" {
 				assert.NoError(t, err)

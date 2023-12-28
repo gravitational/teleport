@@ -647,13 +647,23 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			continue
 		}
 
+		// Find the package name to use to look up the declaration from
+		// its identifier.
+		var pkg string
+		i, ok := decl.NamedImports[l.packageName]
+		switch {
+		// The file that made the declaration provided a name for the
+		// package associated with the identifier, so find the full
+		// package path and use that to look up the declaration.
+		case ok:
+			pkg = strings.Trim(i, "\"")
+		case l.packageName != "":
+			pkg = l.packageName
 		// If the field's type has no package name, assume the field's
 		// package name is the same as the one for decl.
-		var pkg string
-		if l.packageName != "" {
-			pkg = l.packageName
-		} else {
+		default:
 			pkg = decl.PackageName
+
 		}
 		p := PackageInfo{
 			DeclName:    c.declarationInfo.DeclName,
