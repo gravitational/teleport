@@ -1205,6 +1205,7 @@ Contains AWS metadata about the database.
 |assume_role_arn|An optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|string|
 |opensearch|Contains AWS OpenSearch specific metadata.|[Open Search](#open-search)|
 |iam_policy_status|Indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.|[IAMPolicy Status](#iampolicy-status)|
+|session_tags|A list of AWS STS session tags.|map[string]string|
  
 
 
@@ -1224,6 +1225,10 @@ external_id: "string"
 assume_role_arn: "string"
 opensearch: # [...]
 iam_policy_status: # [...]
+session_tags: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
 
 ```
 
