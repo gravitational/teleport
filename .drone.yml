@@ -1853,7 +1853,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - apk add --no-cache make aws-cli
+  - apk add --no-cache make aws-cli go
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -1876,7 +1876,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - apk add --no-cache make aws-cli
+  - apk add --no-cache make aws-cli go
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -1899,7 +1899,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - apk add --no-cache make aws-cli
+  - apk add --no-cache make aws-cli go
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -1922,7 +1922,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - apk add --no-cache make aws-cli
+  - apk add --no-cache make aws-cli go
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
@@ -12044,6 +12044,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 91cb6e78427c041c5e8a492e27c03a5214e3f6e23294a3d6e16b7cd80b658bc9
+hmac: 362bdca89f7ae5fe897f6984533ff4d26993da5ed8084bbd64f3cf4991d2189b
 
 ...
