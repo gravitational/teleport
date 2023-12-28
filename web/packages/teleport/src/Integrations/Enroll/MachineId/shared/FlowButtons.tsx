@@ -13,7 +13,8 @@ type FlowButtonsProps = {
   // onFinish is called when the user clicks the primary button
   // in the last step
   onFinish?: () => void;
-  disabled?: boolean;
+  disableNext?: boolean;
+  disableBack?: boolean;
 } & FlowStepProps;
 
 export function FlowButtons({
@@ -22,24 +23,25 @@ export function FlowButtons({
   isFirst = false,
   isLast = false,
   onFinish,
-  disabled = false,
+  disableNext = false,
+  disableBack = false,
 }: FlowButtonsProps) {
   const handleConfirm = isLast ? onFinish : nextStep;
   return (
     <>
-      <ButtonPrimary disabled={disabled} onClick={handleConfirm} mr="3">
+      <ButtonPrimary disabled={disableNext} onClick={handleConfirm} mr="3">
         {isLast ? 'Finish' : 'Next'}
       </ButtonPrimary>
       {isFirst ? (
         <ButtonSecondary
-          disabled={disabled}
+          disabled={disableBack}
           as={Link}
           to={cfg.getIntegrationEnrollRoute(null)}
         >
           Back
         </ButtonSecondary>
       ) : (
-        <ButtonSecondary disabled={disabled} onClick={prevStep}>
+        <ButtonSecondary disabled={disableBack} onClick={prevStep}>
           Back
         </ButtonSecondary>
       )}

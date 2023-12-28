@@ -10,6 +10,10 @@ import FieldInput from 'shared/components/FieldInput';
 
 import { requiredField } from 'shared/components/Validation/rules';
 
+import Alert from 'design/Alert';
+
+import useTeleport from 'teleport/useTeleport';
+
 import { FlowStepProps } from '../shared/GuidedFlow';
 import { FlowButtons } from '../shared/FlowButtons';
 
@@ -21,6 +25,12 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
   const [missingLabels, setMissingLabels] = useState(false);
 
   const { botConfig, setBotConfig } = useGitHubFlow();
+
+  const ctx = useTeleport();
+  const hasAccess =
+    ctx.storeUser.getRoleAccess().create &&
+    ctx.storeUser.getTokenAccess().create &&
+    ctx.storeUser.getBotsAccess().create;
 
   function handleNext(validator: Validator) {
     if (!validator.validate()) {
@@ -37,6 +47,14 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
 
   return (
     <Box>
+      {!hasAccess && (
+        <Alert kind="danger">
+          <Text>
+            Insufficient permissions. In order to create a bot, you need
+            permissions to create roles, bots and join tokens.
+          </Text>
+        </Alert>
+      )}
       <Text>
         GitHub Actions is a popular CI/CD platform that works as a part of the
         larger GitHub ecosystem. Teleport Machine ID allows GitHub Actions to
@@ -113,6 +131,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               isFirst={true}
               nextStep={() => handleNext(validator)}
               prevStep={prevStep}
+              disableNext={!hasAccess}
             />
           </>
         )}

@@ -218,7 +218,8 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               </ButtonSecondary>
             </Box>
             <FlowButtons
-              disabled={isLoading}
+              disableBack={isLoading}
+              disableNext={isLoading}
               nextStep={() => handleNext(validator)}
               prevStep={() => {
                 resetAttempt();

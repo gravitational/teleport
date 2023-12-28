@@ -176,10 +176,7 @@ function ExternalLinkTile({ integration }: { integration: Integration }) {
 function GuidedTile({ integration }: { integration: Integration }) {
   // TODO guided badge
   return (
-    <IntegrationTile
-      as={Link}
-      to={integration.link}
-    >
+    <IntegrationTile as={Link} to={integration.link}>
       <TileContent icon={integration.icon} title={integration.title} />
     </IntegrationTile>
   );
