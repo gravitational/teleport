@@ -1,5 +1,38 @@
 # Changelog
 
+## 12.4.32
+
+This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+### Security fixes
+
+* Teleport Proxy now restricts SFTP for normal users as described under Advisory
+  https://github.com/gravitational/teleport/security/advisories/GHSA-c9v7-wmwj-vf6x
+  [#36137](https://github.com/gravitational/teleport/pull/36137)
+* On macOS, Teleport filters the environment to prevent code execution via
+  `DYLD_` variables. Documented under
+  https://github.com/gravitational/teleport/security/advisories/GHSA-vfxf-76hv-v4w4
+  [#36133](https://github.com/gravitational/teleport/pull/36133)
+* Fixed an issue that would allow for SSRF via Teleport's reverse tunnel
+  subsystem. Documented under the advisory
+  https://github.com/gravitational/teleport/security/advisories/GHSA-hw4x-mcx5-9q36
+  [#36129](https://github.com/gravitational/teleport/pull/36129)
+
+### Other Fixes & Improvements
+
+* Fixed an issue that would prevent websocket upgrades from completing [#36090](https://github.com/gravitational/teleport/pull/36090)
+* Added support for the IAM join method in ca-west-1 [#36051](https://github.com/gravitational/teleport/pull/36051)
+* Update `jose2go` to version 1.5.1-0.20231206184617-48ba0b76bc88 [#35984](https://github.com/gravitational/teleport/pull/35984)
+* Changed the minimal supported macOS version of Teleport Connect to 10.15 (Catalina) [#35889](https://github.com/gravitational/teleport/pull/35889)
+* Bump golang.org/x/crypto to v0.17.0, which addresses the Terrapin vulnerability (CVE-2023-48795) [#35877](https://github.com/gravitational/teleport/pull/35877)
+* Include the lock expiration time in `lock.create` audit events [#35876](https://github.com/gravitational/teleport/pull/35876)
+* Include the lock expiration time in `lock.create` audit events [#35864](https://github.com/gravitational/teleport/pull/35864)
+* Prevent users from deleting their last passwordless device [#35857](https://github.com/gravitational/teleport/pull/35857)
+* Ensure expiration of Webauthn sessions [#35790](https://github.com/gravitational/teleport/pull/35790)
+* Fixed session upload audit events sometimes containing an incorrect URL for the session recording [#35779](https://github.com/gravitational/teleport/pull/35779)
+* Return the correct errors to users when an MFA ceremony fails [#35752](https://github.com/gravitational/teleport/pull/35752)
+* Prevent attempts to join a nonexistent SSH session from hanging forever [#35745](https://github.com/gravitational/teleport/pull/35745)
+
 ## 12.4.30 (12/14/23)
 
 * Prevent Cloud tenants from being a leaf cluster. [#35689](https://github.com/gravitational/teleport/pull/35689)
@@ -23,8 +56,8 @@
 
 #### [Medium] Arbitrary code execution with `LD_PRELOAD` and `SFTP`
 
-Teleport implements SFTP using a subcommand. Prior to this release it was 
-possible to inject environment variables into the execution of this 
+Teleport implements SFTP using a subcommand. Prior to this release it was
+possible to inject environment variables into the execution of this
 subcommand, via shell init scripts or via the SSH environment request.
 
 This is addressed by preventing `LD_PRELOAD` and other dangerous environment
@@ -48,7 +81,7 @@ own proxy headers.
 * Updated go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc dependency
   * otelgrpc DoS vulnerability due to unbound cardinality metrics: [CVE-2023-47108](https://github.com/advisories/GHSA-8pgv-569h-w5rw)
 
-### Other Fixes & Improvements 
+### Other Fixes & Improvements
 
 * Increased the maximum width of the console tabs in the web UI. [#34649](https://github.com/gravitational/teleport/pull/34649)
 * Prevented `.tsh/environment` values from overriding prior set values. [#34624](https://github.com/gravitational/teleport/pull/34624)
@@ -124,7 +157,7 @@ this vulnerability.
 
 ### Other Fixes
 
-* Improved error messaging in `tsh kube credentials` when root cluster roles don't allow Kube access [#33227](https://github.com/gravitational/teleport/pull/33227) 
+* Improved error messaging in `tsh kube credentials` when root cluster roles don't allow Kube access [#33227](https://github.com/gravitational/teleport/pull/33227)
 * Fixed self-signed certificate issue on macOS [#33158](https://github.com/gravitational/teleport/pull/33158)
 * Allow "auth unreachable" error message to be configurable [#33039](https://github.com/gravitational/teleport/pull/33039)
 * Fixed user session tracking across trusted clusters [#33019](https://github.com/gravitational/teleport/pull/33019)
@@ -133,7 +166,7 @@ this vulnerability.
 * Fixed spurious timeouts in Database Access Sessions [#32726](https://github.com/gravitational/teleport/pull/32726)
 * Fixed a corner case of privilege tokens where MFA devices disabled by cluster settings were still counted against the user [#32669](https://github.com/gravitational/teleport/pull/32669)
 * Fixed multiple discovery install attempts on Azure & GCP VMs [#32571](https://github.com/gravitational/teleport/pull/32571)
- 
+
 ## 12.4.20 (09/25/23)
 
 * Added support for AWS EC2 IMDSv2 on installer script and when gathering inventory metadata [#32446](https://github.com/gravitational/teleport/pull/32446)
