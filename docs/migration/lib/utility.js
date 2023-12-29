@@ -43,9 +43,9 @@ function toPascalCase(string) {
     .replace(new RegExp(/\w/), s => s.toUpperCase());
 }
 
-function expectsToBeTest(name, value, expectation) {
+function expectsToBe(name, value, expectation) {
   if (value !== expectation) {
-    throw new Error(`❌ ${name} failed. Expecting ${expectation} but instead got ${value}`)
+    throw new Error(`❌ ${name} failed. Expecting:\n${expectation} but instead got:\n${value}`)
   }
 
   console.log(`✅ ${name} test passed`)
@@ -56,5 +56,5 @@ module.exports = {
   writeFile,
   findFrontmatterEndIndex,
   toPascalCase,
-  expectsToBeTest
+  expectsToBe
 };

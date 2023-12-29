@@ -17,10 +17,80 @@ function migrateTabs(page) {
     .replace(/<\/TabItem>/g, '</Tab>');
 }
 
+function migrateTipAdmonitions(page) {
+  return page.replace(
+    /<Admonition\s+type="tip"[^>]*?>([\s\S]*?)<\/Admonition>/g,
+    '<Tip>$1</Tip>'
+  )
+}
+
+function migrateNoteAdmonitions(page) {
+  return page.replace(
+    /<Admonition\s+type="note"[^>]*?>([\s\S]*?)<\/Admonition>/g,
+    '<Note>$1</Note>'
+  )
+}
+
+function migrateWarningAdmonitions(page) {
+  return page.replace(
+    /<Admonition\s+type="warning"[^>]*?>([\s\S]*?)<\/Admonition>/g,
+    '<Warning>$1</Warning>'
+  )
+}
+
+function migrateTipNotices(page) {
+  return page.replace(
+    /<Notice\s+type="tip"[^>]*?>([\s\S]*?)<\/Notice>/g,
+    '<Tip>$1</Tip>'
+  )
+}
+
+function migrateWarningNotices(page) {
+  return page.replace(
+    /<Notice\s+type="warning"[^>]*?>([\s\S]*?)<\/Notice>/g,
+    '<Warning>$1</Warning>'
+  )
+}
+
+function migrateDetails(page) {
+  return page
+    .replace(/<Details([^>]+)>/g, '<Accordion$1>')
+    .replace(/<\/Details>/g, '</Accordion>')
+}
+
+function migrateLinks(page) {
+  return page.replace(/\(.\//, '(').replace(/\.mdx\)/g, ')');
+}
+
+function migrateVariables(page) {
+  const matches = page.matchAll(variablesRegex);
+  
+  const variablesMap = {};
+  for (const match of matches) {
+    const variable = match[1];
+    const variableParent = variable.substr(0, variable.indexOf('.'));
+    variablesMap[variableParent] = true;
+  }
+
+  const uniqueVariables = Object.keys(variablesMap);
+
+  if (uniqueVariables.length === 0) {
+    return page;
+  }
+
+  let newPage = page;
+
+  const importStatement = `import { ${uniqueVariables.join(', ')} } from "/snippets/variables.mdx";\n\n`
+  const frontmatterEndIndex = findFrontmatterEndIndex(page);
+  newPage = page.slice(0, frontmatterEndIndex) + importStatement + page.slice(frontmatterEndIndex)
+
+  return newPage.replace(variablesRegex, '{$1}');
+}
+
 // TODO: Add moving all includes folders into snippets
 // TODO: Consider for cases where snippets and variables are inside code blocks or other MDX syntax
 // TODO: Add setup for properties
-function migrateReusableSnippets(page) {
+function migrateSnippets(page) {
   const matches = page.matchAll(snippetsRegex);
   
   const snippetsMap = {};
@@ -46,66 +116,18 @@ function migrateReusableSnippets(page) {
   });
 }
 
-function migrateReusableVariables(page) {
-  const matches = page.matchAll(variablesRegex);
-  
-  const variablesMap = {};
-  for (const match of matches) {
-    const variable = match[1];
-    const variableParent = variable.substr(0, variable.indexOf('.'));
-    variablesMap[variableParent] = true;
-  }
-
-  const uniqueVariables = Object.keys(variablesMap);
-
-  if (uniqueVariables.length === 0) {
-    return page;
-  }
-
-  let newPage = page;
-
-  const importStatement = `import { ${uniqueVariables.join(', ')} } from '/snippets/variables.mdx'\n\n`
-  const frontmatterEndIndex = findFrontmatterEndIndex(page);
-  newPage = page.slice(0, frontmatterEndIndex) + importStatement + page.slice(frontmatterEndIndex)
-
-  return newPage.replace(variablesRegex, '{$1}');
-}
-
 const migrationFunctions = {
-  figures: migrateFigures,
-  tab: migrateTabs,
-  tipAdmonition: (page) =>
-    page.replace(
-      /<Admonition\s+type="tip"[^>]*>([\s\S]*?)<\/Admonition>/g,
-      '<Tip>$1</Tip>'
-    ),
-  noteAdmonition: (page) =>
-    page.replace(
-      /<Admonition\s+type="note"[^>]*>([\s\S]*?)<\/Admonition>/g,
-      '<Note>$1</Note>'
-    ),
-  warningAdmonition: (page) =>
-    page.replace(
-      /<Admonition\s+type="warning"[^>]*>([\s\S]*?)<\/Admonition>/g,
-      '<Warning>$1</Warning>'
-    ),
-  tipNotice: (page) =>
-    page.replace(
-      /<Notice\s+type="tip"[^>]*>([\s\S]*?)<\/Notice>/g,
-      '<Tip>$1</Tip>'
-    ),
-  warningNotice: (page) =>
-    page.replace(
-      /<Notice\s+type="warning"[^>]*>([\s\S]*?)<\/Notice>/g,
-      '<Warning>$1</Warning>'
-    ),
-  detail: (page) =>
-    page
-      .replace(/<Details([^>]+)>/g, '<Accordion$1>')
-      .replace(/<\/Details>/g, '</Accordion>'),
-  relativeLink: (page) => page.replace(/\(.\//, '(').replace(/\.mdx\)/g, ')'),
-  variable: migrateReusableVariables,
-  snippet: migrateReusableSnippets,
+  migrateFigures,
+  migrateTabs,
+  migrateTipAdmonitions,
+  migrateNoteAdmonitions,
+  migrateWarningAdmonitions,
+  migrateTipNotices,
+  migrateWarningNotices,
+  migrateDetails,
+  migrateLinks,
+  migrateVariables,
+  migrateSnippets,
 };
 
 function migratePages() {
@@ -127,8 +149,4 @@ function migratePages() {
   }
 }
 
-module.exports = {
-  migratePages,
-  migrateFigures,
-  migrateTabs
-};
+module.exports = { ...migrationFunctions, migratePages };
