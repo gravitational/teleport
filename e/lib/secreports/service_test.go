@@ -327,6 +327,13 @@ var (
 )
 
 func TestScheduleReportUpdate(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling:        true,
+			IdentityGovernanceSecurity: true,
+		},
+	})
+
 	s := newSuite(t)
 	ctx := context.Background()
 
@@ -385,6 +392,46 @@ func TestScheduleReportUpdate(t *testing.T) {
 	})
 }
 
+func TestGetReportExecutionDaysRange(t *testing.T) {
+	tests := []struct {
+		name     string
+		features modules.Features
+		days     int
+		want     []int32
+	}{
+		{
+			name: "limited range",
+			features: modules.Features{
+				IsUsageBasedBilling: true,
+				AccessMonitoring: modules.AccessMonitoringFeature{
+					MaxReportRangeLimit: 30,
+				},
+			},
+			want: []int32{7, 30},
+		},
+		{
+			name: "IGS flag enabled limit should be ignored",
+			features: modules.Features{
+				IsUsageBasedBilling:        true,
+				IdentityGovernanceSecurity: true,
+				AccessMonitoring: modules.AccessMonitoringFeature{
+					MaxReportRangeLimit: 30,
+				},
+			},
+			want: []int32{7, 30, 90, 120},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{TestFeatures: tc.features})
+			got := getReportExecutionDaysRange()
+			require.Equal(t, tc.want, got)
+
+		})
+	}
+}
+
 type suite struct {
 	svc               Service
 	sched             *scheduler.Scheduler
@@ -410,6 +457,7 @@ func (s *suite) mustGetDetails(t *testing.T) *limiter.Details {
 }
 
 func newSuite(t *testing.T) *suite {
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 

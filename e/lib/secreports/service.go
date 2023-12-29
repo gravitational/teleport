@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/store"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -236,13 +237,31 @@ func (s *Service) initPrebuiltReports(ctx context.Context) error {
 // Right now we support only 7, 30, 90, 120 days range.
 var reportValidDaysRange = []int32{7, 30, 90, 120}
 
+// getReportExecutionDaysRange returns a valid days range for the report time rage.
+// If access monitoring is enabled, the function returns a range up to max report range
+// where unsupported days are filtered out.
+func getReportExecutionDaysRange() []int32 {
+	f := modules.GetModules().Features()
+	if f.IGSEnabled() {
+		return reportValidDaysRange
+	}
+	var out []int32
+	for _, v := range reportValidDaysRange {
+		if v > int32(f.AccessMonitoring.MaxReportRangeLimit) {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
 func (s *Service) maybeUpdateSecurityReports(ctx context.Context, threshold time.Duration) error {
 	reports, err := s.storage.GetSecurityReports(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, report := range reports {
-		for _, days := range reportValidDaysRange {
+		for _, days := range getReportExecutionDaysRange() {
 			if err := s.runReport(ctx, report, days, withReportReadyRerunThreshold(threshold)); err != nil {
 				s.log.WithError(err).Errorf("Failed to run report [name: %v, days: %v]", report.GetName(), days)
 			}
