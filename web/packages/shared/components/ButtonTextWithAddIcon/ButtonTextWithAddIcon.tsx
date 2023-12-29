@@ -22,18 +22,18 @@ import { Add as AddIcon } from 'design/Icon';
 
 export const ButtonTextWithAddIcon = ({
   label,
-  addItem,
+  onClick,
   disabled,
   iconSize = 12,
 }: {
   label: string;
-  addItem: () => void;
+  onClick: () => void;
   disabled: boolean;
   iconSize?:  number | "small" | "medium" | "large" | "extraLarge";
 }) => {
   return (
     <ButtonText
-      onClick={addItem}
+      onClick={onClick}
       css={`
         padding-left: 0px;
         &:disabled {
