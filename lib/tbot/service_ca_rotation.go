@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // debouncer accepts a duration, and a function. When `attempt` is called on
@@ -130,7 +131,9 @@ type caRotationService struct {
 	mu                sync.Mutex
 	chanSet           map[chan struct{}]struct{}
 	reloadBroadcaster *channelBroadcaster
-	bot               *Bot
+
+	cfg *config.BotConfig
+	identitySrc
 }
 
 func (s *caRotationService) String() string {
@@ -187,8 +190,8 @@ func (s *caRotationService) Run(ctx context.Context) error {
 func (s *caRotationService) watchCARotations(ctx context.Context, queueReload func()) error {
 	s.log.Debugf("Attempting to establish watch for CA events")
 
-	ident := s.bot.ident()
-	client, err := s.bot.AuthenticatedUserClientFromIdentity(ctx, ident)
+	ident := s.identitySrc.ident()
+	client, err := clientForIdentity(ctx, s.log, s.cfg, ident)
 	if err != nil {
 		return trace.Wrap(err, "creating client for ca watcher")
 	}

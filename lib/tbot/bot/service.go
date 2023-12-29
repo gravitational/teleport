@@ -20,12 +20,25 @@ package bot
 
 import "context"
 
+// Service is a long-running sub-component of tbot.
 type Service interface {
+	// String returns a human-readable name for the service that can be used
+	// in logging. It should identify the type of the service and any top
+	// level configuration that could distinguish it from a same-type service.
 	String() string
+	// Run starts the service and blocks until the service exits. It should
+	// return a nil error if the service exits successfully and an error
+	// if it is unable to proceed. It should exit gracefully if the context
+	// is canceled.
 	Run(ctx context.Context) error
 }
 
+// OneShotService is a [Service] that offers a mode in which it runs a single
+// time and then exits. This aligns with the `--oneshot` mode of tbot.
 type OneShotService interface {
 	Service
+	// OneShot runs the service once and then exits. It should return a nil
+	// error if the service exits successfully and an error if it is unable
+	// to proceed. It should exit gracefully if the context is canceled.
 	OneShot(ctx context.Context) error
 }

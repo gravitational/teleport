@@ -56,8 +56,9 @@ const renewalRetryLimit = 5
 // common API calls that output generation will complete.
 type outputsService struct {
 	log               logrus.FieldLogger
-	b                 *Bot
 	reloadBroadcaster *channelBroadcaster
+	identitySrc       identitySrc
+	cfg               *config.BotConfig
 }
 
 func (s *outputsService) String() string {
@@ -81,8 +82,8 @@ func (s *outputsService) renewOutputs(
 	ctx, span := tracer.Start(ctx, "Bot/renewOutputs")
 	defer span.End()
 
-	botIdentity := s.b.ident()
-	client, err := s.b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
+	botIdentity := s.identitySrc.ident()
+	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -92,7 +93,7 @@ func (s *outputsService) renewOutputs(
 	// server with similar requests
 	drc := &outputRenewalCache{
 		client: client,
-		cfg:    s.b.cfg,
+		cfg:    s.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
@@ -106,7 +107,7 @@ func (s *outputsService) renewOutputs(
 	}
 
 	// Next, generate impersonated certs
-	for _, output := range s.b.cfg.Outputs {
+	for _, output := range s.cfg.Outputs {
 		s.log.WithFields(logrus.Fields{
 			"output": output,
 		}).Info("Generating output.")
@@ -127,7 +128,7 @@ func (s *outputsService) renewOutputs(
 			return trace.Wrap(err, "testing output destination: %s", output)
 		}
 
-		impersonatedIdentity, impersonatedClient, err := s.b.generateImpersonatedIdentity(
+		impersonatedIdentity, impersonatedClient, err := s.generateImpersonatedIdentity(
 			ctx, client, botIdentity, output, defaultRoles,
 		)
 		if err != nil {
@@ -135,7 +136,7 @@ func (s *outputsService) renewOutputs(
 		}
 		defer impersonatedClient.Close()
 
-		s.b.log.WithFields(logrus.Fields{
+		s.log.WithFields(logrus.Fields{
 			"identity": describeTLSIdentity(s.log, impersonatedIdentity),
 			"output":   output,
 		}).Debug("Fetched identity for output.")
@@ -169,11 +170,11 @@ func (s *outputsService) Run(ctx context.Context) error {
 
 	s.log.Infof(
 		"Beginning output renewal loop: ttl=%s interval=%s",
-		s.b.cfg.CertificateTTL,
-		s.b.cfg.RenewalInterval,
+		s.cfg.CertificateTTL,
+		s.cfg.RenewalInterval,
 	)
 
-	ticker := time.NewTicker(s.b.cfg.RenewalInterval)
+	ticker := time.NewTicker(s.cfg.RenewalInterval)
 	jitter := retryutils.NewJitter()
 	defer ticker.Stop()
 	for {
@@ -547,7 +548,7 @@ func (b *Bot) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = b.AuthenticatedUserClientFromIdentity(ctx, impersonatedIdentity)
+	impersonatedClient, err = clientForIdentity(ctx, b.log, b.cfg, impersonatedIdentity)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
