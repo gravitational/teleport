@@ -17,11 +17,12 @@
  */
 
 import React from 'react';
-import { Box, Flex, ButtonIcon, ButtonText, Text } from 'design';
+import { Box, Flex, ButtonIcon, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
@@ -174,30 +175,15 @@ export function LabelsCreater({
           );
         })}
       </Box>
-      <ButtonText
-        onClick={addLabel}
+      <ButtonTextWithAddIcon
         css={`
-          padding-left: 0px;
-          &:disabled {
-            .icon-add {
-              opacity: 0.35;
-            }
-            pointer-events: none;
-          }
+          margin-top: -2px;
         `}
+        label="Add New Label"
+        onClick={addLabel}
         disabled={disableBtns}
-      >
-        <Icons.Add
-          className="icon-add"
-          disabled={disableBtns}
-          size="small"
-          css={`
-            margin-top: -2px;
-            margin-right: 3px;
-          `}
-        />
-        Add New Label
-      </ButtonText>
+        iconSize="small"
+      />
     </>
   );
 }
