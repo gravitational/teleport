@@ -234,6 +234,17 @@ func (r *Reporter) run(ctx context.Context) {
 			}
 			userActivity[userName] = record
 		}
+
+		// If the requested kind changes somehow, update it and log a warning.
+		// This should never happen in practice.)
+		if record.UserKind != v1UserKind {
+			r.log.WithFields(logrus.Fields{
+				"from": record.UserKind,
+				"to":   v1UserKind,
+			}).Warn("Record user_kind has changed unexpectedly")
+			record.UserKind = v1UserKind
+		}
+
 		return record
 	}
 
