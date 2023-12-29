@@ -1,5 +1,46 @@
 # Changelog
 
+## 13.4.14
+
+This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+### Security fixes
+
+* Teleport Proxy now restricts SFTP for normal users as described under Advisory
+  https://github.com/gravitational/teleport/security/advisories/GHSA-c9v7-wmwj-vf6x
+  [#36138](https://github.com/gravitational/teleport/pull/36138)
+* On macOS, Teleport filters the environment to prevent code execution via
+  `DYLD_` variables. Documented under
+  https://github.com/gravitational/teleport/security/advisories/GHSA-vfxf-76hv-v4w4
+  [#36134](https://github.com/gravitational/teleport/pull/36134)
+* Fixed an issue that would allow for SSRF via Teleport's reverse tunnel
+  subsystem. Documented under the advisory
+  https://github.com/gravitational/teleport/security/advisories/GHSA-hw4x-mcx5-9q36
+  [#36130](https://github.com/gravitational/teleport/pull/36130)
+* A fix was applied to Access Lists to prevent possible privilege escalation of
+  list owners. Documented under
+  https://github.com/gravitational/teleport/security/advisories/GHSA-76cc-p55w-63g3
+
+### Other Fixes & Improvements
+
+* Fixed an issue that would prevent websocket upgrades from completing [#36089](https://github.com/gravitational/teleport/pull/36089)
+* Added support for the IAM join method in ca-west-1 [#36050](https://github.com/gravitational/teleport/pull/36050)
+* Improved the formatting of access list notifications in tsh [#36045](https://github.com/gravitational/teleport/pull/36045)
+* Update `jose2go` to version 1.5.1-0.20231206184617-48ba0b76bc88 [#35985](https://github.com/gravitational/teleport/pull/35985)
+* Fix data race in `HeartbeatV2` around `.Spec.CloudMetadata` (#35912) [#35924](https://github.com/gravitational/teleport/pull/35924)
+* Changed the minimal supported macOS version of Teleport Connect to 10.15 (Catalina) [#35888](https://github.com/gravitational/teleport/pull/35888)
+* Improved teleport agent performance when handling a large number of TCP forwarding requests [#35886](https://github.com/gravitational/teleport/pull/35886)
+* Bump golang.org/x/crypto to v0.17.0, which addresses the Terrapin vulnerability (CVE-2023-48795) [#35878](https://github.com/gravitational/teleport/pull/35878)
+* Include the lock expiration time in `lock.create` audit events [#35875](https://github.com/gravitational/teleport/pull/35875)
+* Fixed PIV not being available on Windows tsh binaries [#35865](https://github.com/gravitational/teleport/pull/35865)
+* Re-add PIV to amd64 centos7 release builds [#35853](https://github.com/gravitational/teleport/pull/35853)
+* Stop users from deleting their last passwordless device [#35856](https://github.com/gravitational/teleport/pull/35856)
+* The `teleport-kube-agent` chart now supports passing extra arguments to the updater [#35832](https://github.com/gravitational/teleport/pull/35832)
+* Ensure expiration of Webauthn sessions [#35789](https://github.com/gravitational/teleport/pull/35789)
+* Fixed session upload audit events sometimes containing an incorrect URL for the session recording [#35778](https://github.com/gravitational/teleport/pull/35778)
+* Return the correct errors to users when an MFA ceremony fails [#35751](https://github.com/gravitational/teleport/pull/35751)
+* Prevent attempts to join a nonexistent SSH session from hanging forever [#35744](https://github.com/gravitational/teleport/pull/35744)
+
 ## 13.4.11 (12/13/23)
 
 * Prevent Cloud tenants from being a leaf cluster. [#35688](https://github.com/gravitational/teleport/pull/35688)
@@ -55,8 +96,8 @@
 
 #### [Medium] Arbitrary code execution with `LD_PRELOAD` and `SFTP`
 
-Teleport implements SFTP using a subcommand. Prior to this release it was 
-possible to inject environment variables into the execution of this 
+Teleport implements SFTP using a subcommand. Prior to this release it was
+possible to inject environment variables into the execution of this
 subcommand, via shell init scripts or via the SSH environment request.
 
 This is addressed by preventing `LD_PRELOAD` and other dangerous environment
