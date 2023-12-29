@@ -110,7 +110,7 @@ func (cb *channelBroadcaster) broadcast() {
 
 const caRotationRetryBackoff = time.Second * 2
 
-// caRotationWatcherService watches for CA rotations in the cluster, and
+// caRotationService watches for CA rotations in the cluster, and
 // triggers a renewal when it detects a relevant CA rotation.
 //
 // See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
@@ -125,7 +125,7 @@ const caRotationRetryBackoff = time.Second * 2
 //   - Update Clients, Update Servers -> Rollback: So we can receive a set of
 //     certificates issued by the old CA, and stop trusting the new CA.
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
-type caRotationWatcherService struct {
+type caRotationService struct {
 	log               logrus.FieldLogger
 	mu                sync.Mutex
 	chanSet           map[chan struct{}]struct{}
@@ -133,7 +133,7 @@ type caRotationWatcherService struct {
 	bot               *Bot
 }
 
-func (s *caRotationWatcherService) String() string {
+func (s *caRotationService) String() string {
 	return "ca-rotation-watcher"
 }
 
@@ -142,7 +142,7 @@ func (s *caRotationWatcherService) String() string {
 //
 // Run also manages debouncing the renewals across multiple watch
 // attempts.
-func (s *caRotationWatcherService) Run(ctx context.Context) error {
+func (s *caRotationService) Run(ctx context.Context) error {
 	rd := debouncer{
 		f:              s.reloadBroadcaster.broadcast,
 		debouncePeriod: time.Second * 10,
@@ -184,7 +184,7 @@ func (s *caRotationWatcherService) Run(ctx context.Context) error {
 // watchCARotations establishes a watcher for CA rotations in the cluster, and
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
-func (s *caRotationWatcherService) watchCARotations(ctx context.Context, queueReload func()) error {
+func (s *caRotationService) watchCARotations(ctx context.Context, queueReload func()) error {
 	s.log.Debugf("Attempting to establish watch for CA events")
 
 	ident := s.bot.ident()

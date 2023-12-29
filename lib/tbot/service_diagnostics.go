@@ -41,9 +41,6 @@ func (s *diagnosticsService) String() string {
 }
 
 func (s *diagnosticsService) Run(ctx context.Context) error {
-	if s.diagAddr == "" {
-		return nil
-	}
 	s.log.WithField("addr", s.diagAddr).Info(
 		"diagnostics service will be starting",
 	)

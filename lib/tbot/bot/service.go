@@ -25,7 +25,7 @@ type Service interface {
 	Run(ctx context.Context) error
 }
 
-type OneshotService interface {
+type OneShotService interface {
 	Service
 	OneShot(ctx context.Context) error
 }

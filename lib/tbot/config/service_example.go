@@ -39,7 +39,6 @@ func (s *ExampleService) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(time.Second * 5):
-		default:
 			fmt.Println("Example Service prints message:", s.Message)
 		}
 	}
