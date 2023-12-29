@@ -712,7 +712,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-tsh test-go-chaos
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-tsh test-go-chaos test-go-unit-tooling
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
