@@ -899,6 +899,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Implements the agent version server.
 	// Channel can contain "/", hence the use of a catch-all parameter
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
+
+	// Create Machine ID bots
+	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 }
 
 // GetProxyClient returns authenticated auth server client
