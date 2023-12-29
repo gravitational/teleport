@@ -29,6 +29,9 @@ import (
 
 const ExampleServiceType = "example"
 
+// ExampleService is a temporary example service for testing purposes. It is
+// not intended to be used and exists to demonstrate how a user configurable
+// service integrates with the tbot service manager.
 type ExampleService struct {
 	Message string `yaml:"message"`
 }
