@@ -17,43 +17,30 @@
  */
 
 import React from 'react';
-import { ButtonText } from 'design';
-import { Add as AddIcon } from 'design/Icon';
 
-export const ButtonTextWithAddIcon = ({
-  label,
-  onClick,
-  disabled,
-  iconSize = 12,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  iconSize?:  number | "small" | "medium" | "large" | "extraLarge";
-}) => {
-  return (
-    <ButtonText
-      onClick={onClick}
-      css={`
-        padding-left: 0px;
-        &:disabled {
-          .icon-add {
-            opacity: 0.35;
-          }
-          pointer-events: none;
-        }
-      `}
-      disabled={disabled}
-    >
-      <AddIcon
-        className="icon-add"
-        size={iconSize}
-        css={`
-          margin-right: 3px;
-        `}
-        disabled={disabled}
-      />
-      {label}
-    </ButtonText>
+import { render, fireEvent, screen } from 'design/utils/testing';
+
+import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
+
+test('buttonTextWithAddIcon', () => {
+  const onClick = jest.fn();
+  const label = 'Add Item';
+
+  const { rerender } = render(
+    <ButtonTextWithAddIcon label={label} onClick={() => onClick('click')} />
   );
-};
+
+  expect(screen.getByText('Add Item')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Add Item'));
+
+  expect(onClick).toHaveBeenCalledWith('click');
+
+  rerender(
+    <ButtonTextWithAddIcon
+      label={label}
+      onClick={() => onClick('click')}
+      disabled={true}
+    />
+  );
+  expect(screen.getByText('Add Item')).toBeDisabled();
+});
