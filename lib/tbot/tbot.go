@@ -22,22 +22,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"net/http"
-	"net/http/pprof"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -130,34 +126,14 @@ func (b *Bot) Run(ctx context.Context) error {
 		return nil
 	}
 
-	// Warn about weird non-oneshot configuration.
-	if b.cfg.RenewalInterval > b.cfg.CertificateTTL {
-		b.log.Errorf(
-			"Certificate TTL (%s) is shorter than the renewal interval (%s). This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval.",
-			b.cfg.CertificateTTL,
-			b.cfg.RenewalInterval,
-		)
-	}
-
-	reloadBroadcast := channelBroadcaster{
-		chanSet: map[chan struct{}]struct{}{},
-	}
-
 	// If in daemon mode, we spin up all of our separate concurrent components.
 	eg, egCtx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		return trace.Wrap(b.caRotationLoop(egCtx, reloadBroadcast.broadcast))
-	})
-	eg.Go(func() error {
-		reloadCh, unsubscribe := reloadBroadcast.subscribe()
-		defer unsubscribe()
-		return trace.Wrap(b.renewBotIdentityLoop(egCtx, reloadCh))
-	})
-	eg.Go(func() error {
-		reloadCh, unsubscribe := reloadBroadcast.subscribe()
-		defer unsubscribe()
-		return trace.Wrap(b.renewOutputsLoop(egCtx, reloadCh))
-	})
+
+	reloadBroadcaster := &channelBroadcaster{
+		chanSet: map[chan struct{}]struct{}{},
+	}
+	// Trigger reloads from an configured reload channel. This allows os signals
+	// to be handled.
 	if b.cfg.ReloadCh != nil {
 		eg.Go(func() error {
 			for {
@@ -165,49 +141,52 @@ func (b *Bot) Run(ctx context.Context) error {
 				case <-egCtx.Done():
 					return nil
 				case <-b.cfg.ReloadCh:
-					reloadBroadcast.broadcast()
+					reloadBroadcaster.broadcast()
 				}
 			}
 		})
 	}
 
-	if b.cfg.DiagAddr != "" {
+	eg.Go(func() error {
+		reloadCh, unsubscribe := reloadBroadcaster.subscribe()
+		defer unsubscribe()
+		return trace.Wrap(b.renewOutputsLoop(egCtx, reloadCh))
+	})
+
+	identitySvc := &identityService{
+		b:                 b,
+		reloadBroadcaster: reloadBroadcaster,
+		log: b.log.WithField(
+			trace.Component, teleport.Component("tbot", "identity"),
+		),
+	}
+	diagnosticsSvc := &diagnosticsService{
+		diagAddr:     b.cfg.DiagAddr,
+		pprofEnabled: b.cfg.Debug,
+		log: b.log.WithField(
+			trace.Component, teleport.Component("tbot", "diagnostics"),
+		),
+	}
+	caWatcherSvc := &caRotationWatcherService{
+		log: b.log.WithField(
+			trace.Component, teleport.Component("tbot", "ca-rotation-watcher"),
+		),
+		reloadBroadcaster: reloadBroadcaster,
+		bot:               b,
+	}
+
+	services := append([]bot.Service{
+		diagnosticsSvc,
+		identitySvc,
+		caWatcherSvc,
+	}, b.cfg.Services...)
+	for _, svc := range services {
+		b.log.WithField("service", svc.String()).Info("Starting service")
 		eg.Go(func() error {
-			b.log.WithField("addr", b.cfg.DiagAddr).Info(
-				"diag_addr configured, diagnostics service will be started.",
-			)
-			mux := http.NewServeMux()
-			mux.Handle("/metrics", promhttp.Handler())
-			// Only expose pprof when `-d` is provided.
-			if b.cfg.Debug {
-				b.log.Info("debug mode enabled, profiling endpoints will be served on the diagnostics service.")
-				mux.HandleFunc("/debug/pprof/", pprof.Index)
-				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-				mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-				mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-			}
-			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusNotFound)
-				msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about."
-				_, _ = w.Write([]byte(msg))
-			}))
-			srv := http.Server{
-				Addr:              b.cfg.DiagAddr,
-				Handler:           mux,
-				ReadTimeout:       apidefaults.DefaultIOTimeout,
-				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-				WriteTimeout:      apidefaults.DefaultIOTimeout,
-				IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			}
-			go func() {
-				<-egCtx.Done()
-				if err := srv.Close(); err != nil {
-					b.log.WithError(err).Warn("Failed to close HTTP server.")
-				}
-			}()
-			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-				return err
+			err := svc.Run(egCtx)
+			if err != nil {
+				b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
+				return trace.Wrap(err, "running service %q", svc.String())
 			}
 			return nil
 		})

@@ -33,19 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-// See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
-// for server side details of how a CA rotation takes place.
-//
-// We can leverage the existing renewal system to fetch new certificates and
-// CAs.
-//
-// We need to force a renewal for the following transitions:
-// - Init -> Update Clients: So we can receive a set of certificates issued by
-//   the new CA, and trust both the old and new CA.
-// - Update Clients, Update Servers -> Rollback: So we can receive a set of
-//   certificates issued by the old CA, and stop trusting the new CA.
-// - Update Servers -> Standby: So we can stop trusting the old CA.
-
 // debouncer accepts a duration, and a function. When `attempt` is called on
 // debouncer, it waits the duration, ignoring further attempts during this
 // period, before calling the provided function.
@@ -121,20 +108,47 @@ func (cb *channelBroadcaster) broadcast() {
 
 const caRotationRetryBackoff = time.Second * 2
 
-// caRotationLoop continually triggers `watchCARotations` until the context is
+// caRotationWatcherService watches for CA rotations in the cluster, and
+// triggers a renewal when it detects a relevant CA rotation.
+//
+// See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
+// for server side details of how a CA rotation takes place.
+//
+// We can leverage the existing renewal system to fetch new certificates and
+// CAs.
+//
+// We need to force a renewal for the following transitions:
+//   - Init -> Update Clients: So we can receive a set of certificates issued by
+//     the new CA, and trust both the old and new CA.
+//   - Update Clients, Update Servers -> Rollback: So we can receive a set of
+//     certificates issued by the old CA, and stop trusting the new CA.
+//   - Update Servers -> Standby: So we can stop trusting the old CA.
+type caRotationWatcherService struct {
+	log               logrus.FieldLogger
+	mu                sync.Mutex
+	chanSet           map[chan struct{}]struct{}
+	reloadBroadcaster *channelBroadcaster
+	bot               *Bot
+}
+
+func (s *caRotationWatcherService) String() string {
+	return "ca-rotation-watcher"
+}
+
+// Run continually triggers `watchCARotations` until the context is
 // canceled. This allows the watcher to be re-established if an error occurs.
 //
-// caRotationLoop also manages debouncing the renewals across multiple watch
+// Run also manages debouncing the renewals across multiple watch
 // attempts.
-func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
+func (s *caRotationWatcherService) Run(ctx context.Context) error {
 	rd := debouncer{
-		f:              reload,
+		f:              s.reloadBroadcaster.broadcast,
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.NewJitter()
 
 	for {
-		err := b.watchCARotations(ctx, rd.attempt)
+		err := s.watchCARotations(ctx, rd.attempt)
 		if ctx.Err() != nil {
 			return nil
 		}
@@ -151,14 +165,14 @@ func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
 		}
 		isCancelledErr := errors.As(err, &statusErr) && statusErr.GRPCStatus().Code() == codes.Canceled
 		if isCancelledErr {
-			b.log.Debugf("CA watcher detected client closing. Re-watching in %s.", backoffPeriod)
+			s.log.Debugf("CA watcher detected client closing. Re-watching in %s.", backoffPeriod)
 		} else if err != nil {
-			b.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
+			s.log.WithError(err).Errorf("Error occurred whilst watching CA rotations, retrying in %s.", backoffPeriod)
 		}
 
 		select {
 		case <-ctx.Done():
-			b.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
+			s.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
 			return nil
 		case <-time.After(backoffPeriod):
 		}
@@ -168,11 +182,11 @@ func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
 // watchCARotations establishes a watcher for CA rotations in the cluster, and
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
-func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
-	b.log.Debugf("Attempting to establish watch for CA events")
+func (s *caRotationWatcherService) watchCARotations(ctx context.Context, queueReload func()) error {
+	s.log.Debugf("Attempting to establish watch for CA events")
 
-	ident := b.ident()
-	client, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
+	ident := s.bot.ident()
+	client, err := s.bot.AuthenticatedUserClientFromIdentity(ctx, ident)
 	if err != nil {
 		return trace.Wrap(err, "creating client for ca watcher")
 	}
@@ -200,19 +214,19 @@ func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
 			// OpInit is a special case omitted by the Watcher when the
 			// connection succeeds.
 			if event.Type == types.OpInit {
-				b.log.Infof("Started watching for CA rotations")
+				s.log.Infof("Started watching for CA rotations")
 				continue
 			}
 
-			ignoreReason := filterCAEvent(b.log, event, clusterName)
+			ignoreReason := filterCAEvent(s.log, event, clusterName)
 			if ignoreReason != "" {
-				b.log.Debugf("Ignoring CA event: %s", ignoreReason)
+				s.log.Debugf("Ignoring CA event: %s", ignoreReason)
 				continue
 			}
 
 			// We need to debounce here, as multiple events will be received if
 			// the user is rotating multiple CAs at once.
-			b.log.Infof("CA Rotation step detected; queueing renewal.")
+			s.log.Infof("CA Rotation step detected; queueing renewal.")
 			queueReload()
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {

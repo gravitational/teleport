@@ -41,23 +41,33 @@ import (
 // failures in renewing the bot identity before the loop exits fatally.
 const botIdentityRenewalRetryLimit = 7
 
-func (b *Bot) renewBotIdentityLoop(
-	ctx context.Context,
-	reloadChan <-chan struct{},
-) error {
-	ctx, span := tracer.Start(ctx, "Bot/renewBotIdentityLoop")
+type identityService struct {
+	log               logrus.FieldLogger
+	b                 *Bot
+	reloadBroadcaster *channelBroadcaster
+}
+
+func (s *identityService) String() string {
+	return "identity"
+}
+
+func (s *identityService) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "identityService/Run")
 	defer span.End()
-	b.log.Infof(
+	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
+	s.log.Infof(
 		"Beginning bot identity renewal loop: ttl=%s interval=%s",
-		b.cfg.CertificateTTL,
-		b.cfg.RenewalInterval,
+		s.b.cfg.CertificateTTL,
+		s.b.cfg.RenewalInterval,
 	)
 
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
-	storageDestination := b.cfg.Storage.Destination
+	storageDestination := s.b.cfg.Storage.Destination
 
-	ticker := time.NewTicker(b.cfg.RenewalInterval)
+	ticker := time.NewTicker(s.b.cfg.RenewalInterval)
 	jitter := retryutils.NewJitter()
 	defer ticker.Stop()
 	for {
@@ -65,17 +75,17 @@ func (b *Bot) renewBotIdentityLoop(
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-		case <-reloadChan:
+		case <-reloadCh:
 		}
 
 		var err error
 		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
-			b.log.Infof(
+			s.b.log.Infof(
 				"Renewing bot identity. Attempt %d of %d.",
 				attempt,
 				botIdentityRenewalRetryLimit,
 			)
-			err = b.renewBotIdentity(
+			err = s.renew(
 				ctx, storageDestination,
 			)
 			if err == nil {
@@ -86,7 +96,7 @@ func (b *Bot) renewBotIdentityLoop(
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
-				b.log.WithError(err).Errorf(
+				s.log.WithError(err).Errorf(
 					"Bot identity renewal attempt %d of %d failed. Retrying after %s.",
 					attempt,
 					botIdentityRenewalRetryLimit,
@@ -100,21 +110,21 @@ func (b *Bot) renewBotIdentityLoop(
 			}
 		}
 		if err != nil {
-			b.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", botIdentityRenewalRetryLimit)
+			s.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", botIdentityRenewalRetryLimit)
 			return trace.Wrap(err)
 		}
-		b.log.Infof("Renewed bot identity. Next bot identity renewal in approximately %s.", b.cfg.RenewalInterval)
+		s.log.Infof("Renewed bot identity. Next bot identity renewal in approximately %s.", s.b.cfg.RenewalInterval)
 	}
 }
 
-func (b *Bot) renewBotIdentity(
+func (s *identityService) renew(
 	ctx context.Context,
 	botDestination bot.Destination,
 ) error {
-	ctx, span := tracer.Start(ctx, "Bot/renewBotIdentity")
+	ctx, span := tracer.Start(ctx, "identityService/renew")
 	defer span.End()
 
-	currentIdentity := b.ident()
+	currentIdentity := s.b.ident()
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
@@ -122,16 +132,16 @@ func (b *Bot) renewBotIdentity(
 
 	var newIdentity *identity.Identity
 	var err error
-	if b.cfg.Onboarding.RenewableJoinMethod() {
+	if s.b.cfg.Onboarding.RenewableJoinMethod() {
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
-		authClient, err := b.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
+		authClient, err := s.b.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
 		if err != nil {
 			return trace.Wrap(err, "creating auth client")
 		}
 		defer authClient.Close()
 		newIdentity, err = botIdentityFromAuth(
-			ctx, b.log, currentIdentity, authClient, b.cfg.CertificateTTL,
+			ctx, s.b.log, currentIdentity, authClient, s.b.cfg.CertificateTTL,
 		)
 		if err != nil {
 			return trace.Wrap(err, "renewing identity with existing identity")
@@ -139,19 +149,19 @@ func (b *Bot) renewBotIdentity(
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
-		newIdentity, err = botIdentityFromToken(ctx, b.log, b.cfg)
+		newIdentity, err = botIdentityFromToken(ctx, s.b.log, s.b.cfg)
 		if err != nil {
 			return trace.Wrap(err, "renewing identity with token")
 		}
 	}
 
-	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
-	b.setIdent(newIdentity)
+	s.b.log.WithField("identity", describeTLSIdentity(s.b.log, newIdentity)).Info("Fetched new bot identity.")
+	s.b.setIdent(newIdentity)
 
 	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err, "saving new identity")
 	}
-	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot identity persisted.")
+	s.b.log.WithField("identity", describeTLSIdentity(s.b.log, newIdentity)).Debug("Bot identity persisted.")
 
 	return nil
 }
@@ -165,7 +175,7 @@ func botIdentityFromAuth(
 	client auth.ClientI,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
-	ctx, span := tracer.Start(ctx, "Bot/botIdentityFromAuth")
+	ctx, span := tracer.Start(ctx, "botIdentityFromAuth")
 	defer span.End()
 	log.Info("Fetching bot identity using existing bot identity.")
 
@@ -197,7 +207,7 @@ func botIdentityFromAuth(
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
 func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
-	_, span := tracer.Start(ctx, "Bot/botIdentityFromToken")
+	_, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
 
 	log.Info("Fetching bot identity using token.")
