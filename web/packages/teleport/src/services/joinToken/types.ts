@@ -98,4 +98,5 @@ export type JoinTokenRequest = {
   method?: JoinMethod;
   botName?: string;
   gitHub?: GitHubJoinRule;
+  enterpriseServerHost?: string;
 };

@@ -21,6 +21,8 @@ type GitHubFlowContext = {
   resetAttempt: () => void;
 };
 
+const GITHUB_HOST = "github.com"
+
 const gitHubFlowContext = React.createContext<GitHubFlowContext>(null);
 
 export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
@@ -52,13 +54,28 @@ export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
           getRoleYaml(botConfig.botName, botConfig.labels, botConfig.login)
         )
         .then(() => {
+
+          let repoHost = ''
+          // Check if user sent a GitHub Enterprise host address.
+          // We can just check the first rule, as the UI will not allow
+          // using different hosts on multiple rules.
+          if (repoRules.length > 0) {
+            const { host } = parseRepoAddress(repoRules[0].repoAddress)
+            // the enterprise server host should be omited if using github.com
+            if (repoHost != GITHUB_HOST) {
+              repoHost = host
+            }
+          }
+
           return joinTokenService
             .fetchJoinToken({
               roles: ['Bot'],
               botName: botConfig.botName,
+              method: 'github',
+              enterpriseServerHost: '',
               gitHub: {
                 allow: repoRules.map((r): GitHubRepoRule => {
-                  const { owner, repository } = parseRepoAddress(r.repoAddress);
+                  const { host, owner, repository } = parseRepoAddress(r.repoAddress);
                   return {
                     repository: `${owner}/${repository}`,
                     repository_owner: owner,
@@ -70,7 +87,6 @@ export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
                   };
                 }),
               },
-              method: 'github',
             })
             .then(token => {
               setTokenName(token.id);
@@ -147,10 +163,6 @@ export function parseRepoAddress(repoAddr: string): {
     throw new Error('Must be a valid URL');
   }
 
-  // TODO:
-  // - account for enterprise github hosts
-  //   - some enterprise github host may have slugs?
-  // - write tests for this method
   const paths = url.pathname.split('/');
   // expected length is 3, since pathname starts with a /, so paths[0] should be empty
   if (paths.length < 3) {

@@ -41,6 +41,7 @@ class JoinTokenService {
           ),
           bot_name: req.botName,
           github: req.gitHub,
+          enterprise_server_host: req.enterpriseServerHost,
         },
         signal
       )
