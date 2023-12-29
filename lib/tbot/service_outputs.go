@@ -47,29 +47,142 @@ import (
 
 const renewalRetryLimit = 5
 
-func (b *Bot) renewOutputsLoop(
-	ctx context.Context, reloadChan <-chan struct{},
+// outputsService is responsible for generating and renewing all outputs.
+//
+// Eventually, this will be refactored to run a single output in a single
+// service. Before that can happen, a more global cache needs to be built for
+// common API calls that output generation will complete.
+type outputsService struct {
+	log               logrus.FieldLogger
+	b                 *Bot
+	reloadBroadcaster *channelBroadcaster
+}
+
+func (s *outputsService) String() string {
+	return "outputs"
+}
+
+func (s *outputsService) OneShot(ctx context.Context) error {
+	s.log.Info("One-shot mode enabled. Generating outputs.")
+	err := trace.Wrap(s.renewOutputs(ctx))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.log.Info("Generated outputs. One-shot mode is enabled so exiting.")
+	return nil
+}
+
+// renewOutputs performs a single renewal
+func (s *outputsService) renewOutputs(
+	ctx context.Context,
 ) error {
-	ctx, span := tracer.Start(ctx, "Bot/renewOutputsLoop")
+	ctx, span := tracer.Start(ctx, "Bot/renewOutputs")
 	defer span.End()
-	b.log.Infof(
+
+	botIdentity := s.b.ident()
+	client, err := s.b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer client.Close()
+
+	// create a cache shared across outputs so they don't hammer the auth
+	// server with similar requests
+	drc := &outputRenewalCache{
+		client: client,
+		cfg:    s.b.cfg,
+	}
+
+	// Determine the default role list based on the bot role. The role's
+	// name should match the certificate's Key ID (user and role names
+	// should all match bot-$name)
+	botResourceName := botIdentity.X509Cert.Subject.CommonName
+	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
+	if err != nil {
+		s.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
+		defaultRoles = []string{}
+	}
+
+	// Next, generate impersonated certs
+	for _, output := range s.b.cfg.Outputs {
+		s.log.WithFields(logrus.Fields{
+			"output": output,
+		}).Info("Generating output.")
+
+		dest := output.GetDestination()
+		// Check the ACLs. We can't fix them, but we can warn if they're
+		// misconfigured. We'll need to precompute a list of keys to check.
+		// Note: This may only log a warning, depending on configuration.
+		if err := dest.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Ensure this destination is also writable. This is a hard fail if
+		// ACLs are misconfigured, regardless of configuration.
+		// TODO: consider not making these a hard error? e.g. write other
+		// destinations even if this one is broken?
+		if err := identity.VerifyWrite(ctx, dest); err != nil {
+			return trace.Wrap(err, "testing output destination: %s", output)
+		}
+
+		impersonatedIdentity, impersonatedClient, err := s.b.generateImpersonatedIdentity(
+			ctx, client, botIdentity, output, defaultRoles,
+		)
+		if err != nil {
+			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
+		}
+		defer impersonatedClient.Close()
+
+		s.b.log.WithFields(logrus.Fields{
+			"identity": describeTLSIdentity(s.log, impersonatedIdentity),
+			"output":   output,
+		}).Debug("Fetched identity for output.")
+
+		// Create a destination provider to bundle up all the dependencies that
+		// a destination template might need to render.
+		dp := &outputProvider{
+			outputRenewalCache: drc,
+			impersonatedClient: impersonatedClient,
+		}
+
+		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
+			s.log.WithError(err).Warnf("Failed to render output %s", output)
+			return trace.Wrap(err, "rendering output: %s", output)
+		}
+
+		s.log.WithFields(logrus.Fields{
+			"output": output,
+		}).Info("Generated output.")
+	}
+
+	return nil
+}
+
+func (s *outputsService) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "outputsService/Run")
+	defer span.End()
+
+	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
+	defer unsubscribe()
+
+	s.log.Infof(
 		"Beginning output renewal loop: ttl=%s interval=%s",
-		b.cfg.CertificateTTL,
-		b.cfg.RenewalInterval,
+		s.b.cfg.CertificateTTL,
+		s.b.cfg.RenewalInterval,
 	)
 
-	ticker := time.NewTicker(b.cfg.RenewalInterval)
+	ticker := time.NewTicker(s.b.cfg.RenewalInterval)
 	jitter := retryutils.NewJitter()
 	defer ticker.Stop()
 	for {
 		var err error
 		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			b.log.Infof(
+			s.log.Infof(
 				"Renewing outputs. Attempt %d of %d.",
 				attempt,
 				renewalRetryLimit,
 			)
-			err = b.renewOutputs(ctx)
+			err = s.renewOutputs(ctx)
 			if err == nil {
 				break
 			}
@@ -78,7 +191,7 @@ func (b *Bot) renewOutputsLoop(
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
-				b.log.WithError(err).Warnf(
+				s.log.WithError(err).Warnf(
 					"Output renewal attempt %d of %d failed. Retrying after %s.",
 					attempt,
 					renewalRetryLimit,
@@ -92,9 +205,9 @@ func (b *Bot) renewOutputsLoop(
 			}
 		}
 		if err != nil {
-			b.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, b.cfg.RenewalInterval)
+			s.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, s.b.cfg.RenewalInterval)
 		} else {
-			b.log.Infof("Renewed outputs. Next output renewal in approximately %s.", b.cfg.RenewalInterval)
+			s.log.Infof("Renewed outputs. Next output renewal in approximately %s.", s.b.cfg.RenewalInterval)
 		}
 
 		select {
@@ -102,7 +215,7 @@ func (b *Bot) renewOutputsLoop(
 			return nil
 		case <-ticker.C:
 			continue
-		case <-reloadChan:
+		case <-reloadCh:
 			continue
 		}
 	}
@@ -536,92 +649,6 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 
 	conditions := role.GetImpersonateConditions(types.Allow)
 	return conditions.Roles, nil
-}
-
-// renewOutputs performs a single renewal
-func (b *Bot) renewOutputs(
-	ctx context.Context,
-) error {
-	ctx, span := tracer.Start(ctx, "Bot/renewOutputs")
-	defer span.End()
-
-	botIdentity := b.ident()
-	client, err := b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
-	// create a cache shared across outputs so they don't hammer the auth
-	// server with similar requests
-	drc := &outputRenewalCache{
-		client: client,
-		cfg:    b.cfg,
-	}
-
-	// Determine the default role list based on the bot role. The role's
-	// name should match the certificate's Key ID (user and role names
-	// should all match bot-$name)
-	botResourceName := botIdentity.X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
-	if err != nil {
-		b.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
-		defaultRoles = []string{}
-	}
-
-	// Next, generate impersonated certs
-	for _, output := range b.cfg.Outputs {
-		b.log.WithFields(logrus.Fields{
-			"output": output,
-		}).Info("Generating output.")
-
-		dest := output.GetDestination()
-		// Check the ACLs. We can't fix them, but we can warn if they're
-		// misconfigured. We'll need to precompute a list of keys to check.
-		// Note: This may only log a warning, depending on configuration.
-		if err := dest.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Ensure this destination is also writable. This is a hard fail if
-		// ACLs are misconfigured, regardless of configuration.
-		// TODO: consider not making these a hard error? e.g. write other
-		// destinations even if this one is broken?
-		if err := identity.VerifyWrite(ctx, dest); err != nil {
-			return trace.Wrap(err, "testing output destination: %s", output)
-		}
-
-		impersonatedIdentity, impersonatedClient, err := b.generateImpersonatedIdentity(
-			ctx, client, botIdentity, output, defaultRoles,
-		)
-		if err != nil {
-			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
-		}
-		defer impersonatedClient.Close()
-
-		b.log.WithFields(logrus.Fields{
-			"identity": describeTLSIdentity(b.log, impersonatedIdentity),
-			"output":   output,
-		}).Debug("Fetched identity for output.")
-
-		// Create a destination provider to bundle up all the dependencies that
-		// a destination template might need to render.
-		dp := &outputProvider{
-			outputRenewalCache: drc,
-			impersonatedClient: impersonatedClient,
-		}
-
-		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
-			b.log.WithError(err).Warnf("Failed to render output %s", output)
-			return trace.Wrap(err, "rendering output: %s", output)
-		}
-
-		b.log.WithFields(logrus.Fields{
-			"output": output,
-		}).Info("Generated output.")
-	}
-
-	return nil
 }
 
 // outputRenewalCache is used to cache information during a renewal to pass
