@@ -34,7 +34,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
 * Support GitHub joining from Enterprise accounts with `include_enterprise_slug` enabled. [#35900](https://github.com/gravitational/teleport/pull/35900)
 * Added vpc-id as a label to auto-discovered RDS databases [#35890](https://github.com/gravitational/teleport/pull/35890)
 * Improved teleport agent performance when handling a large number of TCP forwarding requests. [#35887](https://github.com/gravitational/teleport/pull/35887)
-* Bump golang.org/x/crypto to v0.17.0 [#35879](https://github.com/gravitational/teleport/pull/35879)
+* Bump golang.org/x/crypto to v0.17.0, which addresses the Terrapin vulnerability (CVE-2023-48795) [#35879](https://github.com/gravitational/teleport/pull/35879)
 * Include the lock expiration time in `lock.create` audit events [#35874](https://github.com/gravitational/teleport/pull/35874)
 * Add custom attribute mapping to the  `saml_idp_service_provider` spec. [#35873](https://github.com/gravitational/teleport/pull/35873)
 * Fixed PIV not being available on Windows tsh binaries [#35866](https://github.com/gravitational/teleport/pull/35866)
