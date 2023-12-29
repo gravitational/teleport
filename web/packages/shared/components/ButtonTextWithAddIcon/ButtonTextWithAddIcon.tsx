@@ -29,7 +29,7 @@ export const ButtonTextWithAddIcon = ({
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  iconSize?:  number | "small" | "medium" | "large" | "extraLarge";
+  iconSize?: number | 'small' | 'medium' | 'large' | 'extraLarge';
 }) => {
   return (
     <ButtonText

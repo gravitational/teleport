@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 
 import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
 
@@ -29,9 +29,20 @@ export const Button = () => {
   return (
     <div style={{ width: '300px' }}>
       <ButtonTextWithAddIcon label={'Add Item'} onClick={() => null} />
-      <ButtonTextWithAddIcon label={label} onClick={() => setLabel('Add More Item (click me)')} />
-      <ButtonTextWithAddIcon label={'Add Item Disabled'} onClick={() => null} disabled={true} />
-      <ButtonTextWithAddIcon label={'Add Item Disabled with Medium Icon Size'} onClick={() => null} iconSize={'medium'} />
+      <ButtonTextWithAddIcon
+        label={label}
+        onClick={() => setLabel('Add More Item (click me)')}
+      />
+      <ButtonTextWithAddIcon
+        label={'Add Item Disabled'}
+        onClick={() => null}
+        disabled={true}
+      />
+      <ButtonTextWithAddIcon
+        label={'Add Item Disabled with Medium Icon Size'}
+        onClick={() => null}
+        iconSize={'medium'}
+      />
       {/* <ButtonTextWithAddIcon mt={3} title="Barnes" ssoType="google" />
     <ButtonTextWithAddIcon mt={3} title="Norton" ssoType="bitbucket" />
     <ButtonTextWithAddIcon mt={3} title="Russell" ssoType="unknown" /> */}
