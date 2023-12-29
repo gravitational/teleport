@@ -7,6 +7,16 @@ const PAGES_DIRECTORY = '../pages'
 const variablesRegex = /\(=\s*(.*?)\s*=\)/g;
 const snippetsRegex = /\(!docs\/pages\/(.*\/(.*)\.mdx)!\)/g;
 
+function migrateFigures(page) {
+  return page.replace(/<Figure[^>]*>([\s\S]*?)<\/Figure>/g, '$1')
+}
+
+function migrateTabs(page) {
+  return page
+    .replace(/<TabItem[\S\s]*?label=/g, '<Tab title=')
+    .replace(/<\/TabItem>/g, '</Tab>');
+}
+
 // TODO: Add moving all includes folders into snippets
 // TODO: Consider for cases where snippets and variables are inside code blocks or other MDX syntax
 // TODO: Add setup for properties
@@ -62,12 +72,8 @@ function migrateReusableVariables(page) {
 }
 
 const migrationFunctions = {
-  figure: (page) => page.replace(/<Figure[^>]*>([\s\S]*?)<\/Figure>/g, '$1'),
-  relativeLink: (page) => page.replace(/\(.\//, '(').replace(/\.mdx\)/g, ')'),
-  tab: (page) =>
-    page
-      .replace(/<TabItem[\S\s]*label=/g, '<Tab title=')
-      .replace(/<\/TabItem>/g, '</Tab>'),
+  figures: migrateFigures,
+  tab: migrateTabs,
   tipAdmonition: (page) =>
     page.replace(
       /<Admonition\s+type="tip"[^>]*>([\s\S]*?)<\/Admonition>/g,
@@ -97,6 +103,7 @@ const migrationFunctions = {
     page
       .replace(/<Details([^>]+)>/g, '<Accordion$1>')
       .replace(/<\/Details>/g, '</Accordion>'),
+  relativeLink: (page) => page.replace(/\(.\//, '(').replace(/\.mdx\)/g, ')'),
   variable: migrateReusableVariables,
   snippet: migrateReusableSnippets,
 };
@@ -122,4 +129,6 @@ function migratePages() {
 
 module.exports = {
   migratePages,
+  migrateFigures,
+  migrateTabs
 };
