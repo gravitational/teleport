@@ -758,6 +758,15 @@ test-go-unit-tbot:
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
+# Runs unit tests for internal tools and docs generators
+.PHONY: test-go-unit-tooling
+test-go-unit-tooling: FLAGS ?= -race -shuffle on
+test-go-unit-tooling: SUBJECT ?= $(shell cd build.assets/tooling && go list ./...)
+test-go-unit-tooling:
+	$(CGOFLAG) go test -cover -json $(SUBJECT) $(FLAGS) $(ADDFLAGS)\
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
 test-go-touch-id: FLAGS ?= -race -shuffle on
