@@ -24,8 +24,8 @@ The resource reference generator works by:
 
 Each entry in the resource reference includes an example YAML document. While
 the reference generator attempts to construct the YAML document from Go type
-information by default, you can instruct it to use a hardcoded YAML example by
-editing the Go comment above a declaration. 
+information, you can instruct it to use a hardcoded YAML example by editing the
+Go comment above a declaration. 
 
 This example modifies the `proto` file that declares the `MFADevice` message in
 order to override its example YAML. When we generate Go code from this message
@@ -52,6 +52,34 @@ YAML example:
 // Example YAML:
 // ---
 ```
+
+You can also provide a hardcoded YAML example above a single struct field. In
+this case, the generator will generate example YAML content for all other fields
+in the struct and use the hardcoded YAML for the overridden field. 
+
+For example, this source code overrides the `LabelMaps` field while allowing the
+generator to document the `Name` field automatically:
+
+```go
+// Server includes information about a server registered with Teleport.
+type Server struct {
+    // Name is the name of the server.
+    Name string `json:"name"`
+    // LabelMaps includes a map of strings to labels.
+    // Example YAML:
+    // ---
+    //
+    // - label1: ["my_value0", "my_value1", "my_value2"]
+    //   label2: ["my_value0", "my_value1", "my_value2"]
+    // - label3: ["my_value0", "my_value1", "my_value2"]
+    LabelMaps []map[string]types.Label `json:"label_maps"`
+}
+```
+
+If a YAML example is above an entire type declaration, the generator will not
+produce a table of fields. If only one field is overridden, the generator *will*
+produce a table of fields, and refer the reader to the example YAML for any
+field that is overridden.
 
 ### Editing source files
 
