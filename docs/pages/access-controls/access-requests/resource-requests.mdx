@@ -389,13 +389,13 @@ label:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:
       'env': 'staging'
     kubernetes_resources:
-      - kind: '*'
+      - kind: 'pod'
         namespace: '*'
         name: '*'
   deny: {}
@@ -413,7 +413,7 @@ namespace, and all pods in the `dev` namespace:
 kind: role
 metadata:
   name: kube-access
-version: v7
+version: v6
 spec:
   allow:
     kubernetes_labels:

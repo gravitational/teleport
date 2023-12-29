@@ -130,16 +130,15 @@ one Kubernetes group named `viewers` and one Kubernetes user.
    kind: role
    metadata:
      name: kube-access
-   version: v7
+   version: v6
    spec:
      allow:
        kubernetes_labels:
          '*': '*'
        kubernetes_resources:
-         - kind: '*'
+         - kind: 'pod'
            namespace: '*'
            name: '*'
-           verbs: ['*']
        kubernetes_groups:
        - viewers
        kubernetes_users:

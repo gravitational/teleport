@@ -88,7 +88,7 @@ export function CreateEc2Ice() {
     useDiscover();
 
   async function fetchSecurityGroups() {
-    const integration = (agentMeta as NodeMeta).integration;
+    const integration = agentMeta.awsIntegration;
 
     setFetchSecurityGroupsAttempt({ status: 'processing' });
     try {
@@ -113,7 +113,7 @@ export function CreateEc2Ice() {
   }
 
   async function deployEc2InstanceConnectEndpoint() {
-    const integration = (agentMeta as NodeMeta).integration;
+    const integration = agentMeta.awsIntegration;
 
     setDeployEc2IceAttempt({ status: 'processing' });
     setShowCreatingDialog(true);

@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: member
 spec:
@@ -9,8 +9,7 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-      - kind: '*'
+      - kind: 'pod'
         namespace: '*'
         name: '*'
-        verbs: ['*']
 ```
