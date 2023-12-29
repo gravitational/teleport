@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -66,14 +67,10 @@ func TestCreateBot(t *testing.T) {
 	var users []ui.UserListEntry
 	json.Unmarshal(getUsersResp.Bytes(), &users)
 
-	var found bool
-	for _, u := range users {
+	found := slices.ContainsFunc(users, func(user ui.UserListEntry) bool {
 		// bots users have a `bot-` prefix
-		if u.Name == "bot-test-bot" {
-			found = true
-			break
-		}
-	}
+		return user.Name == "bot-test-bot"
+	})
 	require.True(t, found)
 
 	// Make sure an unauthenticated client can't create bots
