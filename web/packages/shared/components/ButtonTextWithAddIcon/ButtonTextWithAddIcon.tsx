@@ -20,14 +20,16 @@ import React from 'react';
 import { ButtonText } from 'design';
 import { Add as AddIcon } from 'design/Icon';
 
-export const AddItemButton = ({
+export const ButtonTextWithAddIcon = ({
   label,
   addItem,
   disabled,
+  iconSize = 12,
 }: {
   label: string;
   addItem: () => void;
   disabled: boolean;
+  iconSize?:  number | "small" | "medium" | "large" | "extraLarge";
 }) => {
   return (
     <ButtonText
@@ -45,7 +47,7 @@ export const AddItemButton = ({
     >
       <AddIcon
         className="icon-add"
-        size={12}
+        size={iconSize}
         css={`
           margin-right: 3px;
         `}
