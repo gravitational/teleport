@@ -17,6 +17,9 @@ This release of Teleport contains multiple security fixes, improvements and bug 
   `DYLD_`` variables. Documented under
   https://github.com/gravitational/teleport/security/advisories/GHSA-vfxf-76hv-v4w4
   [#36135](https://github.com/gravitational/teleport/pull/36135)
+* A fix was applied to Access Lists to prevent possible privilege escalation of
+  list owners.  Documented under 
+  https://github.com/gravitational/teleport/security/advisories/GHSA-76cc-p55w-63g3
 
 ### Other Fixes & Improvements
 
