@@ -7,7 +7,8 @@ It uses the Teleport source as the basis for the guide.
 ## Usage
 
 ```
-$ go run gen-resource-ref -config config.yaml
+$ cd build.assets/tooling/cmd/resource-ref-generator
+$ go run . -config config.yaml
 ```
 
 ## How it works
