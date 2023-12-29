@@ -14,7 +14,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
   https://github.com/gravitational/teleport/security/advisories/GHSA-hw4x-mcx5-9q36
   [#36131](https://github.com/gravitational/teleport/pull/36131)
 * On macOS, Teleport filters the environment to prevent code execution via
-  `DYLD_`` variables. Documented under
+  `DYLD_` variables. Documented under
   https://github.com/gravitational/teleport/security/advisories/GHSA-vfxf-76hv-v4w4
   [#36135](https://github.com/gravitational/teleport/pull/36135)
 * A fix was applied to Access Lists to prevent possible privilege escalation of
