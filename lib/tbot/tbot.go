@@ -113,21 +113,6 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// One-shot mode just invokes the output of credentials to the destinations.
-	// There's no retry logic here - this means we fail fast in the most common
-	// oneshot use-cases like CI-CD where backing off over several minutes on
-	// failure will just cost the customer money.
-	if b.cfg.Oneshot {
-		b.log.Info("One-shot mode enabled. Generating outputs.")
-		if err := b.renewOutputs(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-
-		b.log.Info("Generated outputs. One-shot mode is enabled so exiting.")
-		return nil
-	}
-
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
 
@@ -151,12 +136,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 
-	eg.Go(func() error {
-		reloadCh, unsubscribe := reloadBroadcaster.subscribe()
-		defer unsubscribe()
-		return trace.Wrap(b.renewOutputsLoop(egCtx, reloadCh))
-	})
-
+	// Setup services
 	services := []bot.Service{}
 	if b.cfg.DiagAddr != "" {
 		services = append(services, &diagnosticsService{
@@ -172,6 +152,13 @@ func (b *Bot) Run(ctx context.Context) error {
 		reloadBroadcaster: reloadBroadcaster,
 		log: b.log.WithField(
 			trace.Component, teleport.Component("tbot", "identity"),
+		),
+	})
+	services = append(services, &outputsService{
+		b:                 b,
+		reloadBroadcaster: reloadBroadcaster,
+		log: b.log.WithField(
+			trace.Component, teleport.Component("tbot", "outputs"),
 		),
 	})
 	services = append(services, &caRotationService{
@@ -199,7 +186,7 @@ func (b *Bot) Run(ctx context.Context) error {
 						b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
 						return trace.Wrap(err, "running service %q", svc.String())
 					}
-					b.log.WithError(err).WithField("service", svc.String()).Error("Service exited")
+					b.log.WithField("service", svc.String()).Info("Service exited")
 					return nil
 				})
 			}
@@ -212,7 +199,7 @@ func (b *Bot) Run(ctx context.Context) error {
 					b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
 					return trace.Wrap(err, "running service %q", svc.String())
 				}
-				b.log.WithField("service", svc.String()).Error("Service exited")
+				b.log.WithField("service", svc.String()).Info("Service exited")
 				return nil
 			})
 		}

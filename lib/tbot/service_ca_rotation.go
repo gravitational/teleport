@@ -134,7 +134,7 @@ type caRotationService struct {
 }
 
 func (s *caRotationService) String() string {
-	return "ca-rotation-watcher"
+	return "ca-rotation"
 }
 
 // Run continually triggers `watchCARotations` until the context is
