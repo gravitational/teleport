@@ -32,6 +32,7 @@ import {
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
+  PromoteAccessRequestParams,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -300,6 +301,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       params
     );
     this.usageService.captureAccessRequestReview(rootClusterUri);
+    return response;
+  }
+
+  async promoteAccessRequest(params: PromoteAccessRequestParams) {
+    const response = await this.client.promoteAccessRequest(params);
+    this.usageService.captureAccessRequestReview(params.rootClusterUri);
     return response;
   }
 
