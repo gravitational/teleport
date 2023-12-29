@@ -41,9 +41,13 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
           data={[{ content: yaml, type: 'yaml' }]}
         />
       </Flex>
-      <FlowButtons nextStep={nextStep} prevStep={prevStep} backButton={{
-        hidden: true,
-      }} />
+      <FlowButtons
+        nextStep={nextStep}
+        prevStep={prevStep}
+        backButton={{
+          hidden: true,
+        }}
+      />
     </Box>
   );
 }

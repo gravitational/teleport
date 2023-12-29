@@ -613,7 +613,7 @@ const ResourceCard = styled.div`
   }
 `;
 
-const BadgeGuided = styled.div`
+export const BadgeGuided = styled.div`
   position: absolute;
   background: ${props => props.theme.colors.brand};
   color: ${props => props.theme.colors.text.primaryInverse};

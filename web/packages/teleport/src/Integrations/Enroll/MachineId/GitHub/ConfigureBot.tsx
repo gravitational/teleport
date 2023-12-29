@@ -132,7 +132,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               nextStep={() => handleNext(validator)}
               prevStep={prevStep}
               nextButton={{
-                disabled: !hasAccess
+                disabled: !hasAccess,
               }}
             />
           </>

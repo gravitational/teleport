@@ -45,10 +45,10 @@ const views: View[] = [
   {
     name: 'Finish',
     component: Finish,
-  }
+  },
 ];
 
-export function EnrollMachineIdGitHub() {
+export function GitHub() {
   return (
     <GitHubFlowProvider>
       <GuidedFlow

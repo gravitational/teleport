@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { useTheme } from 'styled-components';
 
 import {
   AnsibleIcon,
@@ -39,9 +40,11 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
+import { BadgeGuided } from 'teleport/Discover/SelectResource';
+
 import { IntegrationTile } from '../common';
 
-import { GitHubActionsFlow } from './GitHub/EnrollMachineIdGitHub';
+import { GitHubActionsFlow } from './GitHub';
 
 interface Integration {
   title: string;
@@ -174,9 +177,11 @@ function ExternalLinkTile({ integration }: { integration: Integration }) {
 }
 
 function GuidedTile({ integration }: { integration: Integration }) {
-  // TODO guided badge
+  const theme = useTheme();
+
   return (
     <IntegrationTile as={Link} to={integration.link}>
+      <BadgeGuided>Guided</BadgeGuided>
       <TileContent icon={integration.icon} title={integration.title} />
     </IntegrationTile>
   );
