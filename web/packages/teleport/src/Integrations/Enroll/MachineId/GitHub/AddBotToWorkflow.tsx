@@ -39,10 +39,11 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
           readOnly={true}
           bg="levels.deep"
           data={[{ content: yaml, type: 'yaml' }]}
-          onChange={console.log}
         />
       </Flex>
-      <FlowButtons isLast={true} nextStep={nextStep} prevStep={prevStep} />
+      <FlowButtons nextStep={nextStep} prevStep={prevStep} backButton={{
+        hidden: true,
+      }} />
     </Box>
   );
 }

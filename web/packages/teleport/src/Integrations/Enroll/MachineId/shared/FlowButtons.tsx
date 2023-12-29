@@ -7,6 +7,11 @@ import cfg from 'teleport/config';
 
 import { FlowStepProps } from './GuidedFlow';
 
+export type ButtonState = {
+  disabled?: boolean;
+  hidden?: boolean;
+};
+
 type FlowButtonsProps = {
   isLast?: boolean;
   isFirst?: boolean;
@@ -15,6 +20,8 @@ type FlowButtonsProps = {
   onFinish?: () => void;
   disableNext?: boolean;
   disableBack?: boolean;
+  nextButton?: ButtonState;
+  backButton?: ButtonState;
 } & FlowStepProps;
 
 export function FlowButtons({
@@ -23,28 +30,55 @@ export function FlowButtons({
   isFirst = false,
   isLast = false,
   onFinish,
-  disableNext = false,
-  disableBack = false,
+  nextButton,
+  backButton,
 }: FlowButtonsProps) {
   const handleConfirm = isLast ? onFinish : nextStep;
   return (
     <>
-      <ButtonPrimary disabled={disableNext} onClick={handleConfirm} mr="3">
-        {isLast ? 'Finish' : 'Next'}
-      </ButtonPrimary>
-      {isFirst ? (
-        <ButtonSecondary
-          disabled={disableBack}
-          as={Link}
-          to={cfg.getIntegrationEnrollRoute(null)}
+      {!nextButton?.hidden && (
+        <ButtonPrimary
+          disabled={nextButton?.disabled}
+          onClick={handleConfirm}
+          mr="3"
         >
-          Back
-        </ButtonSecondary>
-      ) : (
-        <ButtonSecondary disabled={disableBack} onClick={prevStep}>
-          Back
-        </ButtonSecondary>
+          {isLast ? 'Finish' : 'Next'}
+        </ButtonPrimary>
+      )}
+      {!backButton?.hidden && (
+        <BackButton
+          isFirst={isFirst}
+          disabled={backButton?.disabled}
+          prevStep={prevStep}
+        />
       )}
     </>
+  );
+}
+
+function BackButton({
+  isFirst,
+  disabled,
+  prevStep,
+}: {
+  isFirst: boolean;
+  disabled: boolean;
+  prevStep: () => void;
+}) {
+  if (isFirst) {
+    return (
+      <ButtonSecondary
+        disabled={disabled}
+        as={Link}
+        to={cfg.getIntegrationEnrollRoute(null)}
+      >
+        Back
+      </ButtonSecondary>
+    );
+  }
+  return (
+    <ButtonSecondary disabled={disabled} onClick={prevStep}>
+      Back
+    </ButtonSecondary>
   );
 }

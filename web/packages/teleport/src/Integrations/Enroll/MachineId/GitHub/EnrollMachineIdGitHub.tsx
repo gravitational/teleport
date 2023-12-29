@@ -15,6 +15,7 @@ import { ConnectGitHub } from './ConnectGitHub';
 
 import { ConfigureBot } from './ConfigureBot';
 import { AddBotToWorkflow } from './AddBotToWorkflow';
+import { Finish } from './Finish';
 import { GitHubFlowProvider } from './useGitHubFlow';
 
 export const GitHubActionsFlow = {
@@ -41,6 +42,10 @@ const views: View[] = [
     name: 'Add Bot to GitHub',
     component: AddBotToWorkflow,
   },
+  {
+    name: 'Finish',
+    component: Finish,
+  }
 ];
 
 export function EnrollMachineIdGitHub() {

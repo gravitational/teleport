@@ -53,8 +53,25 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   } = useGitHubFlow();
   const isLoading = attempt.status === 'processing';
 
+  const [multipleHostsErr, setMultipleHostsErr] = useState(false);
+
   function handleNext(validator: Validator) {
+    // clear errors
+    setMultipleHostsErr(false);
+
     if (!validator.validate()) {
+      return;
+    }
+
+    // all repositories should have the same host
+    const hosts = new Set<string>();
+    repoRules.forEach(rule => {
+      const { host } = parseRepoAddress(rule.repoAddress);
+      hosts.add(host);
+    });
+
+    if (hosts.size > 1) {
+      setMultipleHostsErr(true);
       return;
     }
 
@@ -213,13 +230,24 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               {attempt.status === 'failed' && (
                 <Alert kind="danger">{attempt.statusText}</Alert>
               )}
+              {multipleHostsErr && (
+                <Alert kind="danger">
+                  All repositories must be in the same host. Please create
+                  different bots for each host.
+                </Alert>
+              )}
               <ButtonSecondary disabled={isLoading} onClick={addEmptyRepoRule}>
                 + Add Another Set of Repository Rules
               </ButtonSecondary>
             </Box>
             <FlowButtons
-              disableBack={isLoading}
-              disableNext={isLoading}
+              backButton={{
+                disabled: isLoading,
+                hidden: false,
+              }}
+              nextButton={{
+                disabled: isLoading,
+              }}
               nextStep={() => handleNext(validator)}
               prevStep={() => {
                 resetAttempt();
@@ -249,7 +277,7 @@ const FormItem = styled(Box)`
   margin-bottom: ${props => props.theme.space[4]}px;
   max-width: 500px;
 `;
-const OptionalFieldText = ({}) => (
+const OptionalFieldText = ({ }) => (
   <Text
     style={{ display: 'inline', lineHeight: '12px' }}
     fontWeight="lighter"
@@ -276,7 +304,6 @@ const requireValidRepository = value => () => {
 
   try {
     const { owner, repository } = parseRepoAddress(repoAddr);
-    console.log('owner, repository', owner, repository);
     if (owner.trim() === '' || repository.trim() == '') {
       return {
         valid: false,

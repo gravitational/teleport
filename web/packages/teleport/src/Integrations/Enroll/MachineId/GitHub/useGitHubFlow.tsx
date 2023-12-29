@@ -3,6 +3,8 @@ import { Option } from 'shared/components/Select';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
+import { ResourceLabel } from 'teleport/services/agents';
+
 import { BotConfig } from 'teleport/services/bot/types';
 import { GitHubRepoRule, RefType } from 'teleport/services/joinToken';
 import useTeleport from 'teleport/useTeleport';
@@ -44,36 +46,37 @@ export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
   }
 
   function createBot(): Promise<boolean> {
-    // TODO validations
-
     return run(() =>
-      resourceService.createRole(``).then(() =>
-        joinTokenService
-          .fetchJoinToken({
-            roles: ['Bot'],
-            botName: botConfig.botName,
-            gitHub: {
-              allow: repoRules.map((r): GitHubRepoRule => {
-                const { owner, repository } = parseRepoAddress(r.repoAddress);
-                return {
-                  repository: repository,
-                  repository_owner: owner,
-                  actor: r.actor,
-                  environment: r.environment,
-                  ref: r.ref,
-                  ref_type: r.refType.value || null,
-                  workflow: r.workflowName,
-                  // TODO sub
-                };
-              }),
-            },
-            method: 'github',
-          })
-          .then(token => {
-            setTokenName(token.id);
-            return botService.createBot(botConfig);
-          })
-      )
+      resourceService
+        .createRole(
+          getRoleYaml(botConfig.botName, botConfig.labels, botConfig.login)
+        )
+        .then(() => {
+          return joinTokenService
+            .fetchJoinToken({
+              roles: ['Bot'],
+              botName: botConfig.botName,
+              gitHub: {
+                allow: repoRules.map((r): GitHubRepoRule => {
+                  const { owner, repository } = parseRepoAddress(r.repoAddress);
+                  return {
+                    repository: `${owner}/${repository}`,
+                    repository_owner: owner,
+                    actor: r.actor,
+                    environment: r.environment,
+                    ref: r.ref,
+                    ref_type: r.refType.value || null,
+                    workflow: r.workflowName,
+                  };
+                }),
+              },
+              method: 'github',
+            })
+            .then(token => {
+              setTokenName(token.id);
+              return botService.createBot(botConfig);
+            });
+        })
     );
   }
 
@@ -128,6 +131,7 @@ export const defaultRule: Rule = {
  * @returns owner and repository name
  */
 export function parseRepoAddress(repoAddr: string): {
+  host: string;
   owner: string;
   repository: string;
 } {
@@ -164,7 +168,57 @@ export function parseRepoAddress(repoAddr: string): {
   }
 
   return {
+    host: url.host,
     owner,
     repository,
   };
+}
+
+function getRoleYaml(botName: string, labels: ResourceLabel[], login): string {
+  const labelsStanza = labels.map(
+    label => `'${label.name}': '${label.value}'\n`
+  );
+  const timestamp = new Date().getTime();
+
+  return `kind: role
+metadata:
+  name: bot-${botName}-role-${timestamp}
+spec:
+  allow:
+    # List of Kubernetes cluster users can access the k8s API
+    kubernetes_labels:
+    ${labelsStanza}
+    kubernetes_groups:
+    - '{{internal.kubernetes_groups}}'
+    kubernetes_users:
+    - '{{internal.kubernetes_users}}'
+
+    kubernetes_resources:
+    - kind: '*'
+      namespace: '*'
+      name: '*'
+      verbs: ['*']
+
+    # List of allowed SSH logins
+    logins: [${login}]
+
+    # List of node labels that users can SSH into
+    node_labels:
+    ${labelsStanza}
+    rules:
+    - resources:
+      - event
+      verbs:
+      - list
+      - read
+    - resources:
+      - session
+      verbs:
+      - read
+      - list
+      where: contains(session.participants, user.metadata.name)
+    options:
+      max_session_ttl: 8h0m0s
+version: v7
+  `;
 }
