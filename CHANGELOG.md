@@ -10,7 +10,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
   https://github.com/gravitational/teleport/security/advisories/GHSA-c9v7-wmwj-vf6x
   [#36138](https://github.com/gravitational/teleport/pull/36138)
 * On macOS, Teleport filters the environment to prevent code execution via
-  `DYLD_`` variables. Documented under
+  `DYLD_` variables. Documented under
   https://github.com/gravitational/teleport/security/advisories/GHSA-vfxf-76hv-v4w4
   [#36134](https://github.com/gravitational/teleport/pull/36134)
 * Fixed an issue that would allow for SSRF via Teleport's reverse tunnel
