@@ -990,6 +990,9 @@ func getAssignments(receiver string, n ast.Node) map[string]string {
 	return result
 }
 
+// GetMethodInfo extracts relevant data about methods in the provided Go
+// declarations. The resulting map associates methods with their receiving
+// types.
 func GetMethodInfo(decls []DeclarationInfo) (map[PackageInfo][]MethodInfo, error) {
 	if decls == nil || len(decls) == 0 {
 		return map[PackageInfo][]MethodInfo{}, nil
