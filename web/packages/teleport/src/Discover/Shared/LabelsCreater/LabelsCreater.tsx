@@ -32,9 +32,6 @@ export function LabelsCreater({
   isLabelOptional = false,
   noDuplicateKey = false,
   autoFocus = false,
-  keyFieldName = 'Key',
-  valueFieldName = 'Value',
-  inputWidthPx = 170,
 }: {
   labels: DiscoverLabel[];
   setLabels(l: DiscoverLabel[]): void;
@@ -42,9 +39,6 @@ export function LabelsCreater({
   isLabelOptional?: boolean;
   noDuplicateKey?: boolean;
   autoFocus?: boolean;
-  keyFieldName?: string;
-  valueFieldName?: string;
-  inputWidthPx?: number;
 }) {
   const validator = useValidation() as Validator;
 
@@ -112,14 +106,14 @@ export function LabelsCreater({
     <>
       {labels.length > 0 && (
         <Flex mt={2}>
-          <Box width={`${inputWidthPx}px`} mr="3">
-            {keyFieldName}{' '}
+          <Box width="170px" mr="3">
+            Key{' '}
             <span css={{ fontSize: '12px', fontWeight: 'lighter' }}>
               (required field)
             </span>
           </Box>
           <Box>
-            {valueFieldName}{' '}
+            Value{' '}
             <span css={{ fontSize: '12px', fontWeight: 'lighter' }}>
               (required field)
             </span>
@@ -137,7 +131,7 @@ export function LabelsCreater({
                   autoFocus={autoFocus}
                   value={label.name}
                   placeholder="label key"
-                  width={`${inputWidthPx}px`}
+                  width="170px"
                   mr={3}
                   mb={0}
                   onChange={e => handleChange(e, index, 'name')}
@@ -148,7 +142,7 @@ export function LabelsCreater({
                   rule={requiredField('required')}
                   value={label.value}
                   placeholder="label value"
-                  width={`${inputWidthPx}px`}
+                  width="170px"
                   mb={0}
                   mr={2}
                   onChange={e => handleChange(e, index, 'value')}
