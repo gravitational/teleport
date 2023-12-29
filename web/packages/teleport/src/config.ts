@@ -396,8 +396,8 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
+  getIntegrationEnrollRoute(type?: string, flow?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type, flow });
   },
 
   getNodesRoute(clusterId: string) {

@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 
 import {
   AnsibleIcon,
@@ -177,8 +176,6 @@ function ExternalLinkTile({ integration }: { integration: Integration }) {
 }
 
 function GuidedTile({ integration }: { integration: Integration }) {
-  const theme = useTheme();
-
   return (
     <IntegrationTile as={Link} to={integration.link}>
       <BadgeGuided>Guided</BadgeGuided>

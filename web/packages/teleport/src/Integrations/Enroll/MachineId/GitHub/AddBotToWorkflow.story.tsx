@@ -25,7 +25,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../shared/GuidedFlow';
 
-import { ConnectGitHub } from './ConnectGitHub';
+import { AddBotToWorkflow } from './AddBotToWorkflow';
 import { GitHubFlowProvider } from './useGitHubFlow';
 
 const Provider = ({ children }) => {
@@ -44,9 +44,9 @@ export default {
   title: 'Teleport/Integrations/Enroll/MachineId/GitHub',
 };
 
-export const RepoRules = () => (
+export const AddBot = () => (
   <Provider>
-    <ConnectGitHub {...props} />
+    <AddBotToWorkflow {...props} />
   </Provider>
 );
 

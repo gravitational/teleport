@@ -21,19 +21,24 @@ type GitHubFlowContext = {
   resetAttempt: () => void;
 };
 
-const GITHUB_HOST = "github.com"
+const GITHUB_HOST = 'github.com';
 
 const gitHubFlowContext = React.createContext<GitHubFlowContext>(null);
 
-export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
+export const initialBotState = {
+  labels: [{ name: '*', value: '*' }],
+  login: '',
+  botName: '',
+  roles: [],
+};
+
+export function GitHubFlowProvider({
+  children,
+  bot = initialBotState,
+}: { bot?: BotConfig } & React.PropsWithChildren) {
   const { botService, resourceService, joinTokenService } = useTeleport();
   const { attempt, run } = useAttempt();
-  const [botConfig, setBotConfig] = useState<BotConfig>({
-    labels: [{ name: '*', value: '*' }],
-    login: '',
-    botName: '',
-    roles: [],
-  });
+  const [botConfig, setBotConfig] = useState<BotConfig>(bot);
   const [repoRules, setRepoRules] = useState<Rule[]>([defaultRule]);
   const [tokenName, setTokenName] = useState('');
 
@@ -54,16 +59,15 @@ export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
           getRoleYaml(botConfig.botName, botConfig.labels, botConfig.login)
         )
         .then(() => {
-
-          let repoHost = ''
+          let repoHost = '';
           // Check if user sent a GitHub Enterprise host address.
           // We can just check the first rule, as the UI will not allow
           // using different hosts on multiple rules.
           if (repoRules.length > 0) {
-            const { host } = parseRepoAddress(repoRules[0].repoAddress)
+            const { host } = parseRepoAddress(repoRules[0].repoAddress);
             // the enterprise server host should be omited if using github.com
             if (repoHost != GITHUB_HOST) {
-              repoHost = host
+              repoHost = host;
             }
           }
 
@@ -72,10 +76,10 @@ export function GitHubFlowProvider({ children }: React.PropsWithChildren) {
               roles: ['Bot'],
               botName: botConfig.botName,
               method: 'github',
-              enterpriseServerHost: '',
+              enterpriseServerHost: repoHost,
               gitHub: {
                 allow: repoRules.map((r): GitHubRepoRule => {
-                  const { host, owner, repository } = parseRepoAddress(r.repoAddress);
+                  const { owner, repository } = parseRepoAddress(r.repoAddress);
                   return {
                     repository: `${owner}/${repository}`,
                     repository_owner: owner,
@@ -134,7 +138,7 @@ export const defaultRule: Rule = {
   workflowName: '',
   environment: '',
   ref: '',
-  refType: { label: 'Branch', value: 'branch' },
+  refType: { label: 'any', value: '' },
   repoAddress: '',
   actor: '',
 };

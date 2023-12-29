@@ -17,7 +17,7 @@ import useTeleport from 'teleport/useTeleport';
 import { FlowStepProps } from '../shared/GuidedFlow';
 import { FlowButtons } from '../shared/FlowButtons';
 
-import { LabelsInput } from './LabelsInput';
+import { LabelsInput } from '../shared/LabelsInput';
 
 import { useGitHubFlow } from './useGitHubFlow';
 

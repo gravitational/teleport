@@ -277,7 +277,7 @@ const FormItem = styled(Box)`
   margin-bottom: ${props => props.theme.space[4]}px;
   max-width: 500px;
 `;
-const OptionalFieldText = ({}) => (
+const OptionalFieldText = () => (
   <Text
     style={{ display: 'inline', lineHeight: '12px' }}
     fontWeight="lighter"

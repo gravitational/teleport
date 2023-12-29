@@ -41,6 +41,7 @@ export function FlowButtons({
           disabled={nextButton?.disabled}
           onClick={handleConfirm}
           mr="3"
+          data-testid="button-next"
         >
           {isLast ? 'Finish' : 'Next'}
         </ButtonPrimary>
@@ -71,13 +72,18 @@ function BackButton({
         disabled={disabled}
         as={Link}
         to={cfg.getIntegrationEnrollRoute(null)}
+        data-testid="button-back-integration"
       >
         Back
       </ButtonSecondary>
     );
   }
   return (
-    <ButtonSecondary disabled={disabled} onClick={prevStep}>
+    <ButtonSecondary
+      data-testid="button-back"
+      disabled={disabled}
+      onClick={prevStep}
+    >
       Back
     </ButtonSecondary>
   );

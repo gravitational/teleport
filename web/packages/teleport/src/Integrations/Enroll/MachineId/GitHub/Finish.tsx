@@ -10,7 +10,11 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
 import cfg from 'teleport/config';
 
+import { useGitHubFlow } from './useGitHubFlow';
+
 export function Finish() {
+  const { botConfig } = useGitHubFlow();
+
   return (
     <Flex
       width="600px"
@@ -25,9 +29,14 @@ export function Finish() {
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
-        External Audit Storage Successfully Added
+        Your Machine User is Added to Teleport
       </Text>
-      <Text mb={3}>Audit data will now be stored in your infrastructure.</Text>
+      <Text mb={3}>
+        Machine User {botConfig.botName} has been successfully added to this
+        Teleport Cluster. You can see bot-{botConfig.botName} in the Teleport
+        Users page and you can always find the sample GitHub Actions workflow
+        again from the machine user's options.
+      </Text>
       <Flex>
         <ButtonPrimary mr="4" as={Link} to={cfg.routes.users} size="large">
           View Machine Users
