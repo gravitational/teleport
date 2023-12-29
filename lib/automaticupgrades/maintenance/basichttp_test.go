@@ -27,14 +27,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
+	basichttp2 "github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 const basicHTTPTestPath = "/v1/cloud-stable"
 
 func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
-	mock := basichttp.NewServerMock(basicHTTPTestPath + "/" + constants.MaintenancePath)
+	mock := basichttp2.NewServerMock(basicHTTPTestPath + "/" + constants.MaintenancePath)
 	t.Cleanup(mock.Srv.Close)
 	serverURL, err := url.Parse(mock.Srv.URL)
 	serverURL.Path = basicHTTPTestPath
@@ -97,7 +97,7 @@ func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &basicHTTPMaintenanceClient{
 				baseURL: serverURL,
-				client:  &basichttp.Client{Client: mock.Srv.Client()},
+				client:  &basichttp2.Client{Client: mock.Srv.Client()},
 			}
 			mock.SetResponse(t, tt.statusCode, tt.response)
 			result, err := b.Get(ctx)
