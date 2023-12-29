@@ -1,0 +1,38 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AccessGraphRegistrationService is a service for registering a new tenant in the access graph service
+service AccessGraphRegistrationService {
+  // Register submits a new tenant representing this Teleport cluster to the TAG service,
+  // identified by its HostCA certificate.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+}
+
+// RegisterRequest is the request for Register()
+message RegisterRequest {
+  bytes host_ca_pem = 1;
+}
+
+// RegisterResponse is the response for Register()
+message RegisterResponse {}
