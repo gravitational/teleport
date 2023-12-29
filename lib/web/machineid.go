@@ -66,5 +66,5 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.Wrap(err, "error creating bot")
 	}
 
-	return OK(), err
+	return OK(), nil
 }
