@@ -294,3 +294,16 @@ response frames (see message type 30, above) . This message is sent by the TDP s
 properly formulated.
 
 See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+
+#### 32 - sync keys
+
+```
+| message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+```
+
+This message synchronizes the state of keyboard's modifier keys.
+
+`caps_lock_state` is one of:
+
+- `0` for caps lock inactive
+- `1` FOR CAPS LOCK ACTIVE

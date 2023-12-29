@@ -254,6 +254,7 @@ function Session({
   clientOnWsOpen,
   canvasOnKeyDown,
   canvasOnKeyUp,
+  canvasOnFocusOut,
   canvasOnMouseMove,
   canvasOnMouseDown,
   canvasOnMouseUp,
@@ -323,6 +324,7 @@ function Session({
         clientOnWsOpen={clientOnWsOpen}
         canvasOnKeyDown={canvasOnKeyDown}
         canvasOnKeyUp={canvasOnKeyUp}
+        canvasOnFocusOut={canvasOnFocusOut}
         canvasOnMouseMove={canvasOnMouseMove}
         canvasOnMouseDown={canvasOnMouseDown}
         canvasOnMouseUp={canvasOnMouseUp}

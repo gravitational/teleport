@@ -44,6 +44,7 @@ export default function TdpClientCanvas(props: Props) {
     clientOnClientScreenSpec,
     canvasOnKeyDown,
     canvasOnKeyUp,
+    canvasOnFocusOut,
     canvasOnMouseMove,
     canvasOnMouseDown,
     canvasOnMouseUp,
@@ -303,6 +304,20 @@ export default function TdpClientCanvas(props: Props) {
     };
   }, [client, canvasOnKeyUp]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const _onfocusout = () => {
+      canvasOnFocusOut(client);
+    };
+    if (canvasOnFocusOut) {
+      canvas.addEventListener('focusout', _onfocusout);
+    }
+
+    return () => {
+      if (canvasOnFocusOut) canvas.removeEventListener('focusout', _onfocusout);
+    };
+  }, [client, canvasOnFocusOut]);
+
   // Call init after all listeners have been registered
   useEffect(() => {
     if (client && clientShouldConnect) {
@@ -344,6 +359,7 @@ export type Props = {
   ) => void;
   canvasOnKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
   canvasOnKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
+  canvasOnFocusOut?: (cli: TdpClient) => void;
   canvasOnMouseMove?: (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
