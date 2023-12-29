@@ -126,14 +126,16 @@ func (b *Bot) Run(ctx context.Context) error {
 		return nil
 	}
 
-	// If in daemon mode, we spin up all of our separate concurrent components.
+	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
 
+	// ReloadBroadcaster allows multiple entities to trigger a reload of
+	// all services. This allows os signals and other events such as CA
+	// rotations to trigger appropriate renewals.
 	reloadBroadcaster := &channelBroadcaster{
 		chanSet: map[chan struct{}]struct{}{},
 	}
-	// Trigger reloads from an configured reload channel. This allows os signals
-	// to be handled.
+	// Trigger reloads from an configured reload channel.
 	if b.cfg.ReloadCh != nil {
 		eg.Go(func() error {
 			for {
@@ -153,43 +155,65 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(b.renewOutputsLoop(egCtx, reloadCh))
 	})
 
-	identitySvc := &identityService{
+	services := []bot.Service{}
+	if b.cfg.DiagAddr != "" {
+		services = append(services, &diagnosticsService{
+			diagAddr:     b.cfg.DiagAddr,
+			pprofEnabled: b.cfg.Debug,
+			log: b.log.WithField(
+				trace.Component, teleport.Component("tbot", "diagnostics"),
+			),
+		})
+	}
+	services = append(services, &identityService{
 		b:                 b,
 		reloadBroadcaster: reloadBroadcaster,
 		log: b.log.WithField(
 			trace.Component, teleport.Component("tbot", "identity"),
 		),
-	}
-	diagnosticsSvc := &diagnosticsService{
-		diagAddr:     b.cfg.DiagAddr,
-		pprofEnabled: b.cfg.Debug,
-		log: b.log.WithField(
-			trace.Component, teleport.Component("tbot", "diagnostics"),
-		),
-	}
-	caWatcherSvc := &caRotationWatcherService{
+	})
+	services = append(services, &caRotationService{
 		log: b.log.WithField(
 			trace.Component, teleport.Component("tbot", "ca-rotation-watcher"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
 		bot:               b,
-	}
+	})
 
-	services := append([]bot.Service{
-		diagnosticsSvc,
-		identitySvc,
-		caWatcherSvc,
-	}, b.cfg.Services...)
+	// Append any services configured by the user
+	services = append(services, b.cfg.Services...)
+
+	// Start services
 	for _, svc := range services {
-		b.log.WithField("service", svc.String()).Info("Starting service")
-		eg.Go(func() error {
-			err := svc.Run(egCtx)
-			if err != nil {
-				b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
-				return trace.Wrap(err, "running service %q", svc.String())
+		svc := svc
+		if b.cfg.Oneshot {
+			svc, ok := svc.(bot.OneShotService)
+			// We ignore services with no one-shot implementation
+			if ok {
+				eg.Go(func() error {
+					b.log.WithField("service", svc.String()).Info("Running service as oneshot")
+					err := svc.OneShot(egCtx)
+					if err != nil {
+						b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
+						return trace.Wrap(err, "running service %q", svc.String())
+					}
+					b.log.WithError(err).WithField("service", svc.String()).Error("Service exited")
+					return nil
+				})
 			}
-			return nil
-		})
+
+		} else {
+			eg.Go(func() error {
+				b.log.WithField("service", svc.String()).Info("Starting service")
+				err := svc.Run(egCtx)
+				if err != nil {
+					b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
+					return trace.Wrap(err, "running service %q", svc.String())
+				}
+				b.log.WithField("service", svc.String()).Error("Service exited")
+				return nil
+			})
+		}
 	}
 
 	return eg.Wait()
