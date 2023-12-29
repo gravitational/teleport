@@ -19,7 +19,6 @@ package reference
 import (
 	"errors"
 	"fmt"
-	"gen-resource-ref/resource"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -28,6 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )
 
 const versionField = "Version"

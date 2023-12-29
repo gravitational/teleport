@@ -19,8 +19,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"gen-resource-ref/reference"
 	"os"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 
 	"gopkg.in/yaml.v3"
 )

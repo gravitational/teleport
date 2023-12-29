@@ -18,7 +18,6 @@ package reference
 
 import (
 	"bytes"
-	"gen-resource-ref/resource"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -26,6 +25,8 @@ import (
 	"os"
 	"path"
 	"testing"
+
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
