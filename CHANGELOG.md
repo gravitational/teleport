@@ -23,6 +23,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
 
 ### Other Fixes & Improvements
 
+* Added the ability to promote an access request to an access list in Teleport Connect
 * Fixed an issue that would prevent websocket upgrades from completing. [#36088](https://github.com/gravitational/teleport/pull/36088)
 * Enhanced the audit events related to Teleport's SAML IdP [#36087](https://github.com/gravitational/teleport/pull/36087)
 * Added support for STS session tags in the database configuration for granular DynamoDB access. [#36064](https://github.com/gravitational/teleport/pull/36064)
