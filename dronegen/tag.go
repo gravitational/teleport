@@ -74,6 +74,8 @@ func tagPipelines() []pipeline {
 			tagCleanupPipelineName,
 			"build-linux-amd64",
 			"build-linux-amd64-fips",
+			"build-linux-arm64",
+			"build-linux-arm64-fips",
 		},
 		workflows: []ghaWorkflow{
 			{

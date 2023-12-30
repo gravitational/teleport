@@ -2715,6 +2715,8 @@ depends_on:
 - clean-up-previous-build
 - build-linux-amd64
 - build-linux-amd64-fips
+- build-linux-arm64
+- build-linux-arm64-fips
 steps:
 - name: Check out code
   image: docker:git
@@ -12046,6 +12048,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 4ebdea923dc76d4f2565d5462d5ee04db6dd9e9e273620fac44fcc34d3259808
+hmac: 6037e6bdee3255d8eebea41cf0536df554378778bc536aeaf075eb65dcda82ff
 
 ...
