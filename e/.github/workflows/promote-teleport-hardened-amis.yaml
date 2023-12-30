@@ -11,7 +11,7 @@ on:
 
       oss-teleport-ref:
         description: |
-            Git SHA, tag or branch of the revision of OSS teleport to build
+          Git SHA, tag or branch of the revision of OSS teleport to build
         required: true
         type: string
 
@@ -72,7 +72,7 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss # We don't need teleport.e even when building enterprise AMI
+          edition: oss  # We don't need teleport.e even when building enterprise AMI
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
@@ -89,7 +89,7 @@ jobs:
         id: aws-login
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
-          aws-region:  us-west-2
+          aws-region: us-west-2
           role-to-assume: ${{ inputs.promotion-role-arn }}
           role-session-name: "gha-ami-promote-${{ github.run_number }}"
           role-duration-seconds: 3600

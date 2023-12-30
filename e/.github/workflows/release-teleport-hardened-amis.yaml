@@ -24,7 +24,7 @@ on:
 
       source-tag:
         description: |
-          The semver version of Teleport that we're building for. If not set 
+          The semver version of Teleport that we're building for. If not set
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
@@ -40,7 +40,7 @@ on:
 
       ci-storage-access-role-arn:
         description: |
-          ARN of the role used to access the dronestorage bucket, for retrieving 
+          ARN of the role used to access the dronestorage bucket, for retrieving
           artifacts built by Drone.
         required: true
         type: string
@@ -80,30 +80,31 @@ jobs:
     steps:
       - name: ${{ inputs.workflow-tag }}
         run: echo ${{ inputs.workflow-tag }}
-        
+
   build-amis:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # Required for aws-actions/configure-aws-credentials
+      id-token: write  # Required for aws-actions/configure-aws-credentials
     strategy:
-        matrix:
-          teleport-edition: ['oss', 'ent']
-          fips: [true, false]
-          exclude:
-            # There's no such thing as an OSS FIPS release
-            - teleport-edition: oss
-              fips: true
-          include:
-            - teleport-edition: oss
-              edition-infix: ""
-            - teleport-edition: ent
-              edition-infix: "-ent"
-            - fips: false
-              fips-infix: ""
-            - fips: true
-              fips-infix: "-fips"
-              
+      matrix:
+        architecture: ['amd64', 'arm64']
+        teleport-edition: ['oss', 'ent']
+        fips: [true, false]
+        exclude:
+          # There's no such thing as an OSS FIPS release
+          - teleport-edition: oss
+            fips: true
+        include:
+          - teleport-edition: oss
+            edition-infix: ""
+          - teleport-edition: ent
+            edition-infix: "-ent"
+          - fips: false
+            fips-infix: ""
+          - fips: true
+            fips-infix: "-fips"
+
     steps:
       - name: Parse Teleport version tag
         id: version
@@ -117,14 +118,14 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss # We don't need teleport.e even when building enterprise AMI 
+          edition: oss  # We don't need teleport.e even when building enterprise AMI
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Assume Legacy Drone storage AWS role
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
-          aws-region:  us-west-2
+          aws-region: us-west-2
           role-to-assume: ${{ inputs.ci-storage-access-role-arn }}
           role-session-name: "gha-ami-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
@@ -132,7 +133,7 @@ jobs:
       - name: Download Teleport tarballs
         id: download-tarball
         env:
-          ARCHITECTURE: amd64
+          ARCHITECTURE: ${{ matrix.architecture }}
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TAR_EDITION_INFIX: ${{ matrix.edition-infix }}
           TAR_FIPS_INFIX: ${{ matrix.fips-infix }}
@@ -145,7 +146,7 @@ jobs:
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
-          aws-region:  us-west-2
+          aws-region: us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
           role-session-name: "gha-${{ matrix.teleport-edition }}-ami-build-${{ github.run_number }}"
           role-duration-seconds: 3600
@@ -162,7 +163,8 @@ jobs:
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TELEPORT_TYPE: ${{ matrix.teleport-edition }}
           TELEPORT_FIPS: ${{ matrix.fips }}
-          TELEPORT_TARBALL: ${{ steps.download-tarball.outputs.path  }}
+          TELEPORT_TARBALL: ${{ steps.download-tarball.outputs.path }}
+          ARCHITECTURE: ${{ matrix.architecture }}
           DEST_AMI_REGIONS: ${{ inputs.dest-ami-regions }}
         working-directory: "${{ github.workspace }}/assets/aws"
         run: |
@@ -173,20 +175,31 @@ jobs:
           echo timestamp=${BUILD_TIMESTAMP} >> $GITHUB_OUTPUT
 
           TELEPORT_FIPS_TAG=""
-          if ${TELEPORT_FIPS}; then 
+          if ${TELEPORT_FIPS}; then
             TELEPORT_FIPS_TAG="-fips"
+          fi
+
+          AMI_ARCH=""
+          AWS_INSTANCE_TYPE=""
+          if [ "$ARCHITECTURE" = "amd64" ]; then
+            AMI_ARCH="x86_64"
+            AWS_INSTANCE_TYPE="t3.medium"
+          elif [ "$ARCHITECTURE" = "arm64" ]; then
+            AMI_ARCH=${ARCHITECTURE}
+            AWS_INSTANCE_TYPE="t4g.medium"
           fi
 
           packer build \
             -var aws_account_id=${AWS_ACCOUNT_ID} \
             -var aws_region=us-west-2 \
             -var aws_vpc_id=${AWS_VPC_ID} \
-            -var aws_instance_type=t2.medium \
+            -var aws_instance_type=${AWS_INSTANCE_TYPE} \
             -var teleport_version=${TELEPORT_VERSION} \
             -var teleport_type=${TELEPORT_TYPE} \
             -var teleport_fips=${TELEPORT_FIPS} \
             -var teleport_tarball=${TELEPORT_TARBALL} \
-            -var ami_name=teleport-${TELEPORT_TYPE}-${TELEPORT_VERSION}${TELEPORT_FIPS_TAG}-${BUILD_TIMESTAMP} \
+            -var ami_name=teleport-${TELEPORT_TYPE}-${TELEPORT_VERSION}-${AMI_ARCH}${TELEPORT_FIPS_TAG}-${BUILD_TIMESTAMP} \
+            -var ami_arch=${AMI_ARCH} \
             -var ami_build_timestamp=${BUILD_TIMESTAMP} \
             -var ami_destination_regions=${DEST_AMI_REGIONS} \
             single-ami.pkr.hcl
