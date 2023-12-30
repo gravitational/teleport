@@ -9,7 +9,7 @@ on:
     # Run daily at 7.17 am UTC. 7am UTC is 0:00 PDT, and the 17 
     # minute offset is not important; just a random offset to
     # stagger jobs.
-    - cron: '17 7 * * *'  
+    - cron: '17 7 * * *'
 
 jobs:
   build:
@@ -17,10 +17,10 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        teleport-major-version: [12, 13]
+        teleport-major-version: [12, 13, 14]
         arch: [amd64, arm64]
         mode: ['debug', 'production']
-        release: ['oss', 'enterprise']
+        release: ['oss', 'enterprise', 'fips']
         include:
           - mode: 'production'
             repo-debug-suffix: ''
@@ -30,9 +30,11 @@ jobs:
             repo-enterprise-infix: ''
           - release: 'enterprise'
             repo-enterprise-infix: '-ent'
+          - release: 'fips'
+            repo-enterprise-infix: '-ent-fips'
     permissions:
       contents: read
-      security-events: write # to upload SARIF results
+      security-events: write  # to upload SARIF results
     name: Scan
     runs-on: ubuntu-latest
     steps:
