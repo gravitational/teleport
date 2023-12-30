@@ -47,19 +47,6 @@ jobs:
         run: |
           echo "teleport-version=${ref#v}" >> "$GITHUB_OUTPUT"
 
-  build-legacy-images:
-    name: Build legacy images
-    needs: setup
-    secrets: inherit
-    permissions:
-      id-token: write  # required for aws-actions/configure-aws-credentials
-      contents: read
-    uses: ./.github/workflows/build-legacy-oci.yaml
-    with:
-      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
-      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      teleport-version: ${{ needs.setup.outputs.teleport-version }}
-
   build-operator:
     name: Build operator OCI
     needs: setup
