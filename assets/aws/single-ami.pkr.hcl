@@ -165,6 +165,7 @@ source "amazon-ebs" "teleport-aws-linux" {
     BuildTimestamp      = var.ami_build_timestamp
     BuildType           = "production"
     Name                = local.ami_name
+    Architecture        = "x86_64"
     TeleportVersion     = var.teleport_version
     TeleportEdition     = var.teleport_type
     TeleportFipsEnabled = var.teleport_fips
