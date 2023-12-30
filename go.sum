@@ -323,8 +323,8 @@ github.com/chai2010/gettext-go v1.0.2 h1:1Lwwip6Q2QGsAdl/ZKPCwTe9fe0CjlUbqj5bFNS
 github.com/chai2010/gettext-go v1.0.2/go.mod h1:y+wnP2cHYaVj19NZhYKAwEMH2CI1gNHeQQ+5AjwawxA=
 github.com/charmbracelet/bubbles v0.16.1 h1:6uzpAAaT9ZqKssntbvZMlksWHruQLNxg49H5WdeuYSY=
 github.com/charmbracelet/bubbles v0.16.1/go.mod h1:2QCp9LFlEsBQMvIYERr7Ww2H2bA7xen1idUDIzm/+Xc=
-github.com/charmbracelet/bubbletea v0.24.2 h1:uaQIKx9Ai6Gdh5zpTbGiWpytMU+CfsPp06RaW2cx/SY=
-github.com/charmbracelet/bubbletea v0.24.2/go.mod h1:XdrNrV4J8GiyshTtx3DNuYkR1FDaJmO3l2nejekbsgg=
+github.com/charmbracelet/bubbletea v0.25.0 h1:bAfwk7jRz7FKFl9RzlIULPkStffg5k6pNt5dywy4TcM=
+github.com/charmbracelet/bubbletea v0.25.0/go.mod h1:EN3QDR1T5ZdWmdfDzYcqOCAps45+QIJbLOBxmVNWNNg=
 github.com/charmbracelet/lipgloss v0.9.1 h1:PNyd3jvaJbg4jRHKWXnCj1akQm4rh8dbEzN1p/u1KWg=
 github.com/charmbracelet/lipgloss v0.9.1/go.mod h1:1mPmG4cxScwUQALAAnacHaigiiHB9Pmr+v1VEawJl6I=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
@@ -768,8 +768,8 @@ github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8F
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
-github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a h1:PN5vAN1ZA0zqdpM6wNdx6+bkdlQ5fImd75oaIHSbOhY=
-github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a/go.mod h1:jaxS7X2ouXfNd2Pxpybd01qNQK15UmkixKj4vtpp7f8=
+github.com/gravitational/license v0.0.0-20231228155916-928ed9ac0335 h1:fShrzWedyujntzzpjdDmy7r22d+6nKIokEWZRG2QoMQ=
+github.com/gravitational/license v0.0.0-20231228155916-928ed9ac0335/go.mod h1:kzMpXT7DIdeoGVSTwsZowcW6jiu3NRwg+E1XfdGvzyI=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680 h1:acbjjEJoR2vu1cuSE15Q9YDgWZxWRFj7nr2Vsi/Pn18=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680/go.mod h1:SP8xfwGas4wleDVXDmeVpfn/Fv+wD8rrb2SqN/DlNXQ=
 github.com/gravitational/predicate v1.3.1 h1:f1uGg2FF6z5wZbcafYpLZJ1gl+82I0MlSd0cQKDPQe0=

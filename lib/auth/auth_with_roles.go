@@ -6456,6 +6456,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 			},
 			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 				ServiceProviderEntityID: sp.GetEntityID(),
+				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
 			},
 		}); emitErr != nil {
 			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
@@ -6493,6 +6494,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 			},
 			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 				ServiceProviderEntityID: sp.GetEntityID(),
+				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
 			},
 		}); emitErr != nil {
 			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
@@ -6509,6 +6511,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
+}
+
+func typesAttrMapToEventAttrMap(attributeMapping []*types.SAMLAttributeMapping) map[string]string {
+	amap := make(map[string]string, len(attributeMapping))
+	for _, attribute := range attributeMapping {
+		amap[attribute.Name] = attribute.Value
+	}
+	return amap
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.

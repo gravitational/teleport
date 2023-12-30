@@ -222,6 +222,12 @@ func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // CheckAndSetDefaults check and sets SAMLAttributeMapping default values
 func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
+	if am.Name == "" {
+		return trace.BadParameter("attribute name is required")
+	}
+	if am.Value == "" {
+		return trace.BadParameter("attribute value is required")
+	}
 	// verify name format is one of the supported
 	// formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
 	// and assign it with the URN value of that format.
