@@ -150,6 +150,15 @@ naming scheme for these AMIs has been changed to include the architecture.
 - Previous naming scheme: `teleport-oss-14.0.0-$TIMESTAMP`
 - New naming scheme: `teleport-oss-15.0.0-x86_64-$TIMESTAMP`
 
+##### Legacy Amazon Linux 2 AMIs
+
+Teleport-provided Amazon Linux 2 AMIs were deprecated, and Teleport 14 is the
+last version to produce such legacy AMIs. With Teleport 15's release, only
+the newer hardened Amazon Linux 2023 AMIs will be produced.
+
+The legacy AMIs will continue to be published for Teleport 13 and 14 throughout
+the remainder of these releases' lifecycle.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:
