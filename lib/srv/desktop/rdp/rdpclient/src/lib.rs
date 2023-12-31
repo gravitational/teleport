@@ -394,6 +394,9 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     )
 }
 
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_sync_keys(
     cgo_handle: CgoHandle,
