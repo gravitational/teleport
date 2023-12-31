@@ -160,7 +160,7 @@ buildbox-fips: buildbox-centos7-fips
 # architecture we are building.
 #
 .PHONY:buildbox-centos7
-buildbox-centos7:
+buildbox-centos7: build-centos7-assets
 	$(REQUIRE_HOST_ARCH)
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
 	docker buildx build \
