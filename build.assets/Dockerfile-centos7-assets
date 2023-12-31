@@ -22,17 +22,17 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum install -y centos-release-scl-rh && \
     yum install -y \
-        centos-release-scl \
-        cmake3 \
-        git \
-        scl-utils && \
+    centos-release-scl \
+    cmake3 \
+    git \
+    scl-utils && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc \
-        ${DEVTOOLSET}-gcc-c++ \
-        ${DEVTOOLSET}-make && \
+    ${DEVTOOLSET}-gcc \
+    ${DEVTOOLSET}-gcc-c++ \
+    ${DEVTOOLSET}-make && \
     yum clean all
 
 # Use just created devtool image with newer GCC and Cmake
@@ -54,12 +54,12 @@ RUN git clone --branch llvmorg-14.0.6 --depth=1 https://github.com/llvm/llvm-pro
     [ "$(git rev-parse HEAD)" = 'f28c006a5895fc0e329fe15fead81e37457cb1d1' ] && \
     mkdir build && cd build/ && \
     scl enable ${DEVTOOLSET} 'bash -c "cmake3 \
--DCMAKE_BUILD_TYPE=Release \
--DCMAKE_INSTALL_PREFIX=/opt/llvm \
--DLLVM_ENABLE_PROJECTS=clang \
--DLLVM_BUILD_TOOLS=ON \
--G \"Unix Makefiles\" ../llvm && \
-make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang install-clang-resource-headers install-libclang"' && \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/llvm \
+    -DLLVM_ENABLE_PROJECTS=clang \
+    -DLLVM_BUILD_TOOLS=ON \
+    -G \"Unix Makefiles\" ../llvm && \
+    make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang install-clang-resource-headers install-libclang"' && \
     cd ../.. && \
     rm -rf llvm-project
 
