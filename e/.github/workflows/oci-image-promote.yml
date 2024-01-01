@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install cosign
-        uses: sigstore/cosign-installer@1fc5bd396d372bee37d608f955b336615edf79c8 # v3.2.0
+        uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # v3.3.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
@@ -139,6 +139,5 @@ jobs:
           SIGNING_KEY_URL: ${{ inputs.production-signing-key-url }}
           DST_IMAGE: "${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
         run: |
-          # TODO(reed): TLog uploads temporarily disabled due to https://github.com/sigstore/cosign/issues/3356.
-          cosign sign --yes --tlog-upload=false --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
-          cosign sign --yes --upload=false --tlog-upload=false --recursive ${DST_IMAGE}
+          cosign sign --yes --key ${SIGNING_KEY_URL} --recursive ${DST_IMAGE}
+          cosign sign --yes --upload=false --recursive ${DST_IMAGE}
