@@ -808,9 +808,9 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v12
-      PREVIOUS_VERSION_ONE_ROOT: v11
-      PREVIOUS_VERSION_TWO_ROOT: v10
+      CURRENT_VERSION_ROOT: v14
+      PREVIOUS_VERSION_ONE_ROOT: v13
+      PREVIOUS_VERSION_TWO_ROOT: v12
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
@@ -12048,6 +12048,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 6037e6bdee3255d8eebea41cf0536df554378778bc536aeaf075eb65dcda82ff
+hmac: 4ebe6803bd4211a77094240d8e91c2cc9ac7e9b97956e277fbfa3b5e52962fdd
 
 ...
