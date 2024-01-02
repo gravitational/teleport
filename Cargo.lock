@@ -234,9 +234,8 @@ dependencies = [
 
 [[package]]
 name = "boring"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92667e5967bf826198f88dd3e43616973f8902769a6151616a65be1289a3c531"
+version = "4.2.0"
+source = "git+https://github.com/gravitational/boring?rev=70e4c8051d4c276243f20f5f9e6457b714eb8717#70e4c8051d4c276243f20f5f9e6457b714eb8717"
 dependencies = [
  "bitflags 2.4.1",
  "boring-sys",
@@ -247,9 +246,8 @@ dependencies = [
 
 [[package]]
 name = "boring-sys"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f04f5e0e2dc8315f68251391a4ac6da54793525c01d0206b10732b71139768cd"
+version = "4.2.0"
+source = "git+https://github.com/gravitational/boring?rev=70e4c8051d4c276243f20f5f9e6457b714eb8717#70e4c8051d4c276243f20f5f9e6457b714eb8717"
 dependencies = [
  "bindgen",
  "cmake",
@@ -2768,9 +2766,8 @@ dependencies = [
 
 [[package]]
 name = "tokio-boring"
-version = "4.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db2ca4142b3d45b579a45fc171a04d2f8dde1f5ff76290fd395286bcc5f82f4b"
+version = "4.2.0"
+source = "git+https://github.com/gravitational/boring?rev=70e4c8051d4c276243f20f5f9e6457b714eb8717#70e4c8051d4c276243f20f5f9e6457b714eb8717"
 dependencies = [
  "boring",
  "boring-sys",
