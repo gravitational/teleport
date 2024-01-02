@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './documentsService';
-export * from './types';
-export * from './documentsUtils';
-export * from './connectToDatabase';
-export * from './connectToServer';
-export * from './connectToKube';
-export * from './connectToApp';
+export async function connectToApp(): Promise<void> {
+  alert('Not implemented');
+}
