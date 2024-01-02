@@ -184,19 +184,6 @@ func (t *Terminal) RestoreCursor() error {
 	return trace.Wrap(err)
 }
 
-// SetCursorPos sets the cursor position to the given x, y coordinates.
-// Coordinates are 1-indexed. (1, 1) represents the top left corner.
-func (t *Terminal) SetCursorPos(x, y int) error {
-	_, err := fmt.Fprintf(t.stdout, "\x1b[%d;%dH", y, x)
-	return trace.Wrap(err)
-}
-
-// SetWindowTitle sets the terminal window's title.
-func (t *Terminal) SetWindowTitle(s string) error {
-	_, err := fmt.Fprintf(t.stdout, "\x1b]0;%s\a", s)
-	return trace.Wrap(err)
-}
-
 func (t *Terminal) Stdin() io.Reader  { return t.stdin }
 func (t *Terminal) Stdout() io.Writer { return t.stdout }
 func (t *Terminal) Stderr() io.Writer { return t.stderr }
