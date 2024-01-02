@@ -3,7 +3,7 @@ locals {
 }
 
 resource "azurerm_network_interface" "teleport_agent" {
-  count               = var.cloud == "azure" ? var.agent_count : 0
+  count               = length(var.userdata_scripts)
   name                = "teleport-agent-ni-${count.index}"
   location            = var.region
   resource_group_name = var.azure_resource_group
@@ -11,11 +11,20 @@ resource "azurerm_network_interface" "teleport_agent" {
     name                          = "teleport_agent_ip_config"
     subnet_id                     = var.subnet_id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = var.insecure_direct_access ? azurerm_public_ip.agent[count.index].id : ""
   }
 }
 
+resource "azurerm_public_ip" "agent" {
+  count               = var.insecure_direct_access ? length(var.userdata_scripts) : 0
+  name                = "agentIP-${count.index}"
+  resource_group_name = var.azure_resource_group
+  location            = var.region
+  allocation_method   = "Static"
+}
+
 resource "azurerm_virtual_machine" "teleport_agent" {
-  count = var.cloud == "azure" ? var.agent_count : 0
+  count = length(var.userdata_scripts)
   name  = "teleport-agent-${count.index}"
 
   location            = var.region
@@ -35,11 +44,7 @@ resource "azurerm_virtual_machine" "teleport_agent" {
   os_profile {
     computer_name  = "teleport-agent-${count.index}"
     admin_username = local.username
-    custom_data = templatefile("./userdata", {
-      token                 = teleport_provision_token.agent[count.index].metadata.name
-      proxy_service_address = var.proxy_service_address
-      teleport_version      = var.teleport_version
-    })
+    custom_data    = var.userdata_scripts[count.index]
   }
 
   vm_size = "Standard_B2s"
