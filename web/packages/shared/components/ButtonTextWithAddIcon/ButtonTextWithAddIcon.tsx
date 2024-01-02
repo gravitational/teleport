@@ -51,7 +51,6 @@ export const ButtonTextWithAddIcon = ({
         css={`
           margin-right: 3px;
         `}
-        disabled={disabled}
       />
       {label}
     </ButtonText>
