@@ -15,6 +15,36 @@ Teleport 15 now provides hardened AWS AMIs on ARM64.
 
 ### Breaking changes and deprecations
 
+#### RDP engine requires RemoteFX
+
+Teleport 15 includes a new RDP engine that leverages the RemoteFX codec for
+improved performance. Additional configuration may be required to enable
+RemoteFX on your Windows hosts.
+
+If you are using our authentication package for local users, the v15 installer
+will automatically enable RemoteFX for you.
+
+Alternatively, you can enable RemoteFX by updating the registry:
+
+```powershell
+Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -Name 'ColorDepth' -Type DWORD -Value 5
+Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableVirtualizedGraphics' -Type DWORD -Value 1
+```
+
+If you are using Teleport with Windows hosts that are part of an Active
+Directory environment, you should enable RemoteFX via group policy.
+
+Under Computer Configuration > Administrative Templates > Windows Components >
+Remote Desktop Services > Remote Desktop Session Host, enable:
+
+1. Remote Session Environment > RemoteFX for Windows Server 2008 R2 > Configure RemoteFX
+1. Remote Session Environment > Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1
+1. Remote Session Environment > Limit maximum color depth
+
+Detailed instructions are available in the
+[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
+A reboot may be required for these changes to take effect.
+
 #### `tsh ssh`
 
 When running a command on multiple nodes with `tsh ssh`, each line of output
