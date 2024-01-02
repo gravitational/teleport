@@ -95,6 +95,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	unlock, err := b.preRunChecks(ctx)
 	defer func() {
+		b.log.Debug("Unlocking bot storage.")
 		if unlock != nil {
 			if err := unlock(); err != nil {
 				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
@@ -117,16 +118,18 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	// Trigger reloads from an configured reload channel.
 	if b.cfg.ReloadCh != nil {
-		eg.Go(func() error {
+		// We specifically do not use the error group here as we do not want
+		// this goroutine to block the bot from exiting.
+		go func() {
 			for {
 				select {
 				case <-egCtx.Done():
-					return nil
+					return
 				case <-b.cfg.ReloadCh:
 					reloadBroadcaster.broadcast()
 				}
 			}
-		})
+		}()
 	}
 
 	b.botIdentitySvc = &identityService{
