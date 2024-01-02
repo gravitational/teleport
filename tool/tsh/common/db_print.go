@@ -23,8 +23,7 @@ import (
 	"io"
 	"reflect"
 	"regexp"
-
-	"golang.org/x/exp/slices"
+	"slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
