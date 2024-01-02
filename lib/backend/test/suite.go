@@ -56,7 +56,7 @@ type ConstructionOptions struct {
 
 	// FastTTLDeletion indicates ttl deletions happen within a short time period
 	// for testing. Some backends may do async deletion that takes longer, too long
-	// to wait for testing deletion event propigation.
+	// to wait for testing deletion event propagation.
 	FastTTLDeletion bool
 }
 
