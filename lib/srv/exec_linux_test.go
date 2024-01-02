@@ -115,6 +115,23 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, expectedEnv, cmd.Env)
 }
 
+func TestConfigureCommand(t *testing.T) {
+	srv := newMockServer(t)
+	scx := newExecServerContext(t, srv)
+
+	unexpectedKey := "FOO"
+	unexpectedValue := "BAR"
+	// environment values in the server context should not be forwarded
+	scx.SetEnv(unexpectedKey, unexpectedValue)
+
+	cmd, err := ConfigureCommand(scx)
+	require.NoError(t, err)
+
+	require.NotNil(t, cmd)
+	require.Equal(t, "/proc/self/exe", cmd.Path)
+	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
+}
+
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {

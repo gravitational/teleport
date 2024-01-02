@@ -62,7 +62,7 @@ require (
 	github.com/bufbuild/connect-go v1.10.0
 	github.com/buildkite/bintest/v3 v3.2.0
 	github.com/charmbracelet/bubbles v0.16.1
-	github.com/charmbracelet/bubbletea v0.24.2
+	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/lipgloss v0.9.1
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
@@ -100,7 +100,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
-	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
+	github.com/gravitational/license v0.0.0-20231228155916-928ed9ac0335
 	github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680
 	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
@@ -275,7 +275,7 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
-	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
+	github.com/dvsekhvalnov/jose2go v1.5.1-0.20231206184617-48ba0b76bc88 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.3.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect

@@ -115,7 +115,7 @@ type GetKubesResponse struct {
 }
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
-func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string, mfaPrompt mfa.Prompt) (tls.Certificate, error) {
+func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.Certificate, error) {
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
@@ -137,7 +137,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string, mfaPr
 			KubernetesCluster: kubeCluster,
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
-		mfaPrompt,
+		c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 	)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

@@ -2,7 +2,18 @@
 
 ## 15.0.0 (xx/xx/24)
 
-### Breaking changes
+### New features
+
+#### FIPS now supported on ARM64
+
+Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now
+be able to run Teleport in FedRAMP/FIPS mode on ARM64.
+
+#### Hardened AMIs now produced for ARM64
+
+Teleport 15 now provides hardened AWS AMIs on ARM64.
+
+### Breaking changes and deprecations
 
 #### `tsh ssh`
 
@@ -19,10 +30,24 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
+##### Packages no longer published to legacy Debian and RPM repos
+
+`deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
+Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
+published to these repos. Teleport 14 and prior packages will continue to be
+published to these repos for the remainder of those releases' lifecycle.
+
+All users are recommended to switch to `apt.releases.teleport.dev` and
+`yum.releases.teleport.dev` repositories as described in installation
+[instructions](docs/pages/installation.mdx).
+
+The legacy package repos will be shut off in mid 2025 after Teleport 14
+has been out of support for many months.
+
 #### Container images
 
 Teleport 15 contains several breaking changes to improve the default security
-and usability of container images.
+and usability of Teleport-provided container images.
 
 ##### "Heavy" container images are discontinued
 
@@ -69,6 +94,20 @@ Teleport 8 will need to download any quay.io images they depend on and mirror
 them elsewhere before July 2024. Following brownouts in May and June, Teleport
 will disable pulls from all Teleport quay.io repositories on Wednesday July 3,
 2024.
+
+#### Amazon AMIs
+
+Teleport 15 contains several breaking changes to improve the default security
+and usability of Teleport-provided Amazon AMIs.
+
+##### Hardened AMIs
+
+Teleport-provided Amazon Linux 2023 previously only supported x86_64/amd64.
+Starting with Teleport 15, arm64-based AMIs will be produced. However, the
+naming scheme for these AMIs has been changed to include the architecture.
+
+- Previous naming scheme: `teleport-oss-14.0.0-$TIMESTAMP`
+- New naming scheme: `teleport-oss-15.0.0-x86_64-$TIMESTAMP`
 
 ## 14.0.0 (09/20/23)
 

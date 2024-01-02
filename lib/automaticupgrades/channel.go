@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (

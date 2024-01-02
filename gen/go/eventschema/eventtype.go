@@ -21,6 +21,13 @@ package eventschema
 // This list is manually curated to contain events that are relevant to the user
 // in a security report context.
 var eventTypes = []string{
+	"access_list.create",
+	"access_list.delete",
+	"access_list.member.create",
+	"access_list.member.delete",
+	"access_list.member.update",
+	"access_list.review",
+	"access_list.update",
 	"access_request.create",
 	"access_request.review",
 	"auth",
