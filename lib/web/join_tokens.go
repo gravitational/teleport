@@ -527,7 +527,9 @@ func generateAzureTokenName(rules []*types.ProvisionTokenSpecV2Azure_Rule) (stri
 }
 
 // generateGitHubTokenName generates a name for the token in the format
-// [bot-name]-[unix-timestamp]
+// [bot-name]-[unix-timestamp]. GitHub join tokens will be created via the Machine ID flow.
+// Even if two GitHub join tokens have the same rules, we create different tokens, so
+// users can more easily identify the tokens that enable each bot.
 func generateGitHubTokenName(token types.ProvisionTokenSpecV2) string {
 	return fmt.Sprintf("%s-%d", token.BotName, time.Now().Unix())
 }

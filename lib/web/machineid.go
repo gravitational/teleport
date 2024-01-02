@@ -68,3 +68,24 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 
 	return OK(), nil
 }
+
+// getBot creates a bot
+func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	botName := r.URL.Query().Get("name")
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bot, err := clt.BotServiceClient().GetBot(r.Context(), &machineidv1.GetBotRequest{
+		BotName: botName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "error creating bot")
+	}
+
+	return bot, nil
+}

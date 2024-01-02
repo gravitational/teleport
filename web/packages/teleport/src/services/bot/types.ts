@@ -18,6 +18,12 @@
 
 import { ResourceLabel } from '../agents';
 
+export type Bot = {
+  name: string;
+  roles: string[];
+  traits: string[];
+};
+
 export type BotConfig = {
   botName: string;
   labels: ResourceLabel[];

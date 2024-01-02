@@ -306,7 +306,7 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    bot: '/v1/webapi/sites/:clusterId/machine-id/bot',
+    bot: '/v1/webapi/sites/:clusterId/machine-id/bot?name=:name?',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -958,9 +958,10 @@ const cfg = {
     );
   },
 
-  getBotUrl(clusterId: string) {
+  getBotUrl(clusterId: string, name?: string) {
     return generatePath(cfg.api.bot, {
       clusterId,
+      name,
     });
   },
 

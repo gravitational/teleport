@@ -19,10 +19,30 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import type { BotConfig } from './types';
+import type { Bot, BotConfig } from './types';
 
 export const botService = {
   createBot(config: BotConfig): Promise<void> {
     return api.post(cfg.getBotUrl(cfg.proxyCluster), config);
   },
+
+  async getBot(name: string): Promise<Bot | null> {
+    try {
+      return await api.get(cfg.getBotUrl(cfg.proxyCluster, name)).then(makeBot);
+    } catch (err) {
+      // capture the not found error response and return null instead of throwing
+      if (err.message.includes('not found')) {
+        return null;
+      }
+      throw err;
+    }
+  },
 };
+
+function makeBot(json): Bot {
+  return {
+    name: json.metadata.name,
+    roles: json.spec.roles,
+    traits: json.spec.traits,
+  };
+}

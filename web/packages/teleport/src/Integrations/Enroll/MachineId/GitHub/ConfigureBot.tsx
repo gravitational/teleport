@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import Text from 'design/Text';
@@ -32,6 +33,8 @@ import Alert from 'design/Alert';
 
 import useTeleport from 'teleport/useTeleport';
 
+import { botService } from 'teleport/services/bot';
+
 import { FlowStepProps } from '../shared/GuidedFlow';
 import { FlowButtons } from '../shared/FlowButtons';
 
@@ -41,8 +44,11 @@ import { useGitHubFlow } from './useGitHubFlow';
 
 export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
   const [missingLabels, setMissingLabels] = useState(false);
+  const [alreadyExistErr, setAlreadyExistErr] = useState(false);
 
   const { botConfig, setBotConfig } = useGitHubFlow();
+  const { attempt, run } = useAttempt();
+  const isLoading = attempt.status === 'processing';
 
   const ctx = useTeleport();
   const hasAccess =
@@ -50,7 +56,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
     ctx.storeUser.getTokenAccess().create &&
     ctx.storeUser.getBotsAccess().create;
 
-  function handleNext(validator: Validator) {
+  async function handleNext(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
@@ -60,7 +66,15 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
       return;
     }
 
-    nextStep();
+    // check if a bot with that name already exist
+    run(async () => {
+      const bot = await botService.getBot(botConfig.botName);
+      if (bot === null) {
+        nextStep();
+        return;
+      }
+      setAlreadyExistErr(true);
+    });
   }
 
   return (
@@ -145,12 +159,19 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               />
             </FormItem>
 
+            {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
+            {alreadyExistErr && (
+              <Alert>
+                A bot with this name already exist, please use a different name.
+              </Alert>
+            )}
+
             <FlowButtons
               isFirst={true}
               nextStep={() => handleNext(validator)}
               prevStep={prevStep}
               nextButton={{
-                disabled: !hasAccess,
+                disabled: !hasAccess || isLoading,
               }}
             />
           </>

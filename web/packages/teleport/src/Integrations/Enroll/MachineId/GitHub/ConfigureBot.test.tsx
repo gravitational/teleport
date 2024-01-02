@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import TeleportContext from 'teleport/teleportContext';
@@ -57,6 +57,8 @@ describe('configureBot Component', () => {
         </ContextProvider>
       </MemoryRouter>
     );
+
+    return ctx;
   };
 
   it('renders the necessary input fields', () => {
@@ -90,6 +92,24 @@ describe('configureBot Component', () => {
     expect(
       screen.getByText(
         'Insufficient permissions. In order to create a bot, you need permissions to create roles, bots and join tokens.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('shows an error if the bot name already exists', async () => {
+    const ctx = setup({ access: { ...allAccessAcl } });
+    jest.spyOn(ctx.botService, 'getBot').mockResolvedValue({
+      name: 'existing-bot',
+      roles: [],
+      traits: [],
+    });
+
+    const botNameInput = screen.getByPlaceholderText('ex. github-actions-cd');
+    await userEvent.type(botNameInput, 'bot-name');
+    await userEvent.click(screen.getByTestId('button-next'));
+    expect(
+      screen.getByText(
+        'A bot with this name already exist, please use a different name.'
       )
     ).toBeInTheDocument();
   });

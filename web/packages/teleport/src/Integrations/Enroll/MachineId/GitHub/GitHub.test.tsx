@@ -69,6 +69,7 @@ describe('gitHub', () => {
       expiry: new Date('2020-01-01'),
     });
     jest.spyOn(ctx.botService, 'createBot').mockResolvedValue();
+    jest.spyOn(ctx.botService, 'getBot').mockResolvedValue(null);
 
     render(
       <MemoryRouter>
