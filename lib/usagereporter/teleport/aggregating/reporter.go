@@ -235,14 +235,29 @@ func (r *Reporter) run(ctx context.Context) {
 			userActivity[userName] = record
 		}
 
-		// If the requested kind changes somehow, update it and log a warning.
-		// This should never happen in practice.)
+		// Attempt to sanely handle any changes to the record's UserKind that
+		// might occur after it's original creation.
 		if record.UserKind != v1UserKind {
-			r.log.WithFields(logrus.Fields{
-				"from": record.UserKind,
-				"to":   v1UserKind,
-			}).Warn("Record user_kind has changed unexpectedly")
-			record.UserKind = v1UserKind
+			recordUnspecified := record.UserKind == prehogv1.UserKind_USER_KIND_UNSPECIFIED
+			incomingUnspecified := v1UserKind == prehogv1.UserKind_USER_KIND_UNSPECIFIED
+
+			switch {
+			case incomingUnspecified:
+				// Ignore any incoming unspecified events.
+			case recordUnspecified && !incomingUnspecified:
+				// It's okay to discover the kind of a user later. This may
+				// indicate the first event that established a record came from
+				// an outdated node.
+				record.UserKind = v1UserKind
+			default:
+				// Otherwise, update and log a warning. Flipping between
+				// bot/human is a programming error.
+				r.log.WithFields(logrus.Fields{
+					"from": record.UserKind,
+					"to":   v1UserKind,
+				}).Warn("Record user_kind has changed unexpectedly")
+				record.UserKind = v1UserKind
+			}
 		}
 
 		return record
