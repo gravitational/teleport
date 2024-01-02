@@ -91,10 +91,20 @@ $ tctl auth sign \
     --ttl=2190h
 ```
 
-The command will produce 3 files: `ca.crt` with Teleport's certificate authority
-and `node.crt` / `node.key` with the node's certificate and key. Do not rename
-them as this is how CockroachDB expects them to be named. See [Node key and certificates](https://www.cockroachlabs.com/docs/v21.1/create-security-certificates-custom-ca#node-key-and-certificates)
+The command will produce 4 files:
+- `ca.crt` with Teleport's `db` certificate authority
+- `ca-client.crt` with Teleport's `db_client` certificate authority
+- `node.crt` / `node.key` with the node's certificate and key.
+
+Do not rename these files as this is how CockroachDB expects them to be named.
+See [Node key and certificates](https://www.cockroachlabs.com/docs/v21.1/create-security-certificates-custom-ca#node-key-and-certificates)
 for details.
+
+Teleport uses a split CA architecture for database access, and requires that
+you create your own CA for node-to-node client certificates.
+See [cockroach cert](https://www.cockroachlabs.com/docs/stable/cockroach-cert)
+for instructions on creating a client CA and issuing a client certificate for
+each node.
 
 Generate the secrets for each cluster node and make sure to use the hostname
 Teleport will be using to connect to the nodes in the `--host` flag.
@@ -183,4 +193,5 @@ Connect app.
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - [CockroachDB client authentication](https://www.cockroachlabs.com/docs/stable/authentication.html#client-authentication)
+- [CockroachDB using split CA certificates](https://www.cockroachlabs.com/docs/stable/authentication#using-split-ca-certificates)
 
