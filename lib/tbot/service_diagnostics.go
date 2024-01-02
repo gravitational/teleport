@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+// diagnosticsService is a [bot.Service] that exposes diagnostics endpoints.
+// It's only started when a --diag-addr is provided.
 type diagnosticsService struct {
 	log          logrus.FieldLogger
 	diagAddr     string

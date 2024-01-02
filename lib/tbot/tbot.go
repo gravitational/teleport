@@ -134,7 +134,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	// Initialize bot's own identity. This will load from disk, or fetch a new
 	// identity, and perform an initial renewal if necessary.
-	if err := b.botIdentitySvc.Init(ctx); err != nil {
+	if err := b.botIdentitySvc.Initialize(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	services = append(services, b.botIdentitySvc)

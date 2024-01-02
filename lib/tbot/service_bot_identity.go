@@ -130,9 +130,14 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	return loadedIdent, nil
 }
 
-// Init TODO: document
-func (s *identityService) Init(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "identityService/Init")
+// Initialize attempts to loaad an existing identity from the bot's storage.
+// If an identity is found, it is checked against the configured onboarding
+// settings. It is then renewed and persisted.
+//
+// If no identity is found, or the identity is no longer valid, a new identity
+// is requested using the configured onboarding settings.
+func (s *identityService) Initialize(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "identityService/Initialize")
 	defer span.End()
 
 	s.log.Info("Initializing bot identity.")
