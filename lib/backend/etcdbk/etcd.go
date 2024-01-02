@@ -55,6 +55,12 @@ import (
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 )
 
+func init() {
+	backend.MustRegister(func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p)
+	}, GetName())
+}
+
 const (
 	// defaultClientPoolSize is the default number of etcd clients to use
 	defaultClientPoolSize = 3

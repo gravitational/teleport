@@ -38,6 +38,10 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
 
+func init() {
+	backend.MustRegister(NewFromParams, Name, AltName)
+}
+
 const (
 	Name    = "postgresql"
 	AltName = "postgres"

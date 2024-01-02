@@ -50,6 +50,10 @@ import (
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
 
+func init() {
+	backend.MustRegister(New, GetName())
+}
+
 // Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
 type Config struct {
