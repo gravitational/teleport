@@ -207,7 +207,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(c.Generation)
 	}
 	if c.BotName != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionBot] = c.BotName
+		cert.Permissions.Extensions[teleport.CertExtensionBotName] = c.BotName
 	}
 	if c.AllowedResourceIDs != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
