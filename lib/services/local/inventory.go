@@ -45,7 +45,7 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 		return stream.Once(instance)
 	}
 
-	startKey := backend.Key(instancePrefix, "")
+	startKey := backend.ExactKey(instancePrefix)
 	endKey := backend.RangeEnd(startKey)
 	items := backend.StreamRange(ctx, s, startKey, endKey, pageSize)
 	return stream.FilterMap(items, func(item backend.Item) (types.Instance, bool) {

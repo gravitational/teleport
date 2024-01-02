@@ -79,7 +79,7 @@ func (s *StatusService) GetClusterAlerts(ctx context.Context, query types.GetClu
 }
 
 func (s *StatusService) getAllClusterAlerts(ctx context.Context) ([]types.ClusterAlert, error) {
-	startKey := backend.Key(clusterAlertPrefix, "")
+	startKey := backend.ExactKey(clusterAlertPrefix)
 	result, err := s.Backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -171,7 +171,7 @@ func (s *StatusService) CreateAlertAck(ctx context.Context, ack types.AlertAckno
 
 // GetAlertAcks gets active alert ackowledgements.
 func (s *StatusService) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
-	startKey := backend.Key(alertAckPrefix, "")
+	startKey := backend.ExactKey(alertAckPrefix)
 	result, err := s.Backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,7 +196,7 @@ func (s *StatusService) ClearAlertAcks(ctx context.Context, req proto.ClearAlert
 		return trace.BadParameter("missing alert id for ack clear")
 	}
 	if req.AlertID == types.Wildcard {
-		startKey := backend.Key(alertAckPrefix, "")
+		startKey := backend.ExactKey(alertAckPrefix)
 		return trace.Wrap(s.Backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 	}
 

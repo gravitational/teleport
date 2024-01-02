@@ -117,7 +117,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 
 // GetTokens returns all active (non-expired) provisioning tokens
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	startKey := backend.Key(tokensPrefix)
+	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)

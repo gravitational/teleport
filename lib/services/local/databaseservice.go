@@ -83,7 +83,7 @@ func (s *DatabaseServicesService) DeleteDatabaseService(ctx context.Context, nam
 
 // DeleteAllDatabaseServices removes all DatabaseService resources.
 func (s *DatabaseServicesService) DeleteAllDatabaseServices(ctx context.Context) error {
-	startKey := backend.Key(databaseServicePrefix)
+	startKey := backend.ExactKey(databaseServicePrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
