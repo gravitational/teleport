@@ -49,8 +49,9 @@ type Bot struct {
 	log     logrus.FieldLogger
 	modules modules.Modules
 
-	mu      sync.Mutex
-	started bool
+	mu             sync.Mutex
+	started        bool
+	botIdentitySvc *identityService
 }
 
 func New(cfg *config.BotConfig, log logrus.FieldLogger) *Bot {
@@ -75,6 +76,12 @@ func (b *Bot) markStarted() error {
 	b.started = true
 
 	return nil
+}
+
+// BotIdentity returns the bot's own identity. This will return nil if the bot
+// has not been started.
+func (b *Bot) BotIdentity() *identity.Identity {
+	return b.botIdentitySvc.ident()
 }
 
 func (b *Bot) Run(ctx context.Context) error {
@@ -120,7 +127,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 
-	identitySvc := &identityService{
+	b.botIdentitySvc = &identityService{
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
 		log: b.log.WithField(
@@ -129,10 +136,10 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	// Initialize bot's own identity. This will load from disk, or fetch a new
 	// identity, and perform an initial renewal if necessary.
-	if err := identitySvc.Init(ctx); err != nil {
+	if err := b.botIdentitySvc.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	services = append(services, identitySvc)
+	services = append(services, b.botIdentitySvc)
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
@@ -145,18 +152,20 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 	services = append(services, &outputsService{
-		identitySrc:       identitySvc,
+		cfg:               b.cfg,
+		identitySrc:       b.botIdentitySvc,
 		reloadBroadcaster: reloadBroadcaster,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "outputs"),
 		),
 	})
 	services = append(services, &caRotationService{
+		cfg: b.cfg,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
-		identitySrc:       identitySvc,
+		identitySrc:       b.botIdentitySvc,
 	})
 	// Append any services configured by the user
 	services = append(services, b.cfg.Services...)
@@ -269,7 +278,7 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO: consider warning if ownership of all destintions is not expected.
+	// TODO: consider warning if ownership of all destinations is not expected.
 	for _, output := range cfg.Outputs {
 		if err := output.Init(ctx); err != nil {
 			return trace.Wrap(err)
@@ -323,7 +332,7 @@ func clientForIdentity(
 	cfg *config.BotConfig,
 	id *identity.Identity,
 ) (auth.ClientI, error) {
-	ctx, span := tracer.Start(ctx, "Bot/clientForIdentity")
+	ctx, span := tracer.Start(ctx, "clientForIdentity")
 	defer span.End()
 
 	if id.SSHCert == nil || id.X509Cert == nil {
