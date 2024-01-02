@@ -1904,12 +1904,14 @@ steps:
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-centos7
-  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-amd64
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
   - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
-  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-amd64
+    public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
   - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
   volumes:
   - name: awsconfig
@@ -1927,13 +1929,13 @@ steps:
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
     -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-centos7-fips
-  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-amd64
     146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
   - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
-  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+  - docker tag ghcr.io/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-amd64
     public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
   - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
   volumes:
@@ -2713,6 +2715,8 @@ depends_on:
 - clean-up-previous-build
 - build-linux-amd64
 - build-linux-amd64-fips
+- build-linux-arm64
+- build-linux-arm64-fips
 steps:
 - name: Check out code
   image: docker:git
@@ -12044,6 +12048,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 362bdca89f7ae5fe897f6984533ff4d26993da5ed8084bbd64f3cf4991d2189b
+hmac: 6037e6bdee3255d8eebea41cf0536df554378778bc536aeaf075eb65dcda82ff
 
 ...

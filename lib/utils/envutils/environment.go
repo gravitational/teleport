@@ -91,25 +91,13 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	return *env, nil
 }
 
-var unsafeEnvironmentVars = map[string]struct{}{
+var unsafeEnvironmentPrefixes = []string{
 	// Linux
-	"LD_ASSUME_KERNEL":         {},
-	"LD_AUDIT":                 {},
-	"LD_BIND_NOW":              {},
-	"LD_BIND_NOT":              {},
-	"LD_DYNAMIC_WEAK":          {},
-	"LD_LIBRARY_PATH":          {},
-	"LD_ORIGIN_PATH":           {},
-	"LD_POINTER_GUARD":         {},
-	"LD_PREFER_MAP_32BIT_EXEC": {},
-	"LD_PRELOAD":               {},
-	"LD_PROFILE":               {},
-	"LD_RUNPATH":               {},
-	"LD_RPATH":                 {},
-	"LD_USE_LOAD_BIAS":         {},
+	// Covering cases from LD (man ld.so) to prevent injection like LD_PRELOAD
+	"LD_",
 	// macOS
-	"DYLD_INSERT_LIBRARIES": {},
-	"DYLD_LIBRARY_PATH":     {},
+	// Covering cases from DYLD (man dyld) to prevent injection like DYLD_LIBRARY_PATH
+	"DYLD_",
 }
 
 // SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
@@ -132,7 +120,7 @@ func (e *SafeEnv) AddUnique(k, v string) {
 func (e *SafeEnv) add(preventDuplicates bool, k, v string) {
 	k = strings.TrimSpace(k)
 	v = strings.TrimSpace(v)
-	if e.unsafeKey(preventDuplicates, k) {
+	if e.isUnsafeKey(preventDuplicates, k) {
 		return
 	}
 
@@ -158,7 +146,7 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 		kv = strings.TrimSpace(kv)
 
 		key := strings.SplitN(kv, "=", 2)[0]
-		if e.unsafeKey(preventDuplicates, key) {
+		if e.isUnsafeKey(preventDuplicates, key) {
 			continue
 		}
 
@@ -166,14 +154,16 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 	}
 }
 
-func (e *SafeEnv) unsafeKey(preventDuplicates bool, key string) bool {
+func (e *SafeEnv) isUnsafeKey(preventDuplicates bool, key string) bool {
 	if key == "" || key == "=" {
 		return false
 	}
 
 	upperKey := strings.ToUpper(key)
-	if _, unsafe := unsafeEnvironmentVars[upperKey]; unsafe {
-		return true
+	for _, prefix := range unsafeEnvironmentPrefixes {
+		if strings.HasPrefix(upperKey, prefix) {
+			return true
+		}
 	}
 
 	if preventDuplicates {
