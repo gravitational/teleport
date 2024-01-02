@@ -270,6 +270,7 @@
     "authz",
     "autodiscovery",
     "autoload",
+    "automaticupgrades",
     "automount",
     "autoscale",
     "awly",
@@ -434,6 +435,7 @@
     "googleusercontent",
     "goroutines",
     "goteleport",
+    "gotemplate",
     "gots",
     "goxmldsig",
     "gpupdate",
@@ -691,6 +693,7 @@
     "rediss",
     "regexes",
     "relogged",
+    "remotefx",
     "replaceall",
     "replicaset",
     "requestable",
@@ -874,7 +877,10 @@
     "yubishm",
     "znmqk",
     "zxvf",
-    "zztop"
+    "zztop",
+    "Vitess",
+    "vtgate",
+    "clientcert"
   ],
   "flagWords": ["hte"]
 }

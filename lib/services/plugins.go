@@ -44,23 +44,18 @@ type Plugins interface {
 
 // MarshalPlugin marshals Plugin resource to JSON.
 func MarshalPlugin(plugin types.Plugin, opts ...MarshalOption) ([]byte, error) {
-	if err := plugin.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch plugin := plugin.(type) {
 	case *types.PluginV1:
-		if !cfg.PreserveResourceID {
-			copy := *plugin
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			plugin = &copy
+		if err := plugin.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
+
 		var buf bytes.Buffer
-		err := (&jsonpb.Marshaler{}).Marshal(&buf, plugin)
+		err := (&jsonpb.Marshaler{}).Marshal(&buf, maybeResetProtoResourceID(cfg.PreserveResourceID, plugin))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

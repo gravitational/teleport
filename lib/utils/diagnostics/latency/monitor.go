@@ -226,23 +226,17 @@ type SSHClient interface {
 // SSH connection. To calculate round trip time, a keepalive@openssh.com request
 // is sent.
 type SSHPinger struct {
-	clt   SSHClient
-	clock clockwork.Clock
+	clt SSHClient
 }
 
 // NewSSHPinger creates a new [SSHPinger] with the provided configuration.
-func NewSSHPinger(clock clockwork.Clock, clt SSHClient) (*SSHPinger, error) {
+func NewSSHPinger(clt SSHClient) (*SSHPinger, error) {
 	if clt == nil {
 		return nil, trace.BadParameter("ssh client not provided to SSHPinger")
 	}
 
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
 	return &SSHPinger{
-		clt:   clt,
-		clock: clock,
+		clt: clt,
 	}, nil
 }
 

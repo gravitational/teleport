@@ -58,24 +58,17 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 
 // MarshalUIConfig marshals the UIConfig resource to JSON.
 func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, error) {
-	if err := uiconfig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch uiconfig := uiconfig.(type) {
 	case *types.UIConfigV1:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *uiconfig
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			uiconfig = &copy
+		if err := uiconfig.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(uiconfig)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, uiconfig))
 	default:
 		return nil, trace.BadParameter("unrecognized uiconfig version %T", uiconfig)
 	}

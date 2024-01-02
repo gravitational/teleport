@@ -80,15 +80,7 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 		if version := webSession.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched web session version %v and type %T", version, webSession)
 		}
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *webSession
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			webSession = &copy
-		}
-		return utils.FastMarshal(webSession)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, webSession))
 	default:
 		return nil, trace.BadParameter("unrecognized web session version %T", webSession)
 	}
@@ -96,10 +88,6 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
 func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, error) {
-	if err := webToken.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,15 +95,11 @@ func MarshalWebToken(webToken types.WebToken, opts ...MarshalOption) ([]byte, er
 
 	switch webToken := webToken.(type) {
 	case *types.WebTokenV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *webToken
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			webToken = &copy
+		if err := webToken.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(webToken)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, webToken))
 	default:
 		return nil, trace.BadParameter("unrecognized web token version %T", webToken)
 	}

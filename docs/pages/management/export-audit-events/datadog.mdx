@@ -15,6 +15,8 @@ to establish a secure channel. In this setup, the Event Handler sends events to 
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+(!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
+
 - A [Datadog](https://www.datadoghq.com/) account.
 - A server, virtual machine, Kubernetes cluster, or Docker environment to run the
   Event Handler. The instructions below assume a local Docker container for testing.
@@ -22,8 +24,9 @@ to establish a secure channel. In this setup, the Event Handler sends events to 
   will create a new `fluent.conf` file you can integrate into an existing Fluentd
   system, or use with a fresh setup.
 
-The instructions below demonstrate a local test of the Event Handler plugin on your
-workstation. You will need to adjust paths, ports, and domains for other environments.
+The instructions below demonstrate a local test of the Event Handler plugin on
+your workstation. You will need to adjust paths, ports, and domains for other
+environments.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -50,7 +53,19 @@ from Teleport's events API, and forwards them to Fluentd.
 
 ### Export an identity file for the Event Handler plugin user
 
+Give the plugin access to a Teleport identity file. We recommend using Machine
+ID for this in order to produce short-lived identity files that are less
+dangerous if exfiltrated, though in demo deployments, you can generate
+longer-lived identity files with `tctl`:
+
+<Tabs>
+<TabItem label="Machine ID">
+(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
+</TabItem>
+<TabItem label="Long-lived identity files">
 (!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler" secret="teleport-event-handler-identity"!)
+</TabItem>
+</Tabs>
 
 ## Step 5/6. Install Fluentd output plugin for Datadog
 
@@ -129,6 +144,8 @@ environment.
 Next, modify the configuration file as follows:
 
 (!docs/pages/includes/plugins/config-toml-teleport.mdx!)
+
+(!docs/pages/includes/plugins/machine-id-exporter-config.mdx!)
 
 ### Start the Teleport Event Handler
 

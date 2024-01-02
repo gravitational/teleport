@@ -179,7 +179,7 @@ export function Main(props: MainProps) {
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
-                <TopBar hidePopup={displayOnboardDiscover} />
+                <TopBar />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>

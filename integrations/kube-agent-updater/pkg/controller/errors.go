@@ -18,10 +18,6 @@
 
 package controller
 
-import (
-	"fmt"
-)
-
 // MaintenanceNotTriggeredError indicates that no trigger returned true and the controller did not reconcile.
 type MaintenanceNotTriggeredError struct {
 	Message string `json:"message"`
@@ -33,19 +29,4 @@ func (e *MaintenanceNotTriggeredError) Error() string {
 		return e.Message
 	}
 	return "maintenance not triggered"
-}
-
-// NoNewVersionError indicates that no new version was found and the controller did not reconcile.
-type NoNewVersionError struct {
-	Message        string `json:"message"`
-	CurrentVersion string `json:"currentVersion"`
-	NextVersion    string `json:"nextVersion"`
-}
-
-// Error returns log friendly description of an error
-func (e *NoNewVersionError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	return fmt.Sprintf("no new version (current: %q, next: %q)", e.CurrentVersion, e.NextVersion)
 }

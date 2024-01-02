@@ -372,7 +372,6 @@ func TestMarshallCreateHostUserModeJSON(t *testing.T) {
 	}{
 		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "off"},
 		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: ""},
-		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
 		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
 		{input: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, expected: "insecure-drop"},
 	} {
@@ -389,7 +388,6 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 	}{
 		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "\"off\""},
 		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: "\"\""},
-		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
 		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
 		{input: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, expected: "insecure-drop"},
 	} {
@@ -406,7 +404,6 @@ func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
 	}{
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "\"drop\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "\"keep\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: 3},
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: 1},
@@ -427,7 +424,6 @@ func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
 		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
 		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
-		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
 		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
 		{expected: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP, input: "insecure-drop"},
 	} {

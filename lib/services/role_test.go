@@ -7375,7 +7375,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		{
 			test:         "test exact match, one role, can create",
 			canCreate:    true,
-			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7398,7 +7398,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		{
 			test:         "test two roles, 1 exact match, one can create",
 			canCreate:    false,
-			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7430,7 +7430,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		{
 			test:         "test three roles, 2 exact match, both can create",
 			canCreate:    true,
-			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			expectedMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7496,9 +7496,9 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			types.CreateHostUserMode_HOST_USER_MODE_OFF,
 		),
 		createDefaultTCWithMode(
-			"test can create when create host user mode is drop",
+			"test can create when create host user mode is insecure-drop",
 			true,
-			types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		),
 		createDefaultTCWithMode(
 			"test can create when create host user mode is keep",
@@ -7529,7 +7529,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+						CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},

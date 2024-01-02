@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -144,7 +145,7 @@ func TestTeleportMain(t *testing.T) {
 		for i, entry := range bootstrapEntries {
 			require.Equal(t, entry.kind, conf.Auth.BootstrapResources[i].GetKind(), entry.fileName)
 			require.Equal(t, entry.name, conf.Auth.BootstrapResources[i].GetName(), entry.fileName)
-			require.NoError(t, conf.Auth.BootstrapResources[i].CheckAndSetDefaults(), entry.fileName)
+			require.NoError(t, services.CheckAndSetDefaults(conf.Auth.BootstrapResources[i]), entry.fileName)
 		}
 	})
 	t.Run("ApplyOnStartup", func(t *testing.T) {
@@ -157,7 +158,7 @@ func TestTeleportMain(t *testing.T) {
 		for i, entry := range bootstrapEntries {
 			require.Equal(t, entry.kind, conf.Auth.ApplyOnStartupResources[i].GetKind(), entry.fileName)
 			require.Equal(t, entry.name, conf.Auth.ApplyOnStartupResources[i].GetName(), entry.fileName)
-			require.NoError(t, conf.Auth.ApplyOnStartupResources[i].CheckAndSetDefaults(), entry.fileName)
+			require.NoError(t, services.CheckAndSetDefaults(conf.Auth.ApplyOnStartupResources[i]), entry.fileName)
 		}
 	})
 }

@@ -57,37 +57,10 @@ function setup(): void {
   mockUserContextProviderWith(makeTestUserContext());
 }
 
-test('does not show assist popup if hidePopup is true', async () => {
-  setup();
-
-  render(getTopBar({ hidePopup: true }));
-  await screen.findByTestId('cluster-selector');
-
-  expect(screen.queryByTestId('assistPopup')).not.toBeInTheDocument();
-});
-
-test('shows assist popup if hidePopup is absent', async () => {
-  setup();
-
-  render(getTopBar({}));
-  await screen.findByTestId('cluster-selector');
-
-  expect(screen.getByTestId('assistPopup')).toBeInTheDocument();
-});
-
-test('shows assist popup if hidePopup is false', async () => {
-  setup();
-
-  render(getTopBar({ hidePopup: false }));
-  await screen.findByTestId('cluster-selector');
-
-  expect(screen.getByTestId('assistPopup')).toBeInTheDocument();
-});
-
 test('notification bell without notification', async () => {
   setup();
 
-  render(getTopBar({}));
+  render(getTopBar());
   await screen.findByTestId('cluster-selector');
 
   expect(screen.getByTestId('tb-note')).toBeInTheDocument();
@@ -110,7 +83,7 @@ test('notification bell with notification', async () => {
     ],
   };
 
-  render(getTopBar({}));
+  render(getTopBar());
   await screen.findByTestId('cluster-selector');
 
   expect(screen.getByTestId('tb-note')).toBeInTheDocument();
@@ -123,13 +96,13 @@ test('notification bell with notification', async () => {
   expect(screen.getByTestId('tb-note-dropdown')).toBeVisible();
 });
 
-const getTopBar = ({ hidePopup = null }: { hidePopup?: boolean }) => {
+const getTopBar = () => {
   return (
     <Router history={createMemoryHistory()}>
       <LayoutContextProvider>
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider value={getOSSFeatures()}>
-            <TopBar hidePopup={hidePopup} />
+            <TopBar />
           </FeaturesContextProvider>
         </TeleportContextProvider>
       </LayoutContextProvider>

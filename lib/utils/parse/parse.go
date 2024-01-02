@@ -56,7 +56,7 @@ var (
 		`^(?P<prefix>[^}{]*)` +
 			// variable is anything in brackets {{}} that is not { or }
 			`{{(?P<expression>\s*[^}{]*\s*)}}` +
-			// prefix is anything that is not { or }
+			// suffix is anything that is not { or }
 			`(?P<suffix>[^}{]*)$`,
 	)
 )

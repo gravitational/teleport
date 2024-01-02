@@ -109,10 +109,6 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 
 // MarshalLock marshals the Lock resource to JSON.
 func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
-	if err := lock.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -120,18 +116,14 @@ func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
 
 	switch lock := lock.(type) {
 	case *types.LockV2:
+		if err := lock.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if version := lock.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched lock version %v and type %T", version, lock)
 		}
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *lock
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			lock = &copy
-		}
-		return utils.FastMarshal(lock)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, lock))
 	default:
 		return nil, trace.BadParameter("unrecognized lock version %T", lock)
 	}

@@ -193,7 +193,13 @@ type Context struct {
 	// AdminActionVerified is whether this auth request is verified for admin actions. This
 	// either means that the request was MFA verified through the context or Hardware Key support,
 	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
-	adminActionAuthorized bool
+	AdminActionAuthorized bool
+}
+
+// GetUserMetadata returns information about the authenticated identity
+// to be included in audit events.
+func (c *Context) GetUserMetadata() apievents.UserMetadata {
+	return c.Identity.GetIdentity().GetUserMetadata()
 }
 
 // LockTargets returns a list of LockTargets inferred from the context's
@@ -378,7 +384,7 @@ func (a *authorizer) checkAdminActionVerification(ctx context.Context, authConte
 		return trace.Wrap(err)
 	}
 
-	authContext.adminActionAuthorized = true
+	authContext.AdminActionAuthorized = true
 	return nil
 }
 
@@ -394,8 +400,8 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	// Admin actions do not require MFA when MFA is not enabled.
-	if authpref.GetSecondFactor() == constants.SecondFactorOff {
+	// Admin actions do not require MFA when Webauthn is not enabled.
+	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
 		return nil
 	}
 
@@ -1036,7 +1042,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLock, services.RW()),
 					},
 				},
 			})
@@ -1095,6 +1101,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 		Identity:              r,
 		UnmappedIdentity:      r,
 		disableDeviceRoleMode: true, // Builtin roles skip device trust.
+		AdminActionAuthorized: true, // builtin roles skip mfa for admin actions.
 	}, nil
 }
 
@@ -1318,7 +1325,7 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
 func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	if !authCtx.adminActionAuthorized {
+	if !authCtx.AdminActionAuthorized {
 		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
 	}
 	return nil

@@ -61,10 +61,6 @@ func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (type
 
 // MarshalClusterNetworkingConfig marshals the ClusterNetworkingConfig resource to JSON.
 func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opts ...MarshalOption) ([]byte, error) {
-	if err := netConfig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -72,15 +68,11 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 
 	switch netConfig := netConfig.(type) {
 	case *types.ClusterNetworkingConfigV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *netConfig
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			netConfig = &copy
+		if err := netConfig.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(netConfig)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, netConfig))
 	default:
 		return nil, trace.BadParameter("unrecognized cluster networking config version %T", netConfig)
 	}

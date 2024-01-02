@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // LoadtestCommand implements the `tctl loadtest` family of commands.
@@ -143,11 +143,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client auth.Client
 
 	sampleNode := mknode(uuid.New().String())
 
-	if err := sampleNode.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	sn, err := utils.FastMarshal(sampleNode)
+	sn, err := services.MarshalServer(sampleNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}

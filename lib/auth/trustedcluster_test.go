@@ -395,7 +395,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		)
 	})
 
-	t.Run("trusted clusters prevented on cloud", func(t *testing.T) {
+	t.Run("Cloud prohibits adding leaf clusters", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: modules.Features{Cloud: true},
 		})
@@ -580,5 +580,21 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
+	})
+	t.Run("Cloud prohibits being a leaf cluster", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{Cloud: true},
+		})
+
+		tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
+			RoleMap: []types.RoleMapping{
+				{Remote: teleport.PresetAccessRoleName, Local: []string{teleport.PresetAccessRoleName}},
+			},
+		})
+		require.NoError(t, err, "creating trusted cluster resource")
+
+		server := ServerWithRoles{authServer: a}
+		_, err = server.UpsertTrustedCluster(ctx, tc)
+		require.True(t, trace.IsNotImplemented(err), "UpsertTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 }

@@ -22,12 +22,12 @@ import (
 	"errors"
 	"fmt"
 	"os/user"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -172,7 +172,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 
 	userinfo := &services.HostUsersInfo{
 		Groups: []string{"hello", "sudo"},
-		Mode:   types.CreateHostUserMode_HOST_USER_MODE_DROP,
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 	}
 	// create a user with some groups
 	closer, err := users.CreateUser("bob", userinfo)
@@ -219,7 +219,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 
 	closer, err := users.CreateUser("bob", &services.HostUsersInfo{
 		Groups: []string{"hello", "sudo"},
-		Mode:   types.CreateHostUserMode_HOST_USER_MODE_DROP,
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, closer)
@@ -242,13 +242,13 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		// been created
 		backend.CreateUser("testuser", nil, "", "")
 		_, err := users.CreateUser("testuser", &services.HostUsersInfo{
-			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
 		require.True(t, trace.IsAlreadyExists(err))
 		backend.CreateGroup(types.TeleportServiceGroup, "")
 		// IsAlreadyExists error when teleport-service group now exists
 		_, err = users.CreateUser("testuser", &services.HostUsersInfo{
-			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		})
 		require.True(t, trace.IsAlreadyExists(err))
 	})

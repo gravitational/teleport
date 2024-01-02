@@ -22,10 +22,14 @@ import styled from 'styled-components';
 
 export const TextIcon = styled(Text)`
   display: flex;
-  align-items: center;
 
   .icon {
     margin-right: 8px;
+    // line-height and height must match the same properties of the text.
+    // This way when both items are aligned to the flex start, the baseline of both the icon and the
+    // text is the same.
+    line-height: 24px;
+    height: 24px;
   }
 `;
 

@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -42,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -142,6 +144,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAuditQuery:               rc.createAuditQuery,
 		types.KindSecurityReport:           rc.createSecurityReport,
 		types.KindServerInfo:               rc.createServerInfo,
+		types.KindBot:                      rc.createBot,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
@@ -429,10 +432,6 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = role.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	if err := services.ValidateAccessPredicates(role); err != nil {
 		// check for syntax errors in predicates
@@ -458,10 +457,6 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 
 func (rc *ResourceCommand) updateRole(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	role, err := services.UnmarshalRole(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = role.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -535,6 +530,32 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
+	return nil
+}
+
+func (rc *ResourceCommand) createBot(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	bot := &machineidv1pb.Bot{}
+	if err := protojson.Unmarshal(raw.Raw, bot); err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
+			Bot: bot,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
+		return nil
+	}
+
+	_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: bot,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
 	return nil
 }
 
@@ -818,9 +839,6 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	name := server.GetName()
 	_, err = client.GetNode(ctx, server.GetNamespace(), name)
@@ -843,9 +861,6 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := conn.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -909,9 +924,6 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	if conn.GetSigningKeyPair() == nil && exists {
 		conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
 	}
-	if err := conn.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	if _, err = client.UpsertSAMLConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
@@ -961,9 +973,6 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	}
 
 	serviceProviderName := sp.GetName()
-	if err := sp.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	exists := false
 	if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
@@ -1023,10 +1032,6 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	importRule, err := services.UnmarshalOktaImportRule(raw.Raw)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := importRule.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1179,6 +1184,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
+		types.KindNetworkRestrictions,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1528,6 +1534,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
+	case types.KindBot:
+		if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2172,6 +2183,35 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		})
 
 		return &deviceCollection{devices: devs}, nil
+	case types.KindBot:
+		remote := client.BotServiceClient()
+		if rc.ref.Name != "" {
+			bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
+				BotName: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
+		}
+
+		req := &machineidv1pb.ListBotsRequest{}
+		var bots []*machineidv1pb.Bot
+		for {
+			resp, err := remote.ListBots(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			bots = append(bots, resp.Bots...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		return &botCollection{bots: bots}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)

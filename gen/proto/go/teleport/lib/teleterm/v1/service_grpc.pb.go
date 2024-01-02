@@ -49,6 +49,8 @@ const (
 	TerminalService_ReviewAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
 	TerminalService_GetRequestableRoles_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
 	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
+	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
+	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
 	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
 	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
 	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
@@ -72,6 +74,8 @@ const (
 	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
 	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
 	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
+	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
+	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -110,6 +114,10 @@ type TerminalServiceClient interface {
 	GetRequestableRoles(ctx context.Context, in *GetRequestableRolesRequest, opts ...grpc.CallOption) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// PromoteAccessRequest promotes an access request to an access list.
+	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
 	// AddCluster adds a cluster to profile
@@ -184,6 +192,11 @@ type TerminalServiceClient interface {
 	GetConnectMyComputerNodeName(ctx context.Context, in *GetConnectMyComputerNodeNameRequest, opts ...grpc.CallOption) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(ctx context.Context, in *ListUnifiedResourcesRequest, opts ...grpc.CallOption) (*ListUnifiedResourcesResponse, error)
+	// GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
+	GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error)
+	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
+	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+	UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*UpdateUserPreferencesResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -305,6 +318,24 @@ func (c *terminalServiceClient) GetRequestableRoles(ctx context.Context, in *Get
 func (c *terminalServiceClient) AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
 	out := new(EmptyResponse)
 	err := c.cc.Invoke(ctx, TerminalService_AssumeRole_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error) {
+	out := new(PromoteAccessRequestResponse)
+	err := c.cc.Invoke(ctx, TerminalService_PromoteAccessRequest_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
+	out := new(GetSuggestedAccessListsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -563,6 +594,24 @@ func (c *terminalServiceClient) ListUnifiedResources(ctx context.Context, in *Li
 	return out, nil
 }
 
+func (c *terminalServiceClient) GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error) {
+	out := new(GetUserPreferencesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetUserPreferences_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*UpdateUserPreferencesResponse, error) {
+	out := new(UpdateUserPreferencesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_UpdateUserPreferences_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -599,6 +648,10 @@ type TerminalServiceServer interface {
 	GetRequestableRoles(context.Context, *GetRequestableRolesRequest) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error)
+	// PromoteAccessRequest promotes an access request to an access list.
+	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
 	// AddCluster adds a cluster to profile
@@ -673,6 +726,11 @@ type TerminalServiceServer interface {
 	GetConnectMyComputerNodeName(context.Context, *GetConnectMyComputerNodeNameRequest) (*GetConnectMyComputerNodeNameResponse, error)
 	// ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
 	ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error)
+	// GetUserPreferences returns the combined (root + leaf cluster) preferences for a given user.
+	GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error)
+	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
+	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
+	UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -718,6 +776,12 @@ func (UnimplementedTerminalServiceServer) GetRequestableRoles(context.Context, *
 }
 func (UnimplementedTerminalServiceServer) AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AssumeRole not implemented")
+}
+func (UnimplementedTerminalServiceServer) PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromoteAccessRequest not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
@@ -787,6 +851,12 @@ func (UnimplementedTerminalServiceServer) GetConnectMyComputerNodeName(context.C
 }
 func (UnimplementedTerminalServiceServer) ListUnifiedResources(context.Context, *ListUnifiedResourcesRequest) (*ListUnifiedResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUnifiedResources not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserPreferences not implemented")
+}
+func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserPreferences not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1031,6 +1101,42 @@ func _TerminalService_AssumeRole_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).AssumeRole(ctx, req.(*AssumeRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_PromoteAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteAccessRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).PromoteAccessRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_PromoteAccessRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).PromoteAccessRequest(ctx, req.(*PromoteAccessRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_GetSuggestedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSuggestedAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetSuggestedAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1460,6 +1566,42 @@ func _TerminalService_ListUnifiedResources_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_GetUserPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetUserPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetUserPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetUserPreferences(ctx, req.(*GetUserPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_UpdateUserPreferences_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserPreferencesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).UpdateUserPreferences(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_UpdateUserPreferences_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).UpdateUserPreferences(ctx, req.(*UpdateUserPreferencesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1518,6 +1660,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AssumeRole",
 			Handler:    _TerminalService_AssumeRole_Handler,
+		},
+		{
+			MethodName: "PromoteAccessRequest",
+			Handler:    _TerminalService_PromoteAccessRequest_Handler,
+		},
+		{
+			MethodName: "GetSuggestedAccessLists",
+			Handler:    _TerminalService_GetSuggestedAccessLists_Handler,
 		},
 		{
 			MethodName: "GetKubes",
@@ -1602,6 +1752,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUnifiedResources",
 			Handler:    _TerminalService_ListUnifiedResources_Handler,
+		},
+		{
+			MethodName: "GetUserPreferences",
+			Handler:    _TerminalService_GetUserPreferences_Handler,
+		},
+		{
+			MethodName: "UpdateUserPreferences",
+			Handler:    _TerminalService_UpdateUserPreferences_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -278,7 +278,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		groups = append(groups, group)
 	}
-	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP || ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
 		groups = append(groups, types.TeleportServiceGroup)
 	}
 	var errs []error

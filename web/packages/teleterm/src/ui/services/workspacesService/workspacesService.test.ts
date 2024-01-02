@@ -86,6 +86,7 @@ describe('restoring workspace', () => {
           location: testWorkspace.location,
         },
         connectMyComputer: undefined,
+        unifiedResourcePreferences: undefined,
       },
     });
   });
@@ -117,6 +118,7 @@ describe('restoring workspace', () => {
         location: clusterDocument.uri,
         previous: undefined,
         connectMyComputer: undefined,
+        unifiedResourcePreferences: undefined,
       },
     });
   });
@@ -142,7 +144,9 @@ describe('setActiveWorkspace', () => {
           throw new Error(`Got unexpected dialog ${dialog.kind}`);
         }
 
-        return { closeDialog: () => {} };
+        return {
+          closeDialog: () => {},
+        };
       });
 
     const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
@@ -186,7 +190,9 @@ describe('setActiveWorkspace', () => {
           throw new Error(`Got unexpected dialog ${dialog.kind}`);
         }
 
-        return { closeDialog: () => {} };
+        return {
+          closeDialog: () => {},
+        };
       });
 
     const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(

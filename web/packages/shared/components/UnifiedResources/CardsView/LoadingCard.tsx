@@ -16,11 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Flex, Box } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
 export function LoadingCard() {
+  const [randomizedSize] = useState(() => ({
+    name: randomNum(100, 30),
+    description: randomNum(90, 40),
+    labels: new Array(randomNum(4, 0)),
+  }));
+
   return (
     <Flex gap={2} alignItems="start" height="106px" p={3}>
       {/* Checkbox */}
@@ -33,17 +39,21 @@ export function LoadingCard() {
           <ShimmerBox
             height="24px"
             css={`
-              flex-basis: ${randomNum(100, 30)}%;
+              flex-basis: ${randomizedSize.name}%;
             `}
           />
           {/* Action button */}
           <ShimmerBox height="24px" width="90px" />
         </Flex>
         {/* Description */}
-        <ShimmerBox height="16px" width={`${randomNum(90, 40)}%`} mb={2} />
+        <ShimmerBox
+          height="16px"
+          width={`${randomizedSize.description}%`}
+          mb={2}
+        />
         {/* Labels */}
         <Flex gap={2}>
-          {new Array(randomNum(4, 0)).fill(null).map((_, i) => (
+          {randomizedSize.labels.fill(null).map((_, i) => (
             <ShimmerBox key={i} height="16px" width="60px" />
           ))}
         </Flex>

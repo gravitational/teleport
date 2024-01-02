@@ -33,9 +33,10 @@ import (
 
 // ValidateUser validates the User and sets default values
 func ValidateUser(u types.User) error {
-	if err := u.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(u); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if localAuth := u.GetLocalAuth(); localAuth != nil {
 		if err := ValidateLocalAuthSecrets(localAuth); err != nil {
 			return trace.Wrap(err)
@@ -132,15 +133,7 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 
 	switch user := user.(type) {
 	case *types.UserV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *user
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			user = &copy
-		}
-		return utils.FastMarshal(user)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, user))
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}

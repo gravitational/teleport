@@ -62,10 +62,10 @@ const (
 // AgentStateCallback is called when an agent's state changes.
 type AgentStateCallback func(AgentState)
 
-// transporter handles the creation of new transports over ssh.
-type transporter interface {
-	// Transport creates a new transport.
-	transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport
+// transportHandler handles the creation of new transports over ssh.
+type transportHandler interface {
+	// handleTransport runs the receiver of a teleport-transport channel.
+	handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn)
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -102,8 +102,8 @@ type agentConfig struct {
 	stateCallback AgentStateCallback
 	// sshDialer creates a new ssh connection.
 	sshDialer sshDialer
-	// transporter creates a new transport.
-	transporter transporter
+	// transportHandler handles teleport-transport channels.
+	transportHandler transportHandler
 	// versionGetter gets the connected auth server version.
 	versionGetter versionGetter
 	// tracker tracks existing proxies.
@@ -130,8 +130,8 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.sshDialer == nil {
 		return trace.BadParameter("missing parameter sshDialer")
 	}
-	if c.transporter == nil {
-		return trace.BadParameter("missing parameter transporter")
+	if c.transportHandler == nil {
+		return trace.BadParameter("missing parameter transportHandler")
 	}
 	if c.versionGetter == nil {
 		return trace.BadParameter("missing parameter versionGetter")
@@ -579,12 +579,10 @@ func (a *agent) handleDrainChannels() error {
 				continue
 			}
 
-			t := a.transporter.transport(a.ctx, ch, req, a.client)
-
 			a.drainWG.Add(1)
 			go func() {
-				t.start()
-				a.drainWG.Done()
+				defer a.drainWG.Done()
+				a.transportHandler.handleTransport(a.ctx, ch, req, a.client)
 			}()
 
 		}

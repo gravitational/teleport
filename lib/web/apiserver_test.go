@@ -43,6 +43,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -68,7 +69,6 @@ import (
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -105,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -2267,7 +2268,13 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
-	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+	wsrwc := &WebsocketIO{Conn: ws}
+	tdpConn := tdp.NewConn(wsrwc)
+
+	// desktopConnectHandle first needs a ClientScreenSpec message in order to continue.
+	tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: 100, Height: 100})
+
+	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
 	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
@@ -2278,7 +2285,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -4544,20 +4551,21 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
-	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/v1/stable/cloud/version", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("v99.0.1"))
-	}))
-	defer httpTestServer.Close()
-	versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
 	require.NoError(t, err)
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesVersionURL = versionURL
+	// This version is too high and MUST NOT be used
+	testVersion := "v99.0.1"
+	channels := automaticupgrades.Channels{
+		automaticupgrades.DefaultCloudChannelName: {
+			StaticVersion: testVersion,
+		},
+	}
+	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
+	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
 	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
@@ -5569,7 +5577,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		initialConnectorName string
 		resultConnectorName  string
 	}{{
-		name:                 "first cloud sign-in changes connector to `passwordless`",
+		name:                 "first cloud sign-in changes connector to passwordless",
 		cloud:                true,
 		numberOfUsers:        1,
 		authPreferenceType:   constants.Local,
@@ -5607,107 +5615,109 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 	}}
 
 	for _, tc := range tt {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestFeatures: modules.Features{
-				Cloud: tc.cloud,
-			},
-		})
-
-		const RPID = "localhost"
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:          tc.authPreferenceType,
-				ConnectorName: tc.initialConnectorName,
-				SecondFactor:  constants.SecondFactorOn,
-				Webauthn: &types.Webauthn{
-					RPID: RPID,
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
 				},
-			},
-		})
-
-		// user and role
-		users := make([]types.User, tc.numberOfUsers)
-
-		for i := 0; i < tc.numberOfUsers; i++ {
-			user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
-			require.NoError(t, err)
-
-			user.SetCreatedBy(types.CreatedBy{
-				User: types.UserRef{Name: "other_user"},
 			})
 
-			role := services.RoleForUser(user)
+			const RPID = "localhost"
 
-			role, err = s.server.Auth().UpsertRole(s.ctx, role)
+			s := newWebSuiteWithConfig(t, webSuiteConfig{
+				authPreferenceSpec: &types.AuthPreferenceSpecV2{
+					Type:          tc.authPreferenceType,
+					ConnectorName: tc.initialConnectorName,
+					SecondFactor:  constants.SecondFactorOn,
+					Webauthn: &types.Webauthn{
+						RPID: RPID,
+					},
+				},
+			})
+
+			// user and role
+			users := make([]types.User, tc.numberOfUsers)
+
+			for i := 0; i < tc.numberOfUsers; i++ {
+				user, err := types.NewUser(fmt.Sprintf("test_user_%v", i))
+				require.NoError(t, err)
+
+				user.SetCreatedBy(types.CreatedBy{
+					User: types.UserRef{Name: "other_user"},
+				})
+
+				role := services.RoleForUser(user)
+
+				role, err = s.server.Auth().UpsertRole(s.ctx, role)
+				require.NoError(t, err)
+
+				user.AddRole(role.GetName())
+
+				user, err = s.server.Auth().CreateUser(s.ctx, user)
+				require.NoError(t, err)
+
+				users[i] = user
+			}
+
+			initialUser := users[0]
+
+			clt := s.client(t)
+
+			// create register challenge
+			token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
+				Name: initialUser.GetName(),
+			})
 			require.NoError(t, err)
 
-			user.AddRole(role.GetName())
-
-			user, err = s.server.Auth().CreateUser(s.ctx, user)
+			res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+				TokenID:     token.GetName(),
+				DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			})
 			require.NoError(t, err)
 
-			users[i] = user
-		}
+			cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
-		initialUser := users[0]
+			// use passwordless as auth method
+			device, err := mocku2f.Create()
+			require.NoError(t, err)
 
-		clt := s.client(t)
+			device.SetPasswordless()
 
-		// create register challenge
-		token, err := s.server.Auth().CreateResetPasswordToken(s.ctx, auth.CreateUserTokenRequest{
-			Name: initialUser.GetName(),
+			ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
+			require.NoError(t, err)
+
+			// send sign-in response to server
+			body, err := json.Marshal(changeUserAuthenticationRequest{
+				WebauthnCreationResponse: ccr,
+				TokenID:                  token.GetName(),
+				DeviceName:               "passwordless-device",
+				Password:                 tc.password,
+			})
+			require.NoError(t, err)
+
+			req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
+			require.NoError(t, err)
+
+			csrfToken, err := csrf.GenerateToken()
+			require.NoError(t, err)
+			addCSRFCookieToReq(req, csrfToken)
+			req.Header.Set(csrf.HeaderName, csrfToken)
+			req.Header.Set("Content-Type", "application/json")
+
+			re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
+				return clt.Client.HTTPClient().Do(req)
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, re.Code())
+
+			// check if auth preference connectorName is set
+			authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.resultConnectorName, authPreference.GetConnectorName(), "Found unexpected auth connector name")
 		})
-		require.NoError(t, err)
-
-		res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
-			TokenID:     token.GetName(),
-			DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-		})
-		require.NoError(t, err)
-
-		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
-
-		// use passwordless as auth method
-		device, err := mocku2f.Create()
-		require.NoError(t, err)
-
-		device.SetPasswordless()
-
-		ccr, err := device.SignCredentialCreation("https://"+RPID, cc)
-		require.NoError(t, err)
-
-		// send sign-in response to server
-		body, err := json.Marshal(changeUserAuthenticationRequest{
-			WebauthnCreationResponse: ccr,
-			TokenID:                  token.GetName(),
-			DeviceName:               "passwordless-device",
-			Password:                 tc.password,
-		})
-		require.NoError(t, err)
-
-		req, err := http.NewRequest("PUT", clt.Endpoint("webapi", "users", "password", "token"), bytes.NewBuffer(body))
-		require.NoError(t, err)
-
-		csrfToken, err := csrf.GenerateToken()
-		require.NoError(t, err)
-		addCSRFCookieToReq(req, csrfToken)
-		req.Header.Set(csrf.HeaderName, csrfToken)
-		req.Header.Set("Content-Type", "application/json")
-
-		re, err := clt.Client.RoundTrip(func() (*http.Response, error) {
-			return clt.Client.HTTPClient().Do(req)
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, re.Code())
-
-		// check if auth preference connectorName is set
-		authPreference, err := s.server.Auth().GetAuthPreference(s.ctx)
-		require.NoError(t, err)
-
-		require.Equal(t, authPreference.GetConnectorName(), tc.resultConnectorName, "Found unexpected auth connector name")
 	}
 }
 
@@ -6065,6 +6075,8 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		roles           []types.Role
 		resourceName    string
 		nodeUser        string
+		nodeOS          string
+		setupMethod     string
 		stopNode        bool
 		expectedSuccess bool
 		expectedMessage string
@@ -6102,11 +6114,12 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			},
 		},
 		{
-			name:            "node not found",
-			roles:           roleWithFullAccess("nodenotfound", osUsername),
-			teleportUser:    "nodenotfound",
+			name:            "Linux node not found",
+			roles:           roleWithFullAccess("nodenotfound-linux", osUsername),
+			teleportUser:    "nodenotfound-linux",
 			resourceName:    "notanode",
 			nodeUser:        osUsername,
+			nodeOS:          constants.LinuxOS,
 			expectedSuccess: false,
 			expectedMessage: "failed",
 			expectedTraces: []types.ConnectionDiagnosticTrace{
@@ -6114,6 +6127,43 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Error:   "direct dialing to nodes not found in inventory is not supported",
+				},
+			},
+		},
+		{
+			name:            "Darwin node not found",
+			roles:           roleWithFullAccess("nodenotfound-darwin", osUsername),
+			teleportUser:    "nodenotfound-darwin",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			nodeOS:          constants.DarwinOS,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "launchctl print 'system/Teleport Service'".`,
+					Error:   "direct dialing to nodes not found in inventory is not supported",
+				},
+			},
+		},
+		{
+			name:            "Connect My Computer node not found",
+			roles:           roleWithFullAccess("nodenotfound-connect-my-computer", osUsername),
+			teleportUser:    "nodenotfound-connect-my-computer",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			nodeOS:          constants.DarwinOS,
+			setupMethod:     conntest.SSHNodeSetupMethodConnectMyComputer,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running.`,
 					Error:   "direct dialing to nodes not found in inventory is not supported",
 				},
 			},
@@ -6171,7 +6221,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			},
 		},
 		{
-			name:            "principal doesnt exist in target host",
+			name:            "principal does not exist in target host",
 			teleportUser:    "principaldoesnotexist",
 			roles:           roleWithPrincipal("principaldoesnotexist", "nonvalidlinuxuser"),
 			resourceName:    nodeName,
@@ -6182,8 +6232,26 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user:`,
+					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid login in the target node. Output from Node: Failed to launch: user:`,
 					Error:   "Process exited with status 255",
+				},
+			},
+		},
+		{
+			name:            "principal does not exist in target Connect My Computer host",
+			teleportUser:    "principaldoesnotexist-connect-my-computer",
+			roles:           roleWithPrincipal("principaldoesnotexist-connect-my-computer", "nonvaliduser"),
+			resourceName:    nodeName,
+			nodeUser:        "nonvaliduser",
+			setupMethod:     conntest.SSHNodeSetupMethodConnectMyComputer,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Invalid user`,
+					Error:   `The role "connect-my-computer-principaldoesnotexist-connect-my-computer" includes only the login "nonvaliduser" and "nonvaliduser" is not a valid principal for this node`,
 				},
 			},
 		},
@@ -6202,9 +6270,11 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
 
 			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
-				ResourceKind: types.KindNode,
-				ResourceName: tt.resourceName,
-				SSHPrincipal: tt.nodeUser,
+				ResourceKind:       types.KindNode,
+				ResourceName:       tt.resourceName,
+				SSHPrincipal:       tt.nodeUser,
+				SSHNodeOS:          tt.nodeOS,
+				SSHNodeSetupMethod: tt.setupMethod,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())

@@ -59,10 +59,6 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (types.StaticTok
 
 // MarshalStaticTokens marshals the StaticTokens resource to JSON.
 func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) ([]byte, error) {
-	if err := staticToken.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,15 +66,11 @@ func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) 
 
 	switch staticToken := staticToken.(type) {
 	case *types.StaticTokensV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *staticToken
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			staticToken = &copy
+		if err := staticToken.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(staticToken)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, staticToken))
 	default:
 		return nil, trace.BadParameter("unrecognized static token version %T", staticToken)
 	}

@@ -115,6 +115,7 @@ crypto_build() {
 
   ./Configure \
     "darwin64-$C_ARCH-cc" \
+    -fPIC \
     -mmacosx-version-min="$MACOS_VERSION_MIN" \
     --prefix="$dest" \
     no-shared \
@@ -150,6 +151,7 @@ fido2_build() {
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -G "Unix Makefiles" \
     .
   grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt # double-check OpenSSL

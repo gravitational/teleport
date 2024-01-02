@@ -46,10 +46,6 @@ type WindowsDesktopGetter interface {
 
 // MarshalWindowsDesktop marshals the WindowsDesktop resource to JSON.
 func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -57,15 +53,11 @@ func MarshalWindowsDesktop(s types.WindowsDesktop, opts ...MarshalOption) ([]byt
 
 	switch s := s.(type) {
 	case *types.WindowsDesktopV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *s
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			s = &copy
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(s)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, s))
 	default:
 		return nil, trace.BadParameter("unrecognized windows desktop version %T", s)
 	}
@@ -109,10 +101,6 @@ func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsD
 
 // MarshalWindowsDesktopService marshals the WindowsDesktopService resource to JSON.
 func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -120,15 +108,11 @@ func MarshalWindowsDesktopService(s types.WindowsDesktopService, opts ...Marshal
 
 	switch s := s.(type) {
 	case *types.WindowsDesktopServiceV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *s
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			s = &copy
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(s)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, s))
 	default:
 		return nil, trace.BadParameter("unrecognized windows desktop service version %T", s)
 	}

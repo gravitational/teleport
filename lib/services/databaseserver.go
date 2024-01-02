@@ -27,10 +27,6 @@ import (
 
 // MarshalDatabaseServer marshals the DatabaseServer resource to JSON.
 func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalOption) ([]byte, error) {
-	if err := databaseServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -38,15 +34,11 @@ func MarshalDatabaseServer(databaseServer types.DatabaseServer, opts ...MarshalO
 
 	switch databaseServer := databaseServer.(type) {
 	case *types.DatabaseServerV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *databaseServer
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			databaseServer = &copy
+		if err := databaseServer.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(databaseServer)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, databaseServer))
 	default:
 		return nil, trace.BadParameter("unrecognized database server version %T", databaseServer)
 	}

@@ -19,12 +19,10 @@
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
-import { storageService } from 'teleport/services/storageService';
 
 import { ResourceSpec } from '../SelectResource';
 
 import { SetupConnect } from './SetupConnect';
-import { LegacyTestConnection } from './LegacyTestConnection';
 import { TestConnection } from './TestConnection';
 
 export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
@@ -35,19 +33,12 @@ export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
       component: SetupConnect,
       eventName: DiscoverEvent.DeployService,
     },
-    storageService.isDiscoverConnectMyComputerNewConnectionTestEnabled()
-      ? {
-          title: 'Test Connection',
-          component: TestConnection,
-          eventName: DiscoverEvent.TestConnection,
-          manuallyEmitSuccessEvent: true,
-        }
-      : {
-          title: 'Start a Session',
-          component: LegacyTestConnection,
-          eventName: DiscoverEvent.TestConnection,
-          manuallyEmitSuccessEvent: true,
-        },
+    {
+      title: 'Test Connection',
+      component: TestConnection,
+      eventName: DiscoverEvent.TestConnection,
+      manuallyEmitSuccessEvent: true,
+    },
     {
       title: 'Finished',
       component: Finished,

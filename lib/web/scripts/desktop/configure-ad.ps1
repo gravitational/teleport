@@ -144,10 +144,15 @@ Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Pol
 # Disable "Always prompt for password upon connection"
 Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "fPromptForPassword" -Type DWORD -Value 0
 
+# Enable RemoteFX
+# As described here: https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L24
+Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "ColorDepth" -Type DWORD -Value 5
+Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Terminal Services" -ValueName "fEnableVirtualizedGraphics" -Type DWORD -Value 1
+
 # # Step 5/7. Export your LDAP CA certificate
 $WindowsDERFile = $env:TEMP + "\windows.der"
 $WindowsPEMFile = $env:TEMP + "\windows.pem"
-certutil "-ca.cert" $WindowsDERFile 
+certutil "-ca.cert" $WindowsDERFile
 certutil -encode $WindowsDERFile $WindowsPEMFile
 
 gpupdate.exe /force
