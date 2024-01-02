@@ -84,6 +84,17 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err := b.markStarted(); err != nil {
 		return trace.Wrap(err)
 	}
+	unlock, err := b.preRunChecks(ctx)
+	defer func() {
+		if unlock != nil {
+			if err := unlock(); err != nil {
+				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
+			}
+		}
+	}()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -109,18 +120,6 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 
-	// Perform any pre-start initialization
-	unlock, err := b.initialize(ctx)
-	defer func() {
-		if unlock != nil {
-			if err := unlock(); err != nil {
-				b.log.WithError(err).Warn("Failed to release lock. Future starts of tbot may fail.")
-			}
-		}
-	}()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	identitySvc := &identityService{
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
@@ -128,12 +127,12 @@ func (b *Bot) Run(ctx context.Context) error {
 			trace.Component, teleport.Component(componentTBot, "identity"),
 		),
 	}
-	services = append(services, identitySvc)
 	// Initialize bot's own identity. This will load from disk, or fetch a new
 	// identity, and perform an initial renewal if necessary.
 	if err := identitySvc.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	services = append(services, identitySvc)
 
 	// Setup all other services
 	if b.cfg.DiagAddr != "" {
@@ -154,7 +153,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	})
 	services = append(services, &caRotationService{
 		log: b.log.WithField(
-			trace.Component, teleport.Component(componentTBot, "ca-rotation-watcher"),
+			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
 		identitySrc:       identitySvc,
@@ -162,34 +161,38 @@ func (b *Bot) Run(ctx context.Context) error {
 	// Append any services configured by the user
 	services = append(services, b.cfg.Services...)
 
+	b.log.Info("Initialization complete.")
 	// Start services
 	for _, svc := range services {
 		svc := svc
+		log := b.log.WithField("service", svc.String())
+
 		if b.cfg.Oneshot {
 			svc, ok := svc.(bot.OneShotService)
 			// We ignore services with no one-shot implementation
-			if ok {
-				eg.Go(func() error {
-					b.log.WithField("service", svc.String()).Info("Running service as oneshot")
-					err := svc.OneShot(egCtx)
-					if err != nil {
-						b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
-						return trace.Wrap(err, "running service %q", svc.String())
-					}
-					b.log.WithField("service", svc.String()).Info("Service exited")
-					return nil
-				})
+			if !ok {
+				log.Debug("Service does not support oneshot mode, ignoring")
+				continue
 			}
-
+			eg.Go(func() error {
+				log.Info("Running service in oneshot mode")
+				err := svc.OneShot(egCtx)
+				if err != nil {
+					log.WithError(err).Error("Service exited with error")
+					return trace.Wrap(err, "service(%s)", svc.String())
+				}
+				log.Info("Service finished")
+				return nil
+			})
 		} else {
 			eg.Go(func() error {
-				b.log.WithField("service", svc.String()).Info("Starting service")
+				log.Info("Starting service")
 				err := svc.Run(egCtx)
 				if err != nil {
-					b.log.WithError(err).WithField("service", svc.String()).Error("Service exited with error")
-					return trace.Wrap(err, "running service %q", svc.String())
+					log.WithError(err).Error("Service exited with error")
+					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				b.log.WithField("service", svc.String()).Info("Service exited")
+				log.Info("Service exited")
 				return nil
 			})
 		}
@@ -198,9 +201,11 @@ func (b *Bot) Run(ctx context.Context) error {
 	return eg.Wait()
 }
 
-// initialize returns an unlock function which must be deferred.
-func (b *Bot) initialize(ctx context.Context) (func() error, error) {
-	ctx, span := tracer.Start(ctx, "Bot/initialize")
+// preRunChecks returns an unlock function which must be deferred.
+// It performs any initial validation and locks the bot's storage before any
+// more expensive initialization is performed.
+func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
+	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer span.End()
 
 	if b.cfg.AuthServer == "" {

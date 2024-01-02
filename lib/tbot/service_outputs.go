@@ -66,12 +66,12 @@ func (s *outputsService) String() string {
 }
 
 func (s *outputsService) OneShot(ctx context.Context) error {
-	s.log.Info("One-shot mode enabled. Generating outputs.")
+	s.log.Info("Generating outputs.")
 	err := trace.Wrap(s.renewOutputs(ctx))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Info("Generated outputs. One-shot mode is enabled so exiting.")
+	s.log.Info("Generated outputs. One-shot mode is enabled so finishing.")
 	return nil
 }
 
@@ -208,9 +208,9 @@ func (s *outputsService) Run(ctx context.Context) error {
 			}
 		}
 		if err != nil {
-			s.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, s.b.cfg.RenewalInterval)
+			s.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, s.cfg.RenewalInterval)
 		} else {
-			s.log.Infof("Renewed outputs. Next output renewal in approximately %s.", s.b.cfg.RenewalInterval)
+			s.log.Infof("Renewed outputs. Next output renewal in approximately %s.", s.cfg.RenewalInterval)
 		}
 
 		select {
@@ -291,7 +291,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // impersonated identity that already has the relevant permissions, much like
 // `tsh (app|db|kube) login` is already used to generate an additional set of
 // certs.
-func (b *Bot) generateIdentity(
+func (s *outputsService) generateIdentity(
 	ctx context.Context,
 	client auth.ClientI,
 	currentIdentity *identity.Identity,
@@ -299,7 +299,7 @@ func (b *Bot) generateIdentity(
 	defaultRoles []string,
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
-	ctx, span := tracer.Start(ctx, "Bot/generateIdentity")
+	ctx, span := tracer.Start(ctx, "outputsService/generateIdentity")
 	defer span.End()
 
 	// TODO: enforce expiration > renewal period (by what margin?)
@@ -318,14 +318,14 @@ func (b *Bot) generateIdentity(
 	if roles := output.GetRoles(); len(roles) > 0 {
 		roleRequests = roles
 	} else {
-		b.log.Debugf("Output specified no roles, defaults will be requested: %v", defaultRoles)
+		s.log.Debugf("Output specified no roles, defaults will be requested: %v", defaultRoles)
 		roleRequests = defaultRoles
 	}
 
 	req := proto.UserCertsRequest{
 		PublicKey:      publicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
-		Expires:        time.Now().Add(b.cfg.CertificateTTL),
+		Expires:        time.Now().Add(s.cfg.CertificateTTL),
 		RoleRequests:   roleRequests,
 		RouteToCluster: currentIdentity.ClusterName,
 
@@ -409,8 +409,8 @@ func getDatabase(ctx context.Context, clt auth.ClientI, name string) (types.Data
 	return db, trace.Wrap(err)
 }
 
-func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
-	ctx, span := tracer.Start(ctx, "Bot/getRouteToDatabase")
+func (s *outputsService) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
+	ctx, span := tracer.Start(ctx, "outputsService/getRouteToDatabase")
 	defer span.End()
 
 	if output.Service == "" {
@@ -429,7 +429,7 @@ func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, outpu
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
 		// This isn't strictly a runtime error so killing the process seems
 		// wrong. We'll just loudly warn about it.
-		b.log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", output.Service)
+		s.log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", output.Service)
 	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
 		// Per tsh's lead, fall back to the default username.
 		username = libdefaults.DefaultRedisUsername
@@ -494,8 +494,8 @@ func getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Applic
 	return apps[0], nil
 }
 
-func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
-	ctx, span := tracer.Start(ctx, "Bot/getRouteToApp")
+func (s *outputsService) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+	ctx, span := tracer.Start(ctx, "outputsService/getRouteToApp")
 	defer span.End()
 
 	app, err := getApp(ctx, client, output.AppName)
@@ -529,17 +529,17 @@ func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity,
 // generateImpersonatedIdentity generates an impersonated identity for a given
 // output. It also returns a client that is authenticated with that
 // impersonated identity.
-func (b *Bot) generateImpersonatedIdentity(
+func (s *outputsService) generateImpersonatedIdentity(
 	ctx context.Context,
 	botClient auth.ClientI,
 	botIdentity *identity.Identity,
 	output config.Output,
 	defaultRoles []string,
 ) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
-	ctx, span := tracer.Start(ctx, "Bot/generateImpersonatedIdentity")
+	ctx, span := tracer.Start(ctx, "outputsService/generateImpersonatedIdentity")
 	defer span.End()
 
-	impersonatedIdentity, err = b.generateIdentity(
+	impersonatedIdentity, err = s.generateIdentity(
 		ctx, botClient, botIdentity, output, defaultRoles, nil,
 	)
 	if err != nil {
@@ -548,7 +548,7 @@ func (b *Bot) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = clientForIdentity(ctx, b.log, b.cfg, impersonatedIdentity)
+	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -568,7 +568,7 @@ func (b *Bot) generateImpersonatedIdentity(
 			return impersonatedIdentity, impersonatedClient, nil
 		}
 
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToCluster = output.Cluster
 		},
 		)
@@ -577,7 +577,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		}
 		return routedIdentity, impersonatedClient, nil
 	case *config.DatabaseOutput:
-		route, err := b.getRouteToDatabase(ctx, impersonatedClient, output)
+		route, err := s.getRouteToDatabase(ctx, impersonatedClient, output)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -586,14 +586,14 @@ func (b *Bot) generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for database %q", output.Service)
+		s.log.Infof("Generated identity for database %q", output.Service)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.KubernetesOutput:
@@ -607,30 +607,30 @@ func (b *Bot) generateImpersonatedIdentity(
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = output.KubernetesCluster
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for Kubernetes cluster %q", output.KubernetesCluster)
+		s.log.Infof("Generated identity for Kubernetes cluster %q", output.KubernetesCluster)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.ApplicationOutput:
-		routeToApp, err := b.getRouteToApp(ctx, botIdentity, impersonatedClient, output)
+		routeToApp, err := s.getRouteToApp(ctx, botIdentity, impersonatedClient, output)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := s.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for app %q", output.AppName)
+		s.log.Infof("Generated identity for app %q", output.AppName)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.SSHHostOutput:
@@ -669,64 +669,64 @@ type outputRenewalCache struct {
 	_proxyPong *webclient.PingResponse
 }
 
-func (drc *outputRenewalCache) getCertAuthorities(
+func (orc *outputRenewalCache) getCertAuthorities(
 	ctx context.Context, caType types.CertAuthType,
 ) ([]types.CertAuthority, error) {
-	if cas := drc._cas[caType]; len(cas) > 0 {
+	if cas := orc._cas[caType]; len(cas) > 0 {
 		return cas, nil
 	}
 
-	cas, err := drc.client.GetCertAuthorities(ctx, caType, false)
+	cas, err := orc.client.GetCertAuthorities(ctx, caType, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if drc._cas == nil {
-		drc._cas = map[types.CertAuthType][]types.CertAuthority{}
+	if orc._cas == nil {
+		orc._cas = map[types.CertAuthType][]types.CertAuthority{}
 	}
-	drc._cas[caType] = cas
+	orc._cas[caType] = cas
 	return cas, nil
 }
 
 // GetCertAuthorities returns the possibly cached CAs of the given type and
 // requests them from the server if unavailable.
-func (drc *outputRenewalCache) GetCertAuthorities(
+func (orc *outputRenewalCache) GetCertAuthorities(
 	ctx context.Context, caType types.CertAuthType,
 ) ([]types.CertAuthority, error) {
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-	return drc.getCertAuthorities(ctx, caType)
+	orc.mu.Lock()
+	defer orc.mu.Unlock()
+	return orc.getCertAuthorities(ctx, caType)
 }
 
-func (drc *outputRenewalCache) authPing(ctx context.Context) (*proto.PingResponse, error) {
-	if drc._authPong != nil {
-		return drc._authPong, nil
+func (orc *outputRenewalCache) authPing(ctx context.Context) (*proto.PingResponse, error) {
+	if orc._authPong != nil {
+		return orc._authPong, nil
 	}
 
-	pong, err := drc.client.Ping(ctx)
+	pong, err := orc.client.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	drc._authPong = &pong
+	orc._authPong = &pong
 
 	return &pong, nil
 }
 
 // AuthPing pings the auth server and returns the (possibly cached) response.
-func (drc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-	return drc.authPing(ctx)
+func (orc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
+	orc.mu.Lock()
+	defer orc.mu.Unlock()
+	return orc.authPing(ctx)
 }
 
-func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	if drc._proxyPong != nil {
-		return drc._proxyPong, nil
+func (orc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	if orc._proxyPong != nil {
+		return orc._proxyPong, nil
 	}
 
 	// Note: this relies on the auth server's proxy address. We could
 	// potentially support some manual parameter here in the future if desired.
-	authPong, err := drc.authPing(ctx)
+	authPong, err := orc.authPing(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -736,13 +736,13 @@ func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 	proxyPong, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: authPong.ProxyPublicAddr,
-		Insecure:  drc.cfg.Insecure,
+		Insecure:  orc.cfg.Insecure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	drc._proxyPong = proxyPong
+	orc._proxyPong = proxyPong
 
 	return proxyPong, nil
 }
@@ -750,15 +750,15 @@ func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 // ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
 // Note that it relies on the auth server being configured with a sane proxy
 // public address.
-func (drc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-	return drc.proxyPing(ctx)
+func (orc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	orc.mu.Lock()
+	defer orc.mu.Unlock()
+	return orc.proxyPing(ctx)
 }
 
 // Config returns the bots config.
-func (op *outputRenewalCache) Config() *config.BotConfig {
-	return op.cfg
+func (orc *outputRenewalCache) Config() *config.BotConfig {
+	return orc.cfg
 }
 
 // outputProvider bundles the dependencies an output needs in order to render.
