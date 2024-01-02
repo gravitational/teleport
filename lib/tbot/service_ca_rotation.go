@@ -126,12 +126,9 @@ const caRotationRetryBackoff = time.Second * 2
 //   - Update Servers -> Standby: So we can stop trusting the old CA.
 type caRotationService struct {
 	log               logrus.FieldLogger
-	mu                sync.Mutex
-	chanSet           map[chan struct{}]struct{}
 	reloadBroadcaster *channelBroadcaster
-
-	cfg            *config.BotConfig
-	botIdentitySrc botIdentitySrc
+	cfg               *config.BotConfig
+	botIdentitySrc    botIdentitySrc
 }
 
 func (s *caRotationService) String() string {
