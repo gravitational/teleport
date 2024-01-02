@@ -28,19 +28,19 @@ import (
 type revision = [16]byte
 
 // newRevision returns a new random revision.
-func NewRevision() revision {
+func newRevision() revision {
 	return revision(uuid.New())
 }
 
-// RevisionToString converts a revision to its string form, usable in
+// revisionToString converts a revision to its string form, usable in
 // [backend.Item].
-func RevisionToString(r revision) string {
+func revisionToString(r revision) string {
 	return uuid.UUID(r).String()
 }
 
-// RevisionFromString converts a revision from its string form, returning false
+// revisionFromString converts a revision from its string form, returning false
 // in second position.
-func RevisionFromString(s string) (r revision, ok bool) {
+func revisionFromString(s string) (r revision, ok bool) {
 	u, err := uuid.Parse(s)
 	if err != nil {
 		return revision{}, false
@@ -50,14 +50,14 @@ func RevisionFromString(s string) (r revision, ok bool) {
 
 // idFromRevision derives a value usable as a [backend.Item]'s ID from a
 // revision UUID.
-func IdFromRevision(revision revision) int64 {
+func idFromRevision(revision revision) int64 {
 	u := binary.LittleEndian.Uint64(revision[:])
 	u &= 0x7fff_ffff_ffff_ffff
 	return int64(u)
 }
 
-// NonNil replaces a nil slice with an empty, non-nil one.
-func NonNil(b []byte) []byte {
+// nonNil replaces a nil slice with an empty, non-nil one.
+func nonNil(b []byte) []byte {
 	if b == nil {
 		return []byte{}
 	}

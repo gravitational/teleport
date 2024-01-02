@@ -142,8 +142,8 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 				Key:      key,
 				Value:    value,
 				Expires:  expires.UTC(),
-				ID:       IdFromRevision(revision),
-				Revision: RevisionToString(revision),
+				ID:       idFromRevision(revision),
+				Revision: revisionToString(revision),
 			},
 		}}, nil
 
@@ -205,8 +205,8 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 					Key:      key,
 					Value:    value,
 					Expires:  expires.UTC(),
-					ID:       IdFromRevision(revision),
-					Revision: RevisionToString(revision),
+					ID:       idFromRevision(revision),
+					Revision: revisionToString(revision),
 				},
 			}}, nil
 		}
@@ -217,8 +217,8 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 				Key:      key,
 				Value:    value,
 				Expires:  expires.UTC(),
-				ID:       IdFromRevision(revision),
-				Revision: RevisionToString(revision),
+				ID:       idFromRevision(revision),
+				Revision: revisionToString(revision),
 			},
 		}}, nil
 	}
