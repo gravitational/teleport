@@ -337,7 +337,7 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri | uri.KubeUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri | uri.AppUri;
   port?: string;
   user: string;
   subresource_name?: string;
@@ -413,7 +413,8 @@ export type UnifiedResourceResponse =
       kind: 'database';
       resource: Database;
     }
-  | { kind: 'kube'; resource: Kube };
+  | { kind: 'kube'; resource: Kube }
+  | { kind: 'app'; resource: App };
 
 export type UserPreferences = apiService.UserPreferences.AsObject;
 export type PromoteAccessRequestParams =
