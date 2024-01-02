@@ -77,7 +77,7 @@ func (s *outputsService) OneShot(ctx context.Context) error {
 func (s *outputsService) renewOutputs(
 	ctx context.Context,
 ) error {
-	ctx, span := tracer.Start(ctx, "Bot/renewOutputs")
+	ctx, span := tracer.Start(ctx, "outputsService/renewOutputs")
 	defer span.End()
 
 	botIdentity := s.botIdentitySrc.BotIdentity()
