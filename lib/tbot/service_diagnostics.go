@@ -65,7 +65,6 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 	mux.Handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
-		return
 	}))
 	srv := http.Server{
 		Addr:              s.diagAddr,
