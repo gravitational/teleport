@@ -1,17 +1,17 @@
-const { expectsToBe } = require('./lib/utility');
+const { test } = require('./lib/utility');
 const { migrateFigures, migrateTabs, migrateTipAdmonitions, migrateNoteAdmonitions,
   migrateWarningAdmonitions, migrateTipNotices, migrateWarningNotices, migrateDetails,
-  migrateVariables, migrateSnippets } = require('./lib/pages');
+  migrateVariables, migrateSnippets, migrateSnippetTemplateBinding } = require('./lib/pages');
 
 console.log('Testing component migrations...');
 
-expectsToBe(
+test(
   'Figures',
   migrateFigures(`<Figure width="700">![Architecture of the setup you will complete in this guide](../img/linux-server-diagram.png)</Figure>`),
   `![Architecture of the setup you will complete in this guide](../img/linux-server-diagram.png)`
 );
 
-expectsToBe(
+test(
   'Tabs',
   migrateTabs(`<Tabs>
   <TabItem label="Public internet deployment with Let's Encrypt">
@@ -31,37 +31,37 @@ expectsToBe(
 </Tabs>`
 );
 
-expectsToBe(
+test(
   'Tip Admonitions',
   migrateTipAdmonitions(`<Admonition type="tip" title="OS User Mappings">The users that you specify in the \`logins\` flag (e.g., \`root\`, \`ubuntu\` and \`ec2-user\` in our examples) must exist on your Linux host. Otherwise, you will get authentication errors later in this tutorial.</Admonition>`),
   `<Tip>The users that you specify in the \`logins\` flag (e.g., \`root\`, \`ubuntu\` and \`ec2-user\` in our examples) must exist on your Linux host. Otherwise, you will get authentication errors later in this tutorial.</Tip>`
 )
 
-expectsToBe(
+test(
   'Note Admonitions',
   migrateNoteAdmonitions(`<Admonition type="note">\`apt\`, \`yum\`, and \`zypper\` repos don't expose packages for all distribution variants. When following installation instructions, you might need to replace \`ID\` with \`ID_LIKE\` to install packages of the closest supported distribution.</Admonition>`),
   `<Note>\`apt\`, \`yum\`, and \`zypper\` repos don't expose packages for all distribution variants. When following installation instructions, you might need to replace \`ID\` with \`ID_LIKE\` to install packages of the closest supported distribution.</Note>`
 )
 
-expectsToBe(
+test(
   'Warning Admonitions',
   migrateWarningAdmonitions(`<Admonition type="warning" title="Preview">Login Rules are currently in Preview mode.</Admonition>`),
   `<Warning>Login Rules are currently in Preview mode.</Warning>`
 )
 
-expectsToBe(
+test(
   'Tip Notices',
   migrateTipNotices(`<Notice type="tip">lorem ipsum</Notice>`),
   `<Tip>lorem ipsum</Tip>`
 )
 
-expectsToBe(
+test(
   'Warning Notices',
   migrateWarningNotices(`<Notice type="warning">warning lorem ipsum</Notice>`),
   `<Warning>warning lorem ipsum</Warning>`
 )
 
-expectsToBe(
+test(
   'Details',
   migrateDetails(`<Details title="Logging in via the CLI">
 
@@ -88,7 +88,7 @@ expectsToBe(
 console.log('');
 console.log('Testing variables migrations...');
 
-expectsToBe(
+test(
   'Variables on page',
   migrateVariables(`---
 title: "Page Title"
@@ -113,7 +113,7 @@ The cluster name is {clusterDefaults.clusterName}`
 console.log('');
 console.log('Testing snippets migrations...');
 
-expectsToBe(
+test(
   'Snippets on page',
   migrateSnippets(`---
 title: "Page Title"
@@ -135,8 +135,34 @@ import Page from "/snippets/includes/page.mdx";
 <Page />`
 )
 
-// Pages
-// expectsToBeTest('Accordion', 1, 2);
+test(
+  'Snippets with attributes on page',
+  migrateSnippets(`---
+title: "Page Title"
+description: "Page Description"
+---
+
+## Header
+
+(!docs/pages/includes/plugins/enroll.mdx name="the Mattermost integration"!)`),
+  `---
+title: "Page Title"
+description: "Page Description"
+---
+
+import Enroll from "/snippets/includes/plugins/enroll.mdx";
+
+## Header
+
+<Enroll name="the Mattermost integration" />`
+)
+
+test('Snippet default values replacement',
+  migrateSnippetTemplateBinding(`{{ service="your Teleport instance" }}
+
+Grant {{ service }} access to credentials that it can use to authenticate to AWS. If you are running {{ service }} on an EC2 instance, you should use the EC2 Instance Metadata Service method. Otherwise, you must use environment variables:`),
+`
+Grant { service || "your Teleport instance" } access to credentials that it can use to authenticate to AWS. If you are running { service || "your Teleport instance" } on an EC2 instance, you should use the EC2 Instance Metadata Service method. Otherwise, you must use environment variables:`)
 
 
 console.log('');

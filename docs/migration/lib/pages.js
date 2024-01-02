@@ -4,8 +4,10 @@ const { readAllFilesFromDirectory, writeFile, findFrontmatterEndIndex, toPascalC
 // Location of the current documentation pages
 const PAGES_DIRECTORY = '../pages'
 
+const defaultSnippetTemplateBindingRegex = /^{{.+=.+}}\n/;
+const templateBindingRegex = /{{\s*(\S+)\s*}}/g;
 const variablesRegex = /\(=\s*(.*?)\s*=\)/g;
-const snippetsRegex = /\(!docs\/pages\/(.*\/(.*)\.mdx)!\)/g;
+const snippetsRegex = /\(!\/*docs\/pages\/(.*\/(.*)\.mdx)(.*)!\)/g;
 
 function migrateFigures(page) {
   return page.replace(/<Figure[^>]*>([\s\S]*?)<\/Figure>/g, '$1')
@@ -58,8 +60,21 @@ function migrateDetails(page) {
     .replace(/<\/Details>/g, '</Accordion>')
 }
 
-function migrateLinks(page) {
-  return page.replace(/\(.\//, '(').replace(/\.mdx\)/g, ')');
+function migrateSnippetTemplateBinding(snippetPage) {
+  const defaultValues = snippetPage.match(defaultSnippetTemplateBindingRegex);
+
+  if (defaultValues == null) {
+    return snippetPage
+  }
+
+  const defaultValuesMap = JSON.parse(defaultValues[0].trim().replaceAll('\'', '').replaceAll(/(\S+)=/g, '"$1":').replaceAll(/"\s+"/g, '", "').slice(1,-1));
+
+  let newPage = snippetPage.replace(defaultSnippetTemplateBindingRegex, '');
+  newPage = newPage.replace(templateBindingRegex, (_match, variableName) => {
+    return `{ ${variableName} || "${defaultValuesMap[variableName]}" }`
+  })
+
+  return newPage;
 }
 
 function migrateVariables(page) {
@@ -87,9 +102,6 @@ function migrateVariables(page) {
   return newPage.replace(variablesRegex, '{$1}');
 }
 
-// TODO: Add moving all includes folders into snippets
-// TODO: Consider for cases where snippets and variables are inside code blocks or other MDX syntax
-// TODO: Add setup for properties
 function migrateSnippets(page) {
   const matches = page.matchAll(snippetsRegex);
   
@@ -111,8 +123,8 @@ function migrateSnippets(page) {
   const frontmatterEndIndex = findFrontmatterEndIndex(page);
   newPage = page.slice(0, frontmatterEndIndex) + importStatement + page.slice(frontmatterEndIndex)
   
-  return newPage.replace(snippetsRegex, (_, _path, filename) => {
-    return `<${toPascalCase(filename)} />`
+  return newPage.replace(snippetsRegex, (_, _path, filename, props) => {
+    return `<${toPascalCase(filename)}${props} />`
   });
 }
 
@@ -124,8 +136,8 @@ const migrationFunctions = {
   migrateWarningAdmonitions,
   migrateTipNotices,
   migrateWarningNotices,
+  migrateSnippetTemplateBinding,
   migrateDetails,
-  migrateLinks,
   migrateVariables,
   migrateSnippets,
 };
@@ -139,6 +151,7 @@ function migratePages() {
 
     for (migrationFunction of Object.values(migrationFunctions)) {
       migratedPage = migrationFunction(migratedPage);
+      migratedPage = migratedPage.trim();
     }
 
     const relativePagePath = pagePath.replace(PAGES_DIRECTORY, '');
