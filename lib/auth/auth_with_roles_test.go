@@ -1734,8 +1734,9 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	require.Empty(t, searchEvents)
 }
 
-// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
-func TestGetSessionEvents(t *testing.T) {
+// TestStreamSessionEvents ensures that when a user streams a session's events
+// a "session recording access" event is emitted.
+func TestStreamSessionEvents(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestTLSServer(t)
@@ -1748,12 +1749,14 @@ func TestGetSessionEvents(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.GetSessionEvents(apidefaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+	clt.StreamSessionEvents(ctx, session.ID("44c6cea8-362f-11ea-83aa-125400432324"), 0)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
-	ctx := context.Background()
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       srv.Clock().Now().Add(-time.Hour),
 		To:         srv.Clock().Now().Add(time.Hour),
