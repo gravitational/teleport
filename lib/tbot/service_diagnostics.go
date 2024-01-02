@@ -62,7 +62,14 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 		msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about."
 		_, _ = w.Write([]byte(msg))
 	}))
-	mux.Handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	mux.Handle("/readyz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO(noah): Eventually this should diverge from /livez and report
+		// the readiness status from each sub-service, with an error status if
+		// any of them are not ready.
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}))
