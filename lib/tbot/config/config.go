@@ -388,6 +388,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Services assists polymorphic unmarshaling of a slice of Services.
 type Services []bot.Service
 
 func (o *Services) UnmarshalYAML(node *yaml.Node) error {
