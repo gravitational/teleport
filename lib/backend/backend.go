@@ -143,7 +143,7 @@ func MustRegister[T Backend](fn newbkfn[T], types ...string) {
 func New(ctx context.Context, bkType string, params Params) (Backend, error) {
 	newbk, ok := newbks[bkType]
 	if !ok {
-		return nil, trace.BadParameter("unsupported secrets storage type: %q", bkType)
+		return nil, trace.BadParameter("unsupported storage type: %q", bkType)
 	}
 	bk, err := newbk.new(ctx, params)
 	if err != nil {
