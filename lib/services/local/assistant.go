@@ -145,7 +145,7 @@ func (s *AssistService) GetAssistantConversations(ctx context.Context, req *assi
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	startKey := backend.Key(assistantConversationPrefix, req.Username)
+	startKey := backend.ExactKey(assistantConversationPrefix, req.Username)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -184,7 +184,7 @@ func (s *AssistService) GetAssistantMessages(ctx context.Context, req *assist.Ge
 		return nil, trace.BadParameter("missing conversation ID")
 	}
 
-	startKey := backend.Key(assistantMessagePrefix, req.Username, req.ConversationId)
+	startKey := backend.ExactKey(assistantMessagePrefix, req.Username, req.ConversationId)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
