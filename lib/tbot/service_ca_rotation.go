@@ -132,8 +132,8 @@ type caRotationService struct {
 	chanSet           map[chan struct{}]struct{}
 	reloadBroadcaster *channelBroadcaster
 
-	cfg *config.BotConfig
-	identitySrc
+	cfg            *config.BotConfig
+	botIdentitySrc botIdentitySrc
 }
 
 func (s *caRotationService) String() string {
@@ -190,7 +190,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 func (s *caRotationService) watchCARotations(ctx context.Context, queueReload func()) error {
 	s.log.Debugf("Attempting to establish watch for CA events")
 
-	ident := s.identitySrc.ident()
+	ident := s.botIdentitySrc.BotIdentity()
 	client, err := clientForIdentity(ctx, s.log, s.cfg, ident)
 	if err != nil {
 		return trace.Wrap(err, "creating client for ca watcher")

@@ -78,6 +78,10 @@ func (b *Bot) markStarted() error {
 	return nil
 }
 
+type botIdentitySrc interface {
+	BotIdentity() *identity.Identity
+}
+
 // BotIdentity returns the bot's own identity. This will return nil if the bot
 // has not been started.
 func (b *Bot) BotIdentity() *identity.Identity {
@@ -152,25 +156,25 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 	services = append(services, &outputsService{
-		cfg:               b.cfg,
-		identitySrc:       b.botIdentitySvc,
-		reloadBroadcaster: reloadBroadcaster,
+		botIdentitySrc: b,
+		cfg:            b.cfg,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "outputs"),
 		),
+		reloadBroadcaster: reloadBroadcaster,
 	})
 	services = append(services, &caRotationService{
-		cfg: b.cfg,
+		botIdentitySrc: b,
+		cfg:            b.cfg,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
 		),
 		reloadBroadcaster: reloadBroadcaster,
-		identitySrc:       b.botIdentitySvc,
 	})
 	// Append any services configured by the user
 	services = append(services, b.cfg.Services...)
 
-	b.log.Info("Initialization complete.")
+	b.log.Info("Initialization complete. Starting services.")
 	// Start services
 	for _, svc := range services {
 		svc := svc
@@ -180,28 +184,28 @@ func (b *Bot) Run(ctx context.Context) error {
 			svc, ok := svc.(bot.OneShotService)
 			// We ignore services with no one-shot implementation
 			if !ok {
-				log.Debug("Service does not support oneshot mode, ignoring")
+				log.Debug("Service does not support oneshot mode, ignoring.")
 				continue
 			}
 			eg.Go(func() error {
-				log.Info("Running service in oneshot mode")
+				log.Info("Running service in oneshot mode.")
 				err := svc.OneShot(egCtx)
 				if err != nil {
-					log.WithError(err).Error("Service exited with error")
+					log.WithError(err).Error("Service exited with error.")
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.Info("Service finished")
+				log.Info("Service finished.")
 				return nil
 			})
 		} else {
 			eg.Go(func() error {
-				log.Info("Starting service")
+				log.Info("Starting service.")
 				err := svc.Run(egCtx)
 				if err != nil {
-					log.WithError(err).Error("Service exited with error")
+					log.WithError(err).Error("Service exited with error.")
 					return trace.Wrap(err, "service(%s)", svc.String())
 				}
-				log.Info("Service exited")
+				log.Info("Service exited.")
 				return nil
 			})
 		}
@@ -244,7 +248,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 	store := b.cfg.Storage.Destination
 	if err := identity.VerifyWrite(ctx, store); err != nil {
 		return nil, trace.Wrap(
-			err, "Could not write to destination %s, aborting.", store,
+			err, "Could not write to destination %s, aborting", store,
 		)
 	}
 

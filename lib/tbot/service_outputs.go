@@ -57,7 +57,7 @@ const renewalRetryLimit = 5
 type outputsService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
-	identitySrc       identitySrc
+	botIdentitySrc    botIdentitySrc
 	cfg               *config.BotConfig
 }
 
@@ -82,7 +82,7 @@ func (s *outputsService) renewOutputs(
 	ctx, span := tracer.Start(ctx, "Bot/renewOutputs")
 	defer span.End()
 
-	botIdentity := s.identitySrc.ident()
+	botIdentity := s.botIdentitySrc.BotIdentity()
 	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity)
 	if err != nil {
 		return trace.Wrap(err)

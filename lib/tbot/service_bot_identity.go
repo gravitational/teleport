@@ -45,10 +45,6 @@ import (
 // failures in renewing the bot identity before the loop exits fatally.
 const botIdentityRenewalRetryLimit = 7
 
-type identitySrc interface {
-	ident() *identity.Identity
-}
-
 // identityService is a [bot.Service] that handles renewing the bot's identity.
 // It renews the bot's identity periodically and when receiving a broadcasted
 // reload signal.
