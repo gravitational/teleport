@@ -252,7 +252,7 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 	unlock, err := store.TryLock()
 	if err != nil {
 		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
-			return unlock, trace.WrapWithMessage(
+			return unlock, trace.Wrap(
 				err,
 				"Failed to acquire exclusive lock for tbot destination directory - is tbot already running?",
 			)
