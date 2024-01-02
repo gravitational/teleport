@@ -88,7 +88,7 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 // It checks this loaded identity against the configured onboarding profile
 // and ignores the loaded identity if there has been a configuration change.
 func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
-	ctx, span := tracer.Start(ctx, "Bot/loadIdentityFromStore")
+	ctx, span := tracer.Start(ctx, "identityService/loadIdentityFromStore")
 	defer span.End()
 	s.log.WithField("store", store).Info("Loading existing bot identity from store.")
 
