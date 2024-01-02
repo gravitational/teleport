@@ -39,13 +39,10 @@ export const Button = () => {
         disabled={true}
       />
       <ButtonTextWithAddIcon
-        label={'Add Item Disabled with Medium Icon Size'}
+        label={'Add Item with Medium Icon Size'}
         onClick={() => null}
         iconSize={'medium'}
       />
-      {/* <ButtonTextWithAddIcon mt={3} title="Barnes" ssoType="google" />
-    <ButtonTextWithAddIcon mt={3} title="Norton" ssoType="bitbucket" />
-    <ButtonTextWithAddIcon mt={3} title="Russell" ssoType="unknown" /> */}
     </div>
   );
 };
