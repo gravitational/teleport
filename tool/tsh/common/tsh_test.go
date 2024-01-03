@@ -38,6 +38,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -50,7 +51,6 @@ import (
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -5354,16 +5354,26 @@ func Test_formatActiveDB(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		active tlsca.RouteToDatabase
-		expect string
+		name        string
+		active      tlsca.RouteToDatabase
+		displayName string
+		expect      string
 	}{
 		{
 			name: "no route details",
 			active: tlsca.RouteToDatabase{
 				ServiceName: "my-db",
 			},
-			expect: "> my-db",
+			displayName: "my-db",
+			expect:      "> my-db",
+		},
+		{
+			name: "different display name",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+			},
+			displayName: "display-name",
+			expect:      "> display-name",
 		},
 		{
 			name: "user only",
@@ -5371,7 +5381,8 @@ func Test_formatActiveDB(t *testing.T) {
 				ServiceName: "my-db",
 				Username:    "alice",
 			},
-			expect: "> my-db (user: alice)",
+			displayName: "my-db",
+			expect:      "> my-db (user: alice)",
 		},
 		{
 			name: "db only",
@@ -5379,7 +5390,8 @@ func Test_formatActiveDB(t *testing.T) {
 				ServiceName: "my-db",
 				Database:    "sales",
 			},
-			expect: "> my-db (db: sales)",
+			displayName: "my-db",
+			expect:      "> my-db (db: sales)",
 		},
 		{
 			name: "user & db",
@@ -5388,7 +5400,8 @@ func Test_formatActiveDB(t *testing.T) {
 				Username:    "alice",
 				Database:    "sales",
 			},
-			expect: "> my-db (user: alice, db: sales)",
+			displayName: "my-db",
+			expect:      "> my-db (user: alice, db: sales)",
 		},
 		{
 			name: "db & roles",
@@ -5397,13 +5410,14 @@ func Test_formatActiveDB(t *testing.T) {
 				Database:    "sales",
 				Roles:       []string{"reader", "writer"},
 			},
-			expect: "> my-db (db: sales, roles: [reader writer])",
+			displayName: "my-db",
+			expect:      "> my-db (db: sales, roles: [reader writer])",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expect, formatActiveDB(test.active))
+			require.Equal(t, test.expect, formatActiveDB(test.active, test.displayName))
 		})
 	}
 }

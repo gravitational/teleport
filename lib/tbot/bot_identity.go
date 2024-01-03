@@ -47,6 +47,8 @@ func (b *Bot) renewBotIdentityLoop(
 	ctx context.Context,
 	reloadChan <-chan struct{},
 ) error {
+	ctx, span := tracer.Start(ctx, "Bot/renewBotIdentityLoop")
+	defer span.End()
 	b.log.Infof(
 		"Beginning bot identity renewal loop: ttl=%s interval=%s",
 		b.cfg.CertificateTTL,
@@ -111,6 +113,9 @@ func (b *Bot) renewBotIdentity(
 	ctx context.Context,
 	botDestination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(ctx, "Bot/renewBotIdentity")
+	defer span.End()
+
 	currentIdentity := b.ident()
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
@@ -136,7 +141,7 @@ func (b *Bot) renewBotIdentity(
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
-		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
+		newIdentity, err = botIdentityFromToken(ctx, b.log, b.cfg)
 		if err != nil {
 			return trace.Wrap(err, "renewing identity with token")
 		}
@@ -162,7 +167,10 @@ func botIdentityFromAuth(
 	client auth.ClientI,
 	ttl time.Duration,
 ) (*identity.Identity, error) {
+	ctx, span := tracer.Start(ctx, "Bot/botIdentityFromAuth")
+	defer span.End()
 	log.Info("Fetching bot identity using existing bot identity.")
+
 	if ident == nil || client == nil {
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
@@ -190,7 +198,10 @@ func botIdentityFromAuth(
 
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
-func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
+func botIdentityFromToken(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
+	_, span := tracer.Start(ctx, "Bot/botIdentityFromToken")
+	defer span.End()
+
 	log.Info("Fetching bot identity using token.")
 	addr, err := utils.ParseAddr(cfg.AuthServer)
 	if err != nil {

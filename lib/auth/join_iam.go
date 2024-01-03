@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go/aws"
@@ -34,7 +35,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"

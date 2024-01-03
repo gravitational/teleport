@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const defaultChannelTimeout = 5 * time.Second

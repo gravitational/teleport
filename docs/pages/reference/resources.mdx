@@ -175,7 +175,7 @@ metadata:
 spec:
   # Sets the type of second factor to use.
   # Possible values: "on", "off", "otp", "webauthn" and "optional".
-  # If "on" is set, all 2FA protocols are supported.
+  # If "on" is set, all MFA protocols are supported.
   second_factor: "otp"
 
   # The name of the OIDC or SAML connector. if this is not set, the first connector in the backend is used.
@@ -252,3 +252,12 @@ spec:
 
 version: v2
 ```
+
+## Bot
+
+Bot resources define a Machine ID Bot identity and its access.
+
+Find out more on the
+[Machine ID configuration reference](../machine-id/reference/configuration.mdx).
+
+(!docs/pages/includes/machine-id/bot-spec.mdx!)

@@ -20,12 +20,12 @@ package server
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -83,11 +83,12 @@ type azureClientGetter interface {
 func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchersFn:   fetchersFn,
-		ctx:          cancelCtx,
-		cancel:       cancelFn,
-		pollInterval: time.Minute,
-		InstancesC:   make(chan Instances),
+		fetchersFn:    fetchersFn,
+		ctx:           cancelCtx,
+		cancel:        cancelFn,
+		pollInterval:  time.Minute,
+		triggerFetchC: make(<-chan struct{}),
+		InstancesC:    make(chan Instances),
 	}
 	for _, opt := range opts {
 		opt(&watcher)

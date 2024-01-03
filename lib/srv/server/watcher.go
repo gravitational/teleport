@@ -44,16 +44,24 @@ type Fetcher interface {
 	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
 }
 
+// WithTriggerFetchC sets a poll trigger to manual start a resource polling.
+func WithTriggerFetchC(triggerFetchC <-chan struct{}) Option {
+	return func(w *Watcher) {
+		w.triggerFetchC = triggerFetchC
+	}
+}
+
 // Watcher allows callers to discover cloud instances matching specified filters.
 type Watcher struct {
 	// InstancesC can be used to consume newly discovered instances.
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetchersFn   func() []Fetcher
-	pollInterval time.Duration
-	ctx          context.Context
-	cancel       context.CancelFunc
+	fetchersFn    func() []Fetcher
+	pollInterval  time.Duration
+	triggerFetchC <-chan struct{}
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) {
@@ -72,14 +80,23 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 	}
 }
 
+// fetchAndSubmit fetches the resources and submits them for processing.
+func (w *Watcher) fetchAndSubmit() {
+	for _, fetcher := range w.fetchersFn() {
+		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
+	}
+}
+
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
-	for _, fetcher := range w.fetchersFn() {
-		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
+	if w.triggerFetchC == nil {
+		w.triggerFetchC = make(<-chan struct{})
 	}
+
+	w.fetchAndSubmit()
 
 	for {
 		select {
@@ -88,9 +105,9 @@ func (w *Watcher) Run() {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
 			}
 		case <-ticker.C:
-			for _, fetcher := range w.fetchersFn() {
-				w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
-			}
+			w.fetchAndSubmit()
+		case <-w.triggerFetchC:
+			w.fetchAndSubmit()
 		case <-w.ctx.Done():
 			return
 		}

@@ -105,6 +105,36 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			},
 		},
 		{
+			name:             "missing attribute name",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "",
+					Value: "user.traits.name",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "attribute name is required")
+			},
+		},
+		{
+			name:             "missing attribute value",
+			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
+			expectedEntityID: "IAMShowcase",
+			attributeMapping: []*SAMLAttributeMapping{
+				{
+					Name:  "name",
+					Value: "",
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "attribute value is required")
+			},
+		},
+		{
 			name:             "valid attribute mapping",
 			entityDescriptor: testEntityDescriptor,
 			entityID:         "IAMShowcase",

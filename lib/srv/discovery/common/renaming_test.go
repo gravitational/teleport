@@ -378,7 +378,7 @@ func makeAuroraPrimaryDB(t *testing.T, name, region, accountID, overrideLabel st
 			overrideLabel: name,
 		}),
 	}
-	database, err := services.NewDatabaseFromRDSCluster(cluster)
+	database, err := services.NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{})
 	require.NoError(t, err)
 	return database
 }
