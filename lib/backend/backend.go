@@ -108,6 +108,8 @@ type Backend interface {
 
 // Backend initializes a new [Backend] implementation based on the service config.
 func New(ctx context.Context, backend string, params Params) (Backend, error) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	newbk, ok := registry[backend]
 	if !ok {
 		return nil, trace.BadParameter("unsupported secrets storage type: %q", backend)

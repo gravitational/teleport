@@ -21,11 +21,13 @@ package backend
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 // registry contains globally registered functions for intializing new backend
 // implementations.
 var registry = make(map[string]func(context.Context, Params) (Backend, error))
+var registryMu sync.RWMutex
 
 // MustRegister registers a [Backend] implementation, panicking if it has already
 // been registered. Must only be called before any possible call to [New].
@@ -33,14 +35,14 @@ func MustRegister(backend string, fn func(context.Context, Params) (Backend, err
 	if fn == nil {
 		panic("backend registered with nil function")
 	}
-
 	if backend == "" {
 		panic("backend registered without a type")
 	}
 
+	registryMu.Lock()
+	defer registryMu.Unlock()
 	if _, ok := registry[backend]; ok {
 		panic(fmt.Sprintf("backend already registered: %v", backend))
 	}
-
 	registry[backend] = fn
 }
