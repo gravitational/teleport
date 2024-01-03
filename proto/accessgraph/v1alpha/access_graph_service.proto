@@ -80,6 +80,17 @@ message EventsStreamRequest {
     ResourceList upsert = 2;
     // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
     ResourceHeaderList delete = 3;
+    // access_lists_members is a command to upsert access lists members.
+    // It's issued when a user is added to an access list or when their membership is updated.
+    // It's also issued when a user membership expires but the user remains in the access list.
+    // In that case, the state of the user reflects the expiration reason.
+    AccessListsMembers access_lists_members = 4;
+    // exclude_access_list_members is a command to exclude access lists members
+    // when they are manually removed from the access list.
+    // If their membership remains but it's expired, they are not excluded
+    // from the access list but they don't receive any access - in that case,
+    // the request is [access_lists_members].
+    ExcludeAccessListsMembers exclude_access_list_members = 5;
   }
 }
 
