@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -67,6 +68,9 @@ func TestSubmitOnce(t *testing.T) {
 	r0 := newReport(clk.Now())
 	require.NoError(t, svc.upsertUserActivityReport(ctx, r0, reportTTL))
 
+	resCountReport := newResourcePresenceReport(time.Now().UTC())
+	require.NoError(t, svc.upsertResourcePresenceReport(ctx, resCountReport, reportTTL))
+
 	// successful submit, no alerts, no leftover reports
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
@@ -74,6 +78,10 @@ func TestSubmitOnce(t *testing.T) {
 	reports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, reports)
+	rReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, rReports)
+
 	submitted = nil
 
 	alerts, err := scfg.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{

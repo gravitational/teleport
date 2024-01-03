@@ -16,6 +16,7 @@ package aggregating
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -32,9 +33,10 @@ import (
 )
 
 const (
-	reportGranularity = 15 * time.Minute
-	rollbackGrace     = time.Minute
-	reportTTL         = 60 * 24 * time.Hour
+	userActivityReportGranularity = 15 * time.Minute
+	resourceReportGranularity     = time.Hour
+	rollbackGrace                 = time.Minute
+	reportTTL                     = 60 * 24 * time.Hour
 
 	checkInterval = time.Minute
 )
@@ -168,11 +170,13 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	filtered := events[:0]
 	for _, event := range events {
 		// this should drop all events that we don't care about
+		// note: make sure this matches the set of all events handled in [*Reporter.run]
 		switch event.(type) {
 		case *usagereporter.UserLoginEvent,
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
-			*usagereporter.SFTPEvent:
+			*usagereporter.SFTPEvent,
+			*usagereporter.ResourceHeartbeatEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -194,6 +198,10 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 	}
 }
 
+// run processes events incoming from r.ingest, keeping statistics of
+// users activity and resource usage per users, also collects cluster resource counts.
+// Every granularity time period, it sends accumulated stats to the prehog.
+// Runs perpetually in a goroutine until the context is canceled or reporter is closed.
 func (r *Reporter) run(ctx context.Context) {
 	defer r.baseCancel()
 	defer close(r.done)
@@ -201,9 +209,9 @@ func (r *Reporter) run(ctx context.Context) {
 	ticker := r.clock.NewTicker(checkInterval)
 	defer ticker.Stop()
 
-	startTime := r.clock.Now().UTC().Truncate(reportGranularity)
-	windowStart := startTime.Add(-rollbackGrace)
-	windowEnd := startTime.Add(reportGranularity)
+	userActivityStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
+	userActivityWindowStart := userActivityStartTime.Add(-rollbackGrace)
+	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
@@ -214,6 +222,21 @@ func (r *Reporter) run(ctx context.Context) {
 			userActivity[userName] = record
 		}
 		return record
+	}
+
+	resourceUsageStartTime := r.clock.Now().UTC().Truncate(resourceReportGranularity)
+	resourceUsageWindowStart := resourceUsageStartTime.Add(-rollbackGrace)
+	resourceUsageWindowEnd := resourceUsageStartTime.Add(resourceReportGranularity)
+
+	// ResourcePresences is a map of resource kinds to sets of resource names.
+	// As there may be multiple heartbeats for the same resource, we use a set to count each once.
+	resourcePresences := make(map[prehogv1.ResourceKind]map[string]struct{})
+	resourcePresence := func(kind prehogv1.ResourceKind) map[string]struct{} {
+		record := resourcePresences[kind]
+		if record == nil {
+			resourcePresences[kind] = make(map[string]struct{})
+		}
+		return resourcePresences[kind]
 	}
 
 	var wg sync.WaitGroup
@@ -232,19 +255,34 @@ Ingest:
 			break Ingest
 		}
 
-		if now := r.clock.Now().UTC(); now.Before(windowStart) || !now.Before(windowEnd) {
+		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
 				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
 					defer wg.Done()
 					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, startTime, userActivity)
+				}(ctx, userActivityStartTime, userActivity)
 			}
 
-			startTime = now.Truncate(reportGranularity)
-			windowStart = startTime.Add(-rollbackGrace)
-			windowEnd = startTime.Add(reportGranularity)
+			userActivityStartTime = now.Truncate(userActivityReportGranularity)
+			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
+			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+		}
+
+		if now := r.clock.Now().UTC(); now.Before(resourceUsageWindowStart) || !now.Before(resourceUsageWindowEnd) {
+			if len(resourcePresences) > 0 {
+				wg.Add(1)
+				go func(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+					defer wg.Done()
+					r.persistResourcePresence(ctx, startTime, resourcePresences)
+				}(ctx, resourceUsageStartTime, resourcePresences)
+			}
+
+			resourceUsageStartTime = now.Truncate(resourceReportGranularity)
+			resourceUsageWindowStart = resourceUsageStartTime.Add(-rollbackGrace)
+			resourceUsageWindowEnd = resourceUsageStartTime.Add(resourceReportGranularity)
+			resourcePresences = make(map[prehogv1.ResourceKind]map[string]struct{}, len(resourcePresences))
 		}
 
 		switch te := ae.(type) {
@@ -273,6 +311,9 @@ Ingest:
 			userRecord(te.UserName).KubeRequests++
 		case *usagereporter.SFTPEvent:
 			userRecord(te.UserName).SftpEvents++
+		case *usagereporter.ResourceHeartbeatEvent:
+			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
+			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -281,7 +322,11 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, startTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
+	}
+
+	if len(resourcePresences) > 0 {
+		r.persistResourcePresence(ctx, userActivityStartTime, resourcePresences)
 	}
 
 	wg.Wait()
@@ -319,5 +364,44 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 			"start_time":  startTime,
 			"records":     len(report.Records),
 		}).Debug("Persisted user activity report.")
+	}
+}
+
+func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.Time, resourcePresences map[prehogv1.ResourceKind]map[string]struct{}) {
+	records := make([]*prehogv1.ResourceKindPresenceReport, 0, len(resourcePresences))
+	for kind, set := range resourcePresences {
+		record := &prehogv1.ResourceKindPresenceReport{
+			ResourceKind: kind,
+			ResourceIds:  make([]uint64, 0, len(set)),
+		}
+		for name := range set {
+			anonymized := r.anonymizer.AnonymizeNonEmpty(name)
+			packed := binary.LittleEndian.Uint64(anonymized[:]) // only the first 8 bytes are used
+			record.ResourceIds = append(record.ResourceIds, packed)
+		}
+		records = append(records, record)
+	}
+
+	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time": startTime,
+		}).Error("Failed to prepare resource presence report, dropping data.")
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
+			r.log.WithError(err).WithFields(logrus.Fields{
+				"start_time": startTime,
+			}).Error("Failed to persist resource presence report, dropping data.")
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": reportUUID,
+			"start_time":  startTime,
+		}).Debug("Persisted resource presence report.")
 	}
 }
