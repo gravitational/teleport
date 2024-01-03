@@ -31,7 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 var userMonitorCmpOpts = []cmp.Option{
@@ -543,9 +545,40 @@ func setupOktaUAC(t *testing.T, svc *UserMonitor) {
 
 	clusterName, err := svc.authServer.GetClusterName()
 	require.NoError(t, err)
+
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	// Create an Okta plugin so the Okta UAC will run..
+	plugins := local.NewPluginsService(mem)
+	oktaPlugin := types.NewPluginV1(types.Metadata{
+		Name: "okta",
+	}, types.PluginSpecV1{
+		Settings: &types.PluginSpecV1_Okta{
+			Okta: &types.PluginOktaSettings{
+				OrgUrl: "https://www.okta.com",
+			},
+		},
+	}, &types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+				Labels: map[string]string{"dummy": "dummy"},
+			},
+		},
+	})
+	require.NoError(t, plugins.CreatePlugin(context.Background(), oktaPlugin))
+
+	connected, err := okta.NewOktaConnected(okta.OktaConnectedConfig{
+		DisableCache:    true,
+		ConnectedGetter: svc.authServer,
+		Plugins:         plugins,
+	})
+	require.NoError(t, err)
+
 	uac, err := okta.NewUserAssignmentCreator(okta.UserAssignmentCreatorConfig{
-		ClusterName: clusterName.GetClusterName(),
-		AccessPoint: svc.authServer,
+		ClusterName:   clusterName.GetClusterName(),
+		AccessPoint:   svc.authServer,
+		OktaConnected: connected,
 	})
 	require.NoError(t, err)
 	svc.authServer.RegisterLoginHook(uac.OnLogin)

@@ -18,6 +18,9 @@ const (
 	// ComponentOktaUserAssignmentCreator is a user assignment creator component.
 	ComponentOktaUserAssignmentCreator = "okta.user-assignment-creator"
 
+	// ComponentOktaConnected is a Okta connected component.
+	ComponentOktaConnected = "okta.connected"
+
 	// ComponentJamf is the Jamf service component.
 	ComponentJamf = "jamf"
 

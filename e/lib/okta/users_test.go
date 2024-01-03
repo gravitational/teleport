@@ -41,10 +41,19 @@ func TestUserAssignmentCreator(t *testing.T) {
 	ap := &testUACAccessPoint{
 		testAccessPoint: newTestAccessPoint(t, clock),
 	}
+	ap.serviceCounts[types.RoleOkta] = 1
+	connected, err := NewOktaConnected(OktaConnectedConfig{
+		DisableCache:    true,
+		ConnectedGetter: ap,
+		Plugins:         ap,
+	})
+	require.NoError(t, err)
+
 	uac, err := NewUserAssignmentCreator(UserAssignmentCreatorConfig{
-		Clock:       clock,
-		ClusterName: testClusterName,
-		AccessPoint: ap,
+		Clock:         clock,
+		ClusterName:   testClusterName,
+		AccessPoint:   ap,
+		OktaConnected: connected,
 	})
 	require.NoError(t, err)
 
@@ -111,7 +120,17 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resources.Resources, 2)
 
-	// Should get an assignment that has one action for the app.
+	// This run should be skipped since no Okta roles or plugins are connected.
+	ap.serviceCounts[types.RoleOkta] = 0
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, assignments)
+
+	// Reconnect the service. Should get an assignment that has one action for the app.
+	ap.serviceCounts[types.RoleOkta] = 1
 	require.NoError(t, uac.OnLogin(ctx, user))
 
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")

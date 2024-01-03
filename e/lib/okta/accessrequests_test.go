@@ -24,12 +24,19 @@ func TestAccessRequestReconciler(t *testing.T) {
 	ap := newTestAccessPoint(t, clock)
 	onReconcileCh := make(chan struct{}, 1)
 	onServiceDisconnectedCh := make(chan struct{}, 1)
+	connected, err := NewOktaConnected(OktaConnectedConfig{
+		DisableCache:    true,
+		ConnectedGetter: ap,
+		Plugins:         ap,
+	})
+	require.NoError(t, err)
 
 	reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
 		Clock:                   clock,
 		ClusterName:             testClusterName,
 		AccessPoint:             ap,
 		LockWatcher:             newLockWatcher(t, ap),
+		OktaConnected:           connected,
 		OktaClient:              ap,
 		onReconcileCh:           onReconcileCh,
 		onServiceDisconnectedCh: onServiceDisconnectedCh,
@@ -275,13 +282,20 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			ap := newTestAccessPoint(t, clock)
+			connected, err := NewOktaConnected(OktaConnectedConfig{
+				DisableCache:    true,
+				ConnectedGetter: ap,
+				Plugins:         ap,
+			})
+			require.NoError(t, err)
 
 			reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
-				Clock:       clock,
-				ClusterName: testClusterName,
-				LockWatcher: newLockWatcher(t, ap),
-				AccessPoint: ap,
-				OktaClient:  ap,
+				Clock:         clock,
+				ClusterName:   testClusterName,
+				LockWatcher:   newLockWatcher(t, ap),
+				AccessPoint:   ap,
+				OktaConnected: connected,
+				OktaClient:    ap,
 			})
 			require.NoError(t, err)
 			require.NoError(t, reconciler.Start(ctx))
@@ -349,14 +363,16 @@ func TestOnLogin(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		accessRequests []types.AccessRequest
-		expected       []types.OktaAssignment
-		cycles         []lockAndOnLoginCycle
+		name             string
+		oktaServiceCount int
+		accessRequests   []types.AccessRequest
+		expected         []types.OktaAssignment
+		cycles           []lockAndOnLoginCycle
 	}{
 		{
-			name:     "no assignments",
-			expected: []types.OktaAssignment{},
+			name:             "no assignments",
+			oktaServiceCount: 1,
+			expected:         []types.OktaAssignment{},
 			cycles: []lockAndOnLoginCycle{
 				{
 					expected: []types.OktaAssignment{},
@@ -364,7 +380,8 @@ func TestOnLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "access requests, no locks",
+			name:             "access requests, no locks",
+			oktaServiceCount: 1,
 			accessRequests: []types.AccessRequest{
 				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
 					resourceID(types.KindUserGroup, "group1")),
@@ -389,7 +406,8 @@ func TestOnLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "access requests, locks",
+			name:             "access requests, locks",
+			oktaServiceCount: 1,
 			accessRequests: []types.AccessRequest{
 				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
 					resourceID(types.KindUserGroup, "group1")),
@@ -418,7 +436,38 @@ func TestOnLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "access requests, delete locks",
+			name:             "access requests, locks, but no connected Okta service",
+			oktaServiceCount: 0,
+			accessRequests: []types.AccessRequest{
+				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group1")),
+				accessRequest(t, arNames[1], user2.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
+					resourceID(types.KindUserGroup, "group2")),
+			},
+			expected: []types.OktaAssignment{
+				assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+				assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+					now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+			},
+			cycles: []lockAndOnLoginCycle{
+				{
+					locks: []types.Lock{
+						lock(t, "lock1", types.LockTarget{User: user1.GetName()}),
+						lock(t, "lock2", types.LockTarget{AccessRequest: arNames[1]}),
+					},
+					expected: []types.OktaAssignment{
+						assignment(t, arNames[0], user1.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group1")),
+						assignment(t, arNames[1], user2.GetName(), now.Add(time.Hour), constants.OktaAssignmentStatusPending,
+							now, false, target(types.OktaAssignmentTargetV1_GROUP, "group2")),
+					},
+				},
+			},
+		},
+		{
+			name:             "access requests, delete locks",
+			oktaServiceCount: 1,
 			accessRequests: []types.AccessRequest{
 				accessRequest(t, arNames[0], user1.GetName(), []string{"role1", "role2"}, now.Add(time.Hour),
 					resourceID(types.KindUserGroup, "group1")),
@@ -485,12 +534,20 @@ func TestOnLogin(t *testing.T) {
 			// Set the service count to 1 to make sure the reconciler is active.
 			ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 
+			connected, err := NewOktaConnected(OktaConnectedConfig{
+				DisableCache:    true,
+				ConnectedGetter: ap,
+				Plugins:         ap,
+			})
+			require.NoError(t, err)
+
 			// Start a new reconciler for the test.
 			reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
 				Clock:         clock,
 				ClusterName:   testClusterName,
 				AccessPoint:   ap,
 				LockWatcher:   lockWatcher,
+				OktaConnected: connected,
 				OktaClient:    ap,
 				onReconcileCh: onReconcileCh,
 			})
@@ -529,6 +586,9 @@ func TestOnLogin(t *testing.T) {
 			assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(test.expected, assignments, cmpOpts...))
+
+			// Update the service counts.
+			ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: uint64(test.oktaServiceCount)})
 
 			cycleCount := 0
 			// Lock, run on login, and then test the Okta assignments.

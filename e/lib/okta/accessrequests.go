@@ -61,6 +61,9 @@ type AccessRequestReconcilerConfig struct {
 	// AccessPoint is the access point for the access request reconciler.
 	AccessPoint AccessRequestReconcilerAccessPoint
 
+	// OktaConnected is a utility that will detect if an Okta service is connected.
+	OktaConnected *OktaConnected
+
 	// OktaClient is the Okta client for creating Okta assignment objects.
 	OktaClient services.OktaAssignments
 
@@ -101,6 +104,10 @@ func (c *AccessRequestReconcilerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("access point is missing")
 	}
 
+	if c.OktaConnected == nil {
+		return trace.BadParameter("okta connected is missing")
+	}
+
 	if c.OktaClient == nil {
 		return trace.BadParameter("okta client is missing")
 	}
@@ -119,7 +126,7 @@ type AccessRequestReconciler struct {
 	lockWatcher *services.LockWatcher
 
 	accessPoint AccessRequestReconcilerAccessPoint
-	plugins     services.Plugins
+	connected   *OktaConnected
 	oktaClient  services.OktaAssignments
 	onReconcile func(types.AccessRequests)
 
@@ -164,7 +171,7 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 		lockWatcher:             config.LockWatcher,
 		accessPoint:             config.AccessPoint,
 		onReconcile:             config.OnReconcile,
-		plugins:                 config.Plugins,
+		connected:               config.OktaConnected,
 		oktaClient:              config.OktaClient,
 		reconcileCh:             make(chan struct{}),
 		stopCh:                  make(chan struct{}, 1),
@@ -195,14 +202,8 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 	serviceStarted := false
 	var serviceConnectionFailures int
 
-	if a.plugins == nil {
-		a.log.Debug("This auth server does not support plugins, so the Okta access request reconciler will not check for Okta plugins.")
-	} else {
-		a.log.Debug("This auth server supports plugins, so the Okta access request reconciler will check for Okta plugins.")
-	}
-
 	for {
-		newOktaServiceConnected := isOktaServiceConnected(ctx, a.log, a.accessPoint, a.plugins)
+		newOktaServiceConnected := a.connected.IsConnected(ctx)
 		if newOktaServiceConnected {
 			serviceConnectionFailures = 0
 
@@ -626,6 +627,12 @@ func (a *AccessRequestReconciler) getAppServer(ctx context.Context, name string)
 // OnLogin's job is to mark assignments cleaned up when a lock is encountered or to restore assignments when a
 // lock is removed.
 func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) error {
+	// If no Okta service is connected, return immediately. Anything that is missed will be caught
+	// once the Okta service connects and the usermonitor re-runs.
+	if !a.connected.IsConnected(ctx) {
+		return nil
+	}
+
 	locks := a.lockWatcher.GetCurrent()
 	userLocked := false
 	accessRequestsLocked := map[string]struct{}{}

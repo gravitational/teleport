@@ -61,11 +61,17 @@ type UserAssignmentCreatorConfig struct {
 	// Clock is the clock to use for the UserAssignmentCreator.
 	Clock clockwork.Clock
 
+	// OktaConnected is a utility that will detect if an Okta service is connected.
+	OktaConnected *OktaConnected
+
 	// ClusterName is the name of the cluster.
 	ClusterName string
 
 	// AccessPoint is the access point for the user assignment creator.
 	AccessPoint UserAssignmentCreatorAccessPoint
+
+	// PrintDiffs will print user diffs if set to true.
+	PrintDiffs bool
 }
 
 func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
@@ -75,6 +81,10 @@ func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
 
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point is missing")
+	}
+
+	if c.OktaConnected == nil {
+		return trace.BadParameter("okta connected is missing")
 	}
 
 	if c.Log == nil {
@@ -97,11 +107,13 @@ type UserAssignmentCreator struct {
 	clusterName string
 	accessPoint UserAssignmentCreatorAccessPoint
 	accessState services.AccessState
+	connected   *OktaConnected
 
 	// hash will be used to calculate the name of the assignment to create.
 	hash          crypto.Hash
 	groupPageSize int
 	appPageSize   int
+	printDiffs    bool
 }
 
 // NewUserAssignmentCreator creates a new user assignment creator.
@@ -115,6 +127,7 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 		clock:       config.Clock,
 		clusterName: config.ClusterName,
 		accessPoint: config.AccessPoint,
+		connected:   config.OktaConnected,
 
 		// We'll use an access state with MFAVerified to true because, for the RBAC calculations
 		// made here, we don't need to use MFA.
@@ -123,6 +136,7 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 		},
 		hash:        crypto.SHA256,
 		appPageSize: defaults.DefaultChunkSize,
+		printDiffs:  config.PrintDiffs,
 	}
 
 	return creator, nil
@@ -131,6 +145,12 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 // OnLogin will be run on login and will reconcile the user's current permissions to Okta assignment
 // access.
 func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) error {
+	// If no Okta service is connected, return immediately. Anything that is missed will be caught
+	// once the Okta service connects and the usermonitor re-runs.
+	if !u.connected.IsConnected(ctx) {
+		return nil
+	}
+
 	userState, err := u.accessPoint.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return trace.Wrap(err)
@@ -226,7 +246,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	}
 
 	// If debug is enabled, print out the diff of the old vs. new assignments.
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+	if logrus.IsLevelEnabled(logrus.DebugLevel) && u.printDiffs {
 		newGroups, newApps, removedGroups, removedApps := assignmentDiff(newAssignment, oldAssignments...)
 
 		u.log.Debugf("New groups for user %s: %v", userState.GetName(), newGroups)

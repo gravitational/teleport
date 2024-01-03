@@ -104,6 +104,8 @@ type Plugin struct {
 	mtx sync.Mutex
 	// cloudClient is a client of the Cloud API server
 	cloudClient cloudapi.TenantsServiceClient
+	// oktaConnected is a utility that detects whether Okta is connected.
+	oktaConnected *okta.OktaConnected
 }
 
 // GetName returns plugin name
@@ -228,6 +230,15 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 	// resource sync.
 	p.authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
 
+	p.oktaConnected, err = okta.NewOktaConnected(okta.OktaConnectedConfig{
+		Log:             log,
+		ConnectedGetter: p.authServer.AuthServer,
+		Plugins:         p.plugins,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	clusterName, err := p.authServer.AuthServer.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -235,9 +246,10 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 
 	// Register the Okta user assignment creator login hook.
 	uac, err := okta.NewUserAssignmentCreator(okta.UserAssignmentCreatorConfig{
-		Log:         log,
-		ClusterName: clusterName.GetClusterName(),
-		AccessPoint: p.authServer.AuthServer,
+		Log:           log,
+		ClusterName:   clusterName.GetClusterName(),
+		AccessPoint:   p.authServer.AuthServer,
+		OktaConnected: p.oktaConnected,
 	})
 	if err != nil {
 		return trace.Wrap(err)

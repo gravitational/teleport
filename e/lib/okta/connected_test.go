@@ -9,13 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestIsOktaConnected(t *testing.T) {
 	ctx := context.Background()
-	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
-	log := utils.NewLoggerForTests()
+	clock := clockwork.NewFakeClock()
+	ap := newTestAccessPoint(t, clock)
+	connected, err := NewOktaConnected(OktaConnectedConfig{
+		Clock:           clock,
+		ConnectedGetter: ap,
+		Plugins:         ap,
+	})
+	require.NoError(t, err)
 
 	t.Run("inventory", func(t *testing.T) {
 		// Check inventory behavior
@@ -24,13 +29,19 @@ func TestIsOktaConnected(t *testing.T) {
 			types.RoleAuth:  1,
 			types.RoleOkta:  1,
 		}
-		require.True(t, isOktaServiceConnected(ctx, log, ap, nil))
+		require.True(t, connected.IsConnected(ctx))
 
 		ap.serviceCounts = map[types.SystemRole]uint64{
 			types.RoleAdmin: 1,
 			types.RoleAuth:  1,
 		}
-		require.False(t, isOktaServiceConnected(ctx, log, ap, nil))
+		clock.Advance(10 * time.Second)
+
+		// Result should be cached
+		require.True(t, connected.IsConnected(ctx))
+		clock.Advance(time.Minute)
+
+		require.False(t, connected.IsConnected(ctx))
 	})
 
 	t.Run("plugins", func(t *testing.T) {
@@ -58,7 +69,8 @@ func TestIsOktaConnected(t *testing.T) {
 			},
 		})
 		require.NoError(t, ap.CreatePlugin(ctx, slackPlugin))
-		require.False(t, isOktaServiceConnected(ctx, log, ap, ap))
+		clock.Advance(time.Minute)
+		require.False(t, connected.IsConnected(ctx))
 
 		oktaPlugin := types.NewPluginV1(types.Metadata{
 			Name: "okta",
@@ -77,11 +89,19 @@ func TestIsOktaConnected(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, ap.CreatePlugin(ctx, oktaPlugin))
-		require.True(t, isOktaServiceConnected(ctx, log, ap, ap))
-		require.False(t, isOktaServiceConnected(ctx, log, ap, nil))
 
+		// Plugin created, is connected is true.
+		require.NoError(t, ap.CreatePlugin(ctx, oktaPlugin))
+		clock.Advance(time.Minute)
+		require.True(t, connected.IsConnected(ctx))
+
+		// Plugin deleted, but result still cached.
 		require.NoError(t, ap.DeletePlugin(ctx, oktaPlugin.GetName()))
-		require.False(t, isOktaServiceConnected(ctx, log, ap, ap))
+		clock.Advance(10 * time.Second)
+		require.True(t, connected.IsConnected(ctx))
+
+		// Cache expired.
+		clock.Advance(time.Minute)
+		require.False(t, connected.IsConnected(ctx))
 	})
 }
