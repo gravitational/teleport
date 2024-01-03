@@ -21,26 +21,59 @@ import (
 	"testing"
 
 	"golang.org/x/net/nettest"
+
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
-func TestResumableConn(t *testing.T) {
-	nettest.TestConn(t, func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
-		r1 := &ResumableConn{}
-		r1.allowRoaming = true
-		r1.cond.L = &r1.mu
+func TestResumableConnPipe(t *testing.T) {
+	testCases := []struct {
+		testName  string
+		firstConn bool
+		syncPipe  bool
+	}{
+		{"FirstConnSync", true, true},
+		{"NotFirstConnSync", false, true},
+		{"FirstConnSocketpair", true, false},
+		{"NotFirstConnSocketpair", false, false},
+	}
 
-		r2 := &ResumableConn{}
-		r2.allowRoaming = true
-		r2.cond.L = &r2.mu
+	for _, tc := range testCases {
+		tc := tc
 
-		p1, p2 := net.Pipe()
+		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
+			makePipe := func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
+				r1 := &ResumableConn{}
+				r1.allowRoaming = !tc.firstConn
+				r1.cond.L = &r1.mu
 
-		go HandleResumeV1(r1, p1, false)
-		go HandleResumeV1(r2, p2, false)
+				r2 := &ResumableConn{}
+				r2.allowRoaming = !tc.firstConn
+				r2.cond.L = &r2.mu
 
-		return r1, r2, func() {
-			r1.Close()
-			r2.Close()
-		}, nil
-	})
+				var p1, p2 net.Conn
+				if tc.syncPipe {
+					p1, p2 = net.Pipe()
+				} else {
+					var err error
+					p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
+					if err != nil {
+						return nil, nil, nil, err
+					}
+				}
+
+				go HandleResumeV1(r1, p1, tc.firstConn)
+				go HandleResumeV1(r2, p2, tc.firstConn)
+
+				return r1, r2, func() {
+					r1.Close()
+					r2.Close()
+					p1.Close()
+					p2.Close()
+				}, nil
+			}
+
+			nettest.TestConn(t, makePipe)
+		})
+	}
 }
