@@ -71,7 +71,7 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 
 // getBot retrieves a bot by its name
 func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	botName := r.URL.Query().Get("name")
+	botName := p.ByName("name")
 	if botName == "" {
 		return nil, trace.BadParameter("empty name")
 	}

@@ -910,7 +910,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
 
 	// Machine ID bots
-	h.GET("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.getBot))
+	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 }
 
