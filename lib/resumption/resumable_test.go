@@ -17,9 +17,12 @@
 package resumption
 
 import (
+	"crypto/rand"
+	"io"
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/nettest"
 
 	"github.com/gravitational/teleport/lib/utils/uds"
@@ -62,8 +65,8 @@ func TestResumableConnPipe(t *testing.T) {
 					}
 				}
 
-				go HandleResumeV1(r1, p1, tc.firstConn)
-				go HandleResumeV1(r2, p2, tc.firstConn)
+				go RunResumeV1(r1, p1, tc.firstConn)
+				go RunResumeV1(r2, p2, tc.firstConn)
 
 				return r1, r2, func() {
 					r1.Close()
@@ -76,4 +79,85 @@ func TestResumableConnPipe(t *testing.T) {
 			nettest.TestConn(t, makePipe)
 		})
 	}
+}
+
+func TestResumableConn(t *testing.T) {
+	testCases := []struct {
+		testName string
+		syncPipe bool
+	}{
+		{"Sync", true},
+		{"Socketpair", false},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
+			testResumableConn(t, tc.syncPipe)
+		})
+	}
+}
+
+func testResumableConn(t *testing.T, syncPipe bool) {
+	require := require.New(t)
+
+	r1 := &ResumableConn{
+		allowRoaming: true,
+	}
+	r1.cond.L = &r1.mu
+	defer r1.Close()
+
+	r2 := &ResumableConn{
+		allowRoaming: true,
+	}
+	r2.cond.L = &r2.mu
+	defer r2.Close()
+
+	var p1, p2 net.Conn
+	if syncPipe {
+		p1, p2 = net.Pipe()
+	} else {
+		var err error
+		p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
+		require.NoError(err)
+	}
+	defer p1.Close()
+	defer p2.Close()
+	go RunResumeV1(r1, p1, true)
+	go RunResumeV1(r2, p2, true)
+
+	randB := make([]byte, 100)
+	_, err := rand.Read(randB)
+	require.NoError(err)
+
+	_, err = r1.Write(randB)
+	require.NoError(err)
+
+	recvB := make([]byte, 100)
+	_, err = io.ReadFull(r2, recvB)
+	require.NoError(err)
+	require.Equal(randB, recvB)
+
+	_ = p1.Close()
+	_ = p2.Close()
+
+	_, err = r2.Write(randB)
+	require.NoError(err)
+
+	if syncPipe {
+		p1, p2 = net.Pipe()
+	} else {
+		var err error
+		p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
+		require.NoError(err)
+	}
+	defer p1.Close()
+	defer p2.Close()
+	go RunResumeV1(r1, p1, false)
+	go RunResumeV1(r2, p2, false)
+
+	_, err = io.ReadFull(r1, recvB)
+	require.NoError(err)
+	require.Equal(randB, recvB)
 }

@@ -18,14 +18,17 @@ package resumption
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"io"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 type ResumableConn struct {
@@ -64,8 +67,7 @@ const (
 
 const maxFrameSize = 128 * 1024
 
-func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
-	defer logrus.Error("exited")
+func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	defer nc.Close()
 
 	localAddr := nc.LocalAddr()
@@ -77,16 +79,22 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 
 		defer time.AfterFunc(graceTimeout, func() { nc.Close() }).Stop()
 		_, _ = nc.Write([]byte(errorTagUvarint))
-		return
+		return trace.AccessDenied("connection roaming is disabled")
 	}
 
 	r.waitForDetachLocked()
 
 	if r.localClosed || r.remoteClosed {
+		localClosed := r.localClosed
 		r.mu.Unlock()
 
+		defer time.AfterFunc(graceTimeout, func() { nc.Close() }).Stop()
 		_, _ = nc.Write([]byte(errorTagUvarint))
-		return
+
+		if localClosed {
+			return trace.ConnectionProblem(net.ErrClosed, constants.UseOfClosedNetworkConnection)
+		}
+		return trace.ConnectionProblem(net.ErrClosed, "refusing to attempt to resume a connection already closed by the peer")
 	}
 
 	// stopRequested should be checked whenever we're in a loop that doesn't
@@ -96,19 +104,20 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 		if stopRequested.Swap(true) {
 			return
 		}
-		defer time.AfterFunc(graceTimeout, func() { nc.Close() }).Stop()
 		r.cond.Broadcast()
+		nc.Close()
 	}
 
 	r.localAddr = localAddr
 	r.remoteAddr = remoteAddr
+
 	r.attached = requestStop
 	r.cond.Broadcast()
-
 	defer func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.attached = nil
+		r.cond.Broadcast()
 	}()
 
 	sentReceivePosition := r.receiveBuffer.end
@@ -124,12 +133,14 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 
 	var peerReceivePosition uint64
 
+	handshakeWatchdog := time.AfterFunc(handshakeTimeout, func() { nc.Close() })
+	defer handshakeWatchdog.Stop()
+
 	if firstConn {
 		if sentReceivePosition != 0 {
 			go io.Copy(io.Discard, ncReader)
 			_, _ = nc.Write([]byte(errorTagUvarint))
-			logrus.Error("firstConn not at 0")
-			return
+			return trace.BadParameter("handshake for a new connection on a used connection (this is a bug)")
 		}
 	} else {
 		errC := make(chan error, 1)
@@ -140,29 +151,25 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 		var err error
 		peerReceivePosition, err = binary.ReadUvarint(ncReader)
 		if err != nil {
-			logrus.Error("failed to read receive position")
-			return
+			return trace.Wrap(err, "reading peer receive position")
 		}
 		err = <-errC
 		if err != nil {
-			logrus.Error("failed to write receive position")
-			return
+			return trace.Wrap(err, "writing receive position")
 		}
 	}
 
 	r.mu.Lock()
-	if peerReceivePosition < r.sendBuffer.start || r.sendBuffer.end < peerReceivePosition {
+	if minPos, maxPos := r.sendBuffer.start, r.sendBuffer.end; peerReceivePosition < minPos || maxPos < peerReceivePosition {
 		// incompatible resume position, mark as remotely closed since we can't
 		// ever continue from this; this also includes receiving an errorTag
 		// (since that's too big of a position to reach legitimately)
 		r.remoteClosed = true
 		r.cond.Broadcast()
-
 		r.mu.Unlock()
 
 		_, _ = nc.Write([]byte(errorTagUvarint))
-		logrus.Error("incompatible resume position")
-		return
+		return trace.BadParameter("got incompatible resume position (%v, expected %v to %v)", peerReceivePosition, minPos, maxPos)
 	}
 	if r.sendBuffer.start != peerReceivePosition {
 		r.sendBuffer.advance(peerReceivePosition - r.sendBuffer.start)
@@ -170,18 +177,16 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 	}
 	r.mu.Unlock()
 
-	var wg sync.WaitGroup
+	handshakeWatchdog.Stop()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer requestStop()
-		defer nc.Close()
+	eg, ctx := errgroup.WithContext(context.Background())
+	context.AfterFunc(ctx, requestStop)
+
+	eg.Go(func() error {
 		for {
 			ack, err := binary.ReadUvarint(ncReader)
 			if err != nil {
-				logrus.Error("failed to read ack: ", err)
-				return
+				return trace.Wrap(err, "reading ack")
 			}
 
 			if ack > 0 {
@@ -190,14 +195,13 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 					r.remoteClosed = true
 					r.cond.Broadcast()
 					r.mu.Unlock()
-					logrus.Error("received error tag")
-					return
+
+					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
 				}
 
-				if ack > r.sendBuffer.len() {
+				if maxAck := r.sendBuffer.len(); ack > maxAck {
 					r.mu.Unlock()
-					logrus.Error("ack bigger than current send buffer")
-					return
+					return trace.BadParameter("got ack bigger than current send buffer (%v, expected up to %v)", ack, maxAck)
 				}
 
 				r.sendBuffer.advance(ack)
@@ -207,13 +211,11 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 
 			size, err := binary.ReadUvarint(ncReader)
 			if err != nil {
-				logrus.Error("failed to read data size")
-				return
+				return trace.Wrap(err, "reading data size")
 			}
 
 			if size > maxFrameSize {
-				logrus.Error("data size too big")
-				return
+				return trace.BadParameter("got data size bigger than limit (%v, expected up to %v)", size, maxFrameSize)
 			}
 
 			r.mu.Lock()
@@ -230,7 +232,7 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 					r.receiveBuffer.advance(uint64(n))
 					if err != nil {
 						r.mu.Unlock()
-						return
+						return trace.Wrap(err, "reading data to discard")
 					}
 					break
 				}
@@ -238,10 +240,8 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 				for r.receiveBuffer.len() >= receiveBufferSize {
 					r.cond.Wait()
 					if stopRequested.Load() || r.remoteClosed {
-						sr, lc, rc := stopRequested.Load(), r.localClosed, r.remoteClosed
 						r.mu.Unlock()
-						logrus.Errorf("exiting read loop due to condition: %v %v %v", sr, lc, rc)
-						return
+						return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer or disconnection requested")
 					}
 				}
 
@@ -264,20 +264,14 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 
 				if err != nil {
 					r.mu.Unlock()
-					logrus.Error("failed to fully read data")
-					return
+					return trace.Wrap(err, "reading data")
 				}
 			}
 			r.mu.Unlock()
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		wg.Done()
-		defer requestStop()
-		defer nc.Close()
-
+	eg.Go(func() error {
 		var scratch [2 * binary.MaxVarintLen64]byte
 		for {
 			var frameAck uint64
@@ -305,20 +299,16 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 				}
 
 				if stopRequested.Load() || r.localClosed || r.remoteClosed {
-					sr, lc, rc := stopRequested.Load(), r.localClosed, r.remoteClosed
+					localClosed := r.localClosed
 					r.mu.Unlock()
 
-					if lc {
+					if localClosed {
 						_, _ = nc.Write([]byte(errorTagUvarint))
 					}
-					logrus.Errorf("exiting write loop due to condition: %v %v %v", sr, lc, rc)
-					return
+					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer or disconnection requested")
 				}
 
 				r.cond.Wait()
-			}
-			if r.localClosed {
-				logrus.Error("PROCEEDING TO WRITE EVEN THOUGH LOCALCLOSED")
 			}
 			r.mu.Unlock()
 
@@ -327,8 +317,7 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 			frameBuffers := net.Buffers{frameHeader, frameData}
 
 			if _, err := frameBuffers.WriteTo(nc); err != nil {
-				logrus.Error("failed to write frame")
-				return
+				return trace.Wrap(err, "writing frame")
 			}
 
 			r.mu.Lock()
@@ -336,9 +325,9 @@ func HandleResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) {
 			peerReceivePosition += len64(frameData)
 			r.mu.Unlock()
 		}
-	}()
+	})
 
-	wg.Wait()
+	return trace.Wrap(eg.Wait())
 }
 
 // sameAddress returns true if a and b are both [*net.TCPAddr] and their IP
