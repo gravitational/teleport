@@ -141,10 +141,14 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	allAssignments = append(allAssignments, expectedAssignmentAppOnly)
 
-	// Revision will be autofilled with a placeholder value when empty, so we should ignore it here.
-	cmpoptsIgnoreRevision := append(cmp.Options{}, cmpopts.IgnoreFields(types.OktaAssignmentV1{}, "ResourceHeader.Metadata.Revision"),
-		cmpopts.SortSlices(assignmentLess))
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	cmpOpts := cmp.Options{
+		cmpopts.IgnoreFields(
+			types.OktaAssignmentV1{},
+			"ResourceHeader.Metadata.ID",
+			"ResourceHeader.Metadata.Revision"),
+		cmpopts.SortSlices(assignmentLess),
+	}
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app1.GetHostID(), app1.GetName()))
 	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, appDupe.GetHostID(), appDupe.GetName()))
@@ -183,7 +187,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	allAssignments = append(allAssignments, expectedAssignmentGroupOnly)
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// Re-add application server.
 	_, err = ap.UpsertApplicationServer(ctx, app1)
@@ -223,7 +227,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 
 	allAssignments = append(allAssignments, expectedAssignment1)
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// We'll add a new app, which should cause a new assignment to be generated and the
 	// old one to be marked as needing cleanup.
@@ -270,7 +274,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	allAssignments = append(allAssignments, expectedAssignment2)
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// We'll add in a group and make sure that triggers a second cleanup and another new assignment.
 	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
@@ -319,7 +323,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	allAssignments = append(allAssignments, expectedAssignment3)
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// We'll delete the old group and ensure that the old assignment is restored.
 	require.NoError(t, ap.DeleteUserGroup(ctx, group2.GetName()))
@@ -333,7 +337,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	expectedAssignment2.SetCleanupTime(time.Time{})
 	expectedAssignment3.SetCleanupTime(clock.Now())
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// Lock should cause all assignments to be cleaned up.
 	lock, err := types.NewLock("lock", types.LockSpecV2{
@@ -351,7 +355,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	expectedAssignment2.SetCleanupTime(clock.Now())
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// Delete lock should restore assignments
 	require.NoError(t, ap.DeleteLock(ctx, "lock"))
@@ -363,7 +367,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	expectedAssignment2.SetCleanupTime(time.Time{})
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 
 	// Create an empty user state, which should cause a cleanup of all assignments since it has no permissions.
 	ap.userState, err = userloginstate.New(header.Metadata{
@@ -380,7 +384,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	expectedAssignment1.SetCleanupTime(clock.Now())
 	expectedAssignment2.SetCleanupTime(clock.Now())
 
-	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpoptsIgnoreRevision))
+	require.Empty(t, cmp.Diff(allAssignments, assignments, cmpOpts))
 }
 
 func TestAssignmentDiff(t *testing.T) {
