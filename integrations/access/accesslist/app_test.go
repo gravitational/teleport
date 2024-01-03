@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -96,7 +95,7 @@ func TestAccessListReminders(t *testing.T) {
 	server, err := auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
 			Dir:   t.TempDir(),
-			Clock: clock,
+			Clock: clockwork.NewFakeClock(),
 		},
 	})
 	require.NoError(t, err)
@@ -203,7 +202,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 	server, err := auth.NewTestServer(auth.TestServerConfig{
 		Auth: auth.TestAuthServerConfig{
 			Dir:   t.TempDir(),
-			Clock: clock,
+			Clock: clockwork.NewFakeClock(),
 		},
 	})
 	require.NoError(t, err)
@@ -241,11 +240,11 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 		require.NoError(t, app.Err())
 	})
 
+	clock.BlockUntil(1)
 	for i := 1; i <= 6; i++ {
-		clock.Advance(6 * time.Hour)
-		require.Eventuallyf(t, func() bool {
-			return len(client.Calls) == i
-		}, 5*time.Second, 5*time.Millisecond, "timeout waiting for expected number of calls (%d/%d)", len(client.Calls), i)
+		clock.Advance(3 * time.Hour)
+		clock.BlockUntil(1)
+		client.AssertNumberOfCalls(t, "ListAccessLists", i)
 	}
 }
 
@@ -275,7 +274,5 @@ func advanceAndLookForRecipients(t *testing.T,
 	clock.Advance(advance)
 	clock.BlockUntil(1)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
-	}, 5*time.Second, 100*time.Millisecond)
+	require.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
 }

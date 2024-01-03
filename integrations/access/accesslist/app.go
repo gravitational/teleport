@@ -27,14 +27,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 const (
@@ -42,6 +39,8 @@ const (
 	oneDay = 24 * time.Hour
 	// oneWeek is the number of days in a week.
 	oneWeek = oneDay * 7
+	// reminderInterval is the interval for sending access list reminders.
+	reminderInterval = 3 * time.Hour
 )
 
 // App is the access list application for plugins. This will notify access list owners
@@ -116,13 +115,6 @@ func (a *App) run(ctx context.Context) error {
 		return nil
 	})
 
-	remindInterval := interval.New(interval.Config{
-		Duration:      time.Hour * 3,
-		FirstDuration: utils.FullJitter(time.Second * 30),
-		Jitter:        retryutils.NewSeventhJitter(),
-		Clock:         a.clock,
-	})
-	defer remindInterval.Stop()
 	log := logger.Get(ctx)
 
 	log.Info("Access list monitor is running")
@@ -130,7 +122,7 @@ func (a *App) run(ctx context.Context) error {
 	a.job.SetReady(true)
 	for {
 		select {
-		case <-remindInterval.Next():
+		case <-a.clock.After(reminderInterval):
 			log.Info("Looking for Access List Review reminders")
 
 			var nextToken string
