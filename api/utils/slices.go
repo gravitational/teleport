@@ -17,9 +17,8 @@ limitations under the License.
 package utils
 
 import (
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/slices"
 )
 
 // JoinStrings returns a string that is all the elements in the slice `T[]` joined by `sep`
