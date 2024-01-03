@@ -128,7 +128,7 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -158,7 +158,7 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -190,44 +190,54 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 }
 
 // CreateResource creates a new resource.
-func (s *Service[T]) CreateResource(ctx context.Context, resource T) error {
+func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) {
+	var t T
 	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
-	_, err = s.backend.Create(ctx, item)
+	lease, err := s.backend.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
+		return t, trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
 
-	return trace.Wrap(err)
+	resource.SetRevision(lease.Revision)
+	return resource, trace.Wrap(err)
 }
 
 // UpdateResource updates an existing resource.
-func (s *Service[T]) UpdateResource(ctx context.Context, resource T) error {
+func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
+	var t T
 	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
-	_, err = s.backend.Update(ctx, item)
+	lease, err := s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
-		return trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
 	}
 
-	return trace.Wrap(err)
+	resource.SetRevision(lease.Revision)
+	return resource, trace.Wrap(err)
 }
 
 // UpsertResource upserts a resource.
-func (s *Service[T]) UpsertResource(ctx context.Context, resource T) error {
+func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
+	var t T
 	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
-	_, err = s.backend.Put(ctx, item)
-	return trace.Wrap(err)
+	lease, err := s.backend.Put(ctx, item)
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	resource.SetRevision(lease.Revision)
+	return resource, nil
 }
 
 // DeleteResource removes the specified resource.
@@ -249,34 +259,39 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 }
 
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
-func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) error {
+func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) (T, error) {
+	var t T
 	existingItem, err := s.backend.Get(ctx, s.MakeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
+			return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
 		}
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
 		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
 	if err != nil {
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
 	err = modify(resource)
 	if err != nil {
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
 	replacementItem, err := s.MakeBackendItem(resource, name)
 	if err != nil {
-		return trace.Wrap(err)
+		return t, trace.Wrap(err)
 	}
 
-	_, err = s.backend.CompareAndSwap(ctx, *existingItem, replacementItem)
+	lease, err := s.backend.CompareAndSwap(ctx, *existingItem, replacementItem)
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
 
-	return trace.Wrap(err)
+	resource.SetRevision(lease.Revision)
+	return resource, trace.Wrap(err)
 }
 
 // MakeBackendItem will check and make the backend item.

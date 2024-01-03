@@ -451,8 +451,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
-		AccessLists: services,
-		Access:      services,
+		AccessLists: &as,
+		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
@@ -4284,7 +4284,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(sessionTTL, BearerTokenTTL)
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
