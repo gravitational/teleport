@@ -3022,10 +3022,10 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 func formatActiveDB(active tlsca.RouteToDatabase) string {
 	var details []string
 	if active.Username != "" {
-		details = append(details, "user: "+active.Username)
+		details = append(details, fmt.Sprintf("user: %s", active.Username))
 	}
 	if active.Database != "" {
-		details = append(details, "db: "+active.Database)
+		details = append(details, fmt.Sprintf("db: %s", active.Database))
 	}
 	if len(active.Roles) > 0 {
 		details = append(details, fmt.Sprintf("roles: %v", active.Roles))

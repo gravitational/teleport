@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -1298,23 +1299,11 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
 		return true, nil
 	}
-	if !containSameElements(cf.DatabaseRoles, identity.RouteToDatabase.Roles) {
+	if !apiutils.ContainSameUniqueElements(cf.DatabaseRoles, identity.RouteToDatabase.Roles) {
 		log.Debugf("Will reissue database certificate for database roles %v (was %v)", cf.DatabaseRoles, identity.RouteToDatabase.Roles)
 		return true, nil
 	}
 	return false, nil
-}
-
-func containSameElements[S ~[]E, E comparable](s1, s2 S) bool {
-	if len(s1) != len(s2) {
-		return false
-	}
-	for i := range s1 {
-		if !slices.Contains(s2, s1[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
