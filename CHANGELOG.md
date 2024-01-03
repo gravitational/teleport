@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.4.15 (01/03/2024)
+
+This release of Teleport includes various small documentation and dependency updates.
+
 ## 13.4.14
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
