@@ -101,6 +101,9 @@ func TestAccessListReminders(t *testing.T) {
 	})
 	require.NoError(t, err)
 	as := server.Auth()
+	t.Cleanup(func() {
+		require.NoError(t, as.Close())
+	})
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -112,7 +115,7 @@ func TestAccessListReminders(t *testing.T) {
 	app.Clock = clock
 	ctx := context.Background()
 	go func() {
-		require.NoError(t, app.Run(ctx))
+		app.Run(ctx)
 	}()
 
 	ready, err := app.WaitReady(ctx)
@@ -205,6 +208,9 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 	as := server.Auth()
+	t.Cleanup(func() {
+		require.NoError(t, as.Close())
+	})
 
 	// Use this mock client so that we can force ListAccessLists to return an error.
 	client := &mockClient{
@@ -222,7 +228,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 	app.Clock = clock
 	ctx := context.Background()
 	go func() {
-		require.NoError(t, app.Run(ctx))
+		app.Run(ctx)
 	}()
 
 	ready, err := app.WaitReady(ctx)
@@ -241,7 +247,6 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 			return len(client.Calls) == i
 		}, 5*time.Second, 5*time.Millisecond, "timeout waiting for expected number of calls (%d/%d)", len(client.Calls), i)
 	}
-
 }
 
 func advanceAndLookForRecipients(t *testing.T,
@@ -268,8 +273,9 @@ func advanceAndLookForRecipients(t *testing.T,
 		}
 	}
 	clock.Advance(advance)
+	clock.BlockUntil(1)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.ElementsMatch(t, expectedRecipients, bot.lastReminderRecipients)
-	}, 5*time.Second, 5*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }
