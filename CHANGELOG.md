@@ -1,5 +1,9 @@
 # Changelog
 
+## 14.3.1 (01/03/2024)
+
+* Added `--insecure-no-resolve-image` to the `teleport-kube-agent-udpater` to disable image tag resolution if it cannot pull the image. [#36097](https://github.com/gravitational/teleport/pull/36097)
+
 ## 14.3.0
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
