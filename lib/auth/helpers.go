@@ -302,7 +302,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	if cfg.CacheEnabled {
 		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
-			Context:   ctx,
+			Context:   srv.AuthServer.CloseContext(),
 			Services:  srv.AuthServer.Services,
 			Setup:     cache.ForAuth,
 			CacheName: []string{teleport.ComponentAuth},
@@ -437,7 +437,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	// configuration resources) so now we can start the cache.
 	if c, ok := srv.AuthServer.Cache.(*cache.Cache); ok {
 		if err := c.Start(); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.NewAggregate(err, c.Close())
 		}
 	}
 	return srv, nil
