@@ -174,9 +174,6 @@ export function LabelsCreater({
         })}
       </Box>
       <ButtonTextWithAddIcon
-        css={`
-          margin-top: -2px;
-        `}
         label="Add New Label"
         onClick={addLabel}
         disabled={disableBtns}
