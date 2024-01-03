@@ -106,7 +106,7 @@ type Backend interface {
 	CloseWatchers()
 }
 
-// Backend initializes a new [Backend] implementation based on the service config.
+// New initializes a new [Backend] implementation based on the service config.
 func New(ctx context.Context, backend string, params Params) (Backend, error) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
