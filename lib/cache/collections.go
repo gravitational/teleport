@@ -879,6 +879,13 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	missingDatabaseClientCA := false
+	applyDatabaseClientCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseClientCA)
+	if trace.IsBadParameter(err) {
+		missingDatabaseClientCA = true
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// DELETE IN 13.0.
 	// missingOpenSSHCA is needed only when leaf cluster v11 is connected
@@ -927,6 +934,17 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 			}
 		} else {
 			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		if !missingDatabaseClientCA {
+			if err := applyDatabaseClientCAs(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseClientCA); err != nil {
 				if !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
