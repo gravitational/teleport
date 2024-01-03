@@ -27,7 +27,7 @@ import cfg from 'teleport/config';
 
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
-import { GuidedFlow, View } from '../shared/GuidedFlow';
+import { GuidedFlow, View } from '../Shared/GuidedFlow';
 
 import { ConnectGitHub } from './ConnectGitHub';
 

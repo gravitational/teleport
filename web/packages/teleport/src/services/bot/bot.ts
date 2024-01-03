@@ -31,7 +31,7 @@ export const botService = {
       return await api.get(cfg.getBotUrl(cfg.proxyCluster, name)).then(makeBot);
     } catch (err) {
       // capture the not found error response and return null instead of throwing
-      if (err.message.includes('not found')) {
+      if (err?.response?.status === 404) {
         return null;
       }
       throw err;

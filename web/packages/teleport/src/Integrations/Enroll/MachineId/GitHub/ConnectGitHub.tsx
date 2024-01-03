@@ -35,8 +35,8 @@ import FieldInput from 'shared/components/FieldInput';
 
 import Alert from 'design/Alert';
 
-import { FlowButtons } from '../shared/FlowButtons';
-import { FlowStepProps } from '../shared/GuidedFlow';
+import { FlowButtons } from '../Shared/FlowButtons';
+import { FlowStepProps } from '../Shared/GuidedFlow';
 
 import {
   RefTypeOption,

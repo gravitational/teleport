@@ -32,7 +32,7 @@ import { GitHub } from './GitHub';
 const tokenName = 'generated-test-token';
 const authVersion = 'v15.0.0';
 
-describe('gitHub', () => {
+describe('gitHub component', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });

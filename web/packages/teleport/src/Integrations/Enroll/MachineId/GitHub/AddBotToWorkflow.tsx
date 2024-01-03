@@ -25,9 +25,9 @@ import Flex from 'design/Flex';
 
 import useTeleport from 'teleport/useTeleport';
 
-import { FlowButtons } from '../shared/FlowButtons';
+import { FlowButtons } from '../Shared/FlowButtons';
 
-import { FlowStepProps } from '../shared/GuidedFlow';
+import { FlowStepProps } from '../Shared/GuidedFlow';
 
 import { useGitHubFlow } from './useGitHubFlow';
 

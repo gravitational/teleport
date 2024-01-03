@@ -23,7 +23,7 @@ import { ContextProvider } from 'teleport';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { FlowStepProps } from '../shared/GuidedFlow';
+import { FlowStepProps } from '../Shared/GuidedFlow';
 
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubFlowProvider } from './useGitHubFlow';

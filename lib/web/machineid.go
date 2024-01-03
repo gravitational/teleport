@@ -69,7 +69,7 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	return OK(), nil
 }
 
-// getBot creates a bot
+// getBot retrieves a bot by its name
 func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	botName := r.URL.Query().Get("name")
 	if botName == "" {

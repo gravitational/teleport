@@ -30,14 +30,9 @@ export type ButtonState = {
   hidden?: boolean;
 };
 
-type FlowButtonsProps = {
+export type FlowButtonsProps = {
   isLast?: boolean;
   isFirst?: boolean;
-  // onFinish is called when the user clicks the primary button
-  // in the last step
-  onFinish?: () => void;
-  disableNext?: boolean;
-  disableBack?: boolean;
   nextButton?: ButtonState;
   backButton?: ButtonState;
 } & FlowStepProps;
@@ -47,17 +42,15 @@ export function FlowButtons({
   prevStep,
   isFirst = false,
   isLast = false,
-  onFinish,
   nextButton,
   backButton,
 }: FlowButtonsProps) {
-  const handleConfirm = isLast ? onFinish : nextStep;
   return (
     <>
       {!nextButton?.hidden && (
         <ButtonPrimary
           disabled={nextButton?.disabled}
-          onClick={handleConfirm}
+          onClick={nextStep}
           mr="3"
           data-testid="button-next"
         >

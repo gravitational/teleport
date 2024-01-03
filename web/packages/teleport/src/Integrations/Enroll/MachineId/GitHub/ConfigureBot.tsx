@@ -35,10 +35,10 @@ import useTeleport from 'teleport/useTeleport';
 
 import { botService } from 'teleport/services/bot';
 
-import { FlowStepProps } from '../shared/GuidedFlow';
-import { FlowButtons } from '../shared/FlowButtons';
+import { FlowStepProps } from '../Shared/GuidedFlow';
+import { FlowButtons } from '../Shared/FlowButtons';
 
-import { LabelsInput } from '../shared/LabelsInput';
+import { LabelsInput } from '../Shared/LabelsInput';
 
 import { useGitHubFlow } from './useGitHubFlow';
 
