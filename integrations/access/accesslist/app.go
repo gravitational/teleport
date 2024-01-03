@@ -120,40 +120,66 @@ func (a *App) run(ctx context.Context) error {
 	log.Info("Access list monitor is running")
 
 	a.job.SetReady(true)
+
+	select {
+	// Have a short first duration to wait for everything to settle before
+	// trying the first reminder.
+	case <-a.clock.After(30 * time.Second):
+		if err := a.remindIfNecessary(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+	case <-ctx.Done():
+		log.Info("Access list monitor is finished")
+		return nil
+	}
+
 	for {
 		select {
 		case <-a.clock.After(reminderInterval):
-			log.Info("Looking for Access List Review reminders")
-
-			var nextToken string
-			var err error
-			for {
-				var accessLists []*accesslist.AccessList
-				accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
-				if err != nil {
-					if trace.IsNotImplemented(err) {
-						log.Errorf("access list endpoint is not implemented on this auth server, so the access list app is ceasing to run.")
-						return nil
-					}
-					log.Errorf("error listing access lists: %v", err)
-					break
-				}
-
-				for _, accessList := range accessLists {
-					if err := a.notifyForAccessListReviews(ctx, accessList); err != nil {
-						log.WithError(err).Warn("Error notifying for access list reviews")
-					}
-				}
-
-				if nextToken == "" {
-					break
-				}
+			if err := a.remindIfNecessary(ctx); err != nil {
+				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
 			log.Info("Access list monitor is finished")
 			return nil
 		}
 	}
+}
+
+// remindIfNecessary will create and send reminders if necessary. The only error this returns is
+// notImplemented, which will cease looking for reminders if the auth server does not support
+// access lists.
+func (a *App) remindIfNecessary(ctx context.Context) error {
+	log := logger.Get(ctx)
+
+	log.Info("Looking for Access List Review reminders")
+
+	var nextToken string
+	var err error
+	for {
+		var accessLists []*accesslist.AccessList
+		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				log.Errorf("access list endpoint is not implemented on this auth server, so the access list app is ceasing to run.")
+				return trace.Wrap(err)
+			}
+			log.Errorf("error listing access lists: %v", err)
+			break
+		}
+
+		for _, accessList := range accessLists {
+			if err := a.notifyForAccessListReviews(ctx, accessList); err != nil {
+				log.WithError(err).Warn("Error notifying for access list reviews")
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return nil
 }
 
 // notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
