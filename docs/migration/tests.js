@@ -1,7 +1,7 @@
 const { test } = require('./lib/utility');
 const { migrateFigures, migrateTabs, migrateTipAdmonitions, migrateNoteAdmonitions,
   migrateWarningAdmonitions, migrateTipNotices, migrateWarningNotices, migrateDetails,
-  migrateVariables, migrateSnippets, migrateSnippetTemplateBinding } = require('./lib/pages');
+  migrateVariables, migrateSnippets, migrateSnippetTemplateBinding, migrateVarComponent } = require('./lib/pages');
 
 console.log('Testing component migrations...');
 
@@ -83,6 +83,12 @@ test(
   Log in to receive short-lived certificates from Teleport:
   
   </Accordion>`
+)
+
+test(
+  'Delete Var components',
+  migrateVarComponent('Variable is <Var name="hello world" />'),
+  'Variable is hello world'
 )
 
 console.log('');

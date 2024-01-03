@@ -60,6 +60,11 @@ function migrateDetails(page) {
     .replace(/<\/Details>/g, '</Accordion>')
 }
 
+function migrateVarComponent(page) {
+  return page
+    .replace(/<Var name="(.*?)".*?\/>/g, '$1')
+}
+
 function migrateSnippetTemplateBinding(snippetPage) {
   const defaultValues = snippetPage.match(defaultSnippetTemplateBindingRegex);
 
@@ -136,8 +141,9 @@ const migrationFunctions = {
   migrateWarningAdmonitions,
   migrateTipNotices,
   migrateWarningNotices,
-  migrateSnippetTemplateBinding,
   migrateDetails,
+  migrateVarComponent,
+  migrateSnippetTemplateBinding,
   migrateVariables,
   migrateSnippets,
 };
