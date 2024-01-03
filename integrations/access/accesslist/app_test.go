@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -67,12 +68,12 @@ func (m *mockMessagingBot) SupportedApps() []common.App {
 }
 
 type mockPluginConfig struct {
-	as  *auth.Server
-	bot *mockMessagingBot
+	client teleport.Client
+	bot    *mockMessagingBot
 }
 
 func (m *mockPluginConfig) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
-	return m.as, nil
+	return m.client, nil
 }
 
 func (m *mockPluginConfig) GetRecipients() common.RawRecipientsMap {
@@ -107,7 +108,7 @@ func TestAccessListReminders(t *testing.T) {
 			"owner2": {Name: "owner2"},
 		},
 	}
-	app := common.NewApp(&mockPluginConfig{as: as, bot: bot}, "test-plugin")
+	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
 	app.Clock = clock
 	ctx := context.Background()
 	go func() {
@@ -179,6 +180,68 @@ func TestAccessListReminders(t *testing.T) {
 		}
 		advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessList, "owner1", "owner2")
 	}
+}
+
+type mockClient struct {
+	mock.Mock
+	teleport.Client
+}
+
+func (m *mockClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+	args := m.Called(ctx, pageSize, pageToken)
+	return args.Get(0).([]*accesslist.AccessList), args.String(1), args.Error(2)
+}
+
+func TestAccessListReminders_BadClient(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	server, err := auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
+			Dir:   t.TempDir(),
+			Clock: clock,
+		},
+	})
+	require.NoError(t, err)
+	as := server.Auth()
+
+	// Use this mock client so that we can force ListAccessLists to return an error.
+	client := &mockClient{
+		Client: as,
+	}
+	client.On("ListAccessLists", mock.Anything, mock.Anything, mock.Anything).Return(([]*accesslist.AccessList)(nil), "", trace.BadParameter("error"))
+
+	bot := &mockMessagingBot{
+		recipients: map[string]*common.Recipient{
+			"owner1": {Name: "owner1"},
+			"owner2": {Name: "owner2"},
+		},
+	}
+	app := common.NewApp(&mockPluginConfig{client: client, bot: bot}, "test-plugin")
+	app.Clock = clock
+	ctx := context.Background()
+	go func() {
+		require.NoError(t, app.Run(ctx))
+	}()
+
+	ready, err := app.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	t.Cleanup(func() {
+		app.Terminate()
+		<-app.Done()
+		require.NoError(t, app.Err())
+	})
+
+	for i := 1; i <= 6; i++ {
+		clock.Advance(6 * time.Hour)
+		require.Eventuallyf(t, func() bool {
+			return len(client.Calls) == i
+		}, 5*time.Second, 5*time.Millisecond, "timeout waiting for expected number of calls (%d/%d)", len(client.Calls), i)
+	}
+
 }
 
 func advanceAndLookForRecipients(t *testing.T,
