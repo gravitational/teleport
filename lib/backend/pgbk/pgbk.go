@@ -39,7 +39,12 @@ import (
 )
 
 func init() {
-	backend.MustRegister(NewFromParams, Name, AltName)
+	backend.MustRegister(Name, func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return NewFromParams(ctx, p)
+	})
+	backend.MustRegister(AltName, func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return NewFromParams(ctx, p)
+	})
 }
 
 const (

@@ -107,12 +107,12 @@ type Backend interface {
 }
 
 // Backend initializes a new [Backend] implementation based on the service config.
-func New(ctx context.Context, bkType string, params Params) (Backend, error) {
-	newbk, ok := registry[bkType]
+func New(ctx context.Context, backend string, params Params) (Backend, error) {
+	newbk, ok := registry[backend]
 	if !ok {
-		return nil, trace.BadParameter("unsupported storage type: %q", bkType)
+		return nil, trace.BadParameter("unsupported secrets storage type: %q", backend)
 	}
-	bk, err := newbk.new(ctx, params)
+	bk, err := newbk(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

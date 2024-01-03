@@ -47,9 +47,9 @@ import (
 )
 
 func init() {
-	backend.MustRegister(func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
 		return New(ctx, p, Options{})
-	}, GetName())
+	})
 }
 
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML

@@ -51,7 +51,9 @@ import (
 )
 
 func init() {
-	backend.MustRegister(New, GetName())
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p)
+	})
 }
 
 // Config structure represents DynamoDB configuration as appears in `storage` section

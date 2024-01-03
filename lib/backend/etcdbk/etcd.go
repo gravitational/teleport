@@ -56,9 +56,9 @@ import (
 )
 
 func init() {
-	backend.MustRegister(func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
 		return New(ctx, p)
-	}, GetName())
+	})
 }
 
 const (

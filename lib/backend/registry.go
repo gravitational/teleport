@@ -25,32 +25,22 @@ import (
 
 // registry contains globally registered functions for intializing new backend
 // implementations.
-var registry = map[string]newbk{}
+var registry = make(map[string]func(context.Context, Params) (Backend, error))
 
-// newbk intializes a [Backend].
-type newbk interface {
-	new(context.Context, Params) (Backend, error)
-}
-
-// newbkfn is a function that can initialize a [Backend]. The function can return
-// any type that implements [Backend].
-type newbkfn[T Backend] func(context.Context, Params) (T, error)
-
-// new converts a generic backend type to the [Backend] interface. This allows
-// any backend intialization function to implement the newbk interface.
-func (fn newbkfn[T]) new(ctx context.Context, params Params) (Backend, error) {
-	return fn(ctx, params)
-}
-
-// MustRegister registers a [Backend] implementation. Panicking if it has already
-// been registered.
-func MustRegister[T Backend](fn newbkfn[T], types ...string) {
-	for _, t := range types {
-		if _, ok := registry[t]; ok {
-			panic(fmt.Sprintf("backend already registered: %s", t))
-		}
+// MustRegister registers a [Backend] implementation, panicking if it has already
+// been registered. Must only be called before any possible call to [New].
+func MustRegister(backend string, fn func(context.Context, Params) (Backend, error)) {
+	if fn == nil {
+		panic("backend registered with nil function")
 	}
-	for _, bkType := range types {
-		registry[bkType] = fn
+
+	if backend == "" {
+		panic("backend registered without a type")
 	}
+
+	if _, ok := registry[backend]; ok {
+		panic(fmt.Sprintf("backend already registered: %v", backend))
+	}
+
+	registry[backend] = fn
 }
