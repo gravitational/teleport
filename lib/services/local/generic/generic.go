@@ -42,7 +42,7 @@ type MarshalFunc[T any] func(T, ...services.MarshalOption) ([]byte, error)
 type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
-type ServiceConfig[T types.Resource] struct {
+type ServiceConfig[T Resource] struct {
 	Backend       backend.Backend
 	ResourceKind  string
 	PageLimit     uint
@@ -77,7 +77,7 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 }
 
 // Service is a generic service for interacting with resources in the backend.
-type Service[T types.Resource] struct {
+type Service[T Resource] struct {
 	backend       backend.Backend
 	resourceKind  string
 	pageLimit     uint
@@ -88,7 +88,7 @@ type Service[T types.Resource] struct {
 
 // NewService will return a new generic service with the given config. This will
 // panic if the configuration is invalid.
-func NewService[T types.Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
+func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
