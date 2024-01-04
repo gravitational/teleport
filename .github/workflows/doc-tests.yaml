@@ -18,7 +18,7 @@ jobs:
         with:
           base: ${{ github.event.pull_request.base.ref }}
           ref: ${{ github.event.pull_request.head.ref }}
-          'list-files': 'csv'
+          list-files: 'csv'
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
