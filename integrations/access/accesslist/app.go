@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -119,24 +120,18 @@ func (a *App) run(ctx context.Context) error {
 
 	a.job.SetReady(true)
 
-	select {
-	// Have a short first duration to wait for everything to settle before
-	// trying the first reminder.
-	case <-a.clock.After(30 * time.Second):
-		if err := a.remindIfNecessary(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-	case <-ctx.Done():
-		log.Info("Access list monitor is finished")
-		return nil
-	}
+	jitter := retryutils.NewSeventhJitter()
+	timer := a.clock.NewTimer(jitter(30 * time.Second))
+	defer timer.Stop()
 
 	for {
 		select {
-		case <-a.clock.After(reminderInterval):
+		case <-timer.Chan():
 			if err := a.remindIfNecessary(ctx); err != nil {
 				return trace.Wrap(err)
 			}
+
+			timer.Reset(jitter(reminderInterval))
 		case <-ctx.Done():
 			log.Info("Access list monitor is finished")
 			return nil
@@ -161,8 +156,12 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 			if trace.IsNotImplemented(err) {
 				log.Errorf("access list endpoint is not implemented on this auth server, so the access list app is ceasing to run.")
 				return trace.Wrap(err)
+			} else if trace.IsAccessDenied(err) {
+				log.Warnf("Slack bot does not have permissions to list access lists. Please add access_list read and list permissions " +
+					"to the role associated with the Slack bot.")
+			} else {
+				log.Errorf("error listing access lists: %v", err)
 			}
-			log.Errorf("error listing access lists: %v", err)
 			break
 		}
 
