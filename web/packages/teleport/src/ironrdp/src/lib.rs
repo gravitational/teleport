@@ -284,7 +284,7 @@ fn extract_smallest_rectangle(
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = image.width() as usize;
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);
