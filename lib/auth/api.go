@@ -803,6 +803,9 @@ type ReadOktaAccessPoint interface {
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	// GetLocks lists the locks that target a given set of resources.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -855,6 +858,12 @@ type OktaAccessPoint interface {
 
 	// DeleteApplicationServer removes specified application server.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+
+	// UpsertLock creates or updates a given lock
+	UpsertLock(ctx context.Context, lock types.Lock) error
+
+	// DeleteLock deletes a given lock
+	DeleteLock(ctx context.Context, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1371,6 +1380,21 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// GetLocks fetches locks that target a given set of resources
+func (w *OktaWrapper) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// UpsertLock creates and/or updates lock resources
+func (w *OktaWrapper) UpsertLock(ctx context.Context, lock types.Lock) error {
+	return w.NoCache.UpsertLock(ctx, lock)
+}
+
+// DeleteLock deletes a lock by name
+func (w *OktaWrapper) DeleteLock(ctx context.Context, name string) error {
+	return w.NoCache.DeleteLock(ctx, name)
 }
 
 // Close closes all associated resources
