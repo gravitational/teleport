@@ -44,6 +44,9 @@ export function FieldSelectCreatable({
   onKeyDown,
   onInputChange,
   onBlur,
+  options,
+  formatCreateLabel,
+  ariaLabel,
   rule = defaultRule,
   stylesConfig,
   isSearchable = false,
@@ -52,6 +55,7 @@ export function FieldSelectCreatable({
   isDisabled = false,
   elevated = false,
   inputId = 'select',
+  markAsError = false,
   ...styles
 }: CreatableProps) {
   const { valid, message } = useRule(rule(value));
@@ -70,7 +74,7 @@ export function FieldSelectCreatable({
         inputId={inputId}
         name={name}
         menuPosition={menuPosition}
-        hasError={hasError}
+        hasError={hasError || markAsError}
         isSimpleValue={isSimpleValue}
         isSearchable={isSearchable}
         isClearable={isClearable}
@@ -88,6 +92,9 @@ export function FieldSelectCreatable({
         elevated={elevated}
         menuIsOpen={menuIsOpen}
         stylesConfig={stylesConfig}
+        options={options}
+        formatCreateLabel={formatCreateLabel}
+        aria-label={ariaLabel}
       />
     </Box>
   );
@@ -97,6 +104,8 @@ type CreatableProps = SelectCreatableProps & {
   autoFocus?: boolean;
   label?: string;
   rule?: (options: unknown) => () => unknown;
+  markAsError?: boolean;
+  ariaLabel?: string;
   // styles
   [key: string]: any;
 };
