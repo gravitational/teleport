@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -214,7 +215,7 @@ func (a *Server) generateCertsBot(
 	joinMethod := provisionToken.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
-	if !slices.Contains(supportedBotJoinMethods, joinMethod) {
+	if !slices.Contains(machineidv1.SupportedJoinMethods, joinMethod) {
 		return nil, trace.BadParameter(
 			"unsupported join method %q for bot", joinMethod,
 		)
@@ -238,7 +239,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	certs, err := a.generateInitialBotCerts(
-		ctx, BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
+		ctx, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

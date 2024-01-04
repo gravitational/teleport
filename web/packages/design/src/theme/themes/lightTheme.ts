@@ -74,12 +74,18 @@ const levels = {
   popout: '#FFFFFF',
 };
 
+const neutralColors = [
+  'rgba(0,0,0,0.06)',
+  'rgba(0,0,0,0.13)',
+  'rgba(0,0,0,0.18)',
+];
+
 const colors: ThemeColors = {
   ...sharedColors,
 
   levels,
 
-  spotBackground: ['rgba(0,0,0,0.06)', 'rgba(0,0,0,0.13)', 'rgba(0,0,0,0.18)'],
+  spotBackground: neutralColors,
 
   brand: '#512FC9',
 
@@ -90,6 +96,7 @@ const colors: ThemeColors = {
         'rgba(81,47,201, 0.18)',
         'rgba(81,47,201, 0.25)',
       ],
+      neutral: neutralColors,
     },
   },
 

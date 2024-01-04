@@ -60,6 +60,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
@@ -513,21 +514,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
-// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
-// sync.OnceValue
-func onceValue[T any](f func() T) func() T {
-	var (
-		value T
-		once  sync.Once
-	)
-	return func() T {
-		once.Do(func() {
-			value = f()
-		})
-		return value
-	}
-}
-
 // We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
 // because each time this is called, they create a new underlying metric. If
 // something (e.g tbot) is repeatedly creating new clients and closing them,
@@ -535,13 +521,13 @@ func onceValue[T any](f func() T) func() T {
 // up.
 // See https://github.com/gravitational/teleport/issues/30759
 // See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
 	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
 	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.StreamClientInterceptor()
 })
 
-var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
 	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
 	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.UnaryClientInterceptor()
@@ -849,6 +835,11 @@ func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
 	return assist.NewAssistEmbeddingServiceClient(c.conn)
 }
 
+// BotServiceClient returns an unadorned client for the bot service.
+func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
+	return machineidv1pb.NewBotServiceClient(c.conn)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
@@ -1135,7 +1126,11 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 }
 
 // CreateBot creates a new bot from the specified descriptor.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1pb.BotServiceClient.CreateBot] instead.
 func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	response, err := c.grpc.CreateBot(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1145,7 +1140,11 @@ func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 }
 
 // DeleteBot deletes a bot and associated resources.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1pb.BotServiceClient.DeleteBot] instead.
 func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
 		Name: botName,
 	})
@@ -1153,7 +1152,11 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 }
 
 // GetBotUsers fetches all bot users.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1pb.BotServiceClient.ListBots] instead.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)

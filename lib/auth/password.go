@@ -310,16 +310,27 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.BadParameter("expired token")
 	}
 
-	err = a.changeUserSecondFactor(ctx, req, token)
-	if err != nil {
+	// Check if the user still exists before potentially recreating the user
+	// below. If the user was deleted, do NOT honor the request and delete any
+	// other tokens associated with the user.
+	if _, err := a.GetUser(ctx, token.GetUser(), false); err != nil {
+		if trace.IsNotFound(err) {
+			// Delete any remaining tokens for users that no longer exist.
+			if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.changeUserSecondFactor(ctx, req, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = a.deleteUserTokens(ctx, username)
-	if err != nil {
+	if err := a.deleteUserTokens(ctx, username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

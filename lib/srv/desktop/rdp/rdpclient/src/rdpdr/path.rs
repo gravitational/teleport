@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::ffi::{CString, NulError};
+use ironrdp_pdu::{custom_err, PduResult};
+use std::ffi::CString;
 
 /// WindowsPath is a String that we assume to be in the form
 /// of a traditional DOS path:
@@ -60,8 +61,13 @@ impl UnixPath {
     ///
     /// This function will return an error if the UnixPath contains
     /// any characters that can't be handled by CString::new().
-    pub fn to_cstring(&self) -> Result<CString, NulError> {
-        CString::new(self.path.clone())
+    pub fn to_cstring(&self) -> PduResult<CString> {
+        CString::new(self.path.clone()).map_err(|e| {
+            custom_err!(PathError(format!(
+                "Error converting UnixPath to CString: {}",
+                e
+            )))
+        })
     }
 
     pub fn len(&self) -> u32 {
@@ -75,13 +81,33 @@ impl UnixPath {
 
 impl From<&WindowsPath> for UnixPath {
     fn from(p: &WindowsPath) -> UnixPath {
-        Self::from(to_unix_path(&p.path))
+        Self {
+            path: to_unix_path(&p.path),
+        }
+    }
+}
+
+impl From<&str> for UnixPath {
+    fn from(p: &str) -> UnixPath {
+        Self {
+            path: to_unix_path(p),
+        }
     }
 }
 
 impl From<String> for UnixPath {
-    fn from(path: String) -> UnixPath {
-        Self { path }
+    fn from(p: String) -> UnixPath {
+        Self {
+            path: to_unix_path(&p),
+        }
+    }
+}
+
+impl From<&String> for UnixPath {
+    fn from(p: &String) -> UnixPath {
+        Self {
+            path: to_unix_path(p),
+        }
     }
 }
 
@@ -112,6 +138,17 @@ fn crop_first_n_letters(s: &mut String, n: usize) {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct PathError(pub String);
+
+impl std::fmt::Display for PathError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for PathError {}
 
 #[cfg(test)]
 mod tests {

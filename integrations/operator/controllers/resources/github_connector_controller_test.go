@@ -116,15 +116,8 @@ func (g *githubTestingPrimitives) ModifyKubernetesResource(ctx context.Context, 
 }
 
 func (g *githubTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.GithubConnector, kubeResource *resourcesv3.TeleportGithubConnector) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return equal, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-
-	return equal, ""
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
+	return diff == "", diff
 }
 
 func TestGithubConnectorCreation(t *testing.T) {

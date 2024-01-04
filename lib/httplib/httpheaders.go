@@ -66,6 +66,7 @@ type cspMap map[string][]string
 
 var defaultContentSecurityPolicy = cspMap{
 	"default-src": {"'self'"},
+	"script-src":  {"'self'"},
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        {"'self'"},
 	"form-action":     {"'self'"},
@@ -81,7 +82,7 @@ var defaultConnectSrc = cspMap{"connect-src": {"'self'", "wss:"}}
 
 var stripeSecurityPolicy = cspMap{
 	// auto-pay plans in Cloud use stripe.com to manage billing information
-	"script-src": {"'self'", "https://js.stripe.com"},
+	"script-src": {"https://js.stripe.com"},
 	"frame-src":  {"https://js.stripe.com"},
 }
 
@@ -185,6 +186,10 @@ func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
 // which is a route to a desktop session that uses WASM.
 var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
+// regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
+// which is a route to a desktop recording that uses WASM.
+var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
+
 var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
@@ -196,7 +201,7 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 	}
 
 	// Nothing found in cache, calculate regex and result
-	withWasm := desktopSessionRe.MatchString(urlPath)
+	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath)
 	cspString := getContentSecurityPolicyString(
 		getIndexContentSecurityPolicy(withStripe, withWasm),
 	)

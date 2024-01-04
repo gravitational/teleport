@@ -178,6 +178,8 @@ message SAMLIdPServiceProviderMetadata {
   string ServiceProviderEntityID = 1 [(gogoproto.jsontag) = "service_provider_entity_id,omitempty"];
   // ServiceProviderShortcut is the shortcut name of a service provider.
   string ServiceProviderShortcut = 2 [(gogoproto.jsontag) = "service_provider_shortcut,omitempty"];
+  // AttributeMapping is a map of attribute name and value which will be asserted in SAML response.
+  map<string, string> AttributeMapping = 3 [(gogoproto.jsontag) = "attribute_mapping,omitempty"];
 }
 
 // OktaResourcesUpdatedMetadata contains common metadata for Okta resources updated events.
@@ -1959,6 +1961,78 @@ message RoleDelete {
   ];
 }
 
+// BotCreate is emitted when a bot is created/upserted.
+message BotCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotCreate is emitted when a bot is created/updated.
+message BotUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotDelete is emitted when a bot is deleted.
+message BotDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // TrustedClusterCreate is the event for creating a trusted cluster.
 message TrustedClusterCreate {
   // Metadata is a common event metadata
@@ -3671,6 +3745,9 @@ message OneOf {
     events.UserUpdate UserUpdate = 140;
     events.ExternalAuditStorageEnable ExternalAuditStorageEnable = 141;
     events.ExternalAuditStorageDisable ExternalAuditStorageDisable = 142;
+    events.BotCreate BotCreate = 143;
+    events.BotDelete BotDelete = 144;
+    events.BotUpdate BotUpdate = 145;
   }
 }
 

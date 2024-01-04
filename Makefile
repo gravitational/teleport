@@ -296,6 +296,11 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
+TELEPORT_ARGS ?= start
+.PHONY: teleport-hot-reload
+teleport-hot-reload:
+	CompileDaemon --graceful-kill=true --exclude-dir=".git" --exclude-dir="node_modules" --build="make $(BUILDDIR)/teleport" --command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
+
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
@@ -415,6 +420,8 @@ endif
 	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
+	# Clean up wasm-pack build artifacts
+	rm -rf web/packages/teleport/src/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -1226,6 +1233,10 @@ enter/grpcbox:
 enter/node:
 	make -C build.assets enter/node
 
+.PHONY:enter/arm
+enter/arm:
+	make -C build.assets enter/arm
+
 BUF := buf
 
 # protos/all runs build, lint and format on all protos.
@@ -1472,14 +1483,17 @@ build-ui-e: ensure-js-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
+.PHONY: rustup-set-version
+rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
+rustup-set-version:
+	rustup override set $(RUST_VERSION)
+
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
 # defined in build.assets/Makefile. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
-rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
-rustup-install-target-toolchain:
-	rustup override set $(RUST_VERSION)
+rustup-install-target-toolchain: rustup-set-version
 	rustup target add $(RUST_TARGET_ARCH)
 
 # changelog generates PR changelog between the provided base tag and the tip of

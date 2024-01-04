@@ -79,8 +79,17 @@ export const integrationService = {
     return api.get(cfg.api.thumbprintPath);
   },
 
+  fetchAwsRdsRequiredVpcs(
+    integrationName: string,
+    body: { region: string; accountId: string }
+  ): Promise<Record<string, string[]>> {
+    return api
+      .post(cfg.getAwsRdsDbRequiredVpcsUrl(integrationName), body)
+      .then(resp => resp.vpcMapOfSubnets);
+  },
+
   fetchAwsRdsDatabases(
-    integrationName,
+    integrationName: string,
     rdsEngineIdentifier: RdsEngineIdentifier,
     req: {
       region: AwsOidcListDatabasesRequest['region'];
