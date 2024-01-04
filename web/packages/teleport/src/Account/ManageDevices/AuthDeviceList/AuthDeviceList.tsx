@@ -89,8 +89,15 @@ const StyledTable = styled(Table)(
   props => `
   background-color: transparent;
 
-  & thead tr th {
+  & > tbody > tr > td, thead > tr > th {
+    font-size: ${props.theme.fontSizes[2]}px;
+    font-weight: 300;
+  }
+
+  & > thead > tr > th {
     text-transform: none;
+    padding-top: ${props.theme.space[2]}px;
+    padding-bottom: ${props.theme.space[2]}px;
 
     &:first-child {
       border-radius: ${props.theme.radii[2]}px 0 0 ${props.theme.radii[2]}px;
@@ -100,7 +107,7 @@ const StyledTable = styled(Table)(
     }
   }
 
-  & tbody tr {
+  & > tbody > tr {
     border: none;
   }
 `
