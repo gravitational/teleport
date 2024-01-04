@@ -44,6 +44,7 @@ import {
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { CtaEvent } from 'teleport/services/userEvent';
 import { useUser } from 'teleport/User/UserContext';
+import { useContentMinWidthContext } from 'teleport/Main';
 
 import { getSalesURL } from 'teleport/services/sales';
 import cfg from 'teleport/config';
@@ -184,6 +185,7 @@ export function NewRequest(props: State) {
     usage,
     fetchUsage,
   } = props;
+  const { setEnforceMinWidth } = useContentMinWidthContext();
   const unifiedResourcesEnabled = storageService.areUnifiedResourcesEnabled();
   const { preferences, updatePreferences } = useUser();
 
@@ -209,6 +211,14 @@ export function NewRequest(props: State) {
   const [currResourceOpt, setCurrResourceOpt] = useState(
     resourceOptions[resourceOptions.length - 1]
   );
+
+  useEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
 
   useEffect(() => {
     if (dryRunAttempt.status === 'failed') {

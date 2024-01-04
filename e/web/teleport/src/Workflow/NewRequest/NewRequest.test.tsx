@@ -11,6 +11,8 @@ import { makeUnifiedResource } from 'teleport/services/resources/makeUnifiedReso
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import cfg from 'teleport/config';
 
+import * as Main from 'teleport/Main/Main';
+
 import ecfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
@@ -46,6 +48,9 @@ describe('new request behavior', () => {
       .spyOn(ctx.workflowService, 'createAccessRequest')
       .mockResolvedValue(makeAccessRequest({}));
 
+    jest
+      .spyOn(Main, 'useContentMinWidthContext')
+      .mockReturnValue({ setEnforceMinWidth: () => null });
     // Overwrites the IntersectionObserver with a mock so that the `useInfiniteScroll` hook always calls the fetching function.
     // eslint-disable-next-line jest/prefer-spy-on
     global.IntersectionObserver = jest.fn(callback => {
