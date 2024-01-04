@@ -21,7 +21,7 @@ import api, { MFA_HEADER, defaultRequestOptions, getAuthHeaders } from './api';
 describe('api.fetch', () => {
   const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
 
-  const mockedWebauthnResp = {
+  const webauthnResp = {
     id: 'some-id',
     type: 'some-type',
     extensions: {
@@ -36,7 +36,7 @@ describe('api.fetch', () => {
     },
   };
 
-  const mockecCustomOpts = {
+  const customOpts = {
     method: 'POST',
     // Override the default header from `defaultRequestOptions`.
     headers: {
@@ -48,23 +48,15 @@ describe('api.fetch', () => {
     jest.resetAllMocks();
   });
 
-  // 2D array explanation for each test:
-  // First array is the array of `fetch` calls made in order.
-  //
-  // Second array are the parameters that `fetch` got called with:
-  //   - First parameter is fetch url
-  //   - Second parameter is fetch options
-
   test('default (no optional params provided)', async () => {
     await api.fetch('/something');
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
-    // Test expected URL.
-    expect(mockedFetch.mock.calls[0][0].toString().endsWith('/something')).toBe(
-      true
-    );
-    // Test expected options.
-    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+    const firstCall = mockedFetch.mock.calls[0];
+    const [actualUrl, actualRequestOptions] = firstCall;
+
+    expect(actualUrl.toString().endsWith('/something')).toBe(true);
+    expect(actualRequestOptions).toStrictEqual({
       ...defaultRequestOptions,
       headers: {
         ...defaultRequestOptions.headers,
@@ -74,47 +66,56 @@ describe('api.fetch', () => {
   });
 
   test('with customOptions', async () => {
-    await api.fetch('/something', mockecCustomOpts);
+    await api.fetch('/something', customOpts);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
-    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+    const firstCall = mockedFetch.mock.calls[0];
+    const [, actualRequestOptions] = firstCall;
+
+    expect(actualRequestOptions).toStrictEqual({
       ...defaultRequestOptions,
-      ...mockecCustomOpts,
+      ...customOpts,
       headers: {
-        ...mockecCustomOpts.headers,
+        ...customOpts.headers,
         ...getAuthHeaders(),
       },
     });
   });
 
   test('with webauthnResponse', async () => {
-    await api.fetch('/something', undefined, mockedWebauthnResp);
+    await api.fetch('/something', undefined, webauthnResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
-    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+    const firstCall = mockedFetch.mock.calls[0];
+    const [, actualRequestOptions] = firstCall;
+
+    expect(actualRequestOptions).toStrictEqual({
       ...defaultRequestOptions,
       headers: {
         ...defaultRequestOptions.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: mockedWebauthnResp,
+          webauthnAssertionResponse: webauthnResp,
         }),
       },
     });
   });
 
   test('with customOptions and webauthnResponse', async () => {
-    await api.fetch('/something', mockecCustomOpts, mockedWebauthnResp);
+    await api.fetch('/something', customOpts, webauthnResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
-    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+    const firstCall = mockedFetch.mock.calls[0];
+    const [, actualRequestOptions] = firstCall;
+
+    expect(actualRequestOptions).toStrictEqual({
       ...defaultRequestOptions,
-      ...mockecCustomOpts,
+      ...customOpts,
       headers: {
-        ...mockecCustomOpts.headers,
+        ...customOpts.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: mockedWebauthnResp,
+          webauthnAssertionResponse: webauthnResp,
         }),
       },
     });
