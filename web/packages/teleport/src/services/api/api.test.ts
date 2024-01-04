@@ -16,14 +16,117 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from './api';
+import api, { MFA_HEADER, defaultRequestOptions, getAuthHeaders } from './api';
+
+describe('api.fetch', () => {
+  const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
+
+  const mockedWebauthnResp = {
+    id: 'some-id',
+    type: 'some-type',
+    extensions: {
+      appid: false,
+    },
+    rawId: 'some-raw-id',
+    response: {
+      authenticatorData: 'authen-data',
+      clientDataJSON: 'client-data-json',
+      signature: 'signature',
+      userHandle: 'user-handle',
+    },
+  };
+
+  const mockecCustomOpts = {
+    method: 'POST',
+    // Override the default header from `defaultRequestOptions`.
+    headers: {
+      Accept: 'application/json',
+    },
+  };
+
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  // 2D array explanation for each test:
+  // First array is the array of `fetch` calls made in order.
+  //
+  // Second array are the parameters that `fetch` got called with:
+  //   - First parameter is fetch url
+  //   - Second parameter is fetch options
+
+  test('default (no optional params provided)', async () => {
+    await api.fetch('/something');
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    // Test expected URL.
+    expect(mockedFetch.mock.calls[0][0].toString().endsWith('/something')).toBe(
+      true
+    );
+    // Test expected options.
+    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+      ...defaultRequestOptions,
+      headers: {
+        ...defaultRequestOptions.headers,
+        ...getAuthHeaders(),
+      },
+    });
+  });
+
+  test('with customOptions', async () => {
+    await api.fetch('/something', mockecCustomOpts);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+      ...defaultRequestOptions,
+      ...mockecCustomOpts,
+      headers: {
+        ...mockecCustomOpts.headers,
+        ...getAuthHeaders(),
+      },
+    });
+  });
+
+  test('with webauthnResponse', async () => {
+    await api.fetch('/something', undefined, mockedWebauthnResp);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+      ...defaultRequestOptions,
+      headers: {
+        ...defaultRequestOptions.headers,
+        ...getAuthHeaders(),
+        [MFA_HEADER]: JSON.stringify({
+          webauthnAssertionResponse: mockedWebauthnResp,
+        }),
+      },
+    });
+  });
+
+  test('with customOptions and webauthnResponse', async () => {
+    await api.fetch('/something', mockecCustomOpts, mockedWebauthnResp);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    expect(mockedFetch.mock.calls[0][1]).toStrictEqual({
+      ...defaultRequestOptions,
+      ...mockecCustomOpts,
+      headers: {
+        ...mockecCustomOpts.headers,
+        ...getAuthHeaders(),
+        [MFA_HEADER]: JSON.stringify({
+          webauthnAssertionResponse: mockedWebauthnResp,
+        }),
+      },
+    });
+  });
+});
 
 // The code below should guard us from changes to api.fetchJson which would cause it to lose type
 // information, for example by returning `any`.
 
 const fooService = {
   doSomething() {
-    return api.fetchJson('/foo', {}).then(makeFoo);
+    return api.fetchJsonWithMfaAuthnRetry('/foo', {}).then(makeFoo);
   },
 };
 
