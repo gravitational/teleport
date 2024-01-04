@@ -62,25 +62,10 @@ type RotateRequest struct {
 
 // Types returns cert authority types requested to be rotated.
 func (r *RotateRequest) Types() []types.CertAuthType {
-	switch r.Type {
-	case types.CertAuthTypeAll:
+	if r.Type == types.CertAuthTypeAll {
 		return types.CertAuthTypes[:]
-	case types.HostCA:
-		return []types.CertAuthType{types.HostCA}
-	case types.DatabaseCA:
-		return []types.CertAuthType{types.DatabaseCA}
-	case types.UserCA:
-		return []types.CertAuthType{types.UserCA}
-	case types.OpenSSHCA:
-		return []types.CertAuthType{types.OpenSSHCA}
-	case types.JWTSigner:
-		return []types.CertAuthType{types.JWTSigner}
-	case types.SAMLIDPCA:
-		return []types.CertAuthType{types.SAMLIDPCA}
-	case types.OIDCIdPCA:
-		return []types.CertAuthType{types.OIDCIdPCA}
 	}
-	return nil
+	return []types.CertAuthType{r.Type}
 }
 
 // CheckAndSetDefaults checks and sets default values.
