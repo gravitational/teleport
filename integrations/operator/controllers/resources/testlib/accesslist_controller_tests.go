@@ -144,13 +144,7 @@ func (g *accessListTestingPrimitives) ModifyKubernetesResource(ctx context.Conte
 }
 
 func (g *accessListTestingPrimitives) CompareTeleportAndKubernetesResource(tResource *accesslist.AccessList, kubeResource *resourcesv1.TeleportAccessList) (bool, string) {
-	opts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Labels", "Revision"),
-		cmpopts.IgnoreFields(header.ResourceHeader{}, "Kind"),
-		cmpopts.EquateApproxTime(MaxTimeDiff),
-		// Notifications are set by CheckAndSetDefaults server-side most of the time
-		cmpopts.IgnoreFields(accesslist.Audit{}, "Notifications"),
-	}
+	opts := CompareOptions()
 	// If the kubernetes resource does not specify an audit date, it will be computed server-side
 	if kubeResource.Spec.Audit.NextAuditDate.IsZero() {
 		opts = append(opts, cmpopts.IgnoreFields(accesslist.Audit{}, "Notifications", "NextAuditDate"))

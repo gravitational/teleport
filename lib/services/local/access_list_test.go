@@ -351,7 +351,7 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 	accessList1 := newAccessList(t, "accessList1", clock)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
 	}
 
 	t.Run("create access list", func(t *testing.T) {
@@ -1188,7 +1188,7 @@ func TestDynamicAccessListMembersCRUD(t *testing.T) {
 		// AND a membership record fora user in that list (this can happen if an
 		// existing Explicit list is made Implicit)
 		m := newAccessListMember(t, implicitlist.GetName(), "scooby")
-		err = service.memberService.WithPrefix(m.Spec.AccessList).UpsertResource(ctx, m)
+		m, err = service.memberService.WithPrefix(m.Spec.AccessList).UpsertResource(ctx, m)
 		require.NoError(t, err)
 
 		// When I try to remove all the members of that list

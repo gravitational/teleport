@@ -44,7 +44,7 @@ x509-parser = "0.15"
 
 [build-dependencies]
 cbindgen = "0.26.0"
-tempfile = "3.8.1"
+tempfile = "3.9.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]

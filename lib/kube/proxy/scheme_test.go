@@ -21,6 +21,7 @@ package proxy
 import (
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
@@ -30,7 +31,7 @@ import (
 // TestNewClusterSchemaBuilder tests that newClusterSchemaBuilder doesn't panic
 // when it's given types already registered in the global scheme.
 func Test_newClusterSchemaBuilder(t *testing.T) {
-	_, _, err := newClusterSchemaBuilder(&clientSet{})
+	_, _, err := newClusterSchemaBuilder(logrus.StandardLogger(), &clientSet{})
 	require.NoError(t, err)
 }
 

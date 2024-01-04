@@ -1,7 +1,7 @@
 version: v1
 deps:
-    # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
-    - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+  # gogo/protobuf v1.3.2, keep in sync with build.assets/Makefile.
+  - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
 lint:
   use:
     - DEFAULT
@@ -49,3 +49,7 @@ lint:
 breaking:
   use:
     - WIRE_JSON
+    - ENUM_VALUE_NO_DELETE
+  ignore_only:
+    RESERVED_ENUM_NO_DELETE:
+      - teleport/legacy/types/types.proto
