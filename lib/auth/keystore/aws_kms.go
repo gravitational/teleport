@@ -17,7 +17,6 @@
 package keystore
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -394,10 +393,7 @@ type awsKMSKeyID struct {
 }
 
 func (a awsKMSKeyID) marshal() []byte {
-	var buf bytes.Buffer
-	buf.WriteString(awskmsPrefix)
-	buf.WriteString(a.arn)
-	return buf.Bytes()
+	return []byte(awskmsPrefix + a.arn)
 }
 
 func parseAWSKMSKeyID(raw []byte) (awsKMSKeyID, error) {

@@ -19,7 +19,6 @@
 package keystore
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -403,10 +402,7 @@ type gcpKMSKeyID struct {
 }
 
 func (g gcpKMSKeyID) marshal() []byte {
-	var buf bytes.Buffer
-	buf.WriteString(gcpkmsPrefix)
-	buf.WriteString(g.keyVersionName)
-	return buf.Bytes()
+	return []byte(gcpkmsPrefix + g.keyVersionName)
 }
 
 func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {
