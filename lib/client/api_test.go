@@ -247,10 +247,10 @@ func TestParseLabels(t *testing.T) {
 
 func TestPortsParsing(t *testing.T) {
 	// empty:
-	ports, err := ParsePortForwardSpec(nil)
+	ports, err := ParseLocalPortForwardSpec(nil)
 	require.Nil(t, ports)
 	require.NoError(t, err)
-	ports, err = ParsePortForwardSpec([]string{})
+	ports, err = ParseLocalPortForwardSpec([]string{})
 	require.Nil(t, ports)
 	require.NoError(t, err)
 	// not empty (but valid)
@@ -258,7 +258,7 @@ func TestPortsParsing(t *testing.T) {
 		"80:remote.host:180",
 		"10.0.10.1:443:deep.host:1443",
 	}
-	ports, err = ParsePortForwardSpec(spec)
+	ports, err = ParseLocalPortForwardSpec(spec)
 	require.NoError(t, err)
 	require.Len(t, ports, 2)
 	require.Empty(t, cmp.Diff(ports, ForwardedPorts{
@@ -283,7 +283,7 @@ func TestPortsParsing(t *testing.T) {
 
 	// parse invalid spec:
 	spec = []string{"foo", "bar"}
-	ports, err = ParsePortForwardSpec(spec)
+	ports, err = ParseLocalPortForwardSpec(spec)
 	require.Empty(t, ports)
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }

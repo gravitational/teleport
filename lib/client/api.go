@@ -312,6 +312,10 @@ type Config struct {
 	// port forwarding (parameters to -D ssh flag).
 	DynamicForwardedPorts DynamicForwardedPorts
 
+	// RemoteForwardPorts are the list of ports the remote connection listens on
+	// for remote port forwarding (parameters to -R ssh flag).
+	RemoteForwardPorts ForwardedPorts
+
 	// HostKeyCallback will be called to check host keys of the remote
 	// node, if not specified will be using CheckHostSignature function
 	// that uses local cache to validate hosts
@@ -1957,6 +1961,14 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
 		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
+	}
+	for _, fp := range tc.Config.RemoteForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := nodeClient.Client.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
+		}
+		go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
 	}
 	return nil
 }
@@ -5033,9 +5045,16 @@ func (fp ForwardedPorts) String() (retval []string) {
 	return retval
 }
 
-// ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
+// ParseLocalPortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
 // The opposite of this function (spec generation) is ForwardedPorts.String()
-func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
+func ParseLocalPortForwardSpec(spec []string) (ForwardedPorts, error) {
+	ports, err := ParsePortForwardSpec(spec, "127.0.0.1")
+	return ports, trace.Wrap(err)
+}
+
+// ParsePortForwardSpec parses parameter to -L or -R flag, i.e. strings like "[ip]:80:remote.host:3000"
+// The opposite of this function (spec generation) is ForwardedPorts.String()
+func ParsePortForwardSpec(spec []string, defaultSrcHost string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}
@@ -5048,7 +5067,7 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 			return nil, trace.BadParameter(errTemplate, str)
 		}
 		if len(parts) == 3 {
-			parts = append([]string{"127.0.0.1"}, parts...)
+			parts = append([]string{defaultSrcHost}, parts...)
 		}
 		p := &ports[i]
 		p.SrcIP = parts[0]

@@ -69,7 +69,7 @@ func FuzzParsePortForwardSpec(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, spec string) {
 		require.NotPanics(t, func() {
-			_, _ = ParsePortForwardSpec([]string{spec})
+			_, _ = ParseLocalPortForwardSpec([]string{spec})
 		})
 	})
 }
