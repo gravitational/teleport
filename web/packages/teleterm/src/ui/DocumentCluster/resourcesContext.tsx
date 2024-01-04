@@ -21,6 +21,7 @@ import { EventEmitter } from 'events';
 import React, {
   createContext,
   FC,
+  PropsWithChildren,
   useCallback,
   useContext,
   useRef,
@@ -44,7 +45,7 @@ export interface ResourcesContext {
 
 const ResourcesContext = createContext<ResourcesContext>(null);
 
-export const ResourcesContextProvider: FC = props => {
+export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
   const emitterRef = useRef<EventEmitter>();
   if (!emitterRef.current) {
     emitterRef.current = new EventEmitter();

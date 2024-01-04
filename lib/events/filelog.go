@@ -166,6 +166,7 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			MetricStoredTrimmedEvents.Inc()
 		default:
 			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
 			l.WithFields(fields).Warnf("Got a event that exceeded max allowed size.")

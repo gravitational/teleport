@@ -19,6 +19,7 @@
 package s3sessions
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"testing"
@@ -118,4 +119,17 @@ func TestConfig_SetFromURL(t *testing.T) {
 			tt.cfgAssertion(t, tt.cfg)
 		})
 	}
+}
+
+func TestUploadMetadata(t *testing.T) {
+	handler, err := NewHandler(context.Background(), Config{
+		Region: "us-west-1",
+		Path:   "/test/",
+		Bucket: "teleport-unit-tests",
+	})
+	require.NoError(t, err)
+	defer handler.Close()
+
+	meta := handler.GetUploadMetadata("test-session-id")
+	require.Equal(t, "s3://teleport-unit-tests/test/test-session-id", meta.URL)
 }

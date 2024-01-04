@@ -16,21 +16,7 @@ for different branches of the Teleport source repository,
 `gravitational/teleport`, which also includes the documentation for a particular
 version of Teleport:
 
-```mermaid
-flowchart RL
-  subgraph docs["gravitational/docs"]
-    ver1["content/1.x"]
-    ver2["content/2.x"]
-    ver3["content/3.x"]
-  end
-
-  subgraph teleport["gravitational/teleport"]
-  end
-
-  teleport-- "branch/v1" --> ver1["content/1.x"]
-  teleport-- "branch/v2" --> ver2["content/2.x"]
-  teleport-- "branch/v3" --> ver3["content/3.x"]
-```
+![The structure of the gravitational/docs repo](../../../img/doc-submodules.png)
 
 Clone the `gravitational/docs` repository:
 

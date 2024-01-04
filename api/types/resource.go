@@ -18,12 +18,12 @@ package types
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/common"
@@ -31,6 +31,10 @@ import (
 )
 
 // Resource represents common properties for all resources.
+//
+// Please avoid adding new uses of Resource in the codebase. Instead, consider
+// using concrete proto types directly or a manually declared subset of the
+// Resource153 interface for new-style resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string
@@ -60,9 +64,6 @@ type Resource interface {
 	GetRevision() string
 	// SetRevision sets the revision
 	SetRevision(string)
-	// CheckAndSetDefaults validates the Resource and sets any empty fields to
-	// default values.
-	CheckAndSetDefaults() error
 }
 
 // IsSystemResource checks to see if the given resource is considered
@@ -670,6 +671,35 @@ func FriendlyName(resource ResourceWithLabels) string {
 
 	if hn, ok := resource.(interface{ GetHostname() string }); ok {
 		return hn.GetHostname()
+	}
+
+	return ""
+}
+
+// GetOrigin returns the origin if one can be obtained.
+func GetOrigin(v any) string {
+	switch r := v.(type) {
+	case ResourceWithOrigin:
+		return r.Origin()
+	case ResourceMetadata:
+		meta := r.GetMetadata()
+		if meta.Labels == nil {
+			return ""
+		}
+		return meta.Labels[OriginLabel]
+	}
+
+	return ""
+}
+
+// GetKind returns the kind if one can be obtained.
+func GetKind(v any) string {
+	type kinder interface {
+		GetKind() string
+	}
+
+	if k, ok := v.(kinder); ok {
+		return k.GetKind()
 	}
 
 	return ""

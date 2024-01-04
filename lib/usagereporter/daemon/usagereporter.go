@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/xtgo/uuid"
 
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"

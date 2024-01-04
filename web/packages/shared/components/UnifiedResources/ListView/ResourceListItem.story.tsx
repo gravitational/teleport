@@ -128,6 +128,7 @@ export const ListItems: Story = {
             listViewProps={res.listViewProps}
             labels={res.labels}
             ActionButton={res.ActionButton}
+            expandAllLabels={false}
           />
         ))}
       </Flex>

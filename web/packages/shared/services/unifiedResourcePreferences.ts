@@ -33,6 +33,8 @@ export interface UnifiedResourcePreferences {
   defaultTab: DefaultTab;
   /** View mode selected in the unified resource view (Cards/List). */
   viewMode: ViewMode;
+  /** Labels view mode is whether the labels for resources should all be collapsed or expanded. This only applies to the list view. */
+  labelsViewMode: LabelsViewMode;
 }
 
 export enum DefaultTab {
@@ -45,4 +47,10 @@ export enum ViewMode {
   VIEW_MODE_UNSPECIFIED = 0,
   VIEW_MODE_CARD = 1,
   VIEW_MODE_LIST = 2,
+}
+
+export enum LabelsViewMode {
+  LABELS_VIEW_MODE_UNSPECIFIED = 0,
+  LABELS_VIEW_MODE_EXPANDED = 1,
+  LABELS_VIEW_MODE_COLLAPSED = 2,
 }

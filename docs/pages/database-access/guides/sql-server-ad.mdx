@@ -8,56 +8,11 @@ videoBanner: k2wz79XCexY
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-```mermaid
-%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
-graph LR
-a(Users)
-b[Teleport Proxy]
-style b fill: #844cff,color: #ffffff
-a-->b
-b-->c
-subgraph local [Private Network]
-style local fill:#C0C0C0,stroke: #000000
-  c[Teleport DB Service]
-  style c fill: #a379ff,color: #ffffff
-  subgraph ad [ ]
-  direction TB
-  style ad fill:none,stroke:none
-    e[(SQL Servers)]
-    d{Active Directory Users}
-  end
-  c-->d
-  c-->e
-  e-->d
-end
-```
+![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-1.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-```mermaid
-%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
-graph LR
-a(Users)
-b[Teleport Cloud Tenant]
-style b fill: #844cff,color: #ffffff
-a-->b
-b-->c
-subgraph local [Private Network]
-style local fill:#C0C0C0,stroke: #000000
-  c[Teleport DB Service]
-  style c fill: #a379ff,color: #ffffff
-  subgraph ad [ ]
-  direction TB
-  style ad fill:none,stroke:none
-    e[(SQL Servers)]
-    d{Active Directory Users}
-  end
-  c-->d
-  c-->e
-  e-->d
-end
-```
+![Database access with SQL Server and AD authentication](../../../img/database-access/sql-server-ad-2.png)
 </TabItem>
-
 </Tabs>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active

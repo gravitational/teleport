@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react';
 import { render, screen } from 'design/utils/testing';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 

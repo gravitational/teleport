@@ -38,6 +38,7 @@ import (
 	"math/big"
 	insecurerand "math/rand"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,7 +56,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -451,8 +451,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
-		AccessLists: services,
-		Access:      services,
+		AccessLists: &as,
+		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
@@ -638,7 +638,10 @@ var (
 			Name:      teleport.MetricUpgraderCounts,
 			Help:      "Tracks the number of instances advertising each upgrader",
 		},
-		[]string{teleport.TagUpgrader},
+		[]string{
+			teleport.TagUpgrader,
+			teleport.TagVersion,
+		},
 	)
 
 	accessRequestsCreatedMetric = prometheus.NewCounterVec(
@@ -1209,8 +1212,14 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// set instance metric values
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-	for _, upgrader := range []string{types.UpgraderKindKubeController, types.UpgraderKindSystemdUnit} {
-		upgraderCountsMetric.WithLabelValues(upgrader).Set(float64(imp.InstancesWithUpgrader(upgrader)))
+
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
+		}
 	}
 
 	// create/delete upgrade enroll prompt as appropriate
@@ -3183,8 +3192,13 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 	return trace.Wrap(err)
 }
 
-// deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
-// for clusters that require second factors, which prevents users from being locked out of their account.
+// deleteMFADeviceSafely deletes the user's mfa device while preventing users
+// from locking themselves out of their account.
+//
+// Deletes are not allowed in the following situations:
+//   - Last MFA device when the cluster requires MFA
+//   - Last resident key credential in a passwordless-capable cluster (avoids
+//     passwordless users from locking themselves out).
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
 	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
@@ -3204,6 +3218,11 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	sfToCount := make(map[constants.SecondFactorType]int)
 	var knownDevices int
 	var deviceToDelete *types.MFADevice
+	var numResidentKeys int
+
+	isResidentKey := func(d *types.MFADevice) bool {
+		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
+	}
 
 	// Find the device to delete and count devices.
 	for _, d := range devs {
@@ -3223,6 +3242,10 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		sfToCount[sf]++
 		knownDevices++
+
+		if isResidentKey(d) {
+			numResidentKeys++
+		}
 	}
 	if deviceToDelete == nil {
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
@@ -3244,6 +3267,20 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		}
 	default:
 		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
+	}
+
+	// Stop users from deleting their last resident key. This prevents
+	// passwordless users from locking themselves out, at the cost of not letting
+	// regular users do it either.
+	//
+	// A better logic would be to apply this only to passwordless users, but we
+	// cannot distinguish users in that manner.
+	// See https://github.com/gravitational/teleport/issues/13219#issuecomment-1148255979.
+	//
+	// TODO(codingllama): Check if the last login type used was passwordless, if
+	//  not then we could let this device be deleted.
+	if authPref.GetAllowPasswordless() && numResidentKeys == 1 && isResidentKey(deviceToDelete) {
+		return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
@@ -3667,6 +3704,10 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	accessExpiry := req.GetAccessExpiry()
 	if accessExpiry.Before(a.GetClock().Now()) {
 		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
+	}
+
+	if req.GetAssumeStartTime() != nil && req.GetAssumeStartTime().After(a.GetClock().Now()) {
+		return nil, trace.BadParameter("access request %q can not be assumed until %v", accessRequestID, req.GetAssumeStartTime())
 	}
 
 	return req, nil
@@ -4265,7 +4306,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(sessionTTL, BearerTokenTTL)
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
@@ -4500,10 +4541,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			UpdatedBy: authz.ClientUsername(ctx),
 			Expires:   req.GetAccessExpiry(),
 		},
-		RequestID:    params.RequestID,
-		RequestState: params.State.String(),
-		Reason:       params.Reason,
-		Roles:        params.Roles,
+		RequestID:       params.RequestID,
+		RequestState:    params.State.String(),
+		Reason:          params.Reason,
+		Roles:           params.Roles,
+		AssumeStartTime: params.AssumeStartTime,
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {

@@ -24,12 +24,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/exp/slices"
 	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
@@ -709,6 +709,9 @@ const (
 
 	// WebsocketError is sending an error message.
 	WebsocketError = "e"
+
+	// WebsocketLatency provides latency information for a session.
+	WebsocketLatency = "l"
 )
 
 // The following are cryptographic primitives Teleport does not support in

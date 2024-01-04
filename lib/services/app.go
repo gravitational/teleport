@@ -57,22 +57,17 @@ type Apps interface {
 
 // MarshalApp marshals Application resource to JSON.
 func MarshalApp(app types.Application, opts ...MarshalOption) ([]byte, error) {
-	if err := app.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	switch app := app.(type) {
 	case *types.AppV3:
-		if !cfg.PreserveResourceID {
-			copy := *app
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			app = &copy
+		if err := app.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(app)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, app))
 	default:
 		return nil, trace.BadParameter("unsupported app resource %T", app)
 	}
@@ -116,10 +111,6 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 
 // MarshalAppServer marshals the AppServer resource to JSON.
 func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte, error) {
-	if err := appServer.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,13 +118,11 @@ func MarshalAppServer(appServer types.AppServer, opts ...MarshalOption) ([]byte,
 
 	switch appServer := appServer.(type) {
 	case *types.AppServerV3:
-		if !cfg.PreserveResourceID {
-			copy := *appServer
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			appServer = &copy
+		if err := appServer.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(appServer)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, appServer))
 	default:
 		return nil, trace.BadParameter("unsupported app server resource %T", appServer)
 	}

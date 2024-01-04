@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/vulcand/predicate"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
@@ -53,9 +53,10 @@ const maxAccessDuration = 7 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
-	if err := ar.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
 	}
+
 	_, err := uuid.Parse(ar.GetName())
 	if err != nil {
 		return trace.BadParameter("invalid access request id %q", ar.GetName())
@@ -434,6 +435,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
+	if rev.AssumeStartTime != nil {
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
 	return nil
 }
 
@@ -1194,7 +1198,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		// If the maxDuration flag is set, consider it instead of only using the session TTL.
 		if maxDuration > 0 {
-			req.SetSessionTLL(now.Add(minDuration(sessionTTL, maxDuration)))
+			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
 			ttl = maxDuration
 		} else {
 			req.SetSessionTLL(now.Add(sessionTTL))
@@ -1208,15 +1212,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	return nil
-}
-
-// minDuration returns the smaller of two durations.
-// DELETE after upgrading to Go 1.21. Replace with min function.
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // calculateMaxAccessDuration calculates the maximum time for the access request.
@@ -1667,15 +1662,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *accessRequest
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			accessRequest = &copy
-		}
-		return utils.FastMarshal(accessRequest)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}

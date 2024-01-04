@@ -68,7 +68,7 @@ func (s *ProvisioningService) CreateToken(ctx context.Context, p types.Provision
 }
 
 func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item, error) {
-	if err := p.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := p.GetRevision()

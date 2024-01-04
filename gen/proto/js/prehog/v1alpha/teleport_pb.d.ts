@@ -173,6 +173,9 @@ export class SessionStartEvent extends jspb.Message {
     getDesktop(): SessionStartDesktopMetadata | undefined;
     setDesktop(value?: SessionStartDesktopMetadata): SessionStartEvent;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SessionStartEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
@@ -190,6 +193,7 @@ export namespace SessionStartEvent {
         sessionType: string,
         database?: SessionStartDatabaseMetadata.AsObject,
         desktop?: SessionStartDesktopMetadata.AsObject,
+        userKind: UserKind,
     }
 }
 
@@ -1480,6 +1484,9 @@ export class KubeRequestEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): KubeRequestEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): KubeRequestEvent.AsObject;
@@ -1494,6 +1501,7 @@ export class KubeRequestEvent extends jspb.Message {
 export namespace KubeRequestEvent {
     export type AsObject = {
         userName: string,
+        userKind: UserKind,
     }
 }
 
@@ -1503,6 +1511,9 @@ export class SFTPEvent extends jspb.Message {
 
     getAction(): number;
     setAction(value: number): SFTPEvent;
+
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SFTPEvent;
 
 
     serializeBinary(): Uint8Array;
@@ -1519,6 +1530,7 @@ export namespace SFTPEvent {
     export type AsObject = {
         userName: string,
         action: number,
+        userKind: UserKind,
     }
 }
 
@@ -1986,6 +1998,111 @@ export namespace AccessListGrantsToUserEvent {
     }
 }
 
+export class AccessListReviewCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListReviewCreateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListReviewCreateEvent;
+
+    getDaysPastNextAuditDate(): number;
+    setDaysPastNextAuditDate(value: number): AccessListReviewCreateEvent;
+
+    getMembershipRequirementsChanged(): boolean;
+    setMembershipRequirementsChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getReviewFrequencyChanged(): boolean;
+    setReviewFrequencyChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getReviewDayOfMonthChanged(): boolean;
+    setReviewDayOfMonthChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getNumberOfRemovedMembers(): number;
+    setNumberOfRemovedMembers(value: number): AccessListReviewCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewCreateEvent): AccessListReviewCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewCreateEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewCreateEvent, reader: jspb.BinaryReader): AccessListReviewCreateEvent;
+}
+
+export namespace AccessListReviewCreateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+        daysPastNextAuditDate: number,
+        membershipRequirementsChanged: boolean,
+        reviewFrequencyChanged: boolean,
+        reviewDayOfMonthChanged: boolean,
+        numberOfRemovedMembers: number,
+    }
+}
+
+export class AccessListReviewDeleteEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListReviewDeleteEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListReviewDeleteEvent;
+
+    getAccessListReviewId(): string;
+    setAccessListReviewId(value: string): AccessListReviewDeleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewDeleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewDeleteEvent): AccessListReviewDeleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewDeleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewDeleteEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewDeleteEvent, reader: jspb.BinaryReader): AccessListReviewDeleteEvent;
+}
+
+export namespace AccessListReviewDeleteEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+        accessListReviewId: string,
+    }
+}
+
+export class AccessListReviewComplianceEvent extends jspb.Message { 
+    getTotalAccessLists(): number;
+    setTotalAccessLists(value: number): AccessListReviewComplianceEvent;
+
+    getAccessListsNeedReview(): number;
+    setAccessListsNeedReview(value: number): AccessListReviewComplianceEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewComplianceEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewComplianceEvent): AccessListReviewComplianceEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewComplianceEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewComplianceEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewComplianceEvent, reader: jspb.BinaryReader): AccessListReviewComplianceEvent;
+}
+
+export namespace AccessListReviewComplianceEvent {
+    export type AsObject = {
+        totalAccessLists: number,
+        accessListsNeedReview: number,
+    }
+}
+
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
@@ -2359,6 +2476,31 @@ export namespace AuditQueryRunEvent {
         userName: string,
         days: number,
         isSuccess: boolean,
+    }
+}
+
+export class DiscoveryFetchEvent extends jspb.Message { 
+    getCloudProvider(): string;
+    setCloudProvider(value: string): DiscoveryFetchEvent;
+
+    getResourceType(): string;
+    setResourceType(value: string): DiscoveryFetchEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoveryFetchEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoveryFetchEvent): DiscoveryFetchEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoveryFetchEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoveryFetchEvent;
+    static deserializeBinaryFromReader(message: DiscoveryFetchEvent, reader: jspb.BinaryReader): DiscoveryFetchEvent;
+}
+
+export namespace DiscoveryFetchEvent {
+    export type AsObject = {
+        cloudProvider: string,
+        resourceType: string,
     }
 }
 
@@ -2793,6 +2935,30 @@ export class SubmitEventRequest extends jspb.Message {
     setAuditQueryRun(value?: AuditQueryRunEvent): SubmitEventRequest;
 
 
+    hasDiscoveryFetchEvent(): boolean;
+    clearDiscoveryFetchEvent(): void;
+    getDiscoveryFetchEvent(): DiscoveryFetchEvent | undefined;
+    setDiscoveryFetchEvent(value?: DiscoveryFetchEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewCreate(): boolean;
+    clearAccessListReviewCreate(): void;
+    getAccessListReviewCreate(): AccessListReviewCreateEvent | undefined;
+    setAccessListReviewCreate(value?: AccessListReviewCreateEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewDelete(): boolean;
+    clearAccessListReviewDelete(): void;
+    getAccessListReviewDelete(): AccessListReviewDeleteEvent | undefined;
+    setAccessListReviewDelete(value?: AccessListReviewDeleteEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewCompliance(): boolean;
+    clearAccessListReviewCompliance(): void;
+    getAccessListReviewCompliance(): AccessListReviewComplianceEvent | undefined;
+    setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2879,6 +3045,10 @@ export namespace SubmitEventRequest {
         externalAuditStorageAuthenticate?: ExternalAuditStorageAuthenticateEvent.AsObject,
         securityReportGetResult?: SecurityReportGetResultEvent.AsObject,
         auditQueryRun?: AuditQueryRunEvent.AsObject,
+        discoveryFetchEvent?: DiscoveryFetchEvent.AsObject,
+        accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
+        accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
+        accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3024,6 +3194,14 @@ export namespace SubmitEventRequest {
 
     AUDIT_QUERY_RUN = 73,
 
+    DISCOVERY_FETCH_EVENT = 74,
+
+    ACCESS_LIST_REVIEW_CREATE = 75,
+
+    ACCESS_LIST_REVIEW_DELETE = 76,
+
+    ACCESS_LIST_REVIEW_COMPLIANCE = 77,
+
     }
 
 }
@@ -3130,6 +3308,12 @@ export enum ResourceKind {
     RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }
 
+export enum UserKind {
+    USER_KIND_UNSPECIFIED = 0,
+    USER_KIND_HUMAN = 1,
+    USER_KIND_BOT = 2,
+}
+
 export enum DiscoverResource {
     DISCOVER_RESOURCE_UNSPECIFIED = 0,
     DISCOVER_RESOURCE_SERVER = 1,
@@ -3170,6 +3354,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
     DISCOVER_RESOURCE_EC2_INSTANCE = 38,
+    DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39,
 }
 
 export enum DiscoverStatus {
@@ -3192,6 +3377,7 @@ export enum CTA {
     CTA_ACCESS_LIST = 8,
     CTA_ACCESS_MONITORING = 9,
     CTA_EXTERNAL_AUDIT_STORAGE = 10,
+    CTA_OKTA_USER_SYNC = 11,
 }
 
 export enum IntegrationEnrollKind {

@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act, waitFor } from '@testing-library/react';
 
 import {
   makeRootCluster,
@@ -48,7 +48,7 @@ it('creates a gateway on mount if it does not exist already', async () => {
       return gateway;
     });
 
-  const { result, waitFor } = renderHook(() => useDocumentGateway(doc), {
+  const { result } = renderHook(() => useDocumentGateway(doc), {
     wrapper: $wrapper,
   });
 
@@ -95,7 +95,7 @@ it('does not attempt to create a gateway immediately after closing it if the gat
     .spyOn(appContext.clustersService, 'createGateway')
     .mockResolvedValue(gateway);
 
-  const { result, waitFor } = renderHook(() => useDocumentGateway(doc), {
+  const { result } = renderHook(() => useDocumentGateway(doc), {
     wrapper: $wrapper,
   });
 

@@ -5,12 +5,15 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   box-sizing: border-box;
   height: 60px;
   flex: 0 0 auto;
+}
+
+.c1 {
   display: flex;
   align-items: center;
   flex-direction: row;
 }
 
-.c1 {
+.c2 {
   align-items: center;
   background: none;
   border: none;
@@ -27,16 +30,16 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   text-decoration: none;
 }
 
-.c1:hover {
+.c2:hover {
   background: rgba(255,255,255,.06);
 }
 
-.c1.active {
+.c2.active {
   background: #222C59;
   color: #FFFFFF;
 }
 
-.c1.active:after {
+.c2.active:after {
   background-color: #9F85FF;
   content: '';
   position: absolute;
@@ -47,16 +50,16 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 <nav
-  class="c0"
+  class="c0 c1"
   height="60px"
 >
   <button
-    class="c1"
+    class="c2"
   >
     MenuItem1
   </button>
   <button
-    class="c1"
+    class="c2"
   >
     MenuItem2
   </button>

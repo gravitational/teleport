@@ -94,6 +94,8 @@ export function makeDefaultUserPreferences(): UserPreferences {
     unifiedResourcePreferences: {
       defaultTab: unifiedResourcePreferences.DefaultTab.DEFAULT_TAB_ALL,
       viewMode: unifiedResourcePreferences.ViewMode.VIEW_MODE_CARD,
+      labelsViewMode:
+        unifiedResourcePreferences.LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };

@@ -76,6 +76,10 @@ const doc = {
   created: new Date('2019-05-13T20:18:09Z'),
   kind: 'nodes',
   url: 'localhost',
+  latency: {
+    client: 0,
+    server: 0,
+  },
 } as const;
 
 const clusters = [

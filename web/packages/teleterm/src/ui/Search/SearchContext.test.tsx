@@ -19,7 +19,7 @@
 import React, { PropsWithChildren } from 'react';
 import '@testing-library/jest-dom';
 import { fireEvent, createEvent, render, screen } from '@testing-library/react';
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
@@ -175,10 +175,10 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
-    screen.getByTestId('open').click();
+    act(() => screen.getByTestId('open').click());
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
-    screen.getByTestId('close').click();
+    act(() => screen.getByTestId('close').click());
     expect(otherInput).toHaveFocus();
   });
 });

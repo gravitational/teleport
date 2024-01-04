@@ -150,7 +150,33 @@ var (
 		},
 	)
 
-	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent}
+	auditEmitEventSizes = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_emitted_event_sizes",
+			Help:      "Size of single events emitted",
+			Buckets:   prometheus.ExponentialBucketsRange(64, 2*1024*1024*1024 /*2GiB*/, 16),
+		})
+
+	// MetricStoredTrimmedEvents counts the number of events that were trimmed
+	// before being stored.
+	MetricStoredTrimmedEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_stored_trimmed_events",
+			Help:      "Number of events that were trimmed before being stored",
+		})
+
+	// MetricQueriedTrimmedEvents counts the number of events that were trimmed
+	// before being returned from a query.
+	MetricQueriedTrimmedEvents = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "audit_queried_trimmed_events",
+			Help:      "Number of events that were trimmed before being returned from a query",
+		})
+
+	prometheusCollectors = []prometheus.Collector{auditOpenFiles, auditDiskUsed, auditFailedDisk, AuditFailedEmit, auditEmitEvent, auditEmitEventSizes, MetricStoredTrimmedEvents, MetricQueriedTrimmedEvents}
 )
 
 // AuditLog is a new combined facility to record Teleport events and
@@ -786,7 +812,6 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // (oldest first).
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
-
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
 	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN}).Debugf("GetSessionEvents.")
 	if namespace == "" {
@@ -970,11 +995,6 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 
 	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sessionID, tarballPath)
 	_, err = rawSession.Seek(0, 0)
-	if err != nil {
-		e <- trace.Wrap(err)
-		return c, e
-	}
-
 	if err != nil {
 		e <- trace.Wrap(err)
 		return c, e

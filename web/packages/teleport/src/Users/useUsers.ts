@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement, useState, useEffect } from 'react';
+import { LazyExoticComponent, ReactElement, useEffect, useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 
 import { User } from 'teleport/services/user';
@@ -165,9 +165,20 @@ export interface EmailPasswordResetDialogProps {
   onClose: () => void;
 }
 
+type InviteCollaboratorsElement = (
+  props: InviteCollaboratorsDialogProps
+) => ReactElement;
+type EmailPasswordResetElement = (
+  props: EmailPasswordResetDialogProps
+) => ReactElement;
+
 export type UsersContainerProps = {
-  InviteCollaborators?: (props: InviteCollaboratorsDialogProps) => ReactElement;
-  EmailPasswordReset?: (props: EmailPasswordResetDialogProps) => ReactElement;
+  InviteCollaborators?:
+    | LazyExoticComponent<InviteCollaboratorsElement>
+    | InviteCollaboratorsElement;
+  EmailPasswordReset?:
+    | LazyExoticComponent<EmailPasswordResetElement>
+    | EmailPasswordResetElement;
 };
 
 export type State = ReturnType<typeof useUsers>;

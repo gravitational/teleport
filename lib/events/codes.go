@@ -402,6 +402,13 @@ const (
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
 
+	// BotCreateCode is the `bot.create` event code.
+	BotCreateCode = "TB001I"
+	// BotUpdateCode is the `bot.update` event code.
+	BotUpdateCode = "TB002I"
+	// BotDeleteCode is the `bot.delete` event code.
+	BotDeleteCode = "TB003I"
+
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.

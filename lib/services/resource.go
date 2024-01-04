@@ -26,8 +26,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // MarshalConfig specifies marshaling options
@@ -125,6 +129,8 @@ func PreserveResourceID() MarshalOption {
 }
 
 // ParseShortcut parses resource shortcut
+// Generally, this should include the plural of a singular resource name or vice
+// versa.
 func ParseShortcut(in string) (string, error) {
 	if in == "" {
 		return "", trace.BadParameter("missing resource name")
@@ -156,7 +162,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
 		return types.KindTrustedCluster, nil
-	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
+	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cluster_auth_preferences", "cap":
 		return types.KindClusterAuthPreference, nil
 	case types.KindUIConfig, "ui":
 		return types.KindUIConfig, nil
@@ -222,6 +228,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSecurityReport, nil
 	case types.KindServerInfo:
 		return types.KindServerInfo, nil
+	case types.KindBot, "bots":
+		return types.KindBot, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -633,6 +641,27 @@ func init() {
 		}
 		return ap, nil
 	})
+	RegisterResourceUnmarshaler(types.KindBot, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		b := &machineidv1pb.Bot{}
+		if err := protojson.Unmarshal(bytes, b); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(b), nil
+	})
+}
+
+// CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
+// If r does not implement, then this is a nop.
+//
+// This method exists for backwards compatibility with old-style resources.
+// Prefer using RFD 153 style resources, passing concrete types and running
+// validations before storage writes only.
+func CheckAndSetDefaults(r any) error {
+	if r, ok := r.(interface{ CheckAndSetDefaults() error }); ok {
+		return trace.Wrap(r.CheckAndSetDefaults())
+	}
+
+	return nil
 }
 
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
@@ -641,10 +670,6 @@ func init() {
 // NOTE: This function only supports the subset of resources which may be imported/exported
 // by users (e.g. via `tctl get`).
 func MarshalResource(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-	if err := resource.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	marshal, ok := getResourceMarshaler(resource.GetKind())
 	if !ok {
 		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())
@@ -717,4 +742,24 @@ func setResourceName(overrideLabels []string, meta types.Metadata, firstNamePart
 	meta.Name = strings.Join(nameParts, "-")
 
 	return meta
+}
+
+type resetProtoResource interface {
+	protoadapt.MessageV1
+	SetResourceID(int64)
+	SetRevision(string)
+}
+
+// maybeResetProtoResourceID returns a clone of [r] with the identifiers
+// reset to default values if preserveResourceID is true, otherwise
+// this is a nop, and the original value is returned unaltered.
+func maybeResetProtoResourceID[T resetProtoResource](preserveResourceID bool, r T) T {
+	if preserveResourceID {
+		return r
+	}
+
+	cp := utils.CloneProtoMsg(r)
+	cp.SetResourceID(0)
+	cp.SetRevision("")
+	return cp
 }

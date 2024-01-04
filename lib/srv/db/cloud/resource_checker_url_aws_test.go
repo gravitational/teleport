@@ -55,17 +55,17 @@ func TestURLChecker_AWS(t *testing.T) {
 		mocks.WithRDSClusterReader,
 		mocks.WithRDSClusterCustomEndpoint("my-custom"),
 	)
-	rdsClusterDBs, err := services.NewDatabasesFromRDSCluster(rdsCluster)
+	rdsClusterDBs, err := services.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
 	require.NoError(t, err)
 	require.Len(t, rdsClusterDBs, 3) // Primary, reader, custom.
 	testCases = append(testCases, append(rdsClusterDBs, rdsInstanceDB)...)
 
 	// RDS Proxy.
 	rdsProxy := mocks.RDSProxy("rds-proxy", region, "some-vpc")
-	rdsProxyDB, err := services.NewDatabaseFromRDSProxy(rdsProxy, 1234, nil)
+	rdsProxyDB, err := services.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
 	rdsProxyCustomEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, "my-custom", region)
-	rdsProxyCustomEndpointDB, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyCustomEndpoint, 1234, nil)
+	rdsProxyCustomEndpointDB, err := services.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyCustomEndpoint, nil)
 	require.NoError(t, err)
 	testCases = append(testCases, rdsProxyDB, rdsProxyCustomEndpointDB)
 

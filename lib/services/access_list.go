@@ -49,9 +49,16 @@ type AccessListsGetter interface {
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
 }
 
+// AccessListsSuggestionsGetter defines an interface for reading access lists suggestions.
+type AccessListsSuggestionsGetter interface {
+	// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
+	GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error)
+}
+
 // AccessLists defines an interface for managing AccessLists.
 type AccessLists interface {
 	AccessListsGetter
+	AccessListsSuggestionsGetter
 	AccessListMembers
 	AccessListReviews
 
@@ -117,11 +124,27 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	return &accessList, nil
 }
 
+// ImplicitAccessListError indicates that an operation that only makes sense for
+// AccessLists with an explicit Member list has been attempted on an implicit-
+// membership AccessList
+type ImplicitAccessListError struct{}
+
+// Error implements the `error` interface for ImplicitAccessListError
+func (ImplicitAccessListError) Error() string {
+	return "requested AccessList does not have explicit member list"
+}
+
 // AccessListMembersGetter defines an interface for reading access list members.
 type AccessListMembersGetter interface {
 	// ListAccessListMembers returns a paginated list of all access list members.
-	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }
 
@@ -189,20 +212,23 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 
 // IsAccessListOwner will return true if the user is an owner for the current list.
 func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
-	isOwner := false
-	for _, owner := range accessList.Spec.Owners {
-		if owner.Name == identity.Username {
-			isOwner = true
-			break
-		}
-	}
-
 	// An opaque access denied error.
 	accessDenied := trace.AccessDenied("access denied")
 
-	// User is not an owner, so we'll access denied.
-	if !isOwner {
-		return accessDenied
+	if accessList.HasExplicitOwnership() {
+		isOwner := false
+
+		for _, owner := range accessList.GetOwners() {
+			if owner.Name == identity.Username {
+				isOwner = true
+				break
+			}
+		}
+
+		// User is not an owner, so we'll access denied.
+		if !isOwner {
+			return accessDenied
+		}
 	}
 
 	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
@@ -248,21 +274,24 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 		}
 	}
 
-	member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
-	if trace.IsNotFound(err) {
-		// The member has not been found, so we know they're not a member of this list.
-		return trace.NotFound("user %s is not a member of the access list", username)
-	} else if err != nil {
-		// Some other error has occurred
-		return trace.Wrap(err)
+	if accessList.HasExplicitMembership() {
+		member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
+		if trace.IsNotFound(err) {
+			// The member has not been found, so we know they're not a member of this list.
+			return trace.NotFound("user %s is not a member of the access list", username)
+		} else if err != nil {
+			// Some other error has occurred
+			return trace.Wrap(err)
+		}
+
+		expires := member.Spec.Expires
+		if !expires.IsZero() && !a.clock.Now().Before(expires) {
+			return trace.AccessDenied("user %s's membership has expired in the access list", username)
+		}
 	}
 
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
 		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
-	}
-
-	if !member.Spec.Expires.IsZero() && !a.clock.Now().Before(member.Spec.Expires) {
-		return trace.AccessDenied("user %s's membership has expired in the access list", username)
 	}
 
 	return nil
@@ -321,25 +350,6 @@ func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires
 
 	// The user meets all requirements.
 	return true
-}
-
-// SelectNextReviewDate will select the next review date for the access list.
-func SelectNextReviewDate(accessList *accesslist.AccessList) time.Time {
-	numMonths := int(accessList.Spec.Audit.Recurrence.Frequency)
-	dayOfMonth := int(accessList.Spec.Audit.Recurrence.DayOfMonth)
-
-	// If the last day of the month has been specified, use the 0 day of the
-	// next month, which will result in the last day of the target month.
-	if dayOfMonth == int(accesslist.LastDayOfMonth) {
-		numMonths += 1
-		dayOfMonth = 0
-	}
-
-	currentReviewDate := accessList.Spec.Audit.NextAuditDate
-	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
-		0, 0, 0, 0, time.UTC)
-
-	return nextDate
 }
 
 // AccessListReviews defines an interface for managing Access List reviews.

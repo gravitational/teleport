@@ -35,6 +35,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -168,6 +168,8 @@ type CommandLineFlags struct {
 	DatabaseAWSElastiCacheGroupID string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
+	// DatabaseAWSSessionTags is the AWS STS session tags.
+	DatabaseAWSSessionTags string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1111,6 +1113,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
 	}
 
+	if fc.Proxy.AutomaticUpgradesChannels != nil {
+		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
+	}
+
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
@@ -1693,6 +1699,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
 				ExternalID:    database.AWS.ExternalID,
 				Region:        database.AWS.Region,
+				SessionTags:   database.AWS.SessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -1966,11 +1973,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.WindowsDesktop.ShowDesktopWallpaper = fc.WindowsDesktop.ShowDesktopWallpaper
-	cfg.WindowsDesktop.Hosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.Hosts, defaults.RDPListenPort)
-	if err != nil {
-		return trace.Wrap(err)
+	if len(fc.WindowsDesktop.ADHosts) > 0 {
+		log.Warnln("hosts field is deprecated, prefer static_hosts instead")
 	}
-	cfg.WindowsDesktop.NonADHosts, err = utils.AddrsFromStrings(fc.WindowsDesktop.NonADHosts, defaults.RDPListenPort)
+	if len(fc.WindowsDesktop.NonADHosts) > 0 {
+		log.Warnln("non_ad_hosts field is deprecated, prefer static_hosts instead")
+	}
+	cfg.WindowsDesktop.StaticHosts, err = staticHostsWithAddress(fc.WindowsDesktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2039,6 +2048,37 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	return nil
+}
+
+func staticHostsWithAddress(ws WindowsDesktopService) ([]servicecfg.WindowsHost, error) {
+	var hostsWithAddress []servicecfg.WindowsHost
+	var cfgHosts []WindowsHost
+	cfgHosts = append(cfgHosts, ws.StaticHosts...)
+	for _, host := range ws.NonADHosts {
+		cfgHosts = append(cfgHosts, WindowsHost{
+			Address: host,
+			AD:      false,
+		})
+	}
+	for _, host := range ws.ADHosts {
+		cfgHosts = append(cfgHosts, WindowsHost{
+			Address: host,
+			AD:      true,
+		})
+	}
+	for _, host := range cfgHosts {
+		addr, err := utils.ParseHostPortAddr(host.Address, defaults.RDPListenPort)
+		if err != nil {
+			return nil, trace.BadParameter("invalid addr %q", host.Address)
+		}
+		hostsWithAddress = append(hostsWithAddress, servicecfg.WindowsHost{
+			Name:    host.Name,
+			Address: *addr,
+			Labels:  host.Labels,
+			AD:      host.AD,
+		})
+	}
+	return hostsWithAddress, nil
 }
 
 // applyTracingConfig applies file configuration for the "tracing_service" section.
@@ -2224,6 +2264,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+		var sessionTags map[string]string
+		if clf.DatabaseAWSSessionTags != "" {
+			var err error
+			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2242,6 +2290,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				AccountID:     clf.DatabaseAWSAccountID,
 				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
 				ExternalID:    clf.DatabaseAWSExternalID,
+				SessionTags:   sessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

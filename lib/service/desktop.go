@@ -162,7 +162,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		LockWatcher: lockWatcher,
 		Logger:      log,
 		// Device authorization breaks browser-based access.
-		DisableDeviceAuthorization: true,
+		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			DisableGlobalMode: true,
+			DisableRoleMode:   true,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,8 +227,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
-			StaticHosts: cfg.WindowsDesktop.Hosts,
-			NonADHosts:  cfg.WindowsDesktop.NonADHosts,
+			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,

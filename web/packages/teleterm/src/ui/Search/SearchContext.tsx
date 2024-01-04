@@ -24,6 +24,7 @@ import React, {
   createContext,
   useRef,
   MutableRefObject,
+  PropsWithChildren,
 } from 'react';
 
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
@@ -67,7 +68,7 @@ export type AddWindowEventListener = (
 
 const SearchContext = createContext<SearchContext>(null);
 
-export const SearchContextProvider: FC = props => {
+export const SearchContextProvider: FC<PropsWithChildren> = props => {
   const appContext = useAppContext();
   // The type of the ref is Element to adhere to the type of document.activeElement.
   const previouslyActive = useRef<Element>();

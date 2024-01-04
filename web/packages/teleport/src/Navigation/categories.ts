@@ -25,7 +25,7 @@ export enum ManagementSection {
   Access = 'Access Management',
   Identity = 'Identity Governance & Security',
   Activity = 'Activity',
-  Billing = 'Billing',
+  Billing = 'Usage & Billing',
   Clusters = 'Clusters',
   Permissions = 'Permissions Management',
 }

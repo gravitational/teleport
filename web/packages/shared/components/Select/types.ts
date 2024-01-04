@@ -24,6 +24,7 @@ export type Props = {
   inputId?: string;
   hasError?: boolean;
   isClearable?: boolean;
+  closeMenuOnSelect?: boolean;
   isSimpleValue?: boolean;
   isSearchable?: boolean;
   isDisabled?: boolean;
@@ -38,7 +39,7 @@ export type Props = {
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
-  options: Option<any, any>[];
+  options: Option<any, any>[] | GroupOption[];
   width?: string | number;
   menuPlacement?: string;
   name?: string;
@@ -75,6 +76,11 @@ export type Option<T = string, S = string> = {
   value: T;
   // label is the value user sees in the select options dropdown.
   label: S;
+};
+
+export type GroupOption = {
+  label: string;
+  options: Option[];
 };
 
 export type ActionMeta = {

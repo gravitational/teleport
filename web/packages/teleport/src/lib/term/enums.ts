@@ -37,6 +37,7 @@ export enum TermEvent {
   DATA = 'terminal.data',
   CONN_CLOSE = 'connection.close',
   WEBAUTHN_CHALLENGE = 'terminal.webauthn',
+  LATENCY = 'terminal.latency',
 }
 
 // Websocket connection close codes.

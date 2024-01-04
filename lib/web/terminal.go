@@ -35,6 +35,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -62,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -94,9 +96,9 @@ type TerminalRequest struct {
 	ParticipantMode types.SessionParticipantMode `json:"mode"`
 }
 
-// AuthProvider is a subset of the full Auth API.
-type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+// UserAuthClient is a subset of the Auth API that performs
+// operations on behalf of the user so that the correct RBAC is applied.
+type UserAuthClient interface {
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
@@ -123,8 +125,8 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 				"session_id":    cfg.SessionData.ID.String(),
 			}),
 			ctx:                cfg.SessionCtx,
-			authProvider:       cfg.AuthProvider,
-			localAuthProvider:  cfg.LocalAuthProvider,
+			userAuthClient:     cfg.UserAuthClient,
+			localAccessPoint:   cfg.LocalAccessPoint,
 			sessionData:        cfg.SessionData,
 			keepAliveInterval:  cfg.KeepAliveInterval,
 			proxyHostPort:      cfg.ProxyHostPort,
@@ -149,11 +151,14 @@ type TerminalHandlerConfig struct {
 	Term session.TerminalParams
 	// SessionCtx is the context for the users web session.
 	SessionCtx *SessionContext
-	// AuthProvider is used to fetch nodes and sessions from the backend.
-	AuthProvider AuthProvider
-	// LocalAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	LocalAuthProvider agentless.AuthProvider
+	// UserAuthClient is used to fetch nodes and sessions from the backend.
+	UserAuthClient UserAuthClient
+	// LocalAccessPoint is the subset of the Proxy cache required to
+	// look up information from the local cluster. This should not
+	// be used for anything that requires RBAC on behalf of the user.
+	// Requests that should be made on behalf of the user should
+	// use [UserAuthClient].
+	LocalAccessPoint localAccessPoint
 	// DisplayLogin is the login name to display in the UI.
 	DisplayLogin string
 	// SessionData is the data to send to the client on the initial session creation.
@@ -183,6 +188,8 @@ type TerminalHandlerConfig struct {
 	Tracker types.SessionTracker
 	// PresenceChecker used for presence checking.
 	PresenceChecker PresenceChecker
+	// Clock allows interaction with time.
+	Clock clockwork.Clock
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -205,12 +212,12 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
 	}
 
-	if t.AuthProvider == nil {
-		return trace.BadParameter("AuthProvider must be provided")
+	if t.UserAuthClient == nil {
+		return trace.BadParameter("UserAuthClient must be provided")
 	}
 
-	if t.LocalAuthProvider == nil {
-		return trace.BadParameter("LocalAuthProvider must be provided")
+	if t.LocalAccessPoint == nil {
+		return trace.BadParameter("localAccessPoint must be provided")
 	}
 
 	if t.SessionCtx == nil {
@@ -225,6 +232,10 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 		t.TracerProvider = tracing.DefaultProvider()
 	}
 
+	if t.Clock == nil {
+		t.Clock = clockwork.NewRealClock()
+	}
+
 	t.tracer = t.TracerProvider.Tracer("webterminal")
 
 	return nil
@@ -236,8 +247,8 @@ type sshBaseHandler struct {
 	log *logrus.Entry
 	// ctx is a web session context for the currently logged-in user.
 	ctx *SessionContext
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
+	// userAuthClient is used to fetch nodes and sessions from the backend via the users' identity.
+	userAuthClient UserAuthClient
 	// proxyHostPort is the address of the server to connect to.
 	proxyHostPort string
 	// proxyPublicAddr is the public web proxy address.
@@ -252,11 +263,22 @@ type sshBaseHandler struct {
 	router *proxy.Router
 	// tracer creates spans
 	tracer oteltrace.Tracer
-	// localAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	localAuthProvider agentless.AuthProvider
+	// localAccessPoint is the subset of the Proxy cache required to
+	// look up information from the local cluster. This should not
+	// be used for anything that requires RBAC on behalf of the user.
+	// Requests that should be made on behalf of the user should
+	// use [UserAuthClient].
+	localAccessPoint localAccessPoint
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
+}
+
+// localAccessPoint is a subset of the cache used to look up
+// various cluster details.
+type localAccessPoint interface {
+	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -291,6 +313,9 @@ type TerminalHandler struct {
 	// closedByClient indicates if the websocket connection was closed by the
 	// user (closing the browser tab, exiting the session, etc).
 	closedByClient atomic.Bool
+
+	// clock used to interact with time.
+	clock clockwork.Clock
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -322,43 +347,60 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sessionMetadataResponse []byte
+	t.handler(ws, r)
+}
+
+func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionMetadata,
+	}
+
+	sessionDataTemp := t.sessionData
 
 	// If the displayLogin is set then use it in the session metadata instead of the
 	// login name used in the SSH connection. This is specifically for the use case
 	// when joining a session to avoid displaying "-teleport-internal-join" as the username.
 	if t.displayLogin != "" {
-		sessionDataTemp := t.sessionData
 		sessionDataTemp.Login = t.displayLogin
-		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		if err != nil {
+			t.sendError("unable to marshal session response", err, t.stream.ws)
+			return trace.Wrap(err)
+		}
+		envelope.Payload = string(sessionMetadataResponse)
 	} else {
-		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
-	}
+		// The Proxy cache is used to retrieve the server and resolve the hostname here instead
+		// of the user auth client to avoid a round trip to the Auth server. This would normally
+		// not be ok since this bypasses user RBAC, however, since at this point we have already
+		// established a connection to the target host via the user identity, the user MUST have
+		// access to the target host.
+		server, err := t.localAccessPoint.GetNode(ctx, apidefaults.Namespace, sessionDataTemp.ServerID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		sessionDataTemp.ServerHostname = server.GetHostname()
 
-	if err != nil {
-		t.sendError("unable to marshal session response", err, ws)
-		return
-	}
-
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketSessionMetadata,
-		Payload: string(sessionMetadataResponse),
+		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		if err != nil {
+			t.sendError("unable to marshal session response", err, t.stream.ws)
+			return trace.Wrap(err)
+		}
+		envelope.Payload = string(sessionMetadataResponse)
 	}
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		t.sendError("unable to marshal session data event for web client", err, ws)
-		return
+		t.sendError("unable to marshal session data event for web client", err, t.stream.ws)
+		return trace.Wrap(err)
 	}
 
-	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	if err != nil {
-		t.sendError("unable to write message to socket", err, ws)
-		return
+	if err := t.stream.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+		t.sendError("unable to write message to socket", err, t.stream.ws)
+		return trace.Wrap(err)
 	}
 
-	t.handler(ws, r)
+	return nil
 }
 
 // Close the websocket stream.
@@ -394,7 +436,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
-	t.stream = NewTerminalStream(ctx, ws, t.log)
+	t.stream = NewTerminalStream(ctx, TerminalStreamConfig{WS: ws, Logger: t.log})
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -430,6 +472,17 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.log.Debug("Closing websocket stream")
+}
+
+// SSHSessionLatencyStats contain latency measurements for both
+// legs of an ssh connection established via the Web UI.
+type SSHSessionLatencyStats struct {
+	// WebSocket measures the round trip time for a ping/pong via the websocket
+	// established between the client and the Proxy.
+	WebSocket int64 `json:"ws"`
+	// SSH measures the round trip time for a keepalive@openssh.com request via the
+	// connection established between the Proxy and the target host.
+	SSH int64 `json:"ssh"`
 }
 
 type stderrWriter struct {
@@ -493,7 +546,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 
 // issueSessionMFACerts performs the mfa ceremony to retrieve new certs that can be
 // used to access nodes which require per-session mfa. The ceremony is performed directly
-// to make use of the authProvider already established for the session instead of leveraging
+// to make use of the userAuthClient already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
 func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *WSStream) ([]ssh.AuthMethod, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
@@ -537,7 +590,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	}
 
 	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
-		CurrentAuthClient: t.authProvider,
+		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
 		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 			span.AddEvent("prompting user with mfa challenge")
@@ -609,7 +662,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer := agentless.SignerFromSSHCertificate(cert, t.localAuthProvider, tc.SiteName, tc.Username)
+	signer := agentless.SignerFromSSHCertificate(cert, t.localAccessPoint, tc.SiteName, tc.Username)
 
 	type clientRes struct {
 		clt *client.NodeClient
@@ -684,6 +737,36 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	}
 }
 
+func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *WSStream, sshClient *tracessh.Client) error {
+	wsPinger, err := latency.NewWebsocketPinger(clock, stream.ws)
+	if err != nil {
+		return trace.Wrap(err, "creating websocket pinger")
+	}
+
+	sshPinger, err := latency.NewSSHPinger(sshClient)
+	if err != nil {
+		return trace.Wrap(err, "creating ssh pinger")
+	}
+
+	monitor, err := latency.NewMonitor(latency.MonitorConfig{
+		ClientPinger: wsPinger,
+		ServerPinger: sshPinger,
+		Reporter: latency.ReporterFunc(func(ctx context.Context, statistics latency.Statistics) error {
+			return trace.Wrap(stream.writeLatency(SSHSessionLatencyStats{
+				WebSocket: statistics.Client,
+				SSH:       statistics.Server,
+			}))
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating latency monitor")
+	}
+
+	monitor.Run(ctx)
+	return nil
+}
+
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
@@ -699,17 +782,29 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 	defer nc.Close()
 
+	if err := t.writeSessionData(ctx); err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failure sending session data")
+	}
+
 	var beforeStart func(io.Writer)
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.authProvider, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
 			}
 		}
 	}
+
+	monitorCtx, monitorCancel := context.WithCancel(ctx)
+	defer monitorCancel()
+	go func() {
+		if err := monitorSessionLatency(monitorCtx, t.clock, t.stream.WSStream, nc.Client); err != nil {
+			t.log.WithError(err).Warn("failure monitoring session latency")
+		}
+	}()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
@@ -908,20 +1003,45 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 	return w
 }
 
+// TerminalStreamConfig contains dependencies of a TerminalStream.
+type TerminalStreamConfig struct {
+	// The websocket to operate over. Required.
+	WS WSConn
+	// A logger to emit log messages. Optional.
+	Logger logrus.FieldLogger
+	// A custom set of handlers to process messages received
+	// over the websocket. Optional.
+	Handlers map[string]WSHandlerFunc
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) *TerminalStream {
+func NewTerminalStream(ctx context.Context, cfg TerminalStreamConfig) *TerminalStream {
 	t := &TerminalStream{
 		sessionReadyC: make(chan struct{}),
 	}
 
-	handlers := map[string]WSHandlerFunc{
-		defaults.WebsocketResize:               t.handleWindowResize,
-		defaults.WebsocketFileTransferRequest:  t.handleFileTransferRequest,
-		defaults.WebsocketFileTransferDecision: t.handleFileTransferDecision,
+	if cfg.Handlers == nil {
+		cfg.Handlers = map[string]WSHandlerFunc{}
 	}
 
-	t.WSStream = NewWStream(ctx, ws, log, handlers)
+	if _, ok := cfg.Handlers[defaults.WebsocketResize]; !ok {
+		cfg.Handlers[defaults.WebsocketResize] = t.handleWindowResize
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferRequest]; !ok {
+		cfg.Handlers[defaults.WebsocketFileTransferRequest] = t.handleFileTransferRequest
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferDecision]; !ok {
+		cfg.Handlers[defaults.WebsocketFileTransferDecision] = t.handleFileTransferDecision
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = utils.NewLogger()
+	}
+
+	t.WSStream = NewWStream(ctx, cfg.WS, cfg.Logger, cfg.Handlers)
 
 	return t
 }
@@ -1210,6 +1330,34 @@ func (t *WSStream) writeAuditEvent(event []byte) error {
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketAudit,
+		Payload: encodedPayload,
+	}
+
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send bytes over the websocket to the web client.
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+func (t *WSStream) writeLatency(latency SSHSessionLatencyStats) error {
+	data, err := json.Marshal(latency)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	encodedPayload, err := t.encoder.String(string(data))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketLatency,
 		Payload: encodedPayload,
 	}
 

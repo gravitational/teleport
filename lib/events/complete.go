@@ -186,7 +186,8 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			continue
 		case trace.IsNotFound(err): // upload abandoned, complete upload
 		default: // aka err != nil
-			return trace.Wrap(err)
+			log.Warn("could not get session tracker, skipping upload")
+			continue
 		}
 
 		log.Debug("Upload was abandoned, trying to complete")
@@ -207,7 +208,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			log.WithError(err).Debug("Upload not found, moving on to next upload")
 			continue
 		} else if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "completing upload %v for session %v", upload.ID, upload.SessionID)
 		}
 		log.Debug("Completed upload")
 		completed++
@@ -227,6 +228,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// If this is the case, there's no work left to do, and we can
 		// proceed to the next upload.
 		if uploadData.SessionID == "" {
+			log.Debug("No session ID in metadata skipping session end check")
 			continue
 		}
 

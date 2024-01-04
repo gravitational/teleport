@@ -25,7 +25,10 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -96,6 +99,45 @@ func (s *Handler) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) (*
 	}
 
 	return &api.EmptyResponse{}, nil
+}
+
+// PromoteAccessRequest promotes an access request to an access list.
+func (s *Handler) PromoteAccessRequest(ctx context.Context, req *api.PromoteAccessRequestRequest) (*api.PromoteAccessRequestResponse, error) {
+	clusterURI, err := uri.Parse(req.GetRootClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessRequest, err := s.DaemonService.PromoteAccessRequest(ctx, clusterURI, &accesslistv1.AccessRequestPromoteRequest{
+		RequestId:      req.AccessRequestId,
+		AccessListName: req.AccessListId,
+		Reason:         req.Reason,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.PromoteAccessRequestResponse{Request: newAPIAccessRequest(*accessRequest)}, nil
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Handler) GetSuggestedAccessLists(ctx context.Context, req *api.GetSuggestedAccessListsRequest) (*api.GetSuggestedAccessListsResponse, error) {
+	rootClusterURI, err := uri.Parse(req.GetRootClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists, err := s.DaemonService.GetSuggestedAccessLists(ctx, rootClusterURI, req.AccessRequestId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var accessListsProto []*accesslistv1.AccessList
+	for _, accessList := range accessLists {
+		accessListsProto = append(accessListsProto, accesslistv1conv.ToProto(accessList))
+	}
+
+	return &api.GetSuggestedAccessListsResponse{AccessLists: accessListsProto}, nil
 }
 
 // ReviewAccessRequest creates a new AccessRequestReview for a given RequestId.

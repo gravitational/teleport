@@ -52,10 +52,6 @@ type ConnectionDiagnosticTraceAppender interface {
 
 // MarshalConnectionDiagnostic marshals the ConnectionDiagnostic resource to JSON.
 func MarshalConnectionDiagnostic(s types.ConnectionDiagnostic, opts ...MarshalOption) ([]byte, error) {
-	if err := s.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -63,16 +59,11 @@ func MarshalConnectionDiagnostic(s types.ConnectionDiagnostic, opts ...MarshalOp
 
 	switch s := s.(type) {
 	case *types.ConnectionDiagnosticV1:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *s
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			s = &copy
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(s)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, s))
 	}
 
 	return nil, trace.BadParameter("unrecognized connection diagnostic version %T", s)

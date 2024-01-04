@@ -13,6 +13,16 @@ variable "aws_region" {
   description = "Region in which to deploy AWS resources"
 }
 
+variable "teleport_edition" {
+  type        = string
+  default     = "oss"
+  description = "Edition of your Teleport cluster. Can be: oss, enterprise, team, or cloud."
+  validation {
+    condition     = contains(["oss", "enterprise", "team", "cloud"], var.teleport_edition)
+    error_message = "teleport_edition must be one of: oss, enterprise, team, cloud."
+  }
+}
+
 variable "teleport_version" {
   type        = string
   description = "Version of Teleport to install on each agent"

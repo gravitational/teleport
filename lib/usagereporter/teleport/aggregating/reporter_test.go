@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -78,7 +80,7 @@ func TestReporter(t *testing.T) {
 
 	svc := reportService{bk}
 
-	r.ingested = make(chan usagereporter.Anonymizable, 3)
+	r.ingested = make(chan usagereporter.Anonymizable, 4)
 	recvIngested := func() {
 		select {
 		case <-r.ingested:
@@ -100,10 +102,9 @@ func TestReporter(t *testing.T) {
 	recvIngested()
 	recvIngested()
 	recvIngested()
-	r.ingested = nil
 
 	clk.BlockUntil(1)
-	clk.Advance(reportGranularity)
+	clk.Advance(userActivityReportGranularity)
 
 	require.Equal(t, types.OpPut, recvBackendEvent().Type)
 
@@ -115,7 +116,29 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.Logins)
 	require.Equal(t, uint64(2), record.SshSessions)
 
+	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   "srv01",
+		Kind:   prehogv1a.ResourceKind_RESOURCE_KIND_NODE,
+		Static: true,
+	})
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(resourceReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	resReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, resReports, 1)
+	require.Len(t, resReports[0].ResourceKindReports, 1)
+	resRecord := resReports[0].ResourceKindReports[0]
+	require.Equal(t, prehogv1.ResourceKind_RESOURCE_KIND_NODE, resRecord.ResourceKind)
+	require.Len(t, resRecord.ResourceIds, 1)
+
 	require.NoError(t, svc.deleteUserActivityReport(ctx, reports[0]))
+	require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+	require.NoError(t, svc.deleteResourcePresenceReport(ctx, resReports[0]))
 	require.Equal(t, types.OpDelete, recvBackendEvent().Type)
 
 	// on a GracefulStop there's no need to advance the clock, all processed

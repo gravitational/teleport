@@ -48,6 +48,14 @@ module.exports = {
   env: {
     test: {
       presets: makePresets(true),
+      plugins: [
+        // This causes Babel to transform standard import.meta properties like import.meta.url
+        // into nodejs (jest) compatible code.
+        'babel-plugin-transform-import-meta',
+        // This causes Babel to transform the Vite-specific import.meta.env properties
+        // like import.meta.env.MODE into nodejs (jest) compatible code.
+        'babel-plugin-transform-vite-meta-env',
+      ],
     },
     development: {
       plugins: [

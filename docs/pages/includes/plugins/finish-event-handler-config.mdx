@@ -1,0 +1,60 @@
+<Tabs>
+<TabItem label="Linux server">
+
+Earlier, we generated a file called `teleport-event-handler.toml` to configure
+the Fluentd event handler. This file includes setting similar to the following:
+
+```toml
+storage = "./storage"
+timeout = "10s"
+batch = 20
+namespace = "default"
+
+[forward.fluentd]
+ca = "/home/bob/event-handler/ca.crt"
+cert = "/home/bob/event-handler/client.crt"
+key = "/home/bob/event-handler/client.key"
+url = "https://fluentd.example.com:8888/test.log"
+session-url = "https://fluentd.example.com:8888/session"
+
+[teleport]
+addr = "example.teleport.com:443"
+identity = "identity"
+```
+
+Modify the configuration to replace `fluentd.example.com` with the domain name
+of your Fluentd deployment.
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+Use the following template to create `teleport-plugin-event-handler-values.yaml`:
+
+```yaml
+eventHandler:
+  storagePath: "./storage"
+  timeout: "10s"
+  batch: 20
+  namespace: "default"
+
+teleport:
+  address: "example.teleport.com:443"
+  identitySecretName: teleport-event-handler-identity
+  identitySecretPath: identity
+
+fluentd:
+  url: "https://fluentd.fluentd.svc.cluster.local/events.log"
+  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
+  certificate:
+    secretName: "teleport-event-handler-client-tls"
+    caPath: "ca.crt"
+    certPath: "client.crt"
+    keyPath: "client.key"
+
+persistentVolumeClaim:
+  enabled: true
+```
+
+</TabItem>
+</Tabs>
+

@@ -32,6 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// ErrTrustedDeviceRequired is returned when access to a resource requires a
+// trusted device.
+var ErrTrustedDeviceRequired = &trace.AccessDeniedError{
+	Message: "access to resource requires a trusted device",
+}
+
 // IsTLSDeviceVerified returns true if ext contains all required device
 // extensions.
 func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
@@ -77,7 +83,7 @@ func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified boo
 		log.
 			WithField("User", username).
 			Debug("Device Trust: denied access for unidentified device")
-		return trace.AccessDenied("unauthorized device")
+		return trace.Wrap(ErrTrustedDeviceRequired)
 	default:
 		return nil
 	}

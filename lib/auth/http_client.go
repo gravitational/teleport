@@ -774,10 +774,11 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
+func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), ValidateSAMLResponseReq{
-		Response:    re,
+		Response:    samlResponse,
 		ConnectorID: connectorID,
+		ClientIP:    clientIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -851,7 +852,10 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes
+//
+// Deprecated: use StreamSessionEvents API instead
 func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
@@ -866,12 +870,10 @@ func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetByt
 	return response.Bytes(), nil
 }
 
-// Returns events that happen during a session sorted by time
-// (oldest first).
-//
-// afterN allows to filter by "newer than N" value where N is the cursor ID
-// of previously returned bunch (good for polling for latest)
+// Deprecated: use StreamSessionEvents API instead.
+// TODO(zmb3): remove from ClientI interface
 func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
+	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}

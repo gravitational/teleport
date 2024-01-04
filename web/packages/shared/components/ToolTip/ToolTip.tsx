@@ -16,18 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 
 import { Popover, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-export const ToolTipInfo: React.FC<{
-  trigger?: 'click' | 'hover';
-  muteIconColor?: boolean;
-  sticky?: boolean;
-  maxWidth?: number;
-}> = ({
+export const ToolTipInfo: React.FC<
+  PropsWithChildren<{
+    trigger?: 'click' | 'hover';
+    muteIconColor?: boolean;
+    sticky?: boolean;
+    maxWidth?: number;
+  }>
+> = ({
   children,
   trigger = 'hover',
   muteIconColor,

@@ -119,6 +119,7 @@ export default class ConsoleContext {
       url,
       mode,
       created: new Date(),
+      latency: undefined,
     });
   }
 

@@ -19,7 +19,7 @@
 import { EventEmitter } from 'node:events';
 
 import React from 'react';
-import { act, renderHook } from '@testing-library/react-hooks';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -32,6 +32,7 @@ import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
+import Logger, { NullService } from 'teleterm/logger';
 
 import {
   AgentCompatibilityError,
@@ -42,6 +43,10 @@ import {
 
 import type { IAppContext } from 'teleterm/ui/types';
 import type { Cluster } from 'teleterm/services/tshd/types';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
 
 function getMocks() {
   const rootCluster = makeRootCluster({
@@ -207,7 +212,7 @@ test('failed autostart flips the workspace autoStart flag to false', async () =>
     true
   );
 
-  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+  const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
@@ -258,7 +263,7 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     true
   );
 
-  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+  const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
@@ -371,7 +376,7 @@ test('removing the agent shows a notification', async () => {
   expect(mockResourcesContext.requestResourcesRefresh).toHaveBeenCalledTimes(1);
 });
 
-test('when the user does not have permissions to remove node a custom notification is shown', async () => {
+test('when the request to remove the node fails a custom notification is shown', async () => {
   const { appContext, rootCluster } = getMocks();
   jest
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')

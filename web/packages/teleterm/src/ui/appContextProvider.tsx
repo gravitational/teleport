@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 
 import { IAppContext } from 'teleterm/ui/types';
 
 export const AppReactContext = React.createContext<IAppContext>(null);
 
-const AppContextProvider: React.FC<Props> = props => {
+const AppContextProvider: React.FC<PropsWithChildren<Props>> = props => {
   return <AppReactContext.Provider {...props} />;
 };
 

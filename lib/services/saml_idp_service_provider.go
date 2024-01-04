@@ -50,10 +50,6 @@ type SAMLIdPServiceProviders interface {
 
 // MarshalSAMLIdPServiceProvider marshals the SAMLIdPServiceProvider resource to JSON.
 func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider, opts ...MarshalOption) ([]byte, error) {
-	if err := serviceProvider.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -61,13 +57,11 @@ func MarshalSAMLIdPServiceProvider(serviceProvider types.SAMLIdPServiceProvider,
 
 	switch sp := serviceProvider.(type) {
 	case *types.SAMLIdPServiceProviderV1:
-		if !cfg.PreserveResourceID {
-			copy := *sp
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			sp = &copy
+		if err := sp.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(sp)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, sp))
 	default:
 		return nil, trace.BadParameter("unsupported SAML IdP service provider resource %T", sp)
 	}

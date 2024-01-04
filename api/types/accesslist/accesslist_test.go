@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/header"
@@ -225,16 +226,16 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("ownership defaults to explicit", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = ""
+		uut.Spec.Ownership = InclusionUnspecified
 
 		err := uut.CheckAndSetDefaults()
 		require.NoError(t, err)
-		require.Equal(t, Explicit, uut.Spec.Ownership)
+		require.Equal(t, InclusionExplicit, uut.Spec.Ownership)
 	})
 
 	t.Run("invalid ownership is an error", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = "banana"
+		uut.Spec.Ownership = Inclusion("potato")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
@@ -243,16 +244,16 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("membership defaults to explicit", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Membership = ""
+		uut.Spec.Membership = InclusionUnspecified
 
 		err := uut.CheckAndSetDefaults()
 		require.NoError(t, err)
-		require.Equal(t, Explicit, uut.Spec.Membership)
+		require.Equal(t, InclusionExplicit, uut.Spec.Membership)
 	})
 
 	t.Run("invalid membership is an error", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Membership = "banana"
+		uut.Spec.Membership = Inclusion("banana")
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
@@ -261,7 +262,7 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("owners are required for explicit owner lists", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = Explicit
+		uut.Spec.Ownership = InclusionExplicit
 		uut.Spec.Owners = []Owner{}
 
 		err := uut.CheckAndSetDefaults()
@@ -271,11 +272,120 @@ func TestAccessListDefaults(t *testing.T) {
 
 	t.Run("owners are not required for implicit owner lists", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = Implicit
+		uut.Spec.Ownership = InclusionImplicit
 		uut.Spec.Owners = []Owner{}
 
 		err := uut.CheckAndSetDefaults()
 		require.NoError(t, err)
 	})
+}
 
+func TestSelectNextReviewDate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		frequency         ReviewFrequency
+		dayOfMonth        ReviewDayOfMonth
+		currentReviewDate time.Time
+		expected          time.Time
+	}{
+		{
+			name:              "one month, first day",
+			frequency:         OneMonth,
+			dayOfMonth:        FirstDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "one month, fifteenth day",
+			frequency:         OneMonth,
+			dayOfMonth:        FifteenthDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "one month, last day",
+			frequency:         OneMonth,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "six months, last day",
+			frequency:         SixMonths,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			accessList := AccessList{}
+			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
+			accessList.Spec.Audit.Recurrence = Recurrence{
+				Frequency:  test.frequency,
+				DayOfMonth: test.dayOfMonth,
+			}
+			require.Equal(t, test.expected, accessList.SelectNextReviewDate())
+		})
+	}
+}
+
+func TestAccessList_setInitialReviewDate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		frequency         ReviewFrequency
+		dayOfMonth        ReviewDayOfMonth
+		currentReviewDate time.Time
+		expected          time.Time
+	}{
+		{
+			name:              "one month, first day",
+			frequency:         OneMonth,
+			dayOfMonth:        FirstDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "one month, fifteenth day",
+			frequency:         OneMonth,
+			dayOfMonth:        FifteenthDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "one month, last day",
+			frequency:         OneMonth,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
+		},
+		{
+			name:              "six months, last day",
+			frequency:         SixMonths,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			accessList := AccessList{}
+			accessList.Spec.Audit.Recurrence = Recurrence{
+				Frequency:  test.frequency,
+				DayOfMonth: test.dayOfMonth,
+			}
+			accessList.setInitialAuditDate(clockwork.NewFakeClockAt(test.currentReviewDate))
+			require.Equal(t, test.expected, accessList.Spec.Audit.NextAuditDate)
+		})
+	}
 }

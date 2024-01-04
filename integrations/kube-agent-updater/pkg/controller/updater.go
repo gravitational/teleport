@@ -28,8 +28,8 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 type VersionUpdater struct {
@@ -63,7 +63,7 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 
 	log.Info("New version candidate", "nextVersion", nextVersion)
 	if !version.ValidVersionChange(ctx, currentVersion, nextVersion) {
-		return nil, &NoNewVersionError{CurrentVersion: currentVersion, NextVersion: nextVersion}
+		return nil, &version.NoNewVersionError{CurrentVersion: currentVersion, NextVersion: nextVersion}
 	}
 
 	log.Info("Version change is valid, building img candidate")

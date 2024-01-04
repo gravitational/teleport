@@ -7,9 +7,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # TODO(codingllama): Remove ignore once AWS SDK can be upgraded.
-      # https://github.com/snowflakedb/gosnowflake/issues/970#issuecomment-1829186629
-      - dependency-name: github.com/aws/aws-sdk-go-v2*
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -128,29 +125,6 @@ updates:
     reviewers:
       - codingllama
       - fheinecke
-      - jentfoo
-      - rosstimothy
-      - zmb3
-    labels:
-      - "dependencies"
-      - "go"
-      - "no-changelog"
-
-  - package-ecosystem: gomod
-    directory: "/integrations/kube-agent-updater"
-    schedule:
-      interval: weekly
-      day: "sunday"
-      time: "09:00" # 9am UTC
-    open-pull-requests-limit: 10
-    groups:
-      go:
-        update-types:
-          - "minor"
-          - "patch"
-    reviewers:
-      - codingllama
-      - hugoShaka
       - jentfoo
       - rosstimothy
       - zmb3

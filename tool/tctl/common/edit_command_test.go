@@ -174,6 +174,7 @@ func testEditUser(t *testing.T, fc *config.FileConfig, clt auth.ClientI) {
 
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins([]string{"abcdef"})
+		expected.SetCreatedBy(created.GetCreatedBy())
 
 		collection := &userCollection{users: []types.User{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())

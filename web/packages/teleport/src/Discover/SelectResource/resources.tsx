@@ -111,20 +111,21 @@ export const APPLICATIONS: ResourceSpec[] = [
 
 export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
-    name: 'Active Directory',
+    name: 'Active Directory Users',
     kind: ResourceKind.Desktop,
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
     platform: Platform.Windows,
   },
-  // {
-  //   name: 'Non Active Directory',
-  //   kind: ResourceKind.Desktop,
-  //   keywords: 'windows desktop non-ad',
-  //   Icon: iconLookup.Windows,
-  //   comingSoon: true,
-  // },
+  {
+    name: 'Local Users',
+    kind: ResourceKind.Desktop,
+    keywords: 'windows desktop non-ad local',
+    icon: 'Windows',
+    event: DiscoverEventResource.WindowsDesktopNonAD,
+    unguidedLink: 'https://goteleport.com/docs/desktop-access/getting-started/',
+  },
 ];
 
 export const KUBERNETES: ResourceSpec[] = [

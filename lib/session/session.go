@@ -56,7 +56,7 @@ func (s *ID) Check() error {
 func ParseID(id string) (*ID, error) {
 	_, err := uuid.Parse(id)
 	if err != nil {
-		return nil, trace.BadParameter("%v not a valid UUID", id)
+		return nil, trace.BadParameter("%v is not a valid UUID", id)
 	}
 	uid := ID(id)
 	return &uid, nil

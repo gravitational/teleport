@@ -20,6 +20,8 @@ import { useState } from 'react';
 import { useLocation } from 'react-router';
 import { SortType } from 'design/DataTable/types';
 
+import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+
 import history from 'teleport/services/history';
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
 
@@ -54,7 +56,7 @@ export function useUrlFiltering(
   }
 
   const onLabelClick = (label: ResourceLabel) => {
-    const queryAfterLabelClick = labelClickQuery(label, params);
+    const queryAfterLabelClick = makeAdvancedSearchQueryForLabel(label, params);
 
     setParams({ ...params, search: '', query: queryAfterLabelClick });
     replaceHistory(
@@ -112,25 +114,4 @@ export default function getResourceUrlQueryParams(
     // Conditionally adds the pinnedResources field based on whether its true or not
     ...(pinnedOnly === 'true' && { pinnedOnly: true }),
   };
-}
-
-function labelClickQuery(label: ResourceLabel, params: ResourceFilter) {
-  const queryParts: string[] = [];
-
-  // Add existing query
-  if (params.query) {
-    queryParts.push(params.query);
-  }
-
-  // If there is an existing simple search, convert it to predicate language and add it
-  if (params.search) {
-    queryParts.push(`search("${params.search}")`);
-  }
-
-  const labelQuery = `labels["${label.name}"] == "${label.value}"`;
-  queryParts.push(labelQuery);
-
-  const finalQuery = queryParts.join(' && ');
-
-  return finalQuery;
 }

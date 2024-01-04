@@ -124,7 +124,7 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 // itemFromClusterNetworkingConfig attempts to encode the supplied cluster_networking_config as an
 // instance of `backend.Item` suitable for storage.
 func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backend.Item, error) {
-	if err := cnc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(cnc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalClusterNetworkingConfig(cnc)
@@ -144,7 +144,7 @@ func itemFromClusterNetworkingConfig(cnc types.ClusterNetworkingConfig) (*backen
 // itemFromAuthPreference attempts to encode the supplied cluster_auth_preference as an
 // instance of `backend.Item` suitable for storage.
 func itemFromAuthPreference(ap types.AuthPreference) (*backend.Item, error) {
-	if err := ap.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(ap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalAuthPreference(ap)
@@ -225,7 +225,7 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 // itemFromProvisionToken attempts to encode the supplied provision token
 // as an instance of `backend.Item` suitable for storage.
 func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
-	if err := p.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := p.GetRevision()
@@ -246,7 +246,7 @@ func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
 // itemFromTrustedCluster attempts to encode the supplied trusted cluster
 // as an instance of `backend.Item` suitable for storage.
 func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
-	if err := tc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(tc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := tc.GetRevision()
@@ -267,7 +267,7 @@ func itemFromTrustedCluster(tc types.TrustedCluster) (*backend.Item, error) {
 // itemFromGithubConnector attempts to encode the supplied github connector
 // as an instance of `backend.Item` suitable for storage.
 func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
-	if err := gc.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(gc); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := gc.GetRevision()
@@ -419,7 +419,7 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 // itemFromLock attempts to encode the supplied lock as an
 // instance of `backend.Item` suitable for storage.
 func itemFromLock(l types.Lock) (*backend.Item, error) {
-	if err := l.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(l); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := l.GetRevision()

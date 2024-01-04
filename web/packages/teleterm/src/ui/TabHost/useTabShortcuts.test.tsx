@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import renderHook from 'design/utils/renderHook';
 
 import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
@@ -158,7 +158,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
         localClusterUri: workspacesService.getActiveWorkspace().localClusterUri,
       }),
     {
-      wrapper: props => (
+      wrapper: (props: PropsWithChildren) => (
         <AppContextProvider value={appContext}>
           {props.children}
         </AppContextProvider>

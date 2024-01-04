@@ -5,6 +5,7 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
+import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
@@ -13,6 +14,8 @@ import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/t
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
+import * as teleport_userpreferences_v1_cluster_preferences_pb from "../../../../teleport/userpreferences/v1/cluster_preferences_pb";
+import * as teleport_userpreferences_v1_unified_resource_preferences_pb from "../../../../teleport/userpreferences/v1/unified_resource_preferences_pb";
 
 export class EmptyResponse extends jspb.Message { 
 
@@ -428,6 +431,111 @@ export class ReviewAccessRequestResponse extends jspb.Message {
 export namespace ReviewAccessRequestResponse {
     export type AsObject = {
         request?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest.AsObject,
+    }
+}
+
+export class PromoteAccessRequestRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): PromoteAccessRequestRequest;
+
+    getAccessListId(): string;
+    setAccessListId(value: string): PromoteAccessRequestRequest;
+
+    getReason(): string;
+    setReason(value: string): PromoteAccessRequestRequest;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): PromoteAccessRequestRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromoteAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: PromoteAccessRequestRequest): PromoteAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromoteAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromoteAccessRequestRequest;
+    static deserializeBinaryFromReader(message: PromoteAccessRequestRequest, reader: jspb.BinaryReader): PromoteAccessRequestRequest;
+}
+
+export namespace PromoteAccessRequestRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        accessListId: string,
+        reason: string,
+        accessRequestId: string,
+    }
+}
+
+export class PromoteAccessRequestResponse extends jspb.Message { 
+
+    hasRequest(): boolean;
+    clearRequest(): void;
+    getRequest(): teleport_lib_teleterm_v1_access_request_pb.AccessRequest | undefined;
+    setRequest(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest): PromoteAccessRequestResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromoteAccessRequestResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: PromoteAccessRequestResponse): PromoteAccessRequestResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromoteAccessRequestResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromoteAccessRequestResponse;
+    static deserializeBinaryFromReader(message: PromoteAccessRequestResponse, reader: jspb.BinaryReader): PromoteAccessRequestResponse;
+}
+
+export namespace PromoteAccessRequestResponse {
+    export type AsObject = {
+        request?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest.AsObject,
+    }
+}
+
+export class GetSuggestedAccessListsRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): GetSuggestedAccessListsRequest;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): GetSuggestedAccessListsRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetSuggestedAccessListsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetSuggestedAccessListsRequest): GetSuggestedAccessListsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetSuggestedAccessListsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetSuggestedAccessListsRequest;
+    static deserializeBinaryFromReader(message: GetSuggestedAccessListsRequest, reader: jspb.BinaryReader): GetSuggestedAccessListsRequest;
+}
+
+export namespace GetSuggestedAccessListsRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        accessRequestId: string,
+    }
+}
+
+export class GetSuggestedAccessListsResponse extends jspb.Message { 
+    clearAccessListsList(): void;
+    getAccessListsList(): Array<teleport_accesslist_v1_accesslist_pb.AccessList>;
+    setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): GetSuggestedAccessListsResponse;
+    addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetSuggestedAccessListsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetSuggestedAccessListsResponse): GetSuggestedAccessListsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetSuggestedAccessListsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetSuggestedAccessListsResponse;
+    static deserializeBinaryFromReader(message: GetSuggestedAccessListsResponse, reader: jspb.BinaryReader): GetSuggestedAccessListsResponse;
+}
+
+export namespace GetSuggestedAccessListsResponse {
+    export type AsObject = {
+        accessListsList: Array<teleport_accesslist_v1_accesslist_pb.AccessList.AsObject>,
     }
 }
 
@@ -1771,6 +1879,134 @@ export namespace PaginatedResource {
 
     }
 
+}
+
+export class GetUserPreferencesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetUserPreferencesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetUserPreferencesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetUserPreferencesRequest): GetUserPreferencesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetUserPreferencesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetUserPreferencesRequest;
+    static deserializeBinaryFromReader(message: GetUserPreferencesRequest, reader: jspb.BinaryReader): GetUserPreferencesRequest;
+}
+
+export namespace GetUserPreferencesRequest {
+    export type AsObject = {
+        clusterUri: string,
+    }
+}
+
+export class GetUserPreferencesResponse extends jspb.Message { 
+
+    hasUserPreferences(): boolean;
+    clearUserPreferences(): void;
+    getUserPreferences(): UserPreferences | undefined;
+    setUserPreferences(value?: UserPreferences): GetUserPreferencesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetUserPreferencesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetUserPreferencesResponse): GetUserPreferencesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetUserPreferencesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetUserPreferencesResponse;
+    static deserializeBinaryFromReader(message: GetUserPreferencesResponse, reader: jspb.BinaryReader): GetUserPreferencesResponse;
+}
+
+export namespace GetUserPreferencesResponse {
+    export type AsObject = {
+        userPreferences?: UserPreferences.AsObject,
+    }
+}
+
+export class UpdateUserPreferencesRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): UpdateUserPreferencesRequest;
+
+
+    hasUserPreferences(): boolean;
+    clearUserPreferences(): void;
+    getUserPreferences(): UserPreferences | undefined;
+    setUserPreferences(value?: UserPreferences): UpdateUserPreferencesRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateUserPreferencesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateUserPreferencesRequest): UpdateUserPreferencesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateUserPreferencesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateUserPreferencesRequest;
+    static deserializeBinaryFromReader(message: UpdateUserPreferencesRequest, reader: jspb.BinaryReader): UpdateUserPreferencesRequest;
+}
+
+export namespace UpdateUserPreferencesRequest {
+    export type AsObject = {
+        clusterUri: string,
+        userPreferences?: UserPreferences.AsObject,
+    }
+}
+
+export class UpdateUserPreferencesResponse extends jspb.Message { 
+
+    hasUserPreferences(): boolean;
+    clearUserPreferences(): void;
+    getUserPreferences(): UserPreferences | undefined;
+    setUserPreferences(value?: UserPreferences): UpdateUserPreferencesResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateUserPreferencesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateUserPreferencesResponse): UpdateUserPreferencesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateUserPreferencesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateUserPreferencesResponse;
+    static deserializeBinaryFromReader(message: UpdateUserPreferencesResponse, reader: jspb.BinaryReader): UpdateUserPreferencesResponse;
+}
+
+export namespace UpdateUserPreferencesResponse {
+    export type AsObject = {
+        userPreferences?: UserPreferences.AsObject,
+    }
+}
+
+export class UserPreferences extends jspb.Message { 
+
+    hasClusterPreferences(): boolean;
+    clearClusterPreferences(): void;
+    getClusterPreferences(): teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences | undefined;
+    setClusterPreferences(value?: teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences): UserPreferences;
+
+
+    hasUnifiedResourcePreferences(): boolean;
+    clearUnifiedResourcePreferences(): void;
+    getUnifiedResourcePreferences(): teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences | undefined;
+    setUnifiedResourcePreferences(value?: teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences): UserPreferences;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UserPreferences.AsObject;
+    static toObject(includeInstance: boolean, msg: UserPreferences): UserPreferences.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UserPreferences, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UserPreferences;
+    static deserializeBinaryFromReader(message: UserPreferences, reader: jspb.BinaryReader): UserPreferences;
+}
+
+export namespace UserPreferences {
+    export type AsObject = {
+        clusterPreferences?: teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences.AsObject,
+        unifiedResourcePreferences?: teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences.AsObject,
+    }
 }
 
 export enum PasswordlessPrompt {

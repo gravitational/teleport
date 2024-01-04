@@ -56,10 +56,6 @@ type IntegrationsTokenGenerator interface {
 
 // MarshalIntegration marshals the Integration resource to JSON.
 func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, error) {
-	if err := ig.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,13 +63,11 @@ func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, er
 
 	switch g := ig.(type) {
 	case *types.IntegrationV1:
-		if !cfg.PreserveResourceID {
-			copy := *g
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			g = &copy
+		if err := g.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(g)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, g))
 	default:
 		return nil, trace.BadParameter("unsupported integration resource %T", g)
 	}

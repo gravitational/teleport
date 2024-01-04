@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ReactDOM from 'react-dom';
 import React from 'react';
+
+import { createRoot } from 'react-dom/client';
 
 import { ElectronGlobals } from 'teleterm/types';
 import { App, FailedApp } from 'teleterm/ui/App';
@@ -80,7 +81,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
 }
 
 function renderApp(content: React.ReactElement): void {
-  ReactDOM.render(content, document.getElementById('app'));
+  createRoot(document.getElementById('app')).render(content);
 }
 
 boot();

@@ -141,3 +141,16 @@ spec:
 
 For more information about moderated sessions and session sharing, see 
 [Moderated Sessions](../access-controls/guides/moderated-sessions.mdx).
+
+## Unable to connect to agentless OpenSSH server as root
+
+You should check your sshd configuration in `/etc/ssh/sshd_config` for a setting like
+`PermitRootLogin no` or `PermitRootLogin forced-commands-only` - either of these
+settings will prevent login as root. 
+If you wish to log in as root to an OpenSSH server via Teleport, we recommend
+changing this setting to `PermitRootLogin prohibit-password`.
+
+You will need to restart sshd for the change to take effect:
+```code
+$ sudo systemctl restart sshd
+```

@@ -1023,13 +1023,13 @@ interface AdvancedSearch {
 
 function ContentAndAdvancedSearch(
   props: React.PropsWithChildren<{
-    advancedSearch: AdvancedSearch;
+    advancedSearch: AdvancedSearch | undefined;
   }>
 ) {
   return (
     <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
       {props.children}
-      {
+      {props.advancedSearch && (
         <AdvancedSearchToggle
           {...props.advancedSearch}
           css={`
@@ -1040,7 +1040,7 @@ function ContentAndAdvancedSearch(
             }
           `}
         />
-      }
+      )}
     </Flex>
   );
 }

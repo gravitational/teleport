@@ -61,7 +61,7 @@ export function ResourceCard({
   pinResource,
   selectResource,
   selected,
-}: Omit<ResourceItemProps, 'listViewProps'>) {
+}: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
@@ -111,7 +111,7 @@ export function ResourceCard({
     return () => {
       observer.disconnect();
     };
-  });
+  }, []);
 
   // Clear the timeout on unmount to prevent changing a state of an unmounted
   // component.

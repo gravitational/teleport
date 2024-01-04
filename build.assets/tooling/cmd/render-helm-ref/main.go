@@ -143,12 +143,13 @@ type Value struct {
 	Name string
 	Kind string
 
-	Description strings.Builder
+	Description string
 	Default     string
 }
 
 type state struct {
 	isDescription bool
+	description   strings.Builder
 
 	value *Value
 }
@@ -177,8 +178,8 @@ func grabValue(comment string) *Value {
 			// start of a value documentation
 			s.isDescription = true
 			s.value = &Value{Name: name, Kind: kind}
-			s.value.Description.WriteString(remain)
-			s.value.Description.WriteRune('\n')
+			s.description.WriteString(remain)
+			s.description.WriteRune('\n')
 			continue
 		}
 		// We already saw a tag on a previous line
@@ -188,8 +189,12 @@ func grabValue(comment string) *Value {
 			s.value.Default = defaultValue
 			continue
 		}
-		s.value.Description.WriteString(cleanLine(line))
-		s.value.Description.WriteRune('\n')
+		s.description.WriteString(cleanLine(line))
+		s.description.WriteRune('\n')
+	}
+
+	if s.isDescription {
+		s.value.Description = strings.TrimSpace(s.description.String())
 	}
 	return s.value
 }

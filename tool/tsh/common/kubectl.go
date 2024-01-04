@@ -28,12 +28,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -503,8 +503,9 @@ func isKubectlConfigCommand(kubectlCommand *cobra.Command, args []string) bool {
 
 func kubeClusterAddrFromProfile(profile *profile.Profile) string {
 	partialClientConfig := client.Config{
-		WebProxyAddr:  profile.WebProxyAddr,
-		KubeProxyAddr: profile.KubeProxyAddr,
+		WebProxyAddr:      profile.WebProxyAddr,
+		KubeProxyAddr:     profile.KubeProxyAddr,
+		TLSRoutingEnabled: profile.TLSRoutingEnabled,
 	}
 	return partialClientConfig.KubeClusterAddr()
 }

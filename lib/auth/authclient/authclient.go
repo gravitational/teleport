@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -52,9 +51,6 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
-	// MFAPromptConstructor is used to create MFA prompts when needed.
-	// If nil, the client will not prompt for MFA.
-	MFAPromptConstructor mfa.PromptConstructor
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
 }
@@ -97,7 +93,6 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
-		MFAPromptConstructor:     cfg.MFAPromptConstructor,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -149,7 +144,6 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, erro
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
-		MFAPromptConstructor: cfg.MFAPromptConstructor,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -233,6 +233,10 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 // tunnel subsystem.
 func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn, err error) {
 	t.mu.Lock()
+	if len(t.c.servers) == 0 {
+		defer t.mu.Unlock()
+		return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
+	}
 	servers := make([]types.AppServer, len(t.c.servers))
 	copy(servers, t.c.servers)
 	t.mu.Unlock()
@@ -240,9 +244,11 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	var i int
 	for ; i < len(servers); i++ {
 		appServer := servers[i]
+		appServer.GetApp()
 		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
-			t.c.log.Warnf("Failed to connect to application server %q: %v.", appServer, err)
+			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
+				Warnf("Failed to connect to application server: %v", err)
 			// Continue to the next server if there is an issue
 			// establishing a connection because the tunnel is not
 			// healthy. Reset the error to avoid returning it if
@@ -256,7 +262,11 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 	// eliminate any servers from the head of the list that were unreachable
 	t.mu.Lock()
-	t.c.servers = t.c.servers[i:]
+	if i < len(servers) {
+		t.c.servers = t.c.servers[i:]
+	} else {
+		t.c.servers = nil
+	}
 	t.mu.Unlock()
 
 	if conn != nil || err != nil {

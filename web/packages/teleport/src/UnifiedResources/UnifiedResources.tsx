@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 
 import { Flex } from 'design';
 
@@ -40,6 +40,7 @@ import {
   FeatureHeaderTitle,
   FeatureBox,
 } from 'teleport/components/Layout';
+import { useContentMinWidthContext } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
@@ -101,6 +102,16 @@ function ClusterResources({
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
+  const { setEnforceMinWidth } = useContentMinWidthContext();
+
+  useEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
+
   const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
@@ -110,16 +121,15 @@ function ClusterResources({
   } = useUser();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
 
-  const { params, setParams, replaceHistory, pathname, onLabelClick } =
-    useUrlFiltering({
-      sort: {
-        fieldName: 'name',
-        dir: 'ASC',
-      },
-      pinnedOnly:
-        preferences.unifiedResourcePreferences.defaultTab ===
-        DefaultTab.DEFAULT_TAB_PINNED,
-    });
+  const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
+    sort: {
+      fieldName: 'name',
+      dir: 'ASC',
+    },
+    pinnedOnly:
+      preferences?.unifiedResourcePreferences?.defaultTab ===
+      DefaultTab.DEFAULT_TAB_PINNED,
+  });
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
@@ -212,7 +222,6 @@ function ClusterResources({
         }}
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
-        onLabelClick={onLabelClick}
         NoResources={
           <Empty
             clusterId={clusterId}
@@ -228,13 +237,14 @@ function ClusterResources({
         }))}
         setParams={newParams => {
           setParams(newParams);
+          const isAdvancedSearch = !!newParams.query;
           replaceHistory(
             encodeUrlQueryParams(
               pathname,
-              newParams.search,
+              isAdvancedSearch ? newParams.query : newParams.search,
               newParams.sort,
               newParams.kinds,
-              !!newParams.query /* isAdvancedSearch */,
+              isAdvancedSearch,
               newParams.pinnedOnly
             )
           );

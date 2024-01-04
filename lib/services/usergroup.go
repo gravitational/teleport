@@ -45,10 +45,6 @@ type UserGroups interface {
 
 // MarshalUserGroup marshals the user group resource to JSON.
 func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, error) {
-	if err := group.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -56,13 +52,11 @@ func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, err
 
 	switch g := group.(type) {
 	case *types.UserGroupV1:
-		if !cfg.PreserveResourceID {
-			copy := *g
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			g = &copy
+		if err := g.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return utils.FastMarshal(g)
+
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, g))
 	default:
 		return nil, trace.BadParameter("unsupported user group resource %T", g)
 	}

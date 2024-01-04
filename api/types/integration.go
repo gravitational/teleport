@@ -103,8 +103,10 @@ func (ig *IntegrationV1) CanChangeStateTo(newState Integration) error {
 		return trace.BadParameter("cannot update %q fields for a %q integration", newState.GetSubKind(), ig.SubKind)
 	}
 
-	if err := newState.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+	if x, ok := newState.(interface{ CheckAndSetDefaults() error }); ok {
+		if err := x.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

@@ -18,15 +18,16 @@
 
 package aws
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 func EC2DiscoverySSMDocument(proxy string) string {
-	return fmt.Sprintf(ec2DiscoverySSMDocument, proxy)
-}
+	randString := uuid.NewString() // Secure random so the filename can not be guessed to avoid possible script injection
 
-const EC2DiscoveryPolicyName = "TeleportEC2Discovery"
-
-const ec2DiscoverySSMDocument = `
+	return fmt.Sprintf(`
 schemaVersion: '2.2'
 description: aws:runShellScript
 parameters:
@@ -41,7 +42,7 @@ mainSteps:
   name: downloadContent
   inputs:
     sourceType: "HTTP"
-    destinationPath: "/tmp/installTeleport.sh"
+    destinationPath: "/tmp/installTeleport-%s.sh"
     sourceInfo:
       url: "%s/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
@@ -49,5 +50,8 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
-`
+      - /bin/sh /tmp/installTeleport-%s.sh "{{ token }}"
+`, randString, proxy, randString)
+}
+
+const EC2DiscoveryPolicyName = "TeleportEC2Discovery"

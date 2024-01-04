@@ -168,10 +168,6 @@ func MarshalGithubConnector(connector types.GithubConnector, opts ...MarshalOpti
 
 // MarshalOSSGithubConnector marshals the open source variant of the GithubConnector resource to JSON.
 func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := githubConnector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -179,6 +175,10 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 
 	switch githubConnector := githubConnector.(type) {
 	case *types.GithubConnectorV3:
+		if err := githubConnector.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Only return an error if the endpoint url is set and the build is OSS
 		// so that the enterprise marshaler can call this marshaler to produce
 		// the final output without receiving an error.
@@ -186,16 +186,7 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 			githubConnector.Spec.EndpointURL != "" {
 			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
-
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *githubConnector
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			githubConnector = &copy
-		}
-		return utils.FastMarshal(githubConnector)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, githubConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}

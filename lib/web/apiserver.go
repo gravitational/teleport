@@ -32,6 +32,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,7 +52,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -285,14 +285,13 @@ type Config struct {
 	// sessions.
 	PresenceChecker PresenceChecker
 
-	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
-	// This URL must returns a valid version string.
-	// Eg, v13.4.3
-	// Optional: uses cloud/stable channel when omitted.
-	AutomaticUpgradesVersionURL string
-
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
 	AccessGraphAddr utils.NetAddr
+
+	// AutomaticUpgradesChannels is a map of all version channels used by the
+	// proxy built-in version server to retrieve target versions. This is part
+	// of the automatic upgrades.
+	AutomaticUpgradesChannels automaticupgrades.Channels
 }
 
 // SetDefaults ensures proper default values are set if
@@ -374,6 +373,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
+	}
+
+	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
+		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
+	if h.cfg.AutomaticUpgradesChannels != nil {
+		err := h.cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -828,6 +838,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
@@ -893,6 +904,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Returns logins included in the Connect My Computer role of the user.
 	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
 	h.GET("/webapi/connectmycomputer/logins", h.WithAuth(h.connectMyComputerLoginsList))
+
+	// Implements the agent version server.
+	// Channel can contain "/", hence the use of a catch-all parameter
+	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
+
+	// Create Machine ID bots
+	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1565,7 +1583,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1587,6 +1605,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
 		IsTeam:                         clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
 		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
+		FeatureLimits: webclient.FeatureLimits{
+			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
+			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
+			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
+		},
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2054,7 +2077,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	clientMeta := clientMetaFromReq(r)
 
 	var webSession types.WebSession
-
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
@@ -2080,22 +2102,11 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get stuck in a
-	// racy session creation loop.
-	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
-		User:      req.User,
-		SessionID: webSession.GetName(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), req.User, webSession.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), webSession)
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
@@ -2254,14 +2265,9 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	sess := res.WebSession
-	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	err = h.trySettingConnectorNameToPasswordless(r.Context(), ctx, req)
-	if err != nil {
-		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
 	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName()); err != nil {
@@ -2283,45 +2289,6 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 			Created: &res.GetRecovery().Created,
 		},
 	}, nil
-}
-
-// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
-// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
-func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
-	// We use the presence of a WebAuthn response, along with the absence of a
-	// password, as a proxy to determine that a passwordless registration took
-	// place, as it is not possible to infer that just from the WebAuthn response.
-	isPasswordlessRegistration := req.WebauthnCreationResponse != nil && len(req.Password) == 0
-	if !isPasswordlessRegistration {
-		return nil
-	}
-
-	if !h.ClusterFeatures.GetCloud() {
-		return nil
-	}
-
-	authPreference, err := sessCtx.cfg.RootClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil
-	}
-
-	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
-		return nil
-	}
-
-	users, err := h.cfg.ProxyClient.GetUsers(ctx, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(users) != 1 {
-		return nil
-	}
-
-	authPreference.SetConnectorName(constants.PasswordlessConnector)
-
-	err = sessCtx.cfg.RootClient.SetAuthPreference(ctx, authPreference)
-	return trace.Wrap(err)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -2490,7 +2457,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), user, session.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), session)
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -2965,7 +2932,7 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(&req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -3013,8 +2980,8 @@ func (h *Handler) siteNodeConnect(
 	terminalConfig := TerminalHandlerConfig{
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
-		AuthProvider:       clt,
-		LocalAuthProvider:  h.auth.accessPoint,
+		UserAuthClient:     clt,
+		LocalAccessPoint:   h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  keepAliveInterval,
@@ -3045,11 +3012,11 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
+func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
 	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	host, err := findByHost(ctx, clt, req.Server)
+	host, port, err := serverHostPort(req.Server)
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
 	}
@@ -3064,10 +3031,10 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	return session.Session{
 		Kind:           types.SSHSessionKind,
 		Login:          req.Login,
-		ServerID:       host.id,
+		ServerID:       host,
 		ClusterName:    clusterName,
-		ServerHostname: host.hostName,
-		ServerHostPort: host.port,
+		ServerHostname: host,
+		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
@@ -3124,35 +3091,6 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 	}
 
 	return hosts, nil
-}
-
-// findByHost return a host matching by the host name.
-func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
-	initialHost, initialPort, err := serverHostPort(serverName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-		Host: initialHost,
-		Port: strconv.Itoa(initialPort),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var host hostInfo
-	if len(rsp.Servers) == 1 {
-		host.hostName = rsp.Servers[0].GetHostname()
-		host.id = rsp.Servers[0].GetName()
-		host.port = 0
-	} else {
-		host.hostName = initialHost
-		host.id = initialHost
-		host.port = initialPort
-	}
-
-	return &host, nil
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.

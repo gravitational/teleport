@@ -50,43 +50,48 @@ calculate three types of billing metrics:
 
 ### Monthly Active Users 
 
-Monthly Active Users (MAU) are calculated as the aggregate number of unique
-active users (as defined in the Services Agreement and aggregated over each
-monthly period starting on the Subscription Start Date and ending on each
-monthly anniversary thereafter) accessing Teleport. 
+Monthly Active Users (MAU) is the aggregate number of unique
+active users accessing Teleport. 
 
-"Active" means a user having performed any auditable activity in a resource
-(e.g., an action that would appear in an audit log such as logging into a
-resource via the Web UI or via `tsh login`, submitting an Access Request, etc.).
-The MAU calculation does not include automated actions, such as the modification
-of a user's role by an administrator or the automatic creation of a user
-automatically through an identity provider.
+We aggregate MAU over each monthly period starting on the subscription start date and ending on each
+monthly anniversary thereafter.
+
+"Active" means a user having performed any activity that would appear in a Teleport audit log, for example, 
+connecting to a resource via the Web UI or via `tsh login`, submitting an Access Request, and so on.
+
+We do not count automated actions, such as the modification
+of a user's role by an administrator or the automatic creation of a user 
+through an identity provider, as user activity.
 
 ### Teleport Protected Resources
 
-The Teleport Protected Resources (TPR) metric is calculated as the aggregate
-number of unique resources (aggregated over each monthly period starting on the
-Subscription Start Date and ending on each monthly anniversary thereafter)
-connected to Teleport. A "resource" means any unique endpoint such as a
-Kubernetes cluster, SSH server, database instance or serverless endpoint, that
-is registered itself with the Teleport cluster and is protected by Teleport.
+The Teleport Protected Resources (TPR) metric is the aggregate number of unique resources connected to Teleport.
+
+We aggregate TPRs over each monthly period, 
+starting on the subscription start date and ending on each monthly anniversary thereafter.
+
+A "resource" is any unique bot, such as a CI/CD Jenkins or GitHub Actions job, 
+or a distinct computing resource, including a Kubernetes cluster, SSH server, 
+database instance, or serverless endpoint, that registers with the Teleport cluster at least once a month.
 
 ### Teleport Identity Authorizations
 
-Teleport Identity Authorizations (TIA) are calculated as the aggregate number of
-Authorization Requests (aggregated over each monthly period starting on the
-Subscription Start Date and ending on each monthly anniversary thereafter)
-processed by Teleport. An Authorization Request is the authorization by Teleport
-of a client connection, API request, SSH session, or any other activity related
-to a user.
+The Teleport Identity Authorizations (TIA) metric is the total number of Authorization Requests 
+processed by Teleport within a monthly period, starting on the subscription start date and ending 
+on each monthly anniversary thereafter.
+
+An Authorization Request is the authorization by Teleport of any request done via API, GUI, or CLI, 
+initiated by a user or a bot and stored in the audit event storage.
+
 
 ## Usage measurement for billing
 
-The counts of the billing metrics are aggregated on a monthly basis starting on
-the Subscription Start Date and ending on each monthly anniversary thereafter.
+We aggregate all counts of the billing metrics on a monthly basis starting on
+the subscription start date and ending on each monthly anniversary thereafter.
+
 The amount of usage purchased by a Teleport customer is based on the maximum
 aggregate amount of a billing metric in a given month during the term of the
-Subscription (also known as a high water mark calculation).
+Subscription, also known as a high water mark calculation.
 
 Reach out to sales@goteleport.com if you have questions about the
 commercial editions of Teleport.

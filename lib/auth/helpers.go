@@ -304,11 +304,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	if cfg.CacheEnabled {
 		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
-			Context:   ctx,
+			Context:   srv.AuthServer.CloseContext(),
 			Services:  srv.AuthServer.Services,
 			Setup:     cache.ForAuth,
 			CacheName: []string{teleport.ComponentAuth},
 			Events:    true,
+			Unstarted: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -427,12 +428,22 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		AccessPoint: srv.AuthServer,
 		LockWatcher: srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
-		DisableDeviceAuthorization: true,
+		DeviceAuthorization: authz.DeviceAuthorizationOpts{
+			DisableGlobalMode: true,
+			DisableRoleMode:   true,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Auth initialization is done (including creation/updating of all singleton
+	// configuration resources) so now we can start the cache.
+	if c, ok := srv.AuthServer.Cache.(*cache.Cache); ok {
+		if err := c.Start(); err != nil {
+			return nil, trace.NewAggregate(err, c.Close())
+		}
+	}
 	return srv, nil
 }
 

@@ -63,9 +63,10 @@ func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
-	if err = ca.CheckAndSetDefaults(); err != nil {
+	if err = CheckAndSetDefaults(ca); err != nil {
 		return trace.Wrap(err)
 	}
+
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
@@ -509,15 +510,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *certAuthority
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			certAuthority = &copy
-		}
-		return utils.FastMarshal(certAuthority)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

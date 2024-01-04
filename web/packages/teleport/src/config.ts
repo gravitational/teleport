@@ -65,6 +65,15 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // featureLimits define limits for features.
+  // Typically used with feature teasers if feature is not enabled for the
+  // product type eg: Team product contains teasers to upgrade to Enterprise.
+  featureLimits: {
+    accessListCreateLimit: 0,
+    accessMonitoringMaxReportRangeLimit: 0,
+    AccessRequestMonthlyRequestLimit: 0,
+  },
+
   ui: {
     scrollbackLines: 1000,
   },
@@ -185,7 +194,7 @@ const cfg = {
     desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
@@ -259,6 +268,8 @@ const cfg = {
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
 
+    awsRdsDbRequiredVpcsPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -768,6 +779,15 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbRequiredVpcsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbRequiredVpcsPath, {
       clusterId,
       name: integrationName,
     });

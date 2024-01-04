@@ -161,8 +161,12 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 // DeleteCertAuthority deletes the matching cert authority.
 func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -183,7 +187,12 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -228,6 +237,9 @@ func (s *Service) GenerateHostCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO (Joerger): in v16.0.0, this endpoint should require admin action authorization
+	// once the deprecated http endpoint is removed in use.
 
 	// Call through to the underlying implementation on auth.Server. At some
 	// point in the future, we may wish to pull more of that implementation

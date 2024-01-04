@@ -62,10 +62,6 @@ func UnmarshalServerInfo(bytes []byte, opts ...MarshalOption) (types.ServerInfo,
 
 // MarshalServerInfo marshals the ServerInfo resource to JSON.
 func MarshalServerInfo(si types.ServerInfo, opts ...MarshalOption) ([]byte, error) {
-	if err := si.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -73,15 +69,11 @@ func MarshalServerInfo(si types.ServerInfo, opts ...MarshalOption) ([]byte, erro
 
 	switch si := si.(type) {
 	case *types.ServerInfoV1:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *si
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			si = &copy
+		if err := si.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		bytes, err := utils.FastMarshal(si)
+
+		bytes, err := utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, si))
 		return bytes, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unrecognized server info version %T", si)

@@ -542,11 +542,15 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
 			runProxySSH := func(proxyRequest string, opts ...CliOption) error {
-				return Run(ctx, []string{
+				var args []string
+				if testing.Verbose() {
+					args = append(args, "--debug")
+				}
+				return Run(ctx, append(args,
 					"--insecure",
 					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
 					"proxy", "ssh", proxyRequest,
-				}, opts...)
+				), opts...)
 			}
 
 			// login to Teleport
@@ -578,10 +582,10 @@ func TestProxySSH(t *testing.T) {
 			t.Run("invalid node login", func(t *testing.T) {
 				t.Parallel()
 
+				// it's legal to specify any username before the request
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
 				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+				require.NoError(t, err)
 			})
 		})
 	}
@@ -1082,28 +1086,25 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 	require.Error(t, err)
 }
 
-func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
-	now := time.Now()
-	ctx := context.Background()
-	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
-		From:  now.Add(-time.Hour),
-		To:    now.Add(time.Hour),
-		Order: types.EventOrderDescending,
-	})
-
-	require.NoError(t, err)
-	return events
-}
-
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	av := mustSearchEvents(t, s.root.GetAuthServer())
-	for _, e := range av {
-		if e.GetCode() == events.AuthAttemptFailureCode {
-			require.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
-			return
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		now := time.Now()
+		ctx := context.Background()
+		es, _, err := s.root.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
+			From:  now.Add(-time.Hour),
+			To:    now.Add(time.Hour),
+			Order: types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+
+		for _, e := range es {
+			if e.GetCode() == events.AuthAttemptFailureCode {
+				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
+				return
+			}
 		}
-	}
-	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
+	}, 5*time.Second, 500*time.Millisecond)
 }
 
 func TestFormatCommand(t *testing.T) {
@@ -1205,11 +1206,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
@@ -1264,11 +1265,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 

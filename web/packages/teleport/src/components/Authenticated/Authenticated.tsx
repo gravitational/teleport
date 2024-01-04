@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import React, { PropsWithChildren, useEffect } from 'react';
 import { throttle } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -45,7 +45,7 @@ const events = [
   'pointerdown',
 ];
 
-const Authenticated: React.FC = ({ children }) => {
+const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
   const { attempt, setAttempt } = useAttempt('processing');
 
   useEffect(() => {

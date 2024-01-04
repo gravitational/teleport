@@ -30,7 +30,7 @@ import (
 
 // ValidateTrustedCluster checks and sets Trusted Cluster defaults
 func ValidateTrustedCluster(tc types.TrustedCluster, allowEmptyRolesOpts ...bool) error {
-	if err := tc.CheckAndSetDefaults(); err != nil {
+	if err := CheckAndSetDefaults(tc); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -189,15 +189,7 @@ func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalO
 
 	switch trustedCluster := trustedCluster.(type) {
 	case *types.TrustedClusterV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *trustedCluster
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			trustedCluster = &copy
-		}
-		return utils.FastMarshal(trustedCluster)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, trustedCluster))
 	default:
 		return nil, trace.BadParameter("unrecognized trusted cluster version %T", trustedCluster)
 	}

@@ -5,6 +5,7 @@
     "build-ui": "yarn build-ui-oss && yarn build-ui-e",
     "build-ui-oss": "yarn workspace @gravitational/teleport build",
     "build-ui-e": "yarn workspace @gravitational/teleport.e build",
+    "build-wasm": "yarn workspace @gravitational/teleport build-wasm",
     "start-teleport": "yarn workspace @gravitational/teleport start",
     "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
     "build-term": "yarn workspace @gravitational/teleterm build",
@@ -26,10 +27,12 @@
   },
   "private": true,
   "resolutions": {
-    "react": "16.14.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "**/d3-color": "^3.1.0",
     "**/minimist": "^1.2.8",
-    "**/@types/react": "^16.9.49",
+    "**/@types/react": "^18.2.39",
+    "**/@types/react-dom": "^18.2.17",
     "**/trim": "0.0.3",
     "webpack": "^5.88.2",
     "x-default-browser": "^0.5.2"
