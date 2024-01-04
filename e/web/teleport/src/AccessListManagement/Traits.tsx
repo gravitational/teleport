@@ -1,7 +1,8 @@
 import React from 'react';
-import { Box, Flex, ButtonIcon, Text, ButtonText } from 'design';
+import { Box, Flex, ButtonIcon, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import { requiredField } from 'shared/components/Validation/rules';
 import { AllUserTraits } from 'teleport/services/user';
 
@@ -56,29 +57,12 @@ export function TraitsCreator({
 
   return (
     <Box mb={4}>
-      <ButtonText
+      <ButtonTextWithAddIcon
+        label={addBtnTxt}
         onClick={addLabel}
-        css={`
-          padding-left: 0px;
-          &:disabled {
-            .icon-add {
-              opacity: 0.35;
-            }
-            pointer-events: none;
-          }
-        `}
         disabled={isDisabled}
-      >
-        <Icons.Add
-          className="icon-add"
-          disabled={isDisabled}
-          size={12}
-          css={`
-            margin-right: 3px;
-          `}
-        />
-        {addBtnTxt}
-      </ButtonText>
+        iconSize={12}
+      />
       {traitLabels.length > 0 && (
         <Flex mt={2}>
           <Box width="186px">
