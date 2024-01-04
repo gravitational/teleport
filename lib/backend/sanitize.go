@@ -19,6 +19,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"regexp"
 	"time"
@@ -36,11 +37,25 @@ const errorMessage = "special characters are not allowed in resource names, plea
 var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
 
 // denyPattern matches some unallowed combinations
-var denyPattern = regexp.MustCompile(`//`)
+var denyPatterns = []string{
+	"//",
+	"..",
+}
 
 // isKeySafe checks if the passed in key conforms to whitelist
 func isKeySafe(s []byte) bool {
-	return allowPattern.Match(s) && !denyPattern.Match(s) && utf8.Valid(s)
+	return allowPattern.Match(s) && !denyPatternsMatch(s) && utf8.Valid(s)
+}
+
+// denyPatternsMatch checks if the passed in key conforms to the deny patterns.
+func denyPatternsMatch(s []byte) bool {
+	for _, pattern := range denyPatterns {
+		if bytes.Contains(s, []byte(pattern)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Sanitizer wraps a Backend implementation to make sure all values requested

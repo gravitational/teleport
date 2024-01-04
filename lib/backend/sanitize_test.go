@@ -42,6 +42,10 @@ func TestSanitize(t *testing.T) {
 			assert: require.Error,
 		},
 		{
+			inKey:  []byte("/namespaces/.."),
+			assert: require.Error,
+		},
+		{
 			inKey:  RangeEnd([]byte("a-b/c:d/.e_f/01")),
 			assert: require.NoError,
 		},
