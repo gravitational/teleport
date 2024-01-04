@@ -166,6 +166,10 @@ function createService(logger: Logger): {
 
     logger.info(`got ${rpcName}`, filterSensitiveProperties(request));
 
+    call.on('cancelled', () => {
+      logger.error(`canceled by client ${rpcName}`);
+    });
+
     const onRequestCancelled = (callback: () => void) => {
       call.on('cancelled', callback);
     };
@@ -189,6 +193,10 @@ function createService(logger: Logger): {
       onRequestCancelled,
     }).then(
       response => {
+        if (call.cancelled) {
+          return;
+        }
+
         callback(null, mapResponseObjectToResponseInstance(response));
 
         logger.info(
@@ -197,6 +205,10 @@ function createService(logger: Logger): {
         );
       },
       error => {
+        if (call.cancelled) {
+          return;
+        }
+
         callback(error, null);
 
         logger.error(`replied with error to ${rpcName}`, error);
