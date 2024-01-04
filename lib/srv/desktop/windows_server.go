@@ -419,6 +419,34 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		s.cfg.Logger.InfoContext(ctx, "desktop discovery via LDAP is disabled, set 'base_dn' to enable")
 	}
 
+	// if LDAP-based discovery is not enabled, but we have configured LDAP
+	// then it's important that we periodically try to use the LDAP connection
+	// to detect connection closure
+	if s.ldapConfigured && len(s.cfg.DiscoveryBaseDN) == 0 {
+		s.cfg.Log.Debugln("starting LDAP connection checker")
+		go func() {
+			t := s.cfg.Clock.NewTicker(5 * time.Minute)
+			defer t.Stop()
+
+			for {
+				select {
+				case <-t.Chan():
+					// attempt to read CAs in the NTAuth store (we know we have permissions to do so)
+					ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
+					_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
+					if trace.IsConnectionProblem(err) {
+						s.cfg.Log.Infoln("reconnecting to LDAP server")
+						if err := s.initializeLDAP(); err != nil {
+							s.cfg.Log.Warnf("failed to reconnect to LDAP: %v", err)
+						}
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
 	ok = true
 	return s, nil
 }
@@ -683,12 +711,6 @@ func (s *WindowsService) readyForConnections() bool {
 
 	// If LDAP was configured, then we need to wait for it to be initialized
 	// before accepting connections.
-	return s.ldapInitialized
-}
-
-func (s *WindowsService) ldapReady() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.ldapInitialized
 }
 
