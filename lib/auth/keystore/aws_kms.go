@@ -55,8 +55,8 @@ type AWSKMSConfig struct {
 	clock clockwork.Clock
 }
 
-// CheckAndSetDefaults checks that required paramters of the config are properly
-// set and sets defaults.
+// CheckAndSetDefaults checks that required parameters of the config are
+// properly set and sets defaults.
 func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 	if c.Cluster == "" {
 		return trace.BadParameter("cluster is required")
@@ -231,7 +231,7 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // DeleteUnusedKeys deletes all keys readable from the AWS KMS account and
 // region if they:
 // 1. Are not included in the argument activeKys
-// 2. Are labelled in AWS KMS as being created by this Teleport cluster
+// 2. Are labeled in AWS KMS as being created by this Teleport cluster
 // 3. Were not created in the past 5 minutes.
 //
 // The activeKeys argument is meant to contain to complete set of raw key IDs as

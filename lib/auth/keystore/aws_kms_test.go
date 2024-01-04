@@ -189,7 +189,7 @@ func (f *fakeAWSKMSService) Sign(input *kms.SignInput) (*kms.SignOutput, error) 
 	default:
 		return nil, trace.BadParameter("unsupported SigningAlgorithm %q", aws.StringValue(input.SigningAlgorithm))
 	}
-	signer, err := utils.ParsePrivateKeyPEM([]byte(testRawPrivateKey))
+	signer, err := utils.ParsePrivateKeyPEM(testRawPrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
