@@ -117,7 +117,29 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.updatePluginAndCreateStaticCredentials(ctx, plugin, req.StaticCredentials); err != nil {
+	staticCreds := req.StaticCredentialsList
+	staticCredLabels := req.CredentialLabels
+	if req.StaticCredentials != nil {
+		// For backwards compatibility, if the single StaticCredential value is
+		// set then we override the supplied credential list with that single
+		// credential
+		staticCreds = []*types.PluginStaticCredentialsV1{req.StaticCredentials}
+
+		// Similarly, we need to generate the identifying label set from the
+		// single credential, rather than use the supplied label set.
+		staticCredLabels = req.StaticCredentials.GetStaticLabels()
+		if staticCredLabels == nil {
+			staticCredLabels = map[string]string{}
+		}
+
+		for k := range staticCredLabels {
+			if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
+				delete(staticCredLabels, k)
+			}
+		}
+	}
+
+	if err := s.updatePluginAndCreateStaticCredentials(ctx, plugin, staticCredLabels, staticCreds); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -163,36 +185,24 @@ func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin ty
 	}))
 }
 
-// updatePluginAndCreateStaticCredetials will update the plugin with static credentials and create them if needed.
-func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, plugin *types.PluginV1, staticCreds *types.PluginStaticCredentialsV1) error {
-	if staticCreds == nil {
+// updatePluginAndCreateStaticCredentials will update the plugin with static credentials and create them if needed.
+func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, plugin *types.PluginV1, credLabels map[string]string, staticCreds []*types.PluginStaticCredentialsV1) error {
+	if len(staticCreds) == 0 {
 		return nil
 	}
 
-	// Add in a random UUID to the static credentials and attach it to both the static credentials
-	// and the static credentials reference to ensure that the plugin only reads the static credentials
-	// specified here.
+	// Add in a random UUID to the static credentials label set and attach it to
+	// both the static credentials and the static credentials reference to ensure
+	// that the plugin only reads the static credentials specified here.
 	pluginUUID := uuid.NewString()
-	labels := staticCreds.GetStaticLabels()
+	credLabels[teleport.PluginLabel] = pluginUUID
 
-	// Create if nil, we add keys to it below.
-	if labels == nil {
-		labels = make(map[string]string)
-	}
-
-	// Make sure that we remove any teleport internal labels.
-	for k := range labels {
-		if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
-			delete(labels, k)
-		}
-	}
-	labels[teleport.PluginLabel] = pluginUUID
-	staticCreds.SetStaticLabels(labels)
-
+	// Update the plugin to contain the a CredentialsRef that will select all
+	// credentials tagged with `credLabels`
 	err := plugin.SetCredentials(&types.PluginCredentialsV1{
 		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
 			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
-				Labels: labels,
+				Labels: credLabels,
 			},
 		},
 	})
@@ -207,7 +217,7 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 
 	// Verify Jamf API endpoint and credentials.
 	if plugin.GetType() == types.PluginTypeJamf {
-		user, pass := staticCreds.GetBasicAuth()
+		user, pass := staticCreds[0].GetBasicAuth()
 
 		// Creating a client automatically verifies the credentials.
 		if _, err := jamf.NewClient(ctx, jamf.ClientOpts{
@@ -220,7 +230,29 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 			return trace.Wrap(err, "verifying Jamf endpoint and credentials")
 		}
 	}
-	return trace.Wrap(s.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCreds))
+
+	for _, cred := range staticCreds {
+		// Fetch existing credential label set, creating if nil...
+		instanceLabels := cred.GetStaticLabels()
+		if instanceLabels == nil {
+			instanceLabels = make(map[string]string)
+		}
+
+		// Merge this credential's existing labels with the supplied credential-
+		// identifying label set
+		for k, v := range credLabels {
+			instanceLabels[k] = v
+		}
+		cred.SetStaticLabels(instanceLabels)
+
+		// And finally, write the cred to the back-end
+		err := s.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, cred)
+		if err != nil {
+			return trace.Wrap(err, "creating static credential")
+		}
+	}
+
+	return nil
 }
 
 // GetPlugin returns a plugin instance by name.
