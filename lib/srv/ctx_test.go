@@ -198,6 +198,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Login:          "alpaca1",
 				Impersonator:   "llama",
 				AccessRequests: []string{"access-req1", "access-req2"},
+				UserKind:       apievents.UserKind_USER_KIND_HUMAN,
 			},
 		},
 		{
@@ -223,6 +224,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialId: "credentialid1",
 				},
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
 			},
 		},
 	}
