@@ -234,7 +234,7 @@ func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types
 }
 
 // onUpdate will perform necessary Okta assignment operations based on updated Okta assignments.
-func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment types.OktaAssignment) error {
+func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, _ types.OktaAssignment) error {
 	if err := a.assignmentProcessor.processAssignment(ctx, updatedAssignment, false); err != nil {
 		return trace.Wrap(err)
 	}

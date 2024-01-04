@@ -416,7 +416,7 @@ func (s *Service) onCreateGroup(ctx context.Context, group types.UserGroup) erro
 }
 
 // onUpdateGroup will run when a group is updated.
-func (s *Service) onUpdateGroup(ctx context.Context, group types.UserGroup) error {
+func (s *Service) onUpdateGroup(ctx context.Context, group, _ types.UserGroup) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -513,7 +513,7 @@ func (s *Service) onCreateApp(ctx context.Context, app *types.AppV3) error {
 }
 
 // onUpdateGroup will run when an application is updated.
-func (s *Service) onUpdateApp(ctx context.Context, app *types.AppV3) error {
+func (s *Service) onUpdateApp(ctx context.Context, app, _ *types.AppV3) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}

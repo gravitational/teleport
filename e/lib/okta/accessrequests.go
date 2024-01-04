@@ -436,7 +436,7 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest
 }
 
 // onUpdate will cleanup Okta assignments from access requests.
-func (a *AccessRequestReconciler) onUpdate(ctx context.Context, updatedAccessRequest types.AccessRequest) error {
+func (a *AccessRequestReconciler) onUpdate(ctx context.Context, updatedAccessRequest, _ types.AccessRequest) error {
 	// Only update an Okta assignment if the request state is denied.
 	if updatedAccessRequest.GetState() == types.RequestState_DENIED {
 		assignment, err := a.oktaClient.GetOktaAssignment(ctx, updatedAccessRequest.GetName())

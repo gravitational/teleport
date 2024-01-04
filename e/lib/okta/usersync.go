@@ -184,7 +184,7 @@ func (r *userReconciler) createTeleportUser(ctx context.Context, oktaUser types.
 }
 
 // updateTeleportUser is the `OnUpdate` delegate for the inner reconciler
-func (r *userReconciler) updateTeleportUser(ctx context.Context, user types.User) error {
+func (r *userReconciler) updateTeleportUser(ctx context.Context, user, _ types.User) error {
 	if _, err := r.cfg.teleportAP.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err, "updating user %q", user.GetName())
 	}
