@@ -45,3 +45,4 @@ lint:
 breaking:
   use:
     - WIRE_JSON
+    - ENUM_VALUE_NO_DELETE
