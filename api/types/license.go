@@ -593,5 +593,5 @@ type LicenseSpecV3 struct {
 	UsageBasedBilling Bool `json:"usage_based_billing,omitempty"`
 	// AnonymizationKey is a key that is used to anonymize usage data when it is set.
 	// It should only be set when UsageBasedBilling is true.
-	AnonymizationKey string `json:"anonymization_key,omitempty`
+	AnonymizationKey string `json:"anonymization_key,omitempty"`
 }
