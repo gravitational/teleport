@@ -18,7 +18,7 @@ jobs:
       max-parallel: 2
       matrix:
         teleport-major-version: [12, 13, 14]
-        arch: [amd64, arm64]
+        arch: ['amd64', 'arm64']
         mode: ['debug', 'production']
         release: ['oss', 'enterprise', 'fips']
         include:
@@ -33,19 +33,19 @@ jobs:
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
     permissions:
+      actions: read
       contents: read
       security-events: write  # to upload SARIF results
     name: Scan
     runs-on: ubuntu-latest
     steps:
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@2b6a709cf9c4025c5438138008beaddbb02086f0 # v0.14.0
+        uses: aquasecurity/trivy-action@d43c1f16c00cfd3978dde6c07f4bbcf9eb6993ca # v0.16.1
         with:
           image-ref: 'public.ecr.aws/gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ matrix.teleport-major-version }}'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH,MEDIUM'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
+          format: 'sarif'
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
