@@ -51,6 +51,9 @@ RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-make && \
     yum clean all
 
+# Needed for boring-rs
+ENV CMAKE=cmake3
+
 ## GIT2 ###################################################################
 
 # git2 packages are not available on ARM64, so we need to build it from source.
