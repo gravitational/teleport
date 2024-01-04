@@ -82,7 +82,7 @@ export type RegisterSuccessProps = {
   username?: string;
   version?: string;
   isDashboard: boolean;
-  isEnterprise: boolean;
+  isEnterprise?: boolean;
 };
 
 export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;

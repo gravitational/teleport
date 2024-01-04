@@ -24,17 +24,21 @@ import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import shieldCheck from 'teleport/assets/shield-check.png';
 
+import useTeleport from 'teleport/useTeleport';
+
 import { RegisterSuccessProps } from './types';
 
 export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
-  isEnterprise = true,
-  version = '1.2.3',
+  version = '',
+  isEnterprise,
   isDashboard,
 }: RegisterSuccessProps) {
   const actionTxt = resetMode ? 'reset' : 'registration';
+  const ctx = useTeleport();
+  version = ctx.storeUser.state.cluster.authVersion;
 
   const handleRedirect = () => {
     if (username) {
@@ -47,7 +51,7 @@ export function RegisterSuccess({
       // next only do this for OSS
       isEnterprise = false;
       if (!isEnterprise && !resetMode) {
-        window.open(`https://goteleport.com/registration?${version}`, '_blank');
+        window.open(`https://goteleport.com/r/product-registration?${version}`, '_blank');
       }
     }
     redirect();
