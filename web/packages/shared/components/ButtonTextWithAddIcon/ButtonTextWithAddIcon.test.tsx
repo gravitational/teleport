@@ -16,31 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* 
-    the styled-components@5 doesn't support container queries so
-    we have to create and set the classes manually
-    TODO (avatus): DELETE if we ever upgrade to v6
-*/
-.ContainerContext {
-  container-type: inline-size;
-}
+import React from 'react';
 
-.CardsContainer {
-  @container (min-width: 1600px) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
-}
+import { render, fireEvent, screen } from 'design/utils/testing';
 
-.ListContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
+import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
 
-.SearchPanel {
-  width: 100%;
-  @container (min-width: 801px) {
-    width: 70%;
-    min-width: 800px;
-  }
-}
+test('buttonTextWithAddIcon', () => {
+  const onClick = jest.fn();
+  const label = 'Add Item';
+
+  const { rerender } = render(
+    <ButtonTextWithAddIcon label={label} onClick={() => onClick('click')} />
+  );
+
+  expect(screen.getByText('Add Item')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Add Item'));
+
+  expect(onClick).toHaveBeenCalledWith('click');
+
+  rerender(
+    <ButtonTextWithAddIcon
+      label={label}
+      onClick={() => onClick('click')}
+      disabled={true}
+    />
+  );
+  expect(screen.getByText('Add Item')).toBeDisabled();
+});

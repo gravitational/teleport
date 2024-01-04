@@ -16,31 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* 
-    the styled-components@5 doesn't support container queries so
-    we have to create and set the classes manually
-    TODO (avatus): DELETE if we ever upgrade to v6
-*/
-.ContainerContext {
-  container-type: inline-size;
-}
-
-.CardsContainer {
-  @container (min-width: 1600px) {
-    grid-template-columns: repeat(4, minmax(400px, 1fr));
-  }
-}
-
-.ListContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.SearchPanel {
-  width: 100%;
-  @container (min-width: 801px) {
-    width: 70%;
-    min-width: 800px;
-  }
-}
+export { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
