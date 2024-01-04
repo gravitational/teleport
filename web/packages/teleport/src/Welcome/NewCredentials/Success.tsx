@@ -30,6 +30,8 @@ export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
+  isEnterprise = true,
+  version = '1.2.3',
   isDashboard,
 }: RegisterSuccessProps) {
   const actionTxt = resetMode ? 'reset' : 'registration';
@@ -40,8 +42,14 @@ export function RegisterSuccess({
         event: CaptureEvent.PreUserCompleteGoToDashboardClickEvent,
         username: username,
       });
+      // If not in reset mode, open a new tab to Teleport Registration page
+      // before redirecting to dashboard.
+      // next only do this for OSS
+      isEnterprise = false;
+      if (!isEnterprise && !resetMode) {
+        window.open(`https://goteleport.com/registration?${version}`, '_blank');
+      }
     }
-
     redirect();
   };
 
