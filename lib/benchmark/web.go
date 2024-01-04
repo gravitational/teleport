@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -193,7 +192,7 @@ func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *w
 		return nil, trace.BadParameter("unexpected websocket message received %d", ty)
 	}
 
-	stream := web.NewTerminalStream(ctx, ws, utils.NewLogger())
+	stream := web.NewTerminalStream(ctx, web.TerminalStreamConfig{WS: ws})
 	return stream, trace.Wrap(err)
 }
 
