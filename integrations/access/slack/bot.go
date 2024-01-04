@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package slack
 
@@ -124,7 +126,21 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 	var data accessrequest.SentMessages
 	var errors []error
 
-	for _, recipient := range recipients {
+	// Fetch the user as a recipient. The user is expected to be an e-mail here, as should be
+	// the case with most SSO setups.
+	userRecipient, err := b.FetchRecipient(ctx, reqData.User)
+	if err != nil {
+		log.Warningf("Unable to find user %s in Slack, will not be able to notify.", reqData.User)
+	}
+
+	// Include the user in the list of recipients if it exists.
+	allRecipients := make([]common.Recipient, len(recipients), len(recipients)+1)
+	copy(allRecipients, recipients)
+	if userRecipient != nil {
+		allRecipients = append(allRecipients, *userRecipient)
+	}
+
+	for _, recipient := range allRecipients {
 		var result ChatMsgResponse
 		_, err := b.client.NewRequest().
 			SetContext(ctx).

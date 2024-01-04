@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -20,20 +22,23 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"os"
 	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -44,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
@@ -58,9 +64,52 @@ func TestKube(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
-	pack := setupKubeTestPack(t)
+	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
+}
+
+func TestKubeLogin(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
+		// Set default kubeconfig to a non-exist file to avoid loading other things.
+		t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+
+		// Test "tsh proxy kube root-cluster1".
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		t.Cleanup(cancel)
+
+		err := Run(
+			ctx,
+			[]string{"kube", "login", kubeCluster, "--insecure"},
+		)
+		require.NoError(t, err)
+
+		k, err := kubeconfig.Load(os.Getenv("KUBECONFIG"))
+		require.NoError(t, err)
+		require.NotNil(t, k)
+
+		require.Equal(t, "https://"+expectedAddr, k.Clusters[k.Contexts[k.CurrentContext].Cluster].Server)
+	}
+
+	t.Run("kube login with multiplex mode", func(t *testing.T) {
+		pack := setupKubeTestPack(t, true /* withMultiplexMode */)
+		webProxyAddr, err := pack.root.ProxyWebAddr()
+		require.NoError(t, err)
+		testKubeLogin(t, pack.rootKubeCluster1, webProxyAddr.String())
+	})
+
+	t.Run("kube login without multiplex mode", func(t *testing.T) {
+		pack := setupKubeTestPack(t, false /* withMultiplexMode */)
+		proxyAddr, err := pack.root.ProxyKubeAddr()
+		require.NoError(t, err)
+		addr := net.JoinHostPort("localhost", fmt.Sprintf("%d", proxyAddr.Port(defaults.KubeListenPort)))
+		testKubeLogin(t, pack.rootKubeCluster1, addr)
+	})
 }
 
 type kubeTestPack struct {
@@ -73,7 +122,7 @@ type kubeTestPack struct {
 	leafKubeCluster  string
 }
 
-func setupKubeTestPack(t *testing.T) *kubeTestPack {
+func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	t.Helper()
 
 	ctx := context.Background()
@@ -94,16 +143,22 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			if withMultiplexMode {
+				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			}
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = rootLabels
+			cfg.Proxy.Kube.Enabled = true
+			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
 			func(cfg *servicecfg.Config) {
-				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				if withMultiplexMode {
+					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+				}
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)

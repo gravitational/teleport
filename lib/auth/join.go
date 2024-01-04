@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -22,15 +24,16 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -212,7 +215,7 @@ func (a *Server) generateCertsBot(
 	joinMethod := provisionToken.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
-	if !slices.Contains(supportedBotJoinMethods, joinMethod) {
+	if !slices.Contains(machineidv1.SupportedJoinMethods, joinMethod) {
 		return nil, trace.BadParameter(
 			"unsupported join method %q for bot", joinMethod,
 		)
@@ -236,7 +239,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	certs, err := a.generateInitialBotCerts(
-		ctx, BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
+		ctx, machineidv1.BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

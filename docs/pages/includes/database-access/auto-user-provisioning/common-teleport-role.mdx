@@ -22,17 +22,6 @@ spec:
     - "{{external.db_roles}}"
 ```
 
-With automatic user provisioning, users always connect to the database with
-their Teleport username so the `db_users` role field is ignored for roles
-that have database user provisioning enabled.
+(!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)
 
-The available provisioning modes are:
-
-* `off`: Disables user provisioning.
-
-* `keep`: Enables user provisioning and disables users at session end. The user
-  will be stripped of all roles and the user account will be locked.
-
-* `best_effort_drop`: Enables user provisioning and tries to drop user
-  at session end. If the drop fails, fallback to disabling them (same as `keep`
-  mode).
+(!docs/pages/includes/database-access/auto-user-provisioning/modes.mdx!)

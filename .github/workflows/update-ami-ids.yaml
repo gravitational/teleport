@@ -50,6 +50,6 @@ jobs:
         run: |
           git config --global user.email "noreply@github.com"
           git config --global user.name "GitHub"
-          TELEPORT_VERSION=${{ inputs.version }} make -C assets/aws create-update-pr
+          TELEPORT_VERSION=${{ inputs.version }} AMI_PR_REVIEWER=${{ github.event.release.author.login }} make -C assets/aws create-update-pr
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

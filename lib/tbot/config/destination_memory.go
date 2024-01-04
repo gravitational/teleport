@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -21,6 +23,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -67,7 +71,14 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 	return nil
 }
 
-func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) error {
+func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte) error {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationMemory/Write",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	dm.mutex.Lock()
 	defer dm.mutex.Unlock()
 	dm.store[name] = data
@@ -75,7 +86,14 @@ func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) 
 	return nil
 }
 
-func (dm *DestinationMemory) Read(_ context.Context, name string) ([]byte, error) {
+func (dm *DestinationMemory) Read(ctx context.Context, name string) ([]byte, error) {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationMemory/Read",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	dm.mutex.RLock()
 	defer dm.mutex.RUnlock()
 	b, ok := dm.store[name]

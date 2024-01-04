@@ -2,7 +2,48 @@
 
 ## 15.0.0 (xx/xx/24)
 
-### Breaking changes
+### New features
+
+#### FIPS now supported on ARM64
+
+Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now
+be able to run Teleport in FedRAMP/FIPS mode on ARM64.
+
+#### Hardened AMIs now produced for ARM64
+
+Teleport 15 now provides hardened AWS AMIs on ARM64.
+
+### Breaking changes and deprecations
+
+#### RDP engine requires RemoteFX
+
+Teleport 15 includes a new RDP engine that leverages the RemoteFX codec for
+improved performance. Additional configuration may be required to enable
+RemoteFX on your Windows hosts.
+
+If you are using our authentication package for local users, the v15 installer
+will automatically enable RemoteFX for you.
+
+Alternatively, you can enable RemoteFX by updating the registry:
+
+```powershell
+Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -Name 'ColorDepth' -Type DWORD -Value 5
+Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableVirtualizedGraphics' -Type DWORD -Value 1
+```
+
+If you are using Teleport with Windows hosts that are part of an Active
+Directory environment, you should enable RemoteFX via group policy.
+
+Under Computer Configuration > Administrative Templates > Windows Components >
+Remote Desktop Services > Remote Desktop Session Host, enable:
+
+1. Remote Session Environment > RemoteFX for Windows Server 2008 R2 > Configure RemoteFX
+1. Remote Session Environment > Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1
+1. Remote Session Environment > Limit maximum color depth
+
+Detailed instructions are available in the
+[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
+A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
 
@@ -11,6 +52,103 @@ is now labeled with the hostname of the node it was written by. Users that
 rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
+
+#### `tsh play` now streams PTY playback
+
+Prior to Teleport 15, `tsh play` would download the entire session recording
+before starting playback. As a result, playback of large recordings could be
+slow to start. In Teleport 15 session recordings are streamed from the auth
+server, allowing playback to start before the entire session is downloaded and
+unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
+#### `drop` host user creation mode
+
+The `drop` host user creation mode has been removed in Teleport 15. It is replaced
+by `insecure-drop`, which still creates temporary users but does not create a
+home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
+or use PAM.
+
+##### Packages no longer published to legacy Debian and RPM repos
+
+`deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
+Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
+published to these repos. Teleport 14 and prior packages will continue to be
+published to these repos for the remainder of those releases' lifecycle.
+
+All users are recommended to switch to `apt.releases.teleport.dev` and
+`yum.releases.teleport.dev` repositories as described in installation
+[instructions](docs/pages/installation.mdx).
+
+The legacy package repos will be shut off in mid 2025 after Teleport 14
+has been out of support for many months.
+
+#### Container images
+
+Teleport 15 contains several breaking changes to improve the default security
+and usability of Teleport-provided container images.
+
+##### "Heavy" container images are discontinued
+
+In order to increase default security in 15+, Teleport will no longer publish
+[container images containing a shell and rich command line environment](https://github.com/gravitational/teleport/blob/branch/v14/build.assets/charts/Dockerfile)
+to Elastic Container Registry's [gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
+image repo. Instead, all users should use the [distroless images](https://github.com/gravitational/teleport/blob/branch/v15/build.assets/charts/Dockerfile-distroless)
+introduced in Teleport 12. These images can be found at:
+
+* https://gallery.ecr.aws/gravitational/teleport-distroless
+* https://gallery.ecr.aws/gravitational/teleport-ent-distroless
+
+For users who need a shell in a Teleport container, a "debug" image is
+available which contains BusyBox, including a shell and many CLI tools. Find
+the debug images at:
+
+* https://gallery.ecr.aws/gravitational/teleport-distroless-debug
+* https://gallery.ecr.aws/gravitational/teleport-ent-distroless-debug
+
+Do not run debug container images in production environments.
+
+Heavy container images will continue to be published for Teleport 13 and 14
+throughout the remainder of these releases' lifecycle.
+
+##### Multi-architecture Teleport Operator images
+
+Teleport Operator container images will no longer be published with architecture
+suffixes in their tags (for example: `14.2.1-amd64` and `14.2.1-arm`). Instead,
+only a single tag will be published with multi-platform support (e.g., `15.0.0`).
+If you use Teleport Operator images with an architecture suffix, remove the
+suffix and your client should automatically pull the platform-appropriate image.
+Individual architectures may be pulled with `docker pull --platform <arch>`.
+
+##### Quay.io registry
+
+The quay.io container registry was deprecated and Teleport 12 is the last
+version to publish images to quay.io. With Teleport 15's release, v12 is no
+longer supported and no new container images will be published to quay.io.
+
+For Teleport 8+, replacement container images can be found in [Teleport's public ECR registry](https://gallery.ecr.aws/gravitational).
+
+Users who wish to continue to use unsupported container images prior to
+Teleport 8 will need to download any quay.io images they depend on and mirror
+them elsewhere before July 2024. Following brownouts in May and June, Teleport
+will disable pulls from all Teleport quay.io repositories on Wednesday July 3,
+2024.
+
+#### Amazon AMIs
+
+Teleport 15 contains several breaking changes to improve the default security
+and usability of Teleport-provided Amazon AMIs.
+
+##### Hardened AMIs
+
+Teleport-provided Amazon Linux 2023 previously only supported x86_64/amd64.
+Starting with Teleport 15, arm64-based AMIs will be produced. However, the
+naming scheme for these AMIs has been changed to include the architecture.
+
+- Previous naming scheme: `teleport-oss-14.0.0-$TIMESTAMP`
+- New naming scheme: `teleport-oss-15.0.0-x86_64-$TIMESTAMP`
 
 ## 14.0.0 (09/20/23)
 
@@ -1595,7 +1733,7 @@ is more than one major version behind them. You can use the `--skip-version-chec
 bypass the version check.
 
 Take a look at component compatibility guarantees in the
-[documentation](docs/pages/management/operations/upgrading.mdx).
+[documentation](docs/pages/upgrading.mdx).
 
 #### HTTP_PROXY for reverse tunnels
 
@@ -2867,8 +3005,7 @@ We've added an [API Guide](docs/pages/api/introduction.mdx) to simply developing
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade
-procedure](./docs/pages/management/admin/upgrading-the-teleport-binary.mdx).
+Please follow our [standard upgrade procedure](./docs/pages/upgrading.mdx).
 
 * Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
 * Optional: Consider migrating Kubernetes access from `proxy_service` to `kubernetes_service` after the upgrade.
@@ -3012,7 +3149,7 @@ auth_service:
 #### Upgrade Notes
 
 Please follow our [standard upgrade
-procedure](docs/pages/management/operations/upgrading.mdx).
+procedure](docs/pages/upgrading.mdx).
 
 ## 4.3.9
 
@@ -3133,7 +3270,7 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 #### Upgrade Notes
 
 Always follow the [recommended upgrade
-procedure](./docs/pages/management/operations/upgrading.mdx) to upgrade to this version.
+procedure](./docs/pages/upgrading.mdx) to upgrade to this version.
 
 ##### New Signing Algorithm
 
@@ -3174,7 +3311,7 @@ permissions](./docs/pages/kubernetes-access/manage-access/rbac.mdx).
 The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
 the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
-[upgrade guidance](docs/pages/management/operations/upgrading.mdx).
+[upgrade guidance](docs/pages/upgrading.mdx).
 
 **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
@@ -3553,7 +3690,7 @@ The lists of improvements and bug fixes above mention only the significant chang
 
 ### Upgrading
 
-Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/management/operations/upgrading.mdx)
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/upgrading.mdx)
 
 Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
 
@@ -3821,7 +3958,7 @@ on Github for more.
 #### Upgrading to 3.0
 
 Follow the [recommended upgrade
-procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading.mdx) to upgrade to this
 version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
@@ -3927,7 +4064,7 @@ As always, this release contains several bug fixes. The full list can be seen [h
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.6.9
@@ -4057,7 +4194,7 @@ You can see the full list of 2.6.0 changes [here](https://github.com/gravitation
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/management/operations/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.5.7
@@ -4144,7 +4281,7 @@ release, which includes:
 
 * The Teleport daemon now implements built-in connection draining which allows
   zero-downtime upgrades.  [See
-  documentation](docs/pages/management/admin/upgrading-the-teleport-binary.mdx).
+  documentation](docs/pages/upgrading.mdx).
 
 * Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`.
   This allows Teleport admins to use an external mechanism for generating

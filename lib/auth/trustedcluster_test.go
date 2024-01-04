@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -391,7 +395,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		)
 	})
 
-	t.Run("trusted clusters prevented on cloud", func(t *testing.T) {
+	t.Run("Cloud prohibits adding leaf clusters", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestFeatures: modules.Features{Cloud: true},
 		})
@@ -576,5 +580,21 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		_, err = a.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
+	})
+	t.Run("Cloud prohibits being a leaf cluster", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{Cloud: true},
+		})
+
+		tc, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{
+			RoleMap: []types.RoleMapping{
+				{Remote: teleport.PresetAccessRoleName, Local: []string{teleport.PresetAccessRoleName}},
+			},
+		})
+		require.NoError(t, err, "creating trusted cluster resource")
+
+		server := ServerWithRoles{authServer: a}
+		_, err = server.UpsertTrustedCluster(ctx, tc)
+		require.True(t, trace.IsNotImplemented(err), "UpsertTrustedCluster returned an unexpected error, got = %v (%T), want trace.NotImplementedError", err, err)
 	})
 }

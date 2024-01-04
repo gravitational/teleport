@@ -37,6 +37,10 @@ service ExternalAuditStorageService {
   // GetDraftExternalAuditStorage returns the draft external audit storage configuration resource.
   rpc GetDraftExternalAuditStorage(GetDraftExternalAuditStorageRequest) returns (GetDraftExternalAuditStorageResponse);
 
+  // CreateDraftExternalAuditStorage creates a draft External Audit Storage
+  // resource if one does not already exist.
+  rpc CreateDraftExternalAuditStorage(CreateDraftExternalAuditStorageRequest) returns (CreateDraftExternalAuditStorageResponse);
+
   // UpsertDraftExternalAuditStorage upserts a draft External Audit Storage resource.
   rpc UpsertDraftExternalAuditStorage(UpsertDraftExternalAuditStorageRequest) returns (UpsertDraftExternalAuditStorageResponse);
 
@@ -78,6 +82,20 @@ message GetDraftExternalAuditStorageRequest {}
 // external audit storage configuration.
 message GetDraftExternalAuditStorageResponse {
   // ExternalAuditStorage is the current draft ExternalAuditStorage.
+  ExternalAuditStorage external_audit_storage = 1;
+}
+
+// CreateDraftExternalAuditStorageRequest is a request to create the provided
+// draft external audit storage configuration if one does not already exist.
+message CreateDraftExternalAuditStorageRequest {
+  // ExternalAuditStorage is the ExternalAuditStorage to be created.
+  ExternalAuditStorage external_audit_storage = 1;
+}
+
+// CreateDraftExternalAuditStorageResponse is a response to creating the draft
+// external audit storage configuration.
+message CreateDraftExternalAuditStorageResponse {
+  // ExternalAuditStorage is the ExternalAuditStorage that was created.
   ExternalAuditStorage external_audit_storage = 1;
 }
 

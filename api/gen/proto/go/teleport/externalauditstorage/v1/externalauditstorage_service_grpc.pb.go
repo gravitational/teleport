@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	ExternalAuditStorageService_GetDraftExternalAuditStorage_FullMethodName         = "/teleport.externalauditstorage.v1.ExternalAuditStorageService/GetDraftExternalAuditStorage"
+	ExternalAuditStorageService_CreateDraftExternalAuditStorage_FullMethodName      = "/teleport.externalauditstorage.v1.ExternalAuditStorageService/CreateDraftExternalAuditStorage"
 	ExternalAuditStorageService_UpsertDraftExternalAuditStorage_FullMethodName      = "/teleport.externalauditstorage.v1.ExternalAuditStorageService/UpsertDraftExternalAuditStorage"
 	ExternalAuditStorageService_DeleteDraftExternalAuditStorage_FullMethodName      = "/teleport.externalauditstorage.v1.ExternalAuditStorageService/DeleteDraftExternalAuditStorage"
 	ExternalAuditStorageService_PromoteToClusterExternalAuditStorage_FullMethodName = "/teleport.externalauditstorage.v1.ExternalAuditStorageService/PromoteToClusterExternalAuditStorage"
@@ -52,6 +53,9 @@ const (
 type ExternalAuditStorageServiceClient interface {
 	// GetDraftExternalAuditStorage returns the draft external audit storage configuration resource.
 	GetDraftExternalAuditStorage(ctx context.Context, in *GetDraftExternalAuditStorageRequest, opts ...grpc.CallOption) (*GetDraftExternalAuditStorageResponse, error)
+	// CreateDraftExternalAuditStorage creates a draft External Audit Storage
+	// resource if one does not already exist.
+	CreateDraftExternalAuditStorage(ctx context.Context, in *CreateDraftExternalAuditStorageRequest, opts ...grpc.CallOption) (*CreateDraftExternalAuditStorageResponse, error)
 	// UpsertDraftExternalAuditStorage upserts a draft External Audit Storage resource.
 	UpsertDraftExternalAuditStorage(ctx context.Context, in *UpsertDraftExternalAuditStorageRequest, opts ...grpc.CallOption) (*UpsertDraftExternalAuditStorageResponse, error)
 	// DeleteDraftExternalAuditStorage removes draft External Audit Storage resource.
@@ -88,6 +92,15 @@ func NewExternalAuditStorageServiceClient(cc grpc.ClientConnInterface) ExternalA
 func (c *externalAuditStorageServiceClient) GetDraftExternalAuditStorage(ctx context.Context, in *GetDraftExternalAuditStorageRequest, opts ...grpc.CallOption) (*GetDraftExternalAuditStorageResponse, error) {
 	out := new(GetDraftExternalAuditStorageResponse)
 	err := c.cc.Invoke(ctx, ExternalAuditStorageService_GetDraftExternalAuditStorage_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *externalAuditStorageServiceClient) CreateDraftExternalAuditStorage(ctx context.Context, in *CreateDraftExternalAuditStorageRequest, opts ...grpc.CallOption) (*CreateDraftExternalAuditStorageResponse, error) {
+	out := new(CreateDraftExternalAuditStorageResponse)
+	err := c.cc.Invoke(ctx, ExternalAuditStorageService_CreateDraftExternalAuditStorage_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +194,9 @@ func (c *externalAuditStorageServiceClient) TestDraftExternalAuditStorageAthena(
 type ExternalAuditStorageServiceServer interface {
 	// GetDraftExternalAuditStorage returns the draft external audit storage configuration resource.
 	GetDraftExternalAuditStorage(context.Context, *GetDraftExternalAuditStorageRequest) (*GetDraftExternalAuditStorageResponse, error)
+	// CreateDraftExternalAuditStorage creates a draft External Audit Storage
+	// resource if one does not already exist.
+	CreateDraftExternalAuditStorage(context.Context, *CreateDraftExternalAuditStorageRequest) (*CreateDraftExternalAuditStorageResponse, error)
 	// UpsertDraftExternalAuditStorage upserts a draft External Audit Storage resource.
 	UpsertDraftExternalAuditStorage(context.Context, *UpsertDraftExternalAuditStorageRequest) (*UpsertDraftExternalAuditStorageResponse, error)
 	// DeleteDraftExternalAuditStorage removes draft External Audit Storage resource.
@@ -213,6 +229,9 @@ type UnimplementedExternalAuditStorageServiceServer struct {
 
 func (UnimplementedExternalAuditStorageServiceServer) GetDraftExternalAuditStorage(context.Context, *GetDraftExternalAuditStorageRequest) (*GetDraftExternalAuditStorageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDraftExternalAuditStorage not implemented")
+}
+func (UnimplementedExternalAuditStorageServiceServer) CreateDraftExternalAuditStorage(context.Context, *CreateDraftExternalAuditStorageRequest) (*CreateDraftExternalAuditStorageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateDraftExternalAuditStorage not implemented")
 }
 func (UnimplementedExternalAuditStorageServiceServer) UpsertDraftExternalAuditStorage(context.Context, *UpsertDraftExternalAuditStorageRequest) (*UpsertDraftExternalAuditStorageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertDraftExternalAuditStorage not implemented")
@@ -269,6 +288,24 @@ func _ExternalAuditStorageService_GetDraftExternalAuditStorage_Handler(srv inter
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ExternalAuditStorageServiceServer).GetDraftExternalAuditStorage(ctx, req.(*GetDraftExternalAuditStorageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ExternalAuditStorageService_CreateDraftExternalAuditStorage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateDraftExternalAuditStorageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExternalAuditStorageServiceServer).CreateDraftExternalAuditStorage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExternalAuditStorageService_CreateDraftExternalAuditStorage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExternalAuditStorageServiceServer).CreateDraftExternalAuditStorage(ctx, req.(*CreateDraftExternalAuditStorageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -445,6 +482,10 @@ var ExternalAuditStorageService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDraftExternalAuditStorage",
 			Handler:    _ExternalAuditStorageService_GetDraftExternalAuditStorage_Handler,
+		},
+		{
+			MethodName: "CreateDraftExternalAuditStorage",
+			Handler:    _ExternalAuditStorageService_CreateDraftExternalAuditStorage_Handler,
 		},
 		{
 			MethodName: "UpsertDraftExternalAuditStorage",

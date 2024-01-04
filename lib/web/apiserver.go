@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package web implements web proxy handler that provides
 // web interface to view and connect to teleport nodes
@@ -30,6 +32,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,7 +52,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -283,14 +285,13 @@ type Config struct {
 	// sessions.
 	PresenceChecker PresenceChecker
 
-	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
-	// This URL must returns a valid version string.
-	// Eg, v13.4.3
-	// Optional: uses cloud/stable channel when omitted.
-	AutomaticUpgradesVersionURL string
-
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
 	AccessGraphAddr utils.NetAddr
+
+	// AutomaticUpgradesChannels is a map of all version channels used by the
+	// proxy built-in version server to retrieve target versions. This is part
+	// of the automatic upgrades.
+	AutomaticUpgradesChannels automaticupgrades.Channels
 }
 
 // SetDefaults ensures proper default values are set if
@@ -372,6 +373,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
+	}
+
+	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
+		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
+	if h.cfg.AutomaticUpgradesChannels != nil {
+		err := h.cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -826,6 +838,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
@@ -887,6 +900,17 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Updates the user's cluster preferences.
 	h.PUT("/webapi/user/preferences/:site", h.WithClusterAuth(h.updateUserClusterPreferences))
+
+	// Returns logins included in the Connect My Computer role of the user.
+	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
+	h.GET("/webapi/connectmycomputer/logins", h.WithAuth(h.connectMyComputerLoginsList))
+
+	// Implements the agent version server.
+	// Channel can contain "/", hence the use of a catch-all parameter
+	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
+
+	// Create Machine ID bots
+	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1559,7 +1583,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1579,6 +1603,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AssistEnabled:                  assistEnabled,
 		HideInaccessibleFeatures:       clusterFeatures.GetFeatureHiding(),
 		CustomTheme:                    clusterFeatures.GetCustomTheme(),
+		IsTeam:                         clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
+		IsIGSEnabled:                   clusterFeatures.GetIdentityGovernance(),
+		FeatureLimits: webclient.FeatureLimits{
+			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
+			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
+			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
+		},
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2046,7 +2077,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	clientMeta := clientMetaFromReq(r)
 
 	var webSession types.WebSession
-
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
 		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
@@ -2072,22 +2102,11 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get stuck in a
-	// racy session creation loop.
-	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
-		User:      req.User,
-		SessionID: webSession.GetName(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), req.User, webSession.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), webSession)
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		return nil, trace.AccessDenied("need auth")
@@ -2246,14 +2265,9 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	sess := res.WebSession
-	ctx, err := h.auth.newSessionContext(r.Context(), sess.GetUser(), sess.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	err = h.trySettingConnectorNameToPasswordless(r.Context(), ctx, req)
-	if err != nil {
-		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
 	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName()); err != nil {
@@ -2275,45 +2289,6 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 			Created: &res.GetRecovery().Created,
 		},
 	}, nil
-}
-
-// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
-// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
-func (h *Handler) trySettingConnectorNameToPasswordless(ctx context.Context, sessCtx *SessionContext, req changeUserAuthenticationRequest) error {
-	// We use the presence of a WebAuthn response, along with the absence of a
-	// password, as a proxy to determine that a passwordless registration took
-	// place, as it is not possible to infer that just from the WebAuthn response.
-	isPasswordlessRegistration := req.WebauthnCreationResponse != nil && len(req.Password) == 0
-	if !isPasswordlessRegistration {
-		return nil
-	}
-
-	if !h.ClusterFeatures.GetCloud() {
-		return nil
-	}
-
-	authPreference, err := sessCtx.cfg.RootClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil
-	}
-
-	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
-		return nil
-	}
-
-	users, err := h.cfg.ProxyClient.GetUsers(ctx, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(users) != 1 {
-		return nil
-	}
-
-	authPreference.SetConnectorName(constants.PasswordlessConnector)
-
-	err = sessCtx.cfg.RootClient.SetAuthPreference(ctx, authPreference)
-	return trace.Wrap(err)
 }
 
 // createResetPasswordToken allows a UI user to reset a user's password.
@@ -2482,7 +2457,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.auth.newSessionContext(r.Context(), user, session.GetName())
+	ctx, err := h.auth.newSessionContextFromSession(r.Context(), session)
 	if err != nil {
 		return nil, trace.AccessDenied("need auth")
 	}
@@ -4093,7 +4068,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
+	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		websession.ClearCookie(w)
 		return nil, trace.AccessDenied("need auth")
@@ -4103,10 +4078,50 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		if err != nil {
 			return nil, trace.AccessDenied("need auth")
 		}
-		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+		if err := sctx.validateBearerToken(r.Context(), creds.Password); err != nil {
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
+
+	if err := parseMFAResponseFromRequest(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sctx, nil
+}
+
+// parseMFAResponse checks for an MFA response in the request header.
+// if found, the mfa response is added to the request context, where
+// it can be recalled to augment client authentication further down
+// the call stack.
+func parseMFAResponseFromRequest(r *http.Request) error {
+	ctx, err := contextWithMFAResponseFromRequestHeader(r.Context(), r.Header)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the request reference with a cloned request with the update ctx.
+	*r = *r.WithContext(ctx)
+	return nil
+}
+
+// contextWithMFAResponseFromRequestHeader attempts to parse an MFA response
+// from the request header. If found, the MFA response is added to the given
+// context and returned.
+func contextWithMFAResponseFromRequestHeader(ctx context.Context, requestHeader http.Header) (context.Context, error) {
+	if mfaResponseJSON := requestHeader.Get("Teleport-MFA-Response"); mfaResponseJSON != "" {
+		var resp mfaResponse
+		if err := json.Unmarshal([]byte(mfaResponseJSON), &resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return mfa.ContextWithMFAResponse(ctx, &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
+			},
+		}), nil
+	}
+
 	return ctx, nil
 }
 

@@ -1,18 +1,20 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import {
@@ -124,7 +126,7 @@ export function DesktopSession(props: State) {
 
   if (errorDialog.open) {
     return (
-      <Session {...props} initTdpCli={false} displayCanvas={false}>
+      <Session {...props} clientShouldConnect={false} displayCanvas={false}>
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={onDialogClose}
@@ -160,10 +162,14 @@ export function DesktopSession(props: State) {
   if (showAnotherSessionActiveDialog) {
     // Don't start the TDP connection until the user confirms they're ok
     // with potentially killing another user's connection.
-    const initTdpCli = false;
+    const shouldConnect = false;
 
     return (
-      <Session {...props} initTdpCli={initTdpCli} displayCanvas={false}>
+      <Session
+        {...props}
+        clientShouldConnect={shouldConnect}
+        displayCanvas={false}
+      >
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={() => {}}
@@ -200,7 +206,7 @@ export function DesktopSession(props: State) {
 
   if (disconnected) {
     return (
-      <Session {...props} initTdpCli={false} displayCanvas={false}>
+      <Session {...props} clientShouldConnect={false} displayCanvas={false}>
         <Box textAlign="center" m={10}>
           <Text>Session successfully disconnected</Text>
         </Box>
@@ -212,10 +218,14 @@ export function DesktopSession(props: State) {
     // We don't know whether another session for this desktop is active while the
     // fetchAttempt is still processing, so hold off on starting a TDP connection
     // until that information is available.
-    const initTdpCli = fetchAttempt.status !== 'processing';
+    const shouldConnect = fetchAttempt.status !== 'processing';
 
     return (
-      <Session {...props} initTdpCli={initTdpCli} displayCanvas={false}>
+      <Session
+        {...props}
+        clientShouldConnect={shouldConnect}
+        displayCanvas={false}
+      >
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -223,7 +233,7 @@ export function DesktopSession(props: State) {
     );
   }
 
-  return <Session {...props} initTdpCli={true} displayCanvas={true} />;
+  return <Session {...props} clientShouldConnect={true} displayCanvas={true} />;
 }
 
 function Session({
@@ -235,20 +245,22 @@ function Session({
   setClipboardSharingEnabled,
   directorySharingState,
   setDirectorySharingState,
-  onPngFrame,
-  onClipboardData,
-  onTdpError,
-  onTdpWarning,
-  onWsClose,
-  onWsOpen,
-  onKeyDown,
-  onKeyUp,
-  onMouseMove,
-  onMouseDown,
-  onMouseUp,
-  onMouseWheelScroll,
-  onContextMenu,
-  initTdpCli,
+  clientOnPngFrame,
+  clientOnBitmapFrame,
+  clientOnClipboardData,
+  clientOnTdpError,
+  clientOnTdpWarning,
+  clientOnWsClose,
+  clientOnWsOpen,
+  canvasOnKeyDown,
+  canvasOnKeyUp,
+  canvasOnMouseMove,
+  canvasOnMouseDown,
+  canvasOnMouseUp,
+  canvasOnMouseWheelScroll,
+  canvasOnContextMenu,
+  clientShouldConnect,
+  clientScreenSpec,
   displayCanvas,
   clipboardSharingEnabled,
   onShareDirectory,
@@ -299,21 +311,23 @@ function Session({
         style={{
           display: displayCanvas ? 'flex' : 'none',
         }}
-        tdpCli={tdpClient}
-        tdpCliInit={initTdpCli}
-        tdpCliOnPngFrame={onPngFrame}
-        tdpCliOnClipboardData={onClipboardData}
-        tdpCliOnTdpError={onTdpError}
-        tdpCliOnTdpWarning={onTdpWarning}
-        tdpCliOnWsClose={onWsClose}
-        tdpCliOnWsOpen={onWsOpen}
-        onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
-        onMouseMove={onMouseMove}
-        onMouseDown={onMouseDown}
-        onMouseUp={onMouseUp}
-        onMouseWheelScroll={onMouseWheelScroll}
-        onContextMenu={onContextMenu}
+        client={tdpClient}
+        clientShouldConnect={clientShouldConnect}
+        clientScreenSpec={clientScreenSpec}
+        clientOnPngFrame={clientOnPngFrame}
+        clientOnBmpFrame={clientOnBitmapFrame}
+        clientOnClipboardData={clientOnClipboardData}
+        clientOnTdpError={clientOnTdpError}
+        clientOnTdpWarning={clientOnTdpWarning}
+        clientOnWsClose={clientOnWsClose}
+        clientOnWsOpen={clientOnWsOpen}
+        canvasOnKeyDown={canvasOnKeyDown}
+        canvasOnKeyUp={canvasOnKeyUp}
+        canvasOnMouseMove={canvasOnMouseMove}
+        canvasOnMouseDown={canvasOnMouseDown}
+        canvasOnMouseUp={canvasOnMouseUp}
+        canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
+        canvasOnContextMenu={canvasOnContextMenu}
       />
     </Flex>
   );
@@ -321,7 +335,7 @@ function Session({
 
 type Props = State & {
   // Determines whether the tdp client that's passed to the TdpClientCanvas
-  // should be initialized.
-  initTdpCli: boolean;
+  // should connect to the server.
+  clientShouldConnect: boolean;
   displayCanvas: boolean;
 };

@@ -354,13 +354,6 @@ our [RBAC](../rbac.mdx) guide for more details.
 
 To retrieve credentials for a database and connect to it:
 
-```sh
-$ tsh db connect cloudsql
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
 ```code
 $ tsh db connect --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
 ```

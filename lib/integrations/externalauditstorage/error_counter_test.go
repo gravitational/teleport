@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package externalauditstorage
 
@@ -19,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -36,10 +41,13 @@ func TestErrorCounter(t *testing.T) {
 	defer cancel()
 
 	testError := errors.New("test error")
+	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
+	sanitizedBadError := "bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  bad test error  "
 
 	for _, tc := range []struct {
 		desc         string
 		steps        []testStep
+		err          error
 		expectAlerts []alert
 	}{
 		{
@@ -53,6 +61,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    sessionUploadFailureClusterAlert,
 				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
@@ -69,6 +78,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    sessionDownloadFailureClusterAlert,
 				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
@@ -85,6 +95,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventEmitFailureClusterAlert,
 				message: fmt.Sprintf(eventEmitFailureClusterAlertMsgTemplate, testError),
@@ -101,6 +112,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventSearchFailureClusterAlert,
 				message: fmt.Sprintf(eventSearchFailureClusterAlertMsgTemplate, testError),
@@ -118,6 +130,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err:          testError,
 			expectAlerts: []alert{},
 		},
 		{
@@ -132,6 +145,7 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err: testError,
 			expectAlerts: []alert{{
 				name:    eventSearchFailureClusterAlert,
 				message: fmt.Sprintf(eventSearchFailureClusterAlertMsgTemplate, testError),
@@ -149,7 +163,24 @@ func TestErrorCounter(t *testing.T) {
 					repeat: 10,
 				},
 			},
+			err:          testError,
 			expectAlerts: []alert{},
+		},
+		{
+			desc: "bad error message",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.Upload(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: badError,
+			expectAlerts: []alert{{
+				name:    sessionUploadFailureClusterAlert,
+				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, sanitizedBadError),
+			}},
 		},
 	} {
 		tc := tc
@@ -158,9 +189,9 @@ func TestErrorCounter(t *testing.T) {
 			alertService := newFakeAlertService()
 			counter := NewErrorCounter(alertService)
 			pack := &testPack{
-				errLogger:        counter.WrapAuditLogger(&errorLogger{err: testError}),
+				errLogger:        counter.WrapAuditLogger(&errorLogger{err: tc.err}),
 				successLogger:    counter.WrapAuditLogger(&errorLogger{err: nil}),
-				errHandler:       counter.WrapSessionHandler(&errorHandler{err: testError}),
+				errHandler:       counter.WrapSessionHandler(&errorHandler{err: tc.err}),
 				successHandler:   counter.WrapSessionHandler(&errorHandler{err: nil}),
 				observeEmitError: counter.ObserveEmitError,
 			}
@@ -174,10 +205,10 @@ func TestErrorCounter(t *testing.T) {
 				// so this test just manually calls sync.
 				counter.sync(ctx)
 			}
+			assert.Len(t, alertService.alerts, len(tc.expectAlerts))
 			for _, expected := range tc.expectAlerts {
 				assert.Equal(t, expected.message, alertService.alerts[expected.name])
 			}
-			assert.Len(t, alertService.alerts, len(tc.expectAlerts))
 		})
 	}
 

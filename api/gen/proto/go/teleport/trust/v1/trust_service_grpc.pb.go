@@ -39,6 +39,7 @@ const (
 	TrustService_GetCertAuthorities_FullMethodName  = "/teleport.trust.v1.TrustService/GetCertAuthorities"
 	TrustService_DeleteCertAuthority_FullMethodName = "/teleport.trust.v1.TrustService/DeleteCertAuthority"
 	TrustService_UpsertCertAuthority_FullMethodName = "/teleport.trust.v1.TrustService/UpsertCertAuthority"
+	TrustService_GenerateHostCert_FullMethodName    = "/teleport.trust.v1.TrustService/GenerateHostCert"
 )
 
 // TrustServiceClient is the client API for TrustService service.
@@ -53,6 +54,9 @@ type TrustServiceClient interface {
 	DeleteCertAuthority(ctx context.Context, in *DeleteCertAuthorityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertCertAuthority creates or updates the provided cert authority.
 	UpsertCertAuthority(ctx context.Context, in *UpsertCertAuthorityRequest, opts ...grpc.CallOption) (*types.CertAuthorityV2, error)
+	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
+	// a SSH certificate signed by the Host CA.
+	GenerateHostCert(ctx context.Context, in *GenerateHostCertRequest, opts ...grpc.CallOption) (*GenerateHostCertResponse, error)
 }
 
 type trustServiceClient struct {
@@ -99,6 +103,15 @@ func (c *trustServiceClient) UpsertCertAuthority(ctx context.Context, in *Upsert
 	return out, nil
 }
 
+func (c *trustServiceClient) GenerateHostCert(ctx context.Context, in *GenerateHostCertRequest, opts ...grpc.CallOption) (*GenerateHostCertResponse, error) {
+	out := new(GenerateHostCertResponse)
+	err := c.cc.Invoke(ctx, TrustService_GenerateHostCert_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrustServiceServer is the server API for TrustService service.
 // All implementations must embed UnimplementedTrustServiceServer
 // for forward compatibility
@@ -111,6 +124,9 @@ type TrustServiceServer interface {
 	DeleteCertAuthority(context.Context, *DeleteCertAuthorityRequest) (*emptypb.Empty, error)
 	// UpsertCertAuthority creates or updates the provided cert authority.
 	UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error)
+	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
+	// a SSH certificate signed by the Host CA.
+	GenerateHostCert(context.Context, *GenerateHostCertRequest) (*GenerateHostCertResponse, error)
 	mustEmbedUnimplementedTrustServiceServer()
 }
 
@@ -129,6 +145,9 @@ func (UnimplementedTrustServiceServer) DeleteCertAuthority(context.Context, *Del
 }
 func (UnimplementedTrustServiceServer) UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertCertAuthority not implemented")
+}
+func (UnimplementedTrustServiceServer) GenerateHostCert(context.Context, *GenerateHostCertRequest) (*GenerateHostCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateHostCert not implemented")
 }
 func (UnimplementedTrustServiceServer) mustEmbedUnimplementedTrustServiceServer() {}
 
@@ -215,6 +234,24 @@ func _TrustService_UpsertCertAuthority_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrustService_GenerateHostCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateHostCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).GenerateHostCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrustService_GenerateHostCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).GenerateHostCert(ctx, req.(*GenerateHostCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrustService_ServiceDesc is the grpc.ServiceDesc for TrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -237,6 +274,10 @@ var TrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertCertAuthority",
 			Handler:    _TrustService_UpsertCertAuthority_Handler,
+		},
+		{
+			MethodName: "GenerateHostCert",
+			Handler:    _TrustService_GenerateHostCert_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

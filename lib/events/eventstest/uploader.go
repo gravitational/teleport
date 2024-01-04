@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package eventstest
 
@@ -277,5 +279,58 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) events.UploadMetadata
 
 // ReserveUploadPart reserves an upload part.
 func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	return nil
+}
+
+// MockUploader is a limited implementation of [events.MultipartUploader] that
+// allows injecting errors for testing purposes. [MemoryUploader] is a more
+// complete implementation and should be preferred for testing the happy path.
+type MockUploader struct {
+	events.MultipartUploader
+
+	CreateUploadError      error
+	ReserveUploadPartError error
+	ListPartsError         error
+
+	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
+	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
+}
+
+func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+	if m.CreateUploadError != nil {
+		return nil, m.CreateUploadError
+	}
+
+	return &events.StreamUpload{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+	}, nil
+}
+
+func (m *MockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUpload, _ int64) error {
+	return m.ReserveUploadPartError
+}
+
+func (m *MockUploader) ListParts(_ context.Context, _ events.StreamUpload) ([]events.StreamPart, error) {
+	if m.ListPartsError != nil {
+		return nil, m.ListPartsError
+	}
+
+	return []events.StreamPart{}, nil
+}
+
+func (m *MockUploader) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
+	if m.MockListUploads != nil {
+		return m.MockListUploads(ctx)
+	}
+
+	return nil, nil
+}
+
+func (m *MockUploader) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if m.MockCompleteUpload != nil {
+		return m.MockCompleteUpload(ctx, upload, parts)
+	}
+
 	return nil
 }

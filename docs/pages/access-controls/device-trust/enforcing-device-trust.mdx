@@ -1,12 +1,16 @@
 ---
-title: Enforce Device Trust 
+title: Enforce Device Trust
 description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 ---
 
-<Admonition type="warning" title="Supported Resources">
-Device trust only supports SSH, Database and Kubernetes resources. Support for
-other resources is planned for upcoming Teleport versions.
+<Admonition type="notice" title="Supported Resources">
+Device trust fully supports SSH, Database and Kubernetes resources.
+
+Apps may enforce trusted devices using role-based enforcement. See the [App
+Access support](#app-access-support) section.
+
+Support for other resources is planned for upcoming Teleport versions.
 </Admonition>
 
 Resources protected by the device mode "required" will enforce the use of a
@@ -148,6 +152,56 @@ cluster. Likewise, a root cluster will not enforce device trust on resources in
 leaf clusters.
 </Admonition>
 
+## App Access support
+
+Apps may enforce device trust via [role-based enforcement](
+#role-based-trusted-device-enforcement). Any apps that enforce device trust must
+be accessed using tsh commands such as [tsh proxy app](
+../../reference/cli/tsh.mdx#tsh-proxy-app) or using the certificates issued by
+`tsh app login`. Direct access to those apps via the Web UI is not yet
+available.
+
+For example, to enforce device trust for all `env:production` apps, save the
+role below as `require-trusted-device-apps.yaml`:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: require-trusted-device-apps
+spec:
+  options:
+    device_trust_mode: "required"
+  allow:
+    app_labels:
+      env: production
+```
+
+Create the role and assign it to a user:
+
+```code
+$ tctl create require-trusted-device-apps.yaml
+$ tctl edit users/alice
+```
+
+```diff
+kind: user
+metadata:
+  name: alice
+  # (...)
+spec:
+  roles:
+  - access
+  - editor
++ - require-trusted-device-apps
+  # (...)
+version: v2
+```
+
+Now the alice user can only access `env:production` apps using a trusted device.
+For example, to access an app called `myapp`, alice runs `tsh proxy app myapp -p
+8888` and opens http://localhost:8888 in her browser.
+
 ## Locking a device
 
 Similar to [session and identity locking](../guides/locking.mdx), a device can
@@ -183,7 +237,7 @@ ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devi
 
 ## Troubleshooting
 
-(!docs/pages/includes/device-trust/enroll-troubleshooting.mdx!)
+(!docs/pages/includes/device-trust/troubleshooting.mdx!)
 
 ## Next steps
 - [Device Management](./device-management.mdx)

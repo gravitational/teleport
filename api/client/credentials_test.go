@@ -203,8 +203,6 @@ func TestLoadProfile(t *testing.T) {
 		require.Error(t, err)
 		_, err = creds.SSHClientConfig()
 		require.Error(t, err)
-		_, err = creds.Dialer(Config{})
-		require.Error(t, err)
 	})
 }
 
@@ -224,9 +222,6 @@ func testProfileContents(t *testing.T, dir, name string) {
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
-	// Build Dialer
-	_, err = creds.Dialer(Config{})
-	require.NoError(t, err)
 }
 
 func writeProfile(t *testing.T, p *profile.Profile) {

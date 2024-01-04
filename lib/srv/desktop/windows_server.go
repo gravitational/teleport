@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package desktop
 
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -121,7 +124,7 @@ type WindowsService struct {
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
-	lastDiscoveryResults types.ResourcesWithLabelsMap
+	lastDiscoveryResults map[string]types.WindowsDesktop
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
@@ -205,10 +208,8 @@ type HeartbeatConfig struct {
 	PublicAddr string
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
-	// StaticHosts is an optional list of AD-connected static Windows hosts to register.
-	StaticHosts []utils.NetAddr
-	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
-	NonADHosts []utils.NetAddr
+	// StaticHosts is an optional list of static Windows hosts to register
+	StaticHosts []servicecfg.WindowsHost
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
@@ -398,7 +399,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 && len(s.cfg.Heartbeat.NonADHosts) == 0 {
+	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
 		s.cfg.Log.Warnln("desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
 	} else {
 		s.cfg.Log.Infoln("desktop discovery via LDAP is disabled, set 'base_dn' to enable")
@@ -593,25 +594,21 @@ func (s *WindowsService) startServiceHeartbeat() error {
 // service itself is running.
 func (s *WindowsService) startStaticHostHeartbeats() error {
 	for _, host := range s.cfg.Heartbeat.StaticHosts {
-		if err := s.startStaticHostHeartbeat(host, false); err != nil {
+		if err := s.startStaticHostHeartbeat(host); err != nil {
 			return err
-		}
-	}
-	for _, host := range s.cfg.Heartbeat.NonADHosts {
-		if err := s.startStaticHostHeartbeat(host, true); err != nil {
-			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (s *WindowsService) startStaticHostHeartbeat(host utils.NetAddr, nonAD bool) error {
+// startStaticHostHeartbeats spawns heartbeat goroutine for single host
+func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeCtx,
 		Component:       teleport.ComponentWindowsDesktop,
 		Mode:            srv.HeartbeatModeWindowsDesktop,
 		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn, nonAD),
+		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     5 * time.Minute,
@@ -758,8 +755,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	if len(desktops) == 0 {
-		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
-			desktopName)
+		log.Errorf("desktop %v/%v not found", s.cfg.Heartbeat.HostUUID, desktopName)
 		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
@@ -789,6 +785,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	addr, err := utils.ParseHostPortAddr(desktop.GetAddr(), defaults.RDPListenPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -870,7 +871,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
 		CertTTL:               windows.CertTTL,
-		Addr:                  desktop.GetAddr(),
+		Addr:                  addr.String(),
 		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
@@ -956,7 +957,8 @@ func (s *WindowsService) makeTDPSendHandler(
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
+		case byte(tdp.TypeRDPChannelIDs), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
+			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1093,20 +1095,25 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
-func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
-	getHostLabels func(string) map[string]string, nonAD bool,
+func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
+	getHostLabels func(string) map[string]string,
 ) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
-		addr := netAddr.String()
-		name, err := s.nameForStaticHost(addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// for static hosts, we match against the host's addr,
-		// as the name is a randomly generated UUID
+		addr := host.Address.String()
 		labels := getHostLabels(addr)
+		for k, v := range host.Labels {
+			labels[k] = v
+		}
+		name := host.Name
+		if name == "" {
+			var err error
+			name, err = s.nameForStaticHost(addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 		labels[types.OriginLabel] = types.OriginConfigFile
-		labels[types.ADLabel] = strconv.FormatBool(!nonAD)
+		labels[types.ADLabel] = strconv.FormatBool(host.AD)
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
@@ -1114,7 +1121,7 @@ func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
 				Addr:   addr,
 				Domain: s.cfg.Domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
-				NonAD:  nonAD,
+				NonAD:  !host.AD,
 			})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -23,6 +25,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -31,7 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -40,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -117,7 +121,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
-		types.KindExternalAuditStorage:     rc.upsertExternalAuditStorage,
+		types.KindExternalAuditStorage:     rc.createExternalAuditStorage,
 		types.KindUIConfig:                 rc.createUIConfig,
 		types.KindLock:                     rc.createLock,
 		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
@@ -140,6 +144,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAuditQuery:               rc.createAuditQuery,
 		types.KindSecurityReport:           rc.createSecurityReport,
 		types.KindServerInfo:               rc.createServerInfo,
+		types.KindBot:                      rc.createBot,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
@@ -383,21 +388,27 @@ func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client aut
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = client.GetGithubConnector(ctx, connector.GetName(), false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+
+	if rc.force {
+		upserted, err := client.UpsertGithubConnector(ctx, connector)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("authentication connector %q has been updated\n", upserted.GetName())
+		return nil
 	}
-	exists := (err == nil)
-	if !rc.force && exists {
-		return trace.AlreadyExists("authentication connector %q already exists",
-			connector.GetName())
-	}
-	err = client.UpsertGithubConnector(ctx, connector)
+
+	created, err := client.CreateGithubConnector(ctx, connector)
 	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("authentication connector %q already exists", connector.GetName())
+		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("authentication connector %q has been %s\n",
-		connector.GetName(), UpsertVerb(exists, rc.force))
+
+	fmt.Printf("authentication connector %q has been created\n", created.GetName())
+
 	return nil
 }
 
@@ -418,10 +429,6 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client aut
 // createRole implements `tctl create role.yaml` command.
 func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	role, err := services.UnmarshalRole(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = role.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -450,10 +457,6 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 
 func (rc *ResourceCommand) updateRole(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	role, err := services.UnmarshalRole(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = role.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -527,6 +530,32 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
+	return nil
+}
+
+func (rc *ResourceCommand) createBot(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	bot := &machineidv1pb.Bot{}
+	if err := protojson.Unmarshal(raw.Raw, bot); err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
+			Bot: bot,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
+		return nil
+	}
+
+	_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: bot,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
 	return nil
 }
 
@@ -634,19 +663,24 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 	return nil
 }
 
-// upsertExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) upsertExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	config, err := services.UnmarshalExternalAuditStorage(raw.Raw)
+// createExternalAuditStorage implements `tctl create external_audit_storage` command.
+func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	externalAuditClient := client.ExternalAuditStorageClient()
-	_, err = externalAuditClient.UpsertDraftExternalAuditStorage(ctx, config)
-	if err != nil {
-		return trace.Wrap(err)
+	if rc.force {
+		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("External Audit Storage configuration has been updated\n")
+	} else {
+		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("External Audit Storage configuration has been created\n")
 	}
-
-	fmt.Printf("External Audit Storage configuration has been updated\n")
 	return nil
 }
 
@@ -805,9 +839,6 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	name := server.GetName()
 	_, err = client.GetNode(ctx, server.GetNamespace(), name)
@@ -832,23 +863,26 @@ func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := conn.CheckAndSetDefaults(); err != nil {
+
+	if rc.force {
+		upserted, err := client.UpsertOIDCConnector(ctx, conn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("authentication connector '%s' has been updated\n", upserted.GetName())
+		return nil
+	}
+
+	created, err := client.CreateOIDCConnector(ctx, conn)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", conn.GetName())
+		}
+
 		return trace.Wrap(err)
 	}
 
-	connectorName := conn.GetName()
-	_, err = client.GetOIDCConnector(ctx, connectorName, false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
-	}
-	if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
+	fmt.Printf("authentication connector '%s' has been created\n", created.GetName())
 	return nil
 }
 
@@ -890,11 +924,8 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client auth.
 	if conn.GetSigningKeyPair() == nil && exists {
 		conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
 	}
-	if err := conn.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
-	if err = client.UpsertSAMLConnector(ctx, conn); err != nil {
+	if _, err = client.UpsertSAMLConnector(ctx, conn); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector '%s' has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
@@ -942,9 +973,6 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	}
 
 	serviceProviderName := sp.GetName()
-	if err := sp.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	exists := false
 	if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
@@ -1004,10 +1032,6 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	importRule, err := services.UnmarshalOktaImportRule(raw.Raw)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := importRule.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1160,6 +1184,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
+		types.KindNetworkRestrictions,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1509,6 +1534,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
+	case types.KindBot:
+		if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2153,6 +2183,35 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		})
 
 		return &deviceCollection{devices: devs}, nil
+	case types.KindBot:
+		remote := client.BotServiceClient()
+		if rc.ref.Name != "" {
+			bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
+				BotName: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
+		}
+
+		req := &machineidv1pb.ListBotsRequest{}
+		var bots []*machineidv1pb.Bot
+		for {
+			resp, err := remote.ListBots(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			bots = append(bots, resp.Bots...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		return &botCollection{bots: bots}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)

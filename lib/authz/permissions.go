@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2018 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package authz
 
@@ -58,6 +60,17 @@ func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	return authContext, nil
 }
 
+// DeviceAuthorizationOpts captures Device Trust options for [AuthorizerOpts].
+type DeviceAuthorizationOpts struct {
+	// DisableGlobalMode disables the global device_trust.mode toggle.
+	// See [types.DeviceTrust.Mode].
+	DisableGlobalMode bool
+
+	// DisableRoleMode disables the role-based device trust toggle.
+	// See [types.RoleOption.DeviceTrustMode].
+	DisableRoleMode bool
+}
+
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
 	ClusterName string
@@ -65,10 +78,12 @@ type AuthorizerOpts struct {
 	LockWatcher *services.LockWatcher
 	Logger      logrus.FieldLogger
 
-	// DisableDeviceAuthorization disables device authorization via [Authorizer].
-	// It is meant for services that do explicit device authorization, like the
-	// Auth Server APIs. Most services should not set this field.
-	DisableDeviceAuthorization bool
+	// DeviceAuthorization holds Device Trust authorization options.
+	//
+	// Allows services that either do explicit device authorization or don't (yet)
+	// support device trust to disable it.
+	// Most services should not set this field.
+	DeviceAuthorization DeviceAuthorizationOpts
 }
 
 // NewAuthorizer returns new authorizer using backends
@@ -84,11 +99,12 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
 	}
 	return &authorizer{
-		clusterName:                opts.ClusterName,
-		accessPoint:                opts.AccessPoint,
-		lockWatcher:                opts.LockWatcher,
-		logger:                     logger,
-		disableDeviceAuthorization: opts.DisableDeviceAuthorization,
+		clusterName:             opts.ClusterName,
+		accessPoint:             opts.AccessPoint,
+		lockWatcher:             opts.LockWatcher,
+		logger:                  logger,
+		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
+		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
 }
 
@@ -142,11 +158,13 @@ type AuthorizerAccessPoint interface {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName                string
-	accessPoint                AuthorizerAccessPoint
-	lockWatcher                *services.LockWatcher
-	disableDeviceAuthorization bool
-	logger                     logrus.FieldLogger
+	clusterName string
+	accessPoint AuthorizerAccessPoint
+	lockWatcher *services.LockWatcher
+	logger      logrus.FieldLogger
+
+	disableGlobalDeviceMode bool
+	disableRoleDeviceMode   bool
 }
 
 // Context is authorization context
@@ -168,14 +186,20 @@ type Context struct {
 	// it's identical to Identity.
 	UnmappedIdentity IdentityGetter
 
-	// disableDeviceAuthorization disables device verification.
+	// disableDeviceRoleMode disables role-based device verification.
 	// Inherited from the authorizer that creates the context.
-	disableDeviceAuthorization bool
+	disableDeviceRoleMode bool
 
 	// AdminActionVerified is whether this auth request is verified for admin actions. This
 	// either means that the request was MFA verified through the context or Hardware Key support,
 	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
-	adminActionAuthorized bool
+	AdminActionAuthorized bool
+}
+
+// GetUserMetadata returns information about the authenticated identity
+// to be included in audit events.
+func (c *Context) GetUserMetadata() apievents.UserMetadata {
+	return c.Identity.GetIdentity().GetUserMetadata()
 }
 
 // LockTargets returns a list of LockTargets inferred from the context's
@@ -260,7 +284,7 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 	_, isService := c.Identity.(BuiltinRole)
 	state.MFAVerified = isService || identity.IsMFAVerified()
 
-	state.EnableDeviceVerification = !c.disableDeviceAuthorization
+	state.EnableDeviceVerification = !c.disableDeviceRoleMode
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
 
 	return state
@@ -301,7 +325,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	}
 
 	// Device Trust: authorize device extensions.
-	if !a.disableDeviceAuthorization {
+	if !a.disableGlobalDeviceMode {
 		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -360,7 +384,7 @@ func (a *authorizer) checkAdminActionVerification(ctx context.Context, authConte
 		return trace.Wrap(err)
 	}
 
-	authContext.adminActionAuthorized = true
+	authContext.AdminActionAuthorized = true
 	return nil
 }
 
@@ -376,8 +400,8 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	// Admin actions do not require MFA when MFA is not enabled.
-	if authpref.GetSecondFactor() == constants.SecondFactorOff {
+	// Admin actions do not require MFA when Webauthn is not enabled.
+	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
 		return nil
 	}
 
@@ -482,7 +506,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(ctx context.Context, u LocalUser) (*Context, error) {
-	return ContextForLocalUser(ctx, u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
+	return ContextForLocalUser(ctx, u, a.accessPoint, a.clusterName, a.disableRoleDeviceMode)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
@@ -567,11 +591,11 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 	}
 
 	return &Context{
-		User:                       user,
-		Checker:                    checker,
-		Identity:                   WrapIdentity(identity),
-		UnmappedIdentity:           u,
-		disableDeviceAuthorization: a.disableDeviceAuthorization,
+		User:                  user,
+		Checker:               checker,
+		Identity:              WrapIdentity(identity),
+		UnmappedIdentity:      u,
+		disableDeviceRoleMode: a.disableRoleDeviceMode,
 	}, nil
 }
 
@@ -645,11 +669,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 		AllowedResourceIDs: nil,
 	}, a.clusterName, roleSet)
 	return &Context{
-		User:                       user,
-		Checker:                    checker,
-		Identity:                   r,
-		UnmappedIdentity:           r,
-		disableDeviceAuthorization: a.disableDeviceAuthorization,
+		User:                  user,
+		Checker:               checker,
+		Identity:              r,
+		UnmappedIdentity:      r,
+		disableDeviceRoleMode: a.disableRoleDeviceMode,
 	}, nil
 }
 
@@ -1018,7 +1042,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLock, services.RW()),
 					},
 				},
 			})
@@ -1072,16 +1096,17 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 		AllowedResourceIDs: nil,
 	}, r.ClusterName, roleSet)
 	return &Context{
-		User:                       user,
-		Checker:                    checker,
-		Identity:                   r,
-		UnmappedIdentity:           r,
-		disableDeviceAuthorization: true, // Builtin roles skip device trust.
+		User:                  user,
+		Checker:               checker,
+		Identity:              r,
+		UnmappedIdentity:      r,
+		disableDeviceRoleMode: true, // Builtin roles skip device trust.
+		AdminActionAuthorized: true, // builtin roles skip mfa for admin actions.
 	}, nil
 }
 
 // ContextForLocalUser returns a context with the local user info embedded.
-func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
+func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceRoleMode bool) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(ctx, u.Username, false)
 	if err != nil {
@@ -1106,11 +1131,11 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	user.SetTraits(accessInfo.Traits)
 
 	return &Context{
-		User:                       user,
-		Checker:                    accessChecker,
-		Identity:                   u,
-		UnmappedIdentity:           u,
-		disableDeviceAuthorization: disableDeviceAuthz,
+		User:                  user,
+		Checker:               accessChecker,
+		Identity:              u,
+		UnmappedIdentity:      u,
+		disableDeviceRoleMode: disableDeviceRoleMode,
 	}, nil
 }
 
@@ -1300,7 +1325,7 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
 func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	if !authCtx.adminActionAuthorized {
+	if !authCtx.AdminActionAuthorized {
 		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
 	}
 	return nil

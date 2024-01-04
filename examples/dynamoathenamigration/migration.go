@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -44,7 +45,6 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	apievents "github.com/gravitational/teleport/api/types/events"

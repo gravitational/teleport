@@ -222,14 +222,7 @@ $ tsh db ls
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect example-mongo
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db connect --db-user=alice example-mongo
+$ tsh db connect --db-user=alice --db-name dev example-mongo
 ```
 
 <Admonition type="note" title="Supported MongoDB clients">

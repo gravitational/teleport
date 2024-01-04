@@ -1,29 +1,31 @@
 /*
-Copyright 2021-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/dustin/go-humanize/english"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
@@ -134,9 +136,13 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 			}
 		}
 	} else {
+		// We check both "Spec" with a capital S, and "spec" in lower case.
 		specField, ok := rootMsg.GetField("Spec")
 		if !ok {
-			return trace.NotFound("message %q does not have Spec field", name)
+			specField, ok = rootMsg.GetField("spec")
+			if !ok {
+				return trace.NotFound("message %q does not have Spec field", name)
+			}
 		}
 
 		specMsg := specField.TypeMessage()
@@ -251,6 +257,40 @@ func handleEmptyJSONTag(schema *Schema, message *Message, field *Field) bool {
 func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, error) {
 	prop := apiextv1.JSONSchemaProps{Description: field.LeadingComments()}
 
+	// Known overrides: we broke the link between the go struct and the protobuf message.
+	// As we have no guarantee they're identical anymore (they are not) we need
+	// to manually maintain a list of mappings. This is not maintainable on the
+	// long term and this defeats the purpose of the generators, but we didn't
+	// have the time yet to revamp this.
+
+	// Traits are represented as map[string][]string in go,
+	// and as []struct{key string, values []string} in protobuf.
+	if field.IsRepeated() && field.TypeName() == ".teleport.trait.v1.Trait" {
+		prop.Type = "object"
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: &apiextv1.JSONSchemaProps{
+				Type:  "array",
+				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
+			},
+		}
+		return prop, nil
+	}
+
+	// Labels are relying on `utils.Strings`, which can either marshall as an array of strings or a single string
+	// This does not pass Schema validation from the apiserver, to workaround we don't specify type for those fields
+	// and ask Kubernetes to preserve unknown fields.
+	if field.CustomType() == "Labels" {
+		prop.Type = "object"
+		preserveUnknownFields := true
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: &apiextv1.JSONSchemaProps{
+				XPreserveUnknownFields: &preserveUnknownFields,
+			},
+		}
+		return prop, nil
+	}
+
+	// Regular treatment
 	if field.IsRepeated() && !field.IsMap() {
 		prop.Type = "array"
 		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
@@ -267,19 +307,6 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 
 	if field.IsNullable() && (prop.Type == "array" || prop.Type == "object") {
 		prop.Nullable = true
-	}
-
-	// Labels are relying on `utils.Strings`, which can either marshall as an array of strings or a single string
-	// This does not pass Schema validation from the apiserver, to workaround we don't specify type for those fields
-	// and ask Kubernetes to preserve unknown fields.
-	if field.CustomType() == "Labels" {
-		prop.Type = "object"
-		preserveUnknownFields := true
-		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Schema: &apiextv1.JSONSchemaProps{
-				XPreserveUnknownFields: &preserveUnknownFields,
-			},
-		}
 	}
 
 	return prop, nil

@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package externalauditstorage
 
@@ -18,8 +22,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -220,7 +226,7 @@ func (c *errorCategory) sync() alertActions {
 		return alertActions{
 			newAlerts: []alert{{
 				name:    c.alertName,
-				message: fmt.Sprintf(c.alertMessage, *err),
+				message: fmt.Sprintf(c.alertMessage, sanitizeErrForAlert(*err)),
 			}},
 		}
 	}
@@ -393,4 +399,23 @@ func (c *ErrorCountingSessionHandler) ListUploads(ctx context.Context) ([]events
 // GetUploadMetadata calls [c.wrapped.GetUploadMetadata] and counts the error or success.
 func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
 	return c.wrapped.GetUploadMetadata(sessionID)
+}
+
+func sanitizeErrForAlert(err error) string {
+	return strings.Map(func(r rune) rune {
+		// Cluster alerts do not allow control characters.
+		if !unicode.IsPrint(r) {
+			return ' '
+		}
+		return r
+	}, truncateErrForAlert(err))
+}
+
+func truncateErrForAlert(err error) string {
+	s := err.Error()
+	const maxLength = 256 // arbitrary
+	if len(s) < maxLength {
+		return s
+	}
+	return s[:maxLength]
 }

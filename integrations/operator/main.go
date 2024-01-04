@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 //nolint:goimports,gci // goimports disagree with gci on blank imports. Remove when GCI is fixed upstream https://github.com/daixiang0/gci/issues/135
 package main
@@ -33,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
@@ -98,8 +101,10 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                  scheme,
-		MetricsBindAddress:      config.metricsAddr,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: config.metricsAddr,
+		},
 		HealthProbeBindAddress:  config.probeAddr,
 		LeaderElection:          true,
 		LeaderElectionID:        config.leaderElectionID,
@@ -107,7 +112,9 @@ func main() {
 		PprofBindAddress:        config.pprofAddr,
 		Cache: cache.Options{
 			SyncPeriod: &config.syncPeriod,
-			Namespaces: []string{config.namespace},
+			DefaultNamespaces: map[string]cache.Config{
+				config.namespace: {},
+			},
 		},
 	})
 	if err != nil {
@@ -181,6 +188,15 @@ func main() {
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportOktaImportRule")
 		os.Exit(1)
+	}
+
+	// AccessLists are enterprise-only but there is no specific feature-flag for them.
+	if pong.ServerFeatures.AdvancedAccessWorkflows {
+		if err = resources.NewAccessListReconciler(mgr.GetClient(), client).
+			SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TeleportAccessList")
+			os.Exit(1)
+		}
 	}
 
 	//+kubebuilder:scaffold:builder

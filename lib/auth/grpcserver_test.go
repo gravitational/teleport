@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -23,6 +25,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -53,6 +57,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -279,6 +284,13 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
+	// Register a 2nd passwordless device, so we can test removal of the
+	// 2nd-to-last resident credential.
+	// This is already tested above so we just use RegisterTestDevice here.
+	const pwdless2DevName = "pwdless2"
+	pwdless2Dev, err := RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice failed")
+
 	// Check that all new devices are registered.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
@@ -289,13 +301,12 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, []string{pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
+	require.Equal(t, []string{pwdlessDevName, pwdless2DevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
-		desc       string
-		deviceName string
-		opts       mfaDeleteTestOpts
+		desc string
+		opts mfaDeleteTestOpts
 	}{
 		{
 			desc: "fail to delete an unknown device",
@@ -366,6 +377,20 @@ func TestMFADeviceManagement(t *testing.T) {
 			},
 		},
 		{
+			desc: "delete last passwordless device fails",
+			opts: mfaDeleteTestOpts{
+				deviceName:  pwdless2DevName,
+				authHandler: devs.webAuthHandler,
+				checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+					require.ErrorContains(t,
+						err,
+						"last passwordless credential",
+						"Unexpected error deleting last passwordless device",
+					)
+				},
+			},
+		},
+		{
 			desc: "delete webauthn device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.WebName,
@@ -396,6 +421,31 @@ func TestMFADeviceManagement(t *testing.T) {
 			testDeleteMFADevice(ctx, t, userClient, test.opts)
 		})
 	}
+
+	t.Run("delete last passwordless device", func(t *testing.T) {
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference")
+
+		// Deleting the last passwordless device is only allowed if passwordless is
+		// off, so let's do that.
+		authPref.SetAllowPasswordless(false)
+		require.NoError(t, authServer.SetAuthPreference(ctx, authPref), "SetAuthPreference")
+
+		defer func() {
+			authPref.SetAllowPasswordless(true)
+			assert.NoError(t, authServer.SetAuthPreference(ctx, authPref), "Resetting AuthPreference")
+		}()
+
+		testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+			deviceName: pwdless2DevName,
+			authHandler: func(t *testing.T, c *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+				resp, err := pwdless2Dev.SolveAuthn(c)
+				require.NoError(t, err, "SolveAuthn")
+				return resp
+			},
+			checkErr: require.NoError,
+		})
+	})
 
 	// Check no remaining devices.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
@@ -762,6 +812,13 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		})
 	})
 	mfaDevices := addOneOfEachMFADevice(t, clientWithoutDevice, clock, origin)
+
+	mfaPromptFunc := mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		return mfaDevices.WebDev.SolveAuthn(chal)
+	})
+	promptConstructor := func(...mfa.PromptOpt) mfa.Prompt { return mfaPromptFunc }
+	clientWithoutDevice.SetMFAPromptConstructor(promptConstructor)
+	clientWithDevice.SetMFAPromptConstructor(promptConstructor)
 
 	// Create a public key for UserCertsRequest.
 	_, pub, err := testauthority.New().GenerateKeyPair()
@@ -1808,10 +1865,9 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					wantRequired :=
-						(role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-							!role.GetPrivateKeyPolicy().MFAVerified() &&
-							!authPref.GetPrivateKeyPolicy().MFAVerified()
+					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
+						!role.GetPrivateKeyPolicy().MFAVerified() &&
+						!authPref.GetPrivateKeyPolicy().MFAVerified()
 					var wantMFARequired proto.MFARequired
 					if wantRequired {
 						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES
@@ -3754,7 +3810,7 @@ func TestSAMLValidation(t *testing.T) {
 			client, err := server.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			err = client.UpsertSAMLConnector(ctx, connector)
+			_, err = client.UpsertSAMLConnector(ctx, connector)
 
 			if tc.assertErr != nil {
 				require.Error(t, err)
@@ -3930,13 +3986,17 @@ func TestRoleVersions(t *testing.T) {
 
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
-	newRole := func(version string, spec types.RoleSpecV6) types.Role {
-		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+	originalLabels := map[string]string{"env": "staging"}
+	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, version, spec)
+		meta := role.GetMetadata()
+		meta.Labels = maps.Clone(originalLabels)
+		role.SetMetadata(meta)
 		require.NoError(t, err)
 		return role
 	}
 
-	role := newRole(types.V7, types.RoleSpecV6{
+	role := newRole("test_role_1", types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels:               wildcardLabels,
 			AppLabels:                wildcardLabels,
@@ -3951,6 +4011,7 @@ func TestRoleVersions(t *testing.T) {
 					Kind:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Name:      types.Wildcard,
+					Verbs:     []string{types.VerbList},
 				},
 			},
 		},
@@ -3969,7 +4030,41 @@ func TestRoleVersions(t *testing.T) {
 		},
 	})
 
-	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
+	roleV7Wildcard := newRole("test_role_2", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels:               wildcardLabels,
+			AppLabels:                wildcardLabels,
+			AppLabelsExpression:      `labels["env"] == "staging"`,
+			DatabaseLabelsExpression: `labels["env"] == "staging"`,
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+			KubernetesLabels: wildcardLabels,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			KubernetesLabels:               types.Labels{"env": {"prod"}},
+			ClusterLabels:                  types.Labels{"env": {"prod"}},
+			ClusterLabelsExpression:        `labels["env"] == "prod"`,
+			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
+		},
+	})
+
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role, roleV7Wildcard)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))
@@ -3979,6 +4074,7 @@ func TestRoleVersions(t *testing.T) {
 		desc             string
 		clientVersions   []string
 		expectError      bool
+		inputRole        types.Role
 		expectedRole     types.Role
 		expectDowngraded bool
 	}{
@@ -3987,14 +4083,50 @@ func TestRoleVersions(t *testing.T) {
 			clientVersions: []string{
 				"14.0.0-alpha.1", "15.1.2", api.Version, "",
 			},
+			inputRole:    role,
 			expectedRole: role,
+		},
+		{
+			desc: "downgrade role to v6 with wildcard on kube resources but supports label expressions",
+			clientVersions: []string{
+				minSupportedLabelExpressionVersion.String(), "13.3.0",
+			},
+			inputRole: roleV7Wildcard,
+			expectedRole: newRole(roleV7Wildcard.GetName(), types.V6, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					NodeLabels:       wildcardLabels,
+					AppLabels:        wildcardLabels,
+					KubernetesLabels: wildcardLabels,
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: types.Wildcard,
+							Name:      types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					},
+					AppLabelsExpression:      `labels["env"] == "staging"`,
+					DatabaseLabelsExpression: `labels["env"] == "staging"`,
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels:               wildcardLabels,
+					ClusterLabels:                  types.Labels{"env": {"prod"}},
+					ClusterLabelsExpression:        `labels["env"] == "prod"`,
+					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				},
+			}),
+			expectDowngraded: true,
 		},
 		{
 			desc: "downgrade role to v6 but supports label expressions",
 			clientVersions: []string{
 				minSupportedLabelExpressionVersion.String(), "13.3.0",
 			},
-			expectedRole: newRole(types.V6, types.RoleSpecV6{
+			inputRole: role,
+			expectedRole: newRole(role.GetName(), types.V6, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					NodeLabels:               wildcardLabels,
 					AppLabels:                wildcardLabels,
@@ -4017,11 +4149,15 @@ func TestRoleVersions(t *testing.T) {
 			desc:           "bad client versions",
 			clientVersions: []string{"Not a version", "13", "13.1"},
 			expectError:    true,
+			inputRole:      role,
 		},
 		{
 			desc:           "label expressions downgraded",
 			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
-			expectedRole: newRole(types.V6,
+			inputRole:      role,
+			expectedRole: newRole(
+				role.GetName(),
+				types.V6,
 				types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						// None of the allow labels change
@@ -4086,7 +4222,7 @@ func TestRoleVersions(t *testing.T) {
 					}
 
 					// Test GetRole
-					gotRole, err := client.GetRole(ctx, role.GetName())
+					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
 					checkErr(err)
 					checkRole(gotRole)
 
@@ -4096,7 +4232,7 @@ func TestRoleVersions(t *testing.T) {
 					if !tc.expectError {
 						foundTestRole := false
 						for _, gotRole := range gotRoles {
-							if gotRole.GetName() != role.GetName() {
+							if gotRole.GetName() != tc.inputRole.GetName() {
 								continue
 							}
 							checkRole(gotRole)
@@ -4121,7 +4257,7 @@ func TestRoleVersions(t *testing.T) {
 					// Re-upsert the role so that the watcher sees it, do this
 					// on the auth server directly to avoid the
 					// TeleportDowngradedLabel check in ServerWithRoles
-					role, err = srv.Auth().UpsertRole(ctx, role)
+					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
 					require.NoError(t, err)
 
 					gotRole, err = func() (types.Role, error) {
@@ -4130,7 +4266,7 @@ func TestRoleVersions(t *testing.T) {
 							case <-watcher.Done():
 								return nil, watcher.Error()
 							case e := <-watcher.Events():
-								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == role.GetName() {
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
 									return gotRole, nil
 								}
 							}
@@ -4149,6 +4285,15 @@ func TestRoleVersions(t *testing.T) {
 						} else {
 							require.NoError(t, err)
 						}
+					}
+
+					// Call maybeDowngrade directly to make sure the original
+					// role isn't modified
+					sv, err := semver.NewVersion(clientVersion)
+					if err == nil {
+						_, err := maybeDowngradeRoleToV6(ctx, tc.inputRole.(*types.RoleV6), sv)
+						require.NoError(t, err)
+						require.Equal(t, originalLabels, tc.inputRole.GetMetadata().Labels)
 					}
 				})
 			}

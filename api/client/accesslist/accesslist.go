@@ -286,3 +286,24 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 func (c *Client) DeleteAllAccessListReviews(ctx context.Context, accessListName string) error {
 	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }
+
+// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
+func (c *Client) GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetSuggestedAccessLists(ctx, &accesslistv1.GetSuggestedAccessListsRequest{
+		AccessRequestId: accessRequestID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return accessLists, nil
+}

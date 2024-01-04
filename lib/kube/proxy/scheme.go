@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -21,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,7 +102,7 @@ func newClientNegotiator(codecFactory *serializer.CodecFactory) runtime.ClientNe
 // This schema includes all well-known Kubernetes types and all namespaced
 // custom resources.
 // It also returns a map of resources that we support RBAC restrictions for.
-func newClusterSchemaBuilder(client kubernetes.Interface) (serializer.CodecFactory, rbacSupportedResources, error) {
+func newClusterSchemaBuilder(log logrus.FieldLogger, client kubernetes.Interface) (serializer.CodecFactory, rbacSupportedResources, error) {
 	kubeScheme := runtime.NewScheme()
 	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
 	supportedResources := maps.Clone(defaultRBACResources)
@@ -112,19 +115,16 @@ func newClusterSchemaBuilder(client kubernetes.Interface) (serializer.CodecFacto
 	// register all namespaced custom resources
 	_, apiGroups, err := client.Discovery().ServerGroupsAndResources()
 	switch {
-	case errors.As(err, &discoveryErr) && len(discoveryErr.Groups) == 1:
-		// If the discovery error is of type `ErrGroupDiscoveryFailed` and it
-		// contains only one group, it it's possible that the group is the metrics
-		// group. If that's the case, we can ignore the error and continue.
-		// This is a workaround for the metrics group not being registered because
-		// the metrics pod is not running. It's common for Kubernetes clusters without
-		// nodes to not have the metrics pod running.
-		const metricsAPIGroup = "metrics.k8s.io"
-		for k := range discoveryErr.Groups {
-			if k.Group != metricsAPIGroup {
-				return serializer.CodecFactory{}, nil, trace.Wrap(err)
-			}
-		}
+	case errors.As(err, &discoveryErr):
+		// If the discovery of one or more API groups fails, we still want to
+		// register the well-known Kubernetes types.
+		// This is because the discovery of API groups can fail if the APIService
+		// is not available. Usually, this happens when the API service is not local
+		// to the cluster (e.g. when API is served by a pod) and the service is not
+		// reachable.
+		// In this case, we still want to register the other resources that are
+		// available in the cluster.
+		log.WithError(err).Debugf("Failed to discover some API groups: %v", maps.Keys(discoveryErr.Groups))
 	case err != nil:
 		return serializer.CodecFactory{}, nil, trace.Wrap(err)
 	}

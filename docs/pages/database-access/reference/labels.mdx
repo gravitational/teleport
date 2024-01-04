@@ -12,13 +12,23 @@ of the following values:
 | - | - |
 | `cloud`   | database resources created by auto-discovery. |
 | `config`  | database resources manually defined in the `database_service.databases` section of `teleport.yaml`. |
-| `dynamic` | database resources created with "tctl create" command or web interface. |
+| `dynamic` | database resources created through [dynamic registration](../guides/dynamic-registration.mdx) like `tcl create` command. |
 
 ## Auto-discovery
 
 The labels of auto-discovered databases primarily come from the tags that are
 assigned to the original cloud resources, such as the resources tags of an
 Amazon RDS instance. 
+
+The following tags will override Teleport's default behavior if assigned to the
+original cloud resources:
+
+| Tag name | Description |
+| - | - |
+| `TeleportDatabaseName`                   | Overrides the name of the discovered database. |
+| `teleport.dev/database_name`             | (AWS only, legacy) Overrides the name of the discovered database. `TeleportDatabaseName` is preferred. |
+| `teleport.dev/db-admin`                  | (AWS only) Specifies the name of the admin user for Automatic User Provisioning. |
+| `teleport.dev/db-admin-default-database` | (AWS only) Overrides the default database the admin user logs into for Automatic User Provisioning. |
 
 Additionally, Teleport will generate certain labels derived from the cloud
 resource attributes:

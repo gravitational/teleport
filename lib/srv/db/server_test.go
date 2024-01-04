@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -30,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -320,6 +323,68 @@ func TestHeartbeatEvents(t *testing.T) {
 			}, 2*time.Second, 500*time.Millisecond)
 		})
 	}
+}
+
+func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
+	t.Run("no label when running on-prem", func(t *testing.T) {
+		ctx := context.Background()
+		var heartbeatEvents int64
+		heartbeatRecorder := func(err error) {
+			require.NoError(t, err)
+			atomic.AddInt64(&heartbeatEvents, 1)
+		}
+
+		testCtx := setupTestContext(ctx, t)
+		server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+			NoStart:     true,
+			OnHeartbeat: heartbeatRecorder,
+		})
+		require.NoError(t, server.Start(ctx))
+		t.Cleanup(func() {
+			server.Close()
+		})
+
+		var listResp *types.ListResourcesResponse
+		var err error
+		require.Eventually(t, func() bool {
+			listResp, err = testCtx.authServer.ListResources(ctx, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+			require.NoError(t, err)
+
+			return atomic.LoadInt64(&heartbeatEvents) == 1 && len(listResp.Resources) == 1
+		}, 2*time.Second, 500*time.Millisecond)
+
+		require.NotContains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+	})
+	t.Run("when running as AWS OIDC ECS/Fargate Agent, it has a label indicating that", func(t *testing.T) {
+		ctx := context.Background()
+		var heartbeatEvents int64
+		heartbeatRecorder := func(err error) {
+			require.NoError(t, err)
+			atomic.AddInt64(&heartbeatEvents, 1)
+		}
+
+		t.Setenv(types.InstallMethodAWSOIDCDeployServiceEnvVar, "yes")
+		testCtx := setupTestContext(ctx, t)
+		server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+			NoStart:     true,
+			OnHeartbeat: heartbeatRecorder,
+		})
+		require.NoError(t, server.Start(ctx))
+		t.Cleanup(func() {
+			server.Close()
+		})
+
+		var listResp *types.ListResourcesResponse
+		var err error
+		require.Eventually(t, func() bool {
+			listResp, err = testCtx.authServer.ListResources(ctx, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+			require.NoError(t, err)
+
+			return atomic.LoadInt64(&heartbeatEvents) == 1 && len(listResp.Resources) == 1
+		}, 2*time.Second, 500*time.Millisecond)
+
+		require.Contains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+	})
 }
 
 func TestShutdown(t *testing.T) {

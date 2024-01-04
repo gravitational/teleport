@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package athena
 
@@ -26,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -588,7 +593,9 @@ func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, c
 		),
 	)
 	defer span.End()
-	rb := &responseBuilder{}
+	rb := &responseBuilder{
+		logger: q.logger,
+	}
 	// nextToken is used as offset to next calls for GetQueryResults.
 	var nextToken string
 	for {
@@ -644,6 +651,8 @@ type responseBuilder struct {
 	output []apievents.AuditEvent
 	// totalSize is used to track size of output
 	totalSize int
+
+	logger log.FieldLogger
 }
 
 func (r *responseBuilder) endKeyset() (*keyset, error) {
@@ -702,7 +711,51 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 		}
 
 		if len(eventData)+rb.totalSize > events.MaxEventBytesInResponse {
-			return true, nil
+			// Encountered an event that would push the total page over the size
+			// limit.
+			if len(rb.output) > 0 {
+				// There are already one or more full events to return, just
+				// return them and the next event will be picked up on the next
+				// page.
+				return true, nil
+			}
+			// A single event is larger than the max page size - the best we can
+			// do is try to trim it.
+			if t, ok := event.(trimmableEvent); ok {
+				event = t.TrimToMaxSize(events.MaxEventBytesInResponse)
+				events.MetricQueriedTrimmedEvents.Inc()
+				// Exact rb.totalSize doesn't really matter since the response is
+				// already size limited.
+				rb.totalSize += events.MaxEventBytesInResponse
+				rb.output = append(rb.output, event)
+				return true, nil
+			}
+			// Failed to trim the event to size. The only options are to return
+			// a response with 0 events, skip this event, or return an error.
+			//
+			// Silently skipping events is a terrible option, it's better for
+			// the client to get an error.
+			//
+			// Returning 0 events amounts to either skipping the event or
+			// getting the client stuck in a paging loop depending on what would
+			// be returned for the next page token.
+			//
+			// Returning a descriptive error should at least give the client a
+			// hint as to what has gone wrong so that an attempt can be made to
+			// fix it.
+			//
+			// If this condition is reached it should be considered a bug, any
+			// event that can possibly exceed the maximum size should implement
+			// TrimToMaxSize (until we can one day implement an API for storing
+			// and retrieving large events).
+			rb.logger.WithFields(log.Fields{
+				"event_type": event.GetType(),
+				"event_id":   event.GetID(),
+				"event_size": len(eventData),
+			}).Error("Failed to query event exceeding maximum response size.")
+			return true, trace.Errorf(
+				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
+				event.GetType(), event.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))
 		}
 		rb.totalSize += len(eventData)
 		rb.output = append(rb.output, event)

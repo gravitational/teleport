@@ -1,18 +1,22 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+import { waitFor } from '@testing-library/react';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
@@ -163,4 +167,73 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
 
   expect(actionToRetry).toHaveBeenCalledTimes(2);
   expect(actualReturnValue).toEqual(expectedReturnValue);
+});
+
+it('concurrent requests wait for the single login modal to resolve', async () => {
+  const appContext = new MockAppContext();
+
+  let logIn: () => void;
+  jest
+    .spyOn(appContext.modalsService, 'openRegularDialog')
+    .mockImplementation(dialog => {
+      if (dialog.kind === 'cluster-connect') {
+        logIn = () => dialog.onSuccess('/clusters/foo');
+      } else {
+        throw new Error(`Got unexpected dialog ${dialog.kind}`);
+      }
+
+      // Dialog cancel function.
+      return {
+        closeDialog: () => {},
+      };
+    });
+
+  jest
+    .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
+    .mockImplementation(() => true);
+
+  const firstExpectedReturnValue = Symbol('firstExpectedReturnValue');
+  const secondExpectedReturnValue = Symbol('secondExpectedReturnValue');
+  const firstActionToRetry = jest
+    .fn()
+    .mockRejectedValueOnce(makeRetryableError())
+    .mockResolvedValueOnce(firstExpectedReturnValue);
+  const secondActionToRetry = jest
+    .fn()
+    .mockRejectedValueOnce(makeRetryableError())
+    .mockResolvedValueOnce(secondExpectedReturnValue);
+
+  const firstAction = retryWithRelogin(
+    appContext,
+    '/clusters/foo/servers/bar',
+    firstActionToRetry
+  );
+  const secondAction = retryWithRelogin(
+    appContext,
+    '/clusters/foo/servers/xyz',
+    secondActionToRetry
+  );
+
+  const openRegularDialogSpy = appContext.modalsService.openRegularDialog;
+  await waitFor(() => {
+    expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
+  });
+  expect(openRegularDialogSpy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'cluster-connect',
+      clusterUri: '/clusters/foo',
+    })
+  );
+
+  logIn();
+
+  const firstActionExpectedReturnValue = await firstAction;
+  const secondActionExpectedReturnValue = await secondAction;
+
+  expect(firstActionToRetry).toHaveBeenCalledTimes(2);
+  expect(secondActionToRetry).toHaveBeenCalledTimes(2);
+  expect(firstActionExpectedReturnValue).toEqual(firstExpectedReturnValue);
+  expect(secondActionExpectedReturnValue).toEqual(secondExpectedReturnValue);
+
+  expect(openRegularDialogSpy).toHaveBeenCalledTimes(1);
 });

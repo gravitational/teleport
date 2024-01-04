@@ -42,13 +42,22 @@ import (
 //
 // See the examples below for an example of each loader.
 type Credentials interface {
-	// Dialer is used to create a dialer used to connect to the Auth server.
-	Dialer(cfg Config) (ContextDialer, error)
 	// TLSConfig returns TLS configuration used to authenticate the client.
 	TLSConfig() (*tls.Config, error)
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+}
+
+// CredentialsWithDefaultAddrs additionally provides default addresses sourced
+// from the credential which are used when the client has not been explicitly
+// configured with an address.
+type CredentialsWithDefaultAddrs interface {
+	Credentials
+	// DefaultAddrs is called by the API client when it has not been
+	// explicitly configured with an address to connect to. It may return a
+	// slice of addresses to be tried.
+	DefaultAddrs() ([]string, error)
 }
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
@@ -63,11 +72,6 @@ func LoadTLS(tlsConfig *tls.Config) Credentials {
 // tlsConfigCreds use a defined *tls.Config to provide client credentials.
 type tlsConfigCreds struct {
 	tlsConfig *tls.Config
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *tlsConfigCreds) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -107,11 +111,6 @@ type keypairCreds struct {
 	certFile string
 	keyFile  string
 	caFile   string
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *keypairCreds) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -165,11 +164,6 @@ func LoadIdentityFile(path string) Credentials {
 type identityCredsFile struct {
 	identityFile *identityfile.IdentityFile
 	path         string
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *identityCredsFile) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -236,11 +230,6 @@ func LoadIdentityFileFromString(content string) Credentials {
 type identityCredsString struct {
 	identityFile *identityfile.IdentityFile
 	content      string
-}
-
-// Dialer is used to dial a connection to an Auth server.
-func (c *identityCredsString) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration.
@@ -312,28 +301,6 @@ type profileCreds struct {
 	profile *profile.Profile
 }
 
-// Dialer is used to dial a connection to an Auth server.
-func (c *profileCreds) Dialer(cfg Config) (ContextDialer, error) {
-	sshConfig, err := c.SSHClientConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := c.profile.TLSConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewProxyDialer(
-		*sshConfig,
-		cfg.KeepAlivePeriod,
-		cfg.DialTimeout,
-		c.profile.WebProxyAddr,
-		cfg.InsecureAddressDiscovery,
-		WithTLSConfig(tlsConfig),
-	), nil
-}
-
 // TLSConfig returns TLS configuration.
 func (c *profileCreds) TLSConfig() (*tls.Config, error) {
 	if err := c.load(); err != nil {
@@ -360,6 +327,15 @@ func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return sshConfig, nil
+}
+
+// DefaultAddrs implements CredentialsWithDefaultAddrs by providing the
+// WebProxyAddr from the credential
+func (c *profileCreds) DefaultAddrs() ([]string, error) {
+	if err := c.load(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []string{c.profile.WebProxyAddr}, nil
 }
 
 // load is used to lazy load the profile from persistent storage.
@@ -472,15 +448,6 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 	d.sshKey = sshPrivateKey
 	d.sshKnownHosts = knownHosts
 	return nil
-}
-
-// Dialer returns a dialer for the client to use. This is not used, but is
-// needed to implement the Credentials interface.
-func (d *DynamicIdentityFileCreds) Dialer(
-	_ Config,
-) (ContextDialer, error) {
-	// Returning a dialer isn't necessary for this credential.
-	return nil, trace.NotImplemented("no dialer")
 }
 
 // TLSConfig returns TLS configuration. Implementing the Credentials interface.

@@ -1,13 +1,13 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render clusters 1`] = `
-.c16 {
+.c22 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.c22 {
+.c28 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -16,7 +16,32 @@ exports[`render clusters 1`] = `
   margin-right: -8px;
 }
 
-.c21 {
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.c17 {
+  box-sizing: border-box;
+  margin-right: 8px;
+}
+
+.c19 {
+  box-sizing: border-box;
+}
+
+.c27 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -44,22 +69,22 @@ exports[`render clusters 1`] = `
   height: 24px;
 }
 
-.c21:hover,
-.c21:focus {
+.c27:hover,
+.c27:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c21:active {
+.c27:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c21:disabled {
+.c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c14 {
+.c20 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -81,25 +106,25 @@ exports[`render clusters 1`] = `
   margin-right: 0px;
 }
 
-.c14:disabled {
+.c20:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c14:disabled {
+.c20:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c14:hover:enabled,
-.c14:focus:enabled {
+.c20:hover:enabled,
+.c20:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c14:active:enabled {
+.c20:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c17 {
+.c23 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -120,25 +145,34 @@ exports[`render clusters 1`] = `
   margin-left: 0px;
 }
 
-.c17:disabled {
+.c23:disabled {
   color: rgba(255,255,255,0.36);
 }
 
-.c17:disabled {
+.c23:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c17:hover:enabled,
-.c17:focus:enabled {
+.c23:hover:enabled,
+.c23:focus:enabled {
   background: rgba(255,255,255,0.13);
 }
 
-.c17:active:enabled {
+.c23:active:enabled {
   background: rgba(255,255,255,0.18);
 }
 
-.c12 {
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c18 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -149,7 +183,7 @@ exports[`render clusters 1`] = `
   color: #FFFFFF;
 }
 
-.c20 {
+.c26 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -162,30 +196,21 @@ exports[`render clusters 1`] = `
   color: #000000;
 }
 
-.c10 {
-  box-sizing: border-box;
-  width: 100%;
+.c1 {
+  display: flex;
+}
+
+.c4 {
+  display: flex;
+  align-items: center;
+}
+
+.c16 {
   display: flex;
   justify-content: flex-end;
 }
 
-.c11 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
-.c13 {
-  box-sizing: border-box;
-  display: flex;
-}
-
-.c1 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
+.c5 {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
@@ -195,32 +220,22 @@ exports[`render clusters 1`] = `
   padding-right: 40px;
 }
 
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
+.c7 {
   white-space: nowrap;
 }
 
-.c0 {
-  box-sizing: border-box;
-  padding-left: 40px;
-  padding-right: 40px;
-  display: flex;
+.c2 {
   width: 100%;
   height: 100%;
   flex-direction: column;
 }
 
-.c0::after {
+.c2::after {
   content: ' ';
   padding-bottom: 24px;
 }
 
-.c18 {
+.c24 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
@@ -233,39 +248,39 @@ exports[`render clusters 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c18 > thead > tr > th,
-.c18 > tbody > tr > th,
-.c18 > tfoot > tr > th,
-.c18 > thead > tr > td,
-.c18 > tbody > tr > td,
-.c18 > tfoot > tr > td {
+.c24 > thead > tr > th,
+.c24 > tbody > tr > th,
+.c24 > tfoot > tr > th,
+.c24 > thead > tr > td,
+.c24 > tbody > tr > td,
+.c24 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c18 > thead > tr > th:first-child,
-.c18 > tbody > tr > th:first-child,
-.c18 > tfoot > tr > th:first-child,
-.c18 > thead > tr > td:first-child,
-.c18 > tbody > tr > td:first-child,
-.c18 > tfoot > tr > td:first-child {
+.c24 > thead > tr > th:first-child,
+.c24 > tbody > tr > th:first-child,
+.c24 > tfoot > tr > th:first-child,
+.c24 > thead > tr > td:first-child,
+.c24 > tbody > tr > td:first-child,
+.c24 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c18 > thead > tr > th:last-child,
-.c18 > tbody > tr > th:last-child,
-.c18 > tfoot > tr > th:last-child,
-.c18 > thead > tr > td:last-child,
-.c18 > tbody > tr > td:last-child,
-.c18 > tfoot > tr > td:last-child {
+.c24 > thead > tr > th:last-child,
+.c24 > tbody > tr > th:last-child,
+.c24 > tfoot > tr > th:last-child,
+.c24 > thead > tr > td:last-child,
+.c24 > tbody > tr > td:last-child,
+.c24 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c18 > tbody > tr > td {
+.c24 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c18 > thead > tr > th {
+.c24 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -279,24 +294,24 @@ exports[`render clusters 1`] = `
   white-space: nowrap;
 }
 
-.c18 > thead > tr > th svg {
+.c24 > thead > tr > th svg {
   height: 12px;
 }
 
-.c18 > tbody > tr > td {
+.c24 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c18 tbody tr {
+.c24 tbody tr {
   border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c18 tbody tr:hover {
+.c24 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c4 {
+.c9 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -306,21 +321,21 @@ exports[`render clusters 1`] = `
   background: #222C59;
 }
 
-.c3 {
+.c8 {
   box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
   overflow: hidden;
   border-radius: 8px;
 }
 
-.c15 svg {
+.c21 svg {
   font-size: 20px;
 }
 
-.c15 svg:before {
+.c21 svg:before {
   padding-left: 1px;
 }
 
-.c9 {
+.c14 {
   position: relative;
   height: 100%;
   right: 0;
@@ -331,7 +346,7 @@ exports[`render clusters 1`] = `
   border-radius: 200px;
 }
 
-.c8 {
+.c13 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -342,7 +357,7 @@ exports[`render clusters 1`] = `
   border-radius: 200px;
 }
 
-.c6 {
+.c11 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -352,14 +367,14 @@ exports[`render clusters 1`] = `
   background: transparent;
 }
 
-.c5 {
+.c10 {
   background: #0C143D;
   border-radius: 200px;
   width: 100%;
   height: 32px;
 }
 
-.c7 {
+.c12 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -374,97 +389,97 @@ exports[`render clusters 1`] = `
   padding-right: 184px;
 }
 
-.c7:hover,
-.c7:focus,
-.c7:active {
+.c12:hover,
+.c12:focus,
+.c12:active {
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
 }
 
-.c7::placeholder {
+.c12::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c19 td {
+.c25 td {
   height: 22px;
 }
 
 <div
-  class="c0"
+  class="c0 c1 c2"
 >
   <div
-    class="c1"
+    class="c3 c4 c5"
   >
     <div
-      class="c2"
+      class="c6 c7"
     >
       Manage Clusters
     </div>
   </div>
   <div
-    class="c3"
+    class="c8"
   >
     <nav
-      class="c4"
+      class="c9"
     >
       <div
-        class="c5"
+        class="c10"
       >
         <div
-          class="c6"
+          class="c11"
         >
           <input
-            class="c7"
+            class="c12"
             placeholder="SEARCH..."
             value=""
           />
           <div
-            class="c8"
+            class="c13"
           >
             <div
-              class="c9"
+              class="c14"
             />
           </div>
         </div>
       </div>
       <div
-        class="c10"
+        class="c15 c16"
         width="100%"
       >
         <div
-          class="c11"
+          class="c17 c4"
         >
           <div
-            class="c12"
+            class="c18"
             color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
             <strong>
-              1
+              0
             </strong>
              - 
             <strong>
-              37
+              0
             </strong>
              of
              
             <strong>
-              37
+              0
             </strong>
           </div>
         </div>
         <div
-          class="c13"
+          class="c19 c1"
         >
           <button
-            class="c14 c15"
+            class="c20 c21"
             disabled=""
             title="Previous page"
           >
             <span
-              class="c16 icon icon-circlearrowleft"
+              class="c22 icon icon-circlearrowleft"
             >
               <svg
                 fill="currentColor"
@@ -484,12 +499,12 @@ exports[`render clusters 1`] = `
             </span>
           </button>
           <button
-            class="c17 c15"
+            class="c23 c21"
             disabled=""
             title="Next page"
           >
             <span
-              class="c16 icon icon-circlearrowright"
+              class="c22 icon icon-circlearrowright"
             >
               <svg
                 fill="currentColor"
@@ -509,7 +524,7 @@ exports[`render clusters 1`] = `
       </div>
     </nav>
     <table
-      class="c18 c19"
+      class="c24 c25"
     >
       <thead>
         <tr>
@@ -522,7 +537,7 @@ exports[`render clusters 1`] = `
             >
               Name
               <span
-                class="c16 icon icon-chevronup"
+                class="c22 icon icon-chevronup"
                 title="sort items asc"
               >
                 <svg
@@ -551,7 +566,7 @@ exports[`render clusters 1`] = `
             style="width: 40px;"
           >
             <div
-              class="c20"
+              class="c26"
               kind="primary"
             >
               ROOT
@@ -564,805 +579,13 @@ exports[`render clusters 1`] = `
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            albertowens200
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            barrynelson110
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            beatricecarson171
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            besscarroll152
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            bessiecohen207
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            connorsharp137
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            dashawic
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            dashawic
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            dashawic
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            farovluv
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            francismoran134
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            hannahsutton232
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            hattiestanley34
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            henriettarios78
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            isabellekim81
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            jaysandoval137
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            jesushenry58
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            jordansimpson35
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            josephinewolfe55
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            leonamann249
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            lidtabih
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            nellwheeler72
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1392,13 +615,337 @@ exports[`render clusters 1`] = `
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            lidtabih
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            farovluv
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            rozpaari
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            wetjolune
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            dashawic
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            jesushenry58
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            jordansimpson35
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            leonamann249
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            bessiecohen207
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1428,193 +975,13 @@ exports[`render clusters 1`] = `
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            ricardosingleton242
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            rozpaari
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            rozpaari
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            rozpaari
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            samlewis176
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1644,13 +1011,13 @@ exports[`render clusters 1`] = `
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1674,19 +1041,19 @@ exports[`render clusters 1`] = `
             style="width: 40px;"
           />
           <td>
-            theodorefrazier78
+            connorsharp137
           </td>
           <td
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1710,19 +1077,19 @@ exports[`render clusters 1`] = `
             style="width: 40px;"
           />
           <td>
-            tommybrooks146
+            ricardosingleton242
           </td>
           <td
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1746,55 +1113,19 @@ exports[`render clusters 1`] = `
             style="width: 40px;"
           />
           <td>
-            wetjolune
+            rozpaari
           </td>
           <td
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
-                color="text.slightlyMuted"
-              >
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  width="16"
-                >
-                  <path
-                    clip-rule="evenodd"
-                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
-                    fill-rule="evenodd"
-                  />
-                </svg>
-              </span>
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="width: 40px;"
-          />
-          <td>
-            wetjolune
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c21"
-              height="24px"
-              kind="border"
-            >
-              OPTIONS
-              <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1824,13 +1155,49 @@ exports[`render clusters 1`] = `
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            dashawic
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg
@@ -1860,13 +1227,661 @@ exports[`render clusters 1`] = `
             align="right"
           >
             <button
-              class="c21"
+              class="c27"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c22 icon icon-chevrondown"
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            samlewis176
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            nellwheeler72
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            albertowens200
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            beatricecarson171
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            besscarroll152
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            hannahsutton232
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            barrynelson110
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            rozpaari
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            wetjolune
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            dashawic
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            henriettarios78
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            josephinewolfe55
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            jaysandoval137
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            isabellekim81
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            francismoran134
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            theodorefrazier78
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            hattiestanley34
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
+                color="text.slightlyMuted"
+              >
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  width="16"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="width: 40px;"
+          />
+          <td>
+            tommybrooks146
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c28 icon icon-chevrondown"
                 color="text.slightlyMuted"
               >
                 <svg

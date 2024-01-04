@@ -1,23 +1,25 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { EventEmitter } from 'node:events';
 
 import React from 'react';
-import { act, renderHook } from '@testing-library/react-hooks';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -30,6 +32,7 @@ import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
+import Logger, { NullService } from 'teleterm/logger';
 
 import {
   AgentCompatibilityError,
@@ -40,6 +43,10 @@ import {
 
 import type { IAppContext } from 'teleterm/ui/types';
 import type { Cluster } from 'teleterm/services/tshd/types';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
 
 function getMocks() {
   const rootCluster = makeRootCluster({
@@ -205,7 +212,7 @@ test('failed autostart flips the workspace autoStart flag to false', async () =>
     true
   );
 
-  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+  const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
@@ -256,7 +263,7 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
     true
   );
 
-  const { result, waitFor } = renderUseConnectMyComputerContextHook(
+  const { result } = renderUseConnectMyComputerContextHook(
     appContext,
     rootCluster
   );
@@ -369,7 +376,7 @@ test('removing the agent shows a notification', async () => {
   expect(mockResourcesContext.requestResourcesRefresh).toHaveBeenCalledTimes(1);
 });
 
-test('when the user does not have permissions to remove node a custom notification is shown', async () => {
+test('when the request to remove the node fails a custom notification is shown', async () => {
   const { appContext, rootCluster } = getMocks();
   jest
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')

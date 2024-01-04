@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { IAppContext } from 'teleterm/ui/types';
@@ -21,14 +23,17 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  DocumentCluster,
+  getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 
 export interface SimpleAction {
   type: 'simple-action';
   searchResult: SearchResult;
-  preventAutoClose?: boolean; // TODO(gzdunek): consider other options (callback preventClose() in perform?)
-
+  preventAutoInputReset?: boolean;
+  preventAutoClose?: boolean;
   perform(): void;
 }
 
@@ -46,13 +51,13 @@ export interface ParametrizedAction {
 
 export type SearchAction = SimpleAction | ParametrizedAction;
 
-export function mapToActions(
+export function mapToAction(
   ctx: IAppContext,
   searchContext: SearchContext,
-  searchResults: SearchResult[]
-): SearchAction[] {
-  return searchResults.map(result => {
-    if (result.kind === 'server') {
+  result: SearchResult
+): SearchAction {
+  switch (result.kind) {
+    case 'server': {
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -74,7 +79,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'kube') {
+    case 'kube': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -90,7 +95,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'database') {
+    case 'database': {
       return {
         type: 'parametrized-action',
         searchResult: result,
@@ -118,7 +123,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'resource-type-filter') {
+    case 'resource-type-filter': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -131,7 +136,7 @@ export function mapToActions(
         },
       };
     }
-    if (result.kind === 'cluster-filter') {
+    case 'cluster-filter': {
       return {
         type: 'simple-action',
         searchResult: result,
@@ -144,5 +149,49 @@ export function mapToActions(
         },
       };
     }
-  });
+    case 'display-results': {
+      return {
+        type: 'simple-action',
+        searchResult: result,
+        preventAutoInputReset: true,
+        perform: async () => {
+          const rootClusterUri = routing.ensureRootClusterUri(
+            result.clusterUri
+          );
+          if (result.documentUri) {
+            ctx.workspacesService
+              .getWorkspaceDocumentService(rootClusterUri)
+              .update(result.documentUri, (draft: DocumentCluster) => {
+                const { queryParams } = draft;
+                queryParams.resourceKinds = result.resourceKinds;
+                queryParams.search = result.value;
+                queryParams.advancedSearchEnabled =
+                  searchContext.advancedSearchEnabled;
+              });
+            return;
+          }
+
+          const { isAtDesiredWorkspace } =
+            await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+          if (isAtDesiredWorkspace) {
+            const documentsService =
+              ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+            const doc = documentsService.createClusterDocument({
+              clusterUri: result.clusterUri,
+              queryParams: {
+                ...getDefaultDocumentClusterQueryParams(),
+                search: result.value,
+                advancedSearchEnabled: false,
+                resourceKinds: result.resourceKinds,
+              },
+            });
+            documentsService.add(doc);
+            documentsService.open(doc.uri);
+          }
+        },
+      };
+    }
+    default:
+      assertUnreachable(result);
+  }
 }

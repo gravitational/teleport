@@ -47,7 +47,7 @@ TF_VAR_enable_postgres_listener ?= false
 TF_VAR_s3_bucket_name ?=
 
 # AWS instance type to provision for running this Teleport cluster
-TF_VAR_cluster_instance_type = "t3.micro"
+TF_VAR_cluster_instance_type = t3.micro
 
 # Email of your support org, used for Let's Encrypt cert registration process.
 TF_VAR_email ?=

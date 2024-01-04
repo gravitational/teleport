@@ -1,13 +1,16 @@
 # Teleport Cluster
 
-This chart sets up a single node Teleport cluster.
-It uses a persistent volume claim for storage.
-Great for getting started with Teleport.
+This chart sets up a Teleport cluster composed of at least 1 Proxy instance
+and 1 Auth instance. When applicable, the chart will default to 2 pods to
+provide high-availability.
 
 ## Important Notices
 
 - The chart version follows the Teleport version. e.g. chart v10.x can run Teleport v10.x and v11.x, but is not compatible with Teleport 9.x
-- Teleport does mutual TLS to authenticate clients. It currently does not support running behind a L7 LoadBalancer, like a Kubernetes `Ingress`. It requires being exposed through a L4 LoadBalancer (Kubernetes `Service`).
+- Teleport does mutual TLS to authenticate clients. Establishing mTLS through a L7
+  LoadBalancer, like a Kubernetes `Ingress` [requires ALPN support](https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies).
+  Exposing Teleport through a `Service` with type `LoadBalancer` is still recommended
+  because its the most flexible and least complex setup.
 
 ## Getting Started
 

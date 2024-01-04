@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package integration
 
@@ -37,6 +39,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,7 +56,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -2878,8 +2880,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3212,8 +3213,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3450,8 +3450,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster while disabled
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3589,8 +3588,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
@@ -3691,8 +3689,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Start())
 	require.NoError(t, aux.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
@@ -3876,8 +3873,7 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, main.Start())
 	require.NoError(t, leaf.Start())
 
-	err = trustedCluster.CheckAndSetDefaults()
-	require.NoError(t, err)
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 
 	// try and upsert a trusted cluster
 	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
@@ -4117,6 +4113,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	// connected to it from remote cluster
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
+
+	waitForNodesToRegister(t, main, "cluster-remote")
 
 	// execute the connection via first proxy
 	cfg := helpers.ClientConfig{
@@ -7527,7 +7525,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	require.NoError(t, leaf.Start())
 	t.Cleanup(func() { leaf.StopAll() })
 
-	require.NoError(t, trustedCluster.CheckAndSetDefaults())
+	require.NoError(t, services.CheckAndSetDefaults(trustedCluster))
 	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
 	helpers.WaitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 
@@ -7878,7 +7876,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		teleport.StopAll()
 	})
 
-	client, err := teleport.NewClient(helpers.ClientConfig{
+	waitForNodesToRegister(t, teleport, helpers.Site)
+
+	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
@@ -7887,13 +7887,25 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Create SFTP session.
 	ctx := context.Background()
-	proxyClient, err := client.ConnectToProxy(ctx)
+	clusterClient, err := teleportClient.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		proxyClient.Close()
+		_ = clusterClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	nodeClient, err := teleportClient.ConnectToNode(
+		ctx,
+		clusterClient,
+		client.NodeDetails{
+			Addr:      teleport.Config.SSH.Addr.Addr,
+			Namespace: teleportClient.Namespace,
+			Cluster:   helpers.Site,
+		},
+		suite.Me.Username,
+	)
+	require.NoError(t, err)
+
+	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())

@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package discovery
 
@@ -20,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +35,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -123,6 +125,11 @@ type Config struct {
 	// discovery cycles.
 	PollInterval time.Duration
 
+	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
+	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
+	TriggerFetchC  []chan struct{}
+	triggerFetchMu sync.RWMutex
+
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
 	clock clockwork.Clock
@@ -179,6 +186,9 @@ kubernetes matchers are present.`)
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
 	}
+
+	c.TriggerFetchC = make([]chan struct{}, 0)
+	c.triggerFetchMu = sync.RWMutex{}
 
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -359,7 +369,11 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return trace.Wrap(err)
 	}
 
-	s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, s.getAllAWSServerFetchers, s.caRotationCh, server.WithPollInterval(s.PollInterval))
+	s.ec2Watcher, err = server.NewEC2Watcher(
+		s.ctx, s.getAllAWSServerFetchers, s.caRotationCh,
+		server.WithPollInterval(s.PollInterval),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -386,37 +400,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
-		matcherAssumeRole := &types.AssumeRole{}
+		matcherAssumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
-			matcherAssumeRole = matcher.AssumeRole
+			matcherAssumeRole = *matcher.AssumeRole
 		}
 
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
 				case types.AWSMatcherEKS:
-					client, err := s.CloudClients.GetAWSEKSClient(
-						s.ctx,
-						region,
-						cloud.WithAssumeRole(
-							matcherAssumeRole.RoleARN,
-							matcherAssumeRole.ExternalID,
-						),
-						cloud.WithAmbientCredentials(),
-					)
+					fetcher, err := s.getEKSFetcher(region, matcherAssumeRole, matcher.Tags)
 					if err != nil {
-						return trace.Wrap(err)
-					}
-					fetcher, err := fetchers.NewEKSFetcher(
-						fetchers.EKSFetcherConfig{
-							Client:       client,
-							Region:       region,
-							FilterLabels: matcher.Tags,
-							Log:          s.Log,
-						},
-					)
-					if err != nil {
-						return trace.Wrap(err)
+						s.Log.WithError(err).Warnf("Could not initialize EKS fetcher(Region=%q, Labels=%q, AssumeRole=%q), skipping.", region, matcher.Tags, matcherAssumeRole.RoleARN)
+						continue
 					}
 					s.kubeFetchers = append(s.kubeFetchers, fetcher)
 				}
@@ -425,6 +421,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	}
 
 	return nil
+}
+
+func (s *Server) getEKSFetcher(region string, assumeRole types.AssumeRole, tags types.Labels) (common.Fetcher, error) {
+	fetcher, err := fetchers.NewEKSFetcher(
+		fetchers.EKSFetcherConfig{
+			EKSClientGetter: s.CloudClients,
+			AssumeRole:      assumeRole,
+			Region:          region,
+			FilterLabels:    tags,
+			Log:             s.Log,
+		},
+	)
+	return fetcher, trace.Wrap(err)
 }
 
 func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
@@ -541,7 +550,11 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 
 	// VM watcher.
 	var err error
-	s.azureWatcher, err = server.NewAzureWatcher(s.ctx, s.getAllAzureServerFetchers, server.WithPollInterval(s.PollInterval))
+	s.azureWatcher, err = server.NewAzureWatcher(
+		s.ctx, s.getAllAzureServerFetchers,
+		server.WithPollInterval(s.PollInterval),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -594,7 +607,11 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		return trace.Wrap(err)
 	}
 
-	s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, s.getAllGCPServerFetchers)
+	s.gcpWatcher, err = server.NewGCPWatcher(
+		s.ctx, s.getAllGCPServerFetchers,
+		server.WithPollInterval(s.PollInterval),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1060,6 +1077,42 @@ func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreate
 	return nil
 }
 
+func (s *Server) submitFetchersEvent(fetchers []common.Fetcher) {
+	// Some Matcher Types have multiple fetchers, but we only care about the Matcher Type and not the actual Fetcher.
+	// Example:
+	// The `rds` Matcher Type creates two Fetchers: one for RDS and another one for Aurora
+	// Those fetchers's `FetcherType` both return `rds`, so we end up with two entries for `rds`.
+	// We must de-duplicate those entries before submitting the event.
+	type fetcherType struct {
+		cloud       string
+		fetcherType string
+	}
+	fetcherTypes := map[fetcherType]struct{}{}
+	for _, f := range fetchers {
+		fetcherKey := fetcherType{cloud: f.Cloud(), fetcherType: f.FetcherType()}
+		fetcherTypes[fetcherKey] = struct{}{}
+	}
+	for f := range fetcherTypes {
+		s.submitFetchEvent(f.cloud, f.fetcherType)
+	}
+}
+
+func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
+	err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent{
+				DiscoveryFetchEvent: &usageeventsv1.DiscoveryFetchEvent{
+					CloudProvider: cloudProvider,
+					ResourceType:  resourceType,
+				},
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting discovery fetch event.")
+	}
+}
+
 func (s *Server) getAllAWSServerFetchers() []server.Fetcher {
 	allFetchers := make([]server.Fetcher, 0, len(s.staticServerAWSFetchers))
 
@@ -1069,7 +1122,13 @@ func (s *Server) getAllAWSServerFetchers() []server.Fetcher {
 	}
 	s.muDynamicServerAWSFetchers.RUnlock()
 
-	return append(allFetchers, s.staticServerAWSFetchers...)
+	allFetchers = append(allFetchers, s.staticServerAWSFetchers...)
+
+	if len(allFetchers) > 0 {
+		s.submitFetchEvent(types.CloudAWS, types.AWSMatcherEC2)
+	}
+
+	return allFetchers
 }
 
 func (s *Server) getAllAzureServerFetchers() []server.Fetcher {
@@ -1081,7 +1140,13 @@ func (s *Server) getAllAzureServerFetchers() []server.Fetcher {
 	}
 	s.muDynamicServerAzureFetchers.RUnlock()
 
-	return append(allFetchers, s.staticServerAzureFetchers...)
+	allFetchers = append(allFetchers, s.staticServerAzureFetchers...)
+
+	if len(allFetchers) > 0 {
+		s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
+	}
+
+	return allFetchers
 }
 
 func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
@@ -1093,7 +1158,13 @@ func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
 	}
 	s.muDynamicServerGCPFetchers.RUnlock()
 
-	return append(allFetchers, s.staticServerGCPFetchers...)
+	allFetchers = append(allFetchers, s.staticServerGCPFetchers...)
+
+	if len(allFetchers) > 0 {
+		s.submitFetchEvent(types.CloudGCP, types.GCPMatcherCompute)
+	}
+
+	return allFetchers
 }
 
 // Start starts the discovery service.
@@ -1166,6 +1237,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
 					// We blindly delete it, in the worst case, this is a no-op.
 					s.deleteDynamicFetchers(event.Resource.GetName())
+					s.notifyDiscoveryConfigChanged()
 					continue
 				}
 
@@ -1173,16 +1245,41 @@ func (s *Server) startDynamicWatcherUpdater() {
 					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 					continue
 				}
+				s.notifyDiscoveryConfigChanged()
 
 			case types.OpDelete:
 				s.deleteDynamicFetchers(event.Resource.GetName())
-
+				s.notifyDiscoveryConfigChanged()
 			default:
 				s.Log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-s.dynamicMatcherWatcher.Done():
 			s.Log.Warnf("dynamic matcher watcher error: %v", s.dynamicMatcherWatcher.Error())
 			return
+		}
+	}
+}
+
+// newDiscoveryConfigChangedSub creates a new subscription for DiscoveryConfig events.
+// The consumer must have an active reader on the returned channel, and start a new Poll when it returns a value.
+func (s *Server) newDiscoveryConfigChangedSub() (ch chan struct{}) {
+	chSubscription := make(chan struct{})
+	s.triggerFetchMu.Lock()
+	s.TriggerFetchC = append(s.TriggerFetchC, chSubscription)
+	s.triggerFetchMu.Unlock()
+	return chSubscription
+}
+
+// triggerPoll sends a notification to all the registered watchers so that they start a new Poll.
+func (s *Server) notifyDiscoveryConfigChanged() {
+	s.triggerFetchMu.RLock()
+	defer s.triggerFetchMu.RUnlock()
+	for _, watcherTriggerC := range s.TriggerFetchC {
+		select {
+		case watcherTriggerC <- struct{}{}:
+			// Successfully sent notification.
+		default:
+			// Channel already has valued queued.
 		}
 	}
 }

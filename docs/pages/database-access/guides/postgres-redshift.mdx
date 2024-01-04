@@ -97,18 +97,7 @@ $ tsh db ls
 
 </Tabs>
 
-<Admonition type="note" title="Note">
-  You can override the database name by applying the `TeleportDatabaseName` AWS tag to the resource. The value of the tag will be used as the database name.
-</Admonition>
-
 To retrieve credentials for a database and connect to it:
-
-```code
-$ tsh db connect my-redshift
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
 
 ```code
 $ tsh db connect --db-user=awsuser --db-name=dev my-redshift

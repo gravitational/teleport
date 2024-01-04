@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package mocks
 
@@ -33,12 +35,11 @@ import (
 // RDSMock mocks AWS RDS API.
 type RDSMock struct {
 	rdsiface.RDSAPI
-	DBInstances       []*rds.DBInstance
-	DBClusters        []*rds.DBCluster
-	DBProxies         []*rds.DBProxy
-	DBProxyEndpoints  []*rds.DBProxyEndpoint
-	DBEngineVersions  []*rds.DBEngineVersion
-	DBProxyTargetPort int64
+	DBInstances      []*rds.DBInstance
+	DBClusters       []*rds.DBCluster
+	DBProxies        []*rds.DBProxy
+	DBProxyEndpoints []*rds.DBProxyEndpoint
+	DBEngineVersions []*rds.DBEngineVersion
 }
 
 func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
@@ -189,15 +190,6 @@ func (m *RDSMock) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rd
 	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
 }
 
-func (m *RDSMock) DescribeDBProxyTargetsWithContext(ctx aws.Context, input *rds.DescribeDBProxyTargetsInput, options ...request.Option) (*rds.DescribeDBProxyTargetsOutput, error) {
-	// only mocking to return a port here
-	return &rds.DescribeDBProxyTargetsOutput{
-		Targets: []*rds.DBProxyTarget{{
-			Port: aws.Int64(m.DBProxyTargetPort),
-		}},
-	}, nil
-}
-
 func (m *RDSMock) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
 	fn(&rds.DescribeDBProxiesOutput{
 		DBProxies: m.DBProxies,
@@ -330,10 +322,15 @@ func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.D
 	}
 	var out []*rds.DBInstance
 	efs := engineFilterSet(filters)
+	clusterIDs := clusterIdentifierFilterSet(filters)
 	for _, instance := range in {
-		if instanceEngineMatches(instance, efs) {
-			out = append(out, instance)
+		if len(efs) > 0 && !instanceEngineMatches(instance, efs) {
+			continue
 		}
+		if len(clusterIDs) > 0 && !instanceClusterIDMatches(instance, clusterIDs) {
+			continue
+		}
+		out = append(out, instance)
 	}
 	return out, nil
 }
@@ -355,9 +352,18 @@ func applyClusterFilters(in []*rds.DBCluster, filters []*rds.Filter) ([]*rds.DBC
 
 // engineFilterSet builds a string set of engine names from a list of RDS filters.
 func engineFilterSet(filters []*rds.Filter) map[string]struct{} {
+	return filterValues(filters, "engine")
+}
+
+// clusterIdentifierFilterSet builds a string set of ClusterIDs from a list of RDS filters.
+func clusterIdentifierFilterSet(filters []*rds.Filter) map[string]struct{} {
+	return filterValues(filters, "db-cluster-id")
+}
+
+func filterValues(filters []*rds.Filter, filterKey string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, f := range filters {
-		if aws.StringValue(f.Name) != "engine" {
+		if aws.StringValue(f.Name) != filterKey {
 			continue
 		}
 		for _, v := range f.Values {
@@ -370,6 +376,12 @@ func engineFilterSet(filters []*rds.Filter) map[string]struct{} {
 // instanceEngineMatches returns whether an RDS DBInstance engine matches any engine name in a filter set.
 func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
 	_, ok := filterSet[aws.StringValue(instance.Engine)]
+	return ok
+}
+
+// instanceClusterIDMatches returns whether an RDS DBInstance ClusterID matches any ClusterID in a filter set.
+func instanceClusterIDMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.StringValue(instance.DBClusterIdentifier)]
 	return ok
 }
 

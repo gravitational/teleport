@@ -1,26 +1,35 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
 export function LoadingListItem() {
+  const [randomizedSize] = useState(() => ({
+    name: randomNum(95, 40),
+    description: randomNum(65, 25),
+    type: randomNum(80, 60),
+    address: randomNum(90, 50),
+  }));
+
   return (
     <LoadingListItemWrapper>
       {/* Image */}
@@ -39,15 +48,15 @@ export function LoadingListItem() {
           grid-area: name;
         `}
       >
-        <ShimmerBox height="14px" width={`${randomNum(95, 40)}%`} />
-        <ShimmerBox height="10px" width={`${randomNum(65, 25)}%`} />
+        <ShimmerBox height="14px" width={`${randomizedSize.name}%`} />
+        <ShimmerBox height="10px" width={`${randomizedSize.description}%`} />
       </Flex>
       <ShimmerBox
         css={`
           grid-area: type;
         `}
         height="18px"
-        width={`${randomNum(80, 60)}%`}
+        width={`${randomizedSize.type}%`}
       />
 
       <ShimmerBox
@@ -55,7 +64,7 @@ export function LoadingListItem() {
           grid-area: address;
         `}
         height="18px"
-        width={`${randomNum(90, 50)}%`}
+        width={`${randomizedSize.address}%`}
       />
 
       <ShimmerBox

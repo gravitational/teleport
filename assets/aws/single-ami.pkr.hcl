@@ -1,16 +1,18 @@
-# Copyright 2023 Gravitational, Inc.
+# Teleport
+# Copyright (C) 2023  Gravitational, Inc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 packer {
   required_plugins {
@@ -86,6 +88,11 @@ variable "ami_name" {
   default = ""
 }
 
+variable "ami_arch" {
+  type    = string
+  default = ""
+}
+
 variable "ami_destination_regions" {
   type    = string
   default = "us-west-2"
@@ -93,7 +100,7 @@ variable "ami_destination_regions" {
 
 data "amazon-ami" "teleport-hardened-base" {
   filters = {
-    name                = "teleport-hardened-base-image-x86_64-al2023-*"
+    name                = "teleport-hardened-base-image-${var.ami_arch}-al2023-*"
     root-device-type    = "ebs"
     virtualization-type = "hvm"
   }
@@ -106,13 +113,13 @@ locals {
   # apply a default AMI name if no name was specified on the command line.
   unsafe_ami_name = var.ami_name != "" ? var.ami_name : "teleport-debug-ami-${var.teleport_type}-${var.teleport_version}"
 
-  # sanitise the AMI name so that its safe for use with AWS
+  # sanitize the AMI name so that it's safe for use with AWS
   ami_name = regex_replace(local.unsafe_ami_name, "[^a-zA-Z0-9\\- \\(\\).\\'[\\]@]", "-")
 
   # split the comma-separated region list out into a proper array
   destination_regions = [for s in split(",", var.ami_destination_regions) : trimspace(s)]
 
-  ami_description = "Teleport${var.teleport_fips ? " with FIPS support" : ""} using Hardened Amazon Linux 2023 AMI"
+  ami_description = "Teleport${var.teleport_fips ? " with FIPS support" : ""} using Hardened Amazon Linux 2023 (${var.ami_arch}) AMI"
   build_type      = "production${var.teleport_fips ? "-fips" : ""}"
 
   # Used in AWS access policies. Do not change without consulting the teleport-prod
@@ -141,8 +148,9 @@ source "amazon-ebs" "teleport-aws-linux" {
     http_put_response_hop_limit = 2
   }
   run_tags = {
-    Name    = local.ami_name
-    purpose = local.resource_purpose_tag_value
+    Name                     = local.ami_name
+    purpose                  = local.resource_purpose_tag_value
+    "teleport.dev/is_public" = true
   }
   run_volume_tags = {
     Name = local.ami_name
@@ -164,6 +172,7 @@ source "amazon-ebs" "teleport-aws-linux" {
     BuildTimestamp      = var.ami_build_timestamp
     BuildType           = "production"
     Name                = local.ami_name
+    Architecture        = var.ami_arch
     TeleportVersion     = var.teleport_version
     TeleportEdition     = var.teleport_type
     TeleportFipsEnabled = var.teleport_fips

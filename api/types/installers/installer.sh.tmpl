@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1083,SC2215,SC2288 # caused by Go templating, and shellcheck won't parse if the lines are excluded individually
 
 set -eu
 
@@ -111,7 +112,9 @@ on_gcp() {
   sudo /usr/local/bin/teleport node configure \
     --proxy="{{ .PublicProxyAddr }}" \
     --join-method=${JOIN_METHOD} \
+    {{- if .AzureClientID }}
     --azure-client-id="{{ .AzureClientID }}" \
+    {{ end -}}
     --token="$1" \
     --output=file \
     --labels="${LABELS}"
