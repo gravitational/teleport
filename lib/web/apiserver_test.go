@@ -1757,34 +1757,34 @@ func TestTerminalPing(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
+	closed := false
+	done := make(chan struct{})
+
 	term, err := connectToHost(ctx, connectConfig{
 		pack:              s.authPack(t, "foo"),
 		host:              s.node.ID(),
 		proxy:             s.webServer.Listener.Addr().String(),
 		keepAliveInterval: time.Second,
+		pingHandler: func(ws WSConn, message string) error {
+			if closed == false {
+				close(done)
+				closed = true
+			}
+
+			err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+			if errors.Is(err, websocket.ErrCloseSent) {
+				return nil
+			} else {
+				var e net.Error
+				if errors.As(err, &e) && e.Timeout() {
+					return nil
+				}
+				return err
+			}
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, term.Close()) })
-
-	closed := false
-	done := make(chan struct{})
-	term.ws.SetPingHandler(func(message string) error {
-		if closed == false {
-			close(done)
-			closed = true
-		}
-
-		err := term.ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
-		if errors.Is(err, websocket.ErrCloseSent) {
-			return nil
-		} else {
-			var e net.Error
-			if errors.As(err, &e) && e.Timeout() {
-				return nil
-			}
-			return err
-		}
-	})
 
 	select {
 	case <-done:
