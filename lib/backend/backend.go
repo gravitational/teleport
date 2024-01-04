@@ -106,6 +106,21 @@ type Backend interface {
 	CloseWatchers()
 }
 
+// New initializes a new [Backend] implementation based on the service config.
+func New(ctx context.Context, backend string, params Params) (Backend, error) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	newbk, ok := registry[backend]
+	if !ok {
+		return nil, trace.BadParameter("unsupported secrets storage type: %q", backend)
+	}
+	bk, err := newbk(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return bk, nil
+}
+
 // IterateRange is a helper for stepping over a range
 func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
 	for {
