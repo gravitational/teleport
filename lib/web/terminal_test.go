@@ -247,3 +247,8 @@ func (t *terminal) performMFACeremony(ceremonyFn func(challenge client.MFAAuthen
 
 	return nil
 }
+
+func TestExampleFlakyTest(t *testing.T) {
+	even := time.Now().Nanosecond() % 2
+	require.Equal(t, 0, even)
+}
