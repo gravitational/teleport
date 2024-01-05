@@ -60,6 +60,7 @@ export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
 export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
+export type GatewayTargetUri = DatabaseUri | KubeUri;
 
 /*
  * Document URIs
