@@ -619,6 +619,17 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	_, err = uut.Get(ctx, item.Key)
 	require.Error(t, err)
 
+	// A backend may implmenet the ttldeleter interface
+	// to do synchronous TTL deletion during testing.
+	type ttldeleter interface {
+		TTLDelete(context.Context) error
+	}
+
+	if ttl, ok := uut.(ttldeleter); ok {
+		err := ttl.TTLDelete(ctx)
+		require.NoError(t, err)
+	}
+
 	// Make sure a DELETE event is emitted.
 	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
 }
