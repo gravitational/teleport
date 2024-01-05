@@ -29,17 +29,23 @@ export const DownloadsView = ({
   setSelectedKind,
   selectedOS,
   setSelectedOS,
-  downloadLicense,
+  generateLicense,
+  saveLicense,
   licenseAttempt,
-  canDownloadLicense,
+  canGenerateLicense,
+  showSaveLicenseDialog,
+  closeSaveLicenseDialog,
   canDownloadReleaseAssets,
   license,
 }: State) => {
   return (
     <FeatureBox>
       <License
-        canDownloadLicense={canDownloadLicense}
-        downloadLicense={downloadLicense}
+        canGenerateLicense={canGenerateLicense}
+        showSaveLicenseDialog={showSaveLicenseDialog}
+        closeSaveLicenseDialog={closeSaveLicenseDialog}
+        generateLicense={generateLicense}
+        saveLicense={saveLicense}
         licenseAttempt={licenseAttempt}
         expiry={license?.expiry}
       />

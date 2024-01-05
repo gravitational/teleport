@@ -1,29 +1,42 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { Box, Text, Link, ButtonPrimary, Flex } from 'design';
+import { Box, Text, Link, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import Alert from 'design/Alert';
 
+import DialogConfirmation, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/DialogConfirmation';
+
 import { GETTING_STARTED_LINK, LICENSE_FILE_GUIDE_LINK } from '../Downloads';
 
 type LicenseProps = {
-  canDownloadLicense: boolean;
-  downloadLicense: () => void;
+  canGenerateLicense: boolean;
+  showSaveLicenseDialog: boolean;
+  closeSaveLicenseDialog: () => void;
+  generateLicense: () => void;
+  saveLicense: () => void;
   licenseAttempt: Attempt;
   expiry?: Date;
 };
 
 export const License = ({
-  canDownloadLicense,
-  downloadLicense,
+  canGenerateLicense,
+  showSaveLicenseDialog,
+  closeSaveLicenseDialog,
+  generateLicense,
+  saveLicense,
   licenseAttempt,
   expiry,
 }: LicenseProps) => {
   return (
     <Box mt={6} mb={6}>
       <Text bold typography="h5">
-        Download Your License Key
+        Generate Your License Key
       </Text>
       {licenseAttempt.status === 'failed' && (
         <Alert kind="danger" children={licenseAttempt.statusText} mt={4} />
@@ -44,20 +57,16 @@ export const License = ({
         <ButtonPrimary
           width="240px"
           mr={4}
-          onClick={downloadLicense}
+          onClick={generateLicense}
           size="large"
           disabled={
-            licenseAttempt.status === 'processing' || !canDownloadLicense
+            licenseAttempt.status === 'processing' || !canGenerateLicense
           }
-          title={
-            canDownloadLicense
-              ? 'Download license'
-              : 'No permission to download license'
-          }
+          title="Generate license"
         >
           {licenseAttempt.status === 'processing'
-            ? 'Loading...'
-            : 'Download License Key'}
+            ? 'Generating...'
+            : 'Generate License Key'}
         </ButtonPrimary>
         {expiry && (
           <Text color="text.slightlyMuted">
@@ -65,6 +74,34 @@ export const License = ({
           </Text>
         )}
       </Flex>
+
+      <DialogConfirmation
+        dialogCss={() => ({ maxWidth: '50vw' })}
+        open={showSaveLicenseDialog}
+        onClose={closeSaveLicenseDialog}
+      >
+        <DialogHeader>
+          <DialogTitle>New License Key Generated</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          Teleport has generated a new, unique license key. If you have multiple
+          deployments, you must use the same license file in each one.
+        </DialogContent>
+        <DialogFooter>
+          <ButtonPrimary
+            mr={3}
+            onClick={() => {
+              saveLicense();
+              closeSaveLicenseDialog();
+            }}
+          >
+            Download
+          </ButtonPrimary>
+          <ButtonSecondary onClick={closeSaveLicenseDialog}>
+            Close
+          </ButtonSecondary>
+        </DialogFooter>
+      </DialogConfirmation>
     </Box>
   );
 };

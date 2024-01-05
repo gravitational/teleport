@@ -36,7 +36,7 @@ export const FailedReleases = () => (
   />
 );
 
-export const LoadingLicense = () => (
+export const GeneratingLicense = () => (
   <DownloadsView
     {...props}
     licenseAttempt={{
@@ -56,23 +56,27 @@ export const FailedLicense = () => (
   />
 );
 
+export const GeneratedLicense = () => (
+  <DownloadsView {...props} showSaveLicenseDialog />
+);
+
 export const NoPermissionReleases = () => (
   <DownloadsView {...props} canDownloadReleaseAssets={false} />
 );
 
 export const NoPermissionLicense = () => (
-  <DownloadsView {...props} canDownloadLicense={false} />
+  <DownloadsView {...props} canGenerateLicense={false} />
 );
 
 const props: State = {
   canDownloadReleaseAssets: true,
-  canDownloadLicense: true,
+  canGenerateLicense: true,
   attempt: {
     status: 'success',
     statusText: '',
   },
   availableVersions: ['10.3.1', '8.3.19'],
-  downloadLicense: () => {},
+  generateLicense: async () => {},
   licenseAttempt: {
     status: 'success',
     statusText: '',
@@ -199,4 +203,7 @@ const props: State = {
     pem: 'pem',
     expiry: new Date('2025-12-17T12:00:00'),
   },
+  saveLicense: () => {},
+  showSaveLicenseDialog: false,
+  closeSaveLicenseDialog: () => {},
 };

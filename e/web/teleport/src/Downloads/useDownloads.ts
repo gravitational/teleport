@@ -4,6 +4,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { compareSemVers } from 'shared/utils/semVer';
 
+import { wait } from 'shared/utils/wait';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { downloadObject } from 'e-teleport/services/downloads/downloads';
@@ -23,7 +25,7 @@ export const useDownloads = (ctx: TeleportContextE) => {
   const [license, setLicense] = useState<License>();
   const { attempt: licenseAttempt, run: runLicenseAttempt } = useAttempt('');
 
-  const canDownloadLicense = ctx.storeUser.getLicenceAccess().read;
+  const canGenerateLicense = ctx.storeUser.getLicenceAccess().read;
   const canDownloadReleaseAssets = ctx.storeUser.getDownloadAccess().list;
 
   useEffect(() => {
@@ -40,13 +42,15 @@ export const useDownloads = (ctx: TeleportContextE) => {
     }
   }, [canDownloadReleaseAssets, ctx.downloadsService, run]);
 
+  // Note: we generate the license as soon as we render the UI, because we want
+  // to show the expiration date.
   useEffect(() => {
-    if (canDownloadLicense) {
+    if (canGenerateLicense) {
       runLicenseAttempt(() =>
         ctx.downloadsService.fetchLicense().then(setLicense)
       );
     }
-  }, [canDownloadLicense, ctx.downloadsService, runLicenseAttempt]);
+  }, [canGenerateLicense, ctx.downloadsService, runLicenseAttempt]);
 
   // downloads filters
   const [selectedVersion, setSelectedVersion] = useState<string>(
@@ -55,18 +59,31 @@ export const useDownloads = (ctx: TeleportContextE) => {
   const [selectedKind, setSelectedKind] = useState<Kind>('Teleport');
   const [selectedOS, setSelectedOS] = useState<OS>('Linux');
 
-  function downloadLicense() {
-    if (license) {
-      downloadObject('license.pem', license.pem);
-      return;
-    }
+  const [showSaveLicenseDialog, setShowSaveLicenseDialog] = useState(false);
 
-    runLicenseAttempt(() =>
-      ctx.downloadsService.fetchLicense().then(license => {
-        setLicense(license);
-        downloadObject('license.pem', license.pem);
-      })
+  async function generateLicense() {
+    // Fetch a fresh license, make sure that we have a latency of at least 1
+    // second. The purpose of this ensured latency is to provide visual clue
+    // to the user that the license is being actually generated on the fly and
+    // unique every time.
+    const success = await runLicenseAttempt(() =>
+      Promise.all([fetchLicense(), wait(1000)])
     );
+    setShowSaveLicenseDialog(success);
+  }
+
+  async function fetchLicense(): Promise<License> {
+    const newLicense = await ctx.downloadsService.fetchLicense();
+    setLicense(newLicense);
+    return newLicense;
+  }
+
+  function saveLicense() {
+    downloadObject('license.pem', license.pem);
+  }
+
+  function closeSaveLicenseDialog() {
+    setShowSaveLicenseDialog(false);
   }
 
   return {
@@ -80,8 +97,11 @@ export const useDownloads = (ctx: TeleportContextE) => {
     selectedOS,
     setSelectedOS,
     licenseAttempt,
-    downloadLicense,
-    canDownloadLicense,
+    generateLicense,
+    saveLicense,
+    canGenerateLicense,
+    showSaveLicenseDialog,
+    closeSaveLicenseDialog,
     canDownloadReleaseAssets,
     license,
   };

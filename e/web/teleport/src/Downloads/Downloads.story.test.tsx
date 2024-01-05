@@ -7,8 +7,9 @@ import {
   LoadedMacOS,
   FailedLicense,
   FailedReleases,
-  LoadingLicense,
   LoadingReleases,
+  GeneratingLicense,
+  GeneratedLicense,
 } from './Downloads.story';
 
 test('renders loaded linux', async () => {
@@ -31,13 +32,18 @@ test('renders when license failed', async () => {
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('renders when releases failed', async () => {
-  const { container } = render(<FailedReleases />);
+test('renders when generating license', async () => {
+  const { container } = render(<GeneratingLicense />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('renders when license is loading', async () => {
-  const { container } = render(<LoadingLicense />);
+test('renders when license generated', async () => {
+  const { container } = render(<GeneratedLicense />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('renders when releases failed', async () => {
+  const { container } = render(<FailedReleases />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
