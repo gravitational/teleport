@@ -47,11 +47,9 @@ func TestResumableConnPipe(t *testing.T) {
 			t.Parallel()
 			makePipe := func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
 				r1 := &ResumableConn{}
-				r1.allowRoaming = !tc.firstConn
 				r1.cond.L = &r1.mu
 
 				r2 := &ResumableConn{}
-				r2.allowRoaming = !tc.firstConn
 				r2.cond.L = &r2.mu
 
 				var p1, p2 net.Conn
@@ -102,15 +100,11 @@ func TestResumableConn(t *testing.T) {
 func testResumableConn(t *testing.T, syncPipe bool) {
 	require := require.New(t)
 
-	r1 := &ResumableConn{
-		allowRoaming: true,
-	}
+	r1 := &ResumableConn{}
 	r1.cond.L = &r1.mu
 	defer r1.Close()
 
-	r2 := &ResumableConn{
-		allowRoaming: true,
-	}
+	r2 := &ResumableConn{}
 	r2.cond.L = &r2.mu
 	defer r2.Close()
 

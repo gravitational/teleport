@@ -34,11 +34,6 @@ import (
 type ResumableConn struct {
 	managedConn
 
-	// allowRoaming keeps track of whether or not we should allow attaching an
-	// underlying connection with a different remote address than the previous
-	// one (in the IP address sense, the port doesn't have to match).
-	allowRoaming bool
-
 	// attached is non-nil iff there's an underlying connection attached;
 	// calling it should eventually result in the connection becoming detached,
 	// signaled by the field becoming nil.
@@ -74,14 +69,6 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	remoteAddr := nc.RemoteAddr()
 
 	r.mu.Lock()
-	if !firstConn && !r.allowRoaming && !sameAddress(r.remoteAddr, remoteAddr) {
-		r.mu.Unlock()
-
-		defer time.AfterFunc(graceTimeout, func() { nc.Close() }).Stop()
-		_, _ = nc.Write([]byte(errorTagUvarint))
-		return trace.AccessDenied("connection roaming is disabled")
-	}
-
 	r.waitForDetachLocked()
 
 	if r.localClosed || r.remoteClosed {
@@ -328,20 +315,4 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	})
 
 	return trace.Wrap(eg.Wait())
-}
-
-// sameAddress returns true if a and b are both [*net.TCPAddr] and their IP
-// address is equal.
-func sameAddress(a, b net.Addr) bool {
-	ta, ok := a.(*net.TCPAddr)
-	if !ok || ta == nil {
-		return false
-	}
-
-	tb, ok := b.(*net.TCPAddr)
-	if !ok || tb == nil {
-		return false
-	}
-
-	return ta.IP.Equal(tb.IP)
 }
