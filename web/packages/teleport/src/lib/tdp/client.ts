@@ -94,7 +94,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
 
-  private logger = Logger.create('TDPClient');
+  public logger = Logger.create('TDPClient');
 
   constructor(socketAddr: string) {
     super();
@@ -166,6 +166,11 @@ export default class Client extends EventEmitterWebAuthnSender {
         TdpClientEvent.CLIENT_ERROR
       );
     }
+    this.logger.debug(
+      'initializing fast path processor with screen spec {}x{}',
+      this.spec.width,
+      this.spec.height
+    );
     this.fastPathProcessor = new FastPathProcessor(
       this.spec.width,
       this.spec.height,
@@ -175,7 +180,9 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   protected setClientScreenSpec(spec: ClientScreenSpec) {
+    // Hold on to the spec for setting the fast path processor later.
     this.spec = spec;
+    // Emit the spec to any listeners.
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
@@ -319,7 +326,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
       this.codec.decodeRDPConnectionInitialied(buffer);
 
-    this.logger.info('setting screen spec from server {}x{}', screenWidth, screenHeight);
+    this.logger.info(
+      `setting screen spec received from server ${screenWidth} x ${screenHeight}`
+    );
     this.setClientScreenSpec({ width: screenWidth, height: screenHeight });
     this.initFastPathProcessor(ioChannelId, userChannelId);
   }
@@ -577,7 +586,9 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
-    this.logger.info('setting screen spec from client {}x{}', spec.width, spec.height);
+    this.logger.info(
+      `requesting screen spec from client ${spec.width} x ${spec.height}`
+    );
     this.setClientScreenSpec(spec);
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
