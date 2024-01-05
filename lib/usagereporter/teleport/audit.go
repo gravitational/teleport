@@ -43,6 +43,19 @@ const (
 	PortKubeSessionType = "k8s_port"
 )
 
+// prehogUserKindFromEventKind converts a Teleport UserKind to a prehog
+// UserKind.
+func prehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKind {
+	switch eventsKind {
+	case apievents.UserKind_USER_KIND_BOT:
+		return prehogv1a.UserKind_USER_KIND_BOT
+	case apievents.UserKind_USER_KIND_HUMAN:
+		return prehogv1a.UserKind_USER_KIND_HUMAN
+	default:
+		return prehogv1a.UserKind_USER_KIND_UNSPECIFIED
+	}
+}
+
 func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	switch e := event.(type) {
 	case *apievents.UserLogin:
@@ -76,6 +89,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
@@ -85,6 +99,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -95,6 +110,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
 			},
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
@@ -104,6 +120,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
@@ -119,6 +136,10 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				WindowsDomain:     e.Domain,
 				AllowUserCreation: e.AllowUserCreation,
 			},
+
+			// Note: Unlikely for this to ever be a bot session, but included
+			// for completeness.
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -143,12 +164,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.KubeRequest:
 		return &KubeRequestEvent{
 			UserName: e.User,
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.SFTP:
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.BotJoin:
