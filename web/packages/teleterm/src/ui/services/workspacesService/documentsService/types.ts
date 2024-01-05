@@ -151,6 +151,8 @@ export interface DocumentGatewayKube extends DocumentBase {
   leafClusterId: string | undefined;
   targetUri: uri.KubeUri;
   origin: DocumentOrigin;
+  // status is used merely to show a progress bar when the gateway is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export interface DocumentCluster extends DocumentBase {

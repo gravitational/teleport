@@ -202,6 +202,7 @@ it('creates a kube connection for doc.gateway_kube', () => {
     leafClusterId: undefined,
     targetUri: '/clusters/localhost/kubes/test-kube-id',
     origin: 'resource_table',
+    status: '',
   };
 
   const { connectionTrackerService } = getTestSetupWithMockedDocuments([

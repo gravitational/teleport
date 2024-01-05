@@ -220,6 +220,7 @@ export class DocumentsService {
       targetUri,
       title: `${params.kubeId}`,
       origin,
+      status: '',
     };
   }
 
