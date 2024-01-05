@@ -190,7 +190,8 @@ func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *access
 
 	allRecipients := a.fetchRecipients(ctx, accessList, now, notificationStart)
 	if len(allRecipients) == 0 {
-		return trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
+		// Don't return an error here to avoid generating a noisy log.
+		return nil
 	}
 
 	// Try to create base notification data with a zero notification date. If these objects already
