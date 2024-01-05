@@ -765,7 +765,7 @@ db_service:
 }
 
 func TestGetDiscoveryJoinScript(t *testing.T) {
-	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+	const validToken = "f18da1c9f6630a51e8daf121e7451daa"
 
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
