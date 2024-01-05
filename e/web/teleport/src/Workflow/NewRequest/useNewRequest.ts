@@ -39,6 +39,13 @@ export function useNewRequest(ctx: Ctx) {
   const [selectedResource, setSelectedResource] = useState<ResourceKind>(
     isLeafCluster ? 'node' : 'role'
   );
+  const {
+    attempt: userGroupFetchAttempt,
+    setAttempt: setUserGroupFetchAttempt,
+  } = useAttempt('success');
+  const [appsGrantedByUserGroup, setAppsGrantedByUserGroup] = useState<
+    string[]
+  >([]);
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [fetchedData, setFetchedData] = useState<
     ResourcesResponse<UnifiedResource>
@@ -232,6 +239,39 @@ export function useNewRequest(ctx: Ctx) {
   useEffect(() => {
     setNumAddedOnPage(getNumAddedOnPage());
   }, [page, selectedResource, addedResources]);
+
+  // when the selected user_group changes, we need to fetch the
+  // list of applications that the app grants access to to display
+  // in the checkout process
+  useEffect(() => {
+    const selectedUserGroup =
+      Object.keys(addedResources.user_group).length > 0
+        ? Object.keys(addedResources.user_group)[0]
+        : null;
+
+    async function fetchUserGroupApps(userGroupId: string) {
+      setUserGroupFetchAttempt({ status: 'processing' });
+      try {
+        const ugs = await ctx.userGroupService.fetchUserGroups(clusterId, {
+          limit: 1,
+          search: userGroupId,
+        });
+
+        if (ugs.agents.length > 0) {
+          setAppsGrantedByUserGroup(
+            ugs.agents[0].applications.map(app => app.friendlyName)
+          );
+        }
+        setUserGroupFetchAttempt({ status: 'success' });
+      } catch (err) {
+        setUserGroupFetchAttempt({ status: 'failed', statusText: err.message });
+      }
+    }
+
+    if (selectedUserGroup) {
+      fetchUserGroupApps(selectedUserGroup);
+    }
+  }, [addedResources.user_group]);
 
   // TODO (lisa): this is pretty hacky, maybe expose the ref for selector,
   // but that might require touching multiple files adding to an already bloated PR.
@@ -717,6 +757,8 @@ export function useNewRequest(ctx: Ctx) {
     addSelectedResources,
     updateSort,
     updateQuery,
+    appsGrantedByUserGroup,
+    userGroupFetchAttempt,
     updateSearch,
     fetchStatus,
     onAgentLabelClick,

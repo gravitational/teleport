@@ -64,10 +64,6 @@ import { AppRequestButton, RequestButton } from './RequestButton';
 import type { TransitionStatus } from 'react-transition-group';
 
 const agentOptions: ResourceOption[] = [
-  {
-    value: 'user_group',
-    label: 'user groups',
-  },
   // Order matters. On initial render
   // the last element in the options array
   // will be used. Which can either be 'resource' or 'role'.
@@ -93,10 +89,6 @@ const legacyAgentOptions: ResourceOption[] = [
   {
     value: 'kube_cluster',
     label: 'kubernetes',
-  },
-  {
-    value: 'user_group',
-    label: 'user groups',
   },
   // Order matters. On initial render
   // the last element in the options array
@@ -167,6 +159,8 @@ export function NewRequest(props: State) {
     onAgentLabelClick,
     selectedResource,
     addedResources,
+    appsGrantedByUserGroup,
+    userGroupFetchAttempt,
     addOrRemoveResource,
     pageCount,
     customSort,
@@ -528,7 +522,9 @@ export function NewRequest(props: State) {
       <Transition in={showCheckout} timeout={300} mountOnEnter unmountOnExit>
         {transitionState => (
           <RequestCheckout
+            appsGrantedByUserGroup={appsGrantedByUserGroup}
             addedResources={addedResources}
+            userGroupFetchAttempt={userGroupFetchAttempt}
             onClose={() => {
               setShowCheckout(false);
               fetchUsage();

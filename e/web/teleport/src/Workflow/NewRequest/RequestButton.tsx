@@ -70,11 +70,6 @@ const OptionComponent = (props: { data: Option }) => {
   );
 };
 
-type AppAndUserGroupOptions = {
-  label: string;
-  options: Option[];
-}[];
-
 export function AppRequestButton({
   agent,
   addedResources,
@@ -90,6 +85,11 @@ export function AppRequestButton({
     resourceName?: string
   ) => void;
 }) {
+  const selectedUserGroup =
+    Object.keys(addedResources.user_group).length > 0
+      ? Object.keys(addedResources.user_group)[0]
+      : null;
+
   const isAppAdded = Boolean(addedResources.app[agent.name]);
 
   if (agent.userGroups.length === 0) {
@@ -104,48 +104,34 @@ export function AppRequestButton({
     );
   }
 
-  const options: AppAndUserGroupOptions = [
-    {
-      label: 'Request Directly',
-      options: [
-        {
-          label: agent.friendlyName || agent.name,
-          value: agent.name,
-          isAdded: isAppAdded,
-          kind: 'app',
-        },
-      ],
-    },
-    {
-      label: 'Request a User Group',
-      options: agent.userGroups.map(user_group => ({
-        label: user_group.description,
-        value: user_group.name,
-        isAdded: Boolean(addedResources.user_group[user_group.name]),
-        kind: 'user_group',
-      })),
-    },
-  ];
+  const isUserGroupAdded =
+    agent.userGroups.length > 0 &&
+    agent.userGroups.some(userGroup =>
+      Boolean(addedResources.user_group[userGroup.name])
+    );
+
+  const options = agent.userGroups.map(user_group => ({
+    label: user_group.description,
+    value: user_group.name,
+    isAdded: Boolean(addedResources.user_group[user_group.name]),
+    kind: 'user_group',
+  }));
 
   function handleSelect(option: Option) {
-    if (option.kind === 'user_group') {
+    if (selectedUserGroup !== null && selectedUserGroup !== option.value) {
+      addOrRemoveResource('user_group', selectedUserGroup);
       addOrRemoveResource('user_group', option.value, option.label);
-      // if user group is being added, we need to add the app as well if the app hasn't been added.
-      // an app can only be toggled off by unselecting the app itself.
-      if (!isAppAdded && !option.isAdded) {
-        addOrRemoveResource('app', agent.name, agent.friendlyName);
-      }
-      return;
+    } else {
+      addOrRemoveResource('user_group', option.value, option.label);
     }
-    addOrRemoveResource('app', agent.name, agent.friendlyName);
   }
 
   return (
     <Flex gap={2} flexDirection="column" alignItems="end">
       <Flex alignItems="center" justifyContent="end">
-        <StyledSelect className={isAppAdded ? 'hasSelectedGroups' : ''}>
+        <StyledSelect className={isUserGroupAdded ? 'hasSelectedGroups' : ''}>
           <Select
-            placeholder={isAppAdded ? `EDIT SELECTIONS` : '+ ADD TO REQUEST'}
+            placeholder={isUserGroupAdded ? `EDIT APP ROLE` : 'SELECT APP ROLE'}
             value={null}
             options={options}
             isSearchable={false}
@@ -181,8 +167,9 @@ const StyledSelect = styled(BaseStyledSelect)`
 
   .react-select__menu {
     font-size: 12px;
-    width: 190px;
+    width: 230px;
     right: 0;
+    color: ${p => p.theme.colors.primary};
   }
 
   .react-select__option {

@@ -25,6 +25,7 @@ import Validation, { useRule, Validator } from 'shared/components/Validation';
 import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
+import { Danger } from 'design/Alert';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
@@ -95,6 +96,8 @@ export function RequestCheckout({
   reset,
   data,
   createAttempt,
+  appsGrantedByUserGroup = [],
+  userGroupFetchAttempt,
   fetchResourceRequestRolesAttempt,
   resourceRequestRoles,
   createRequest,
@@ -294,6 +297,18 @@ export function RequestCheckout({
                   ]}
                   emptyText="No resources are selected"
                 />
+                {userGroupFetchAttempt?.status === 'processing' && (
+                  <Flex mt={4} alignItems="center" justifyContent="center">
+                    <Indicator size="small" />
+                  </Flex>
+                )}
+                {userGroupFetchAttempt?.status === 'failed' && (
+                  <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
+                )}
+                {userGroupFetchAttempt?.status === 'success' &&
+                  appsGrantedByUserGroup.length > 0 && (
+                    <AppsGrantedAccess apps={appsGrantedByUserGroup} />
+                  )}
                 {isResourceRequest && (
                   <ResourceRequestRoles
                     roles={resourceRequestRoles}
@@ -389,6 +404,56 @@ export function RequestCheckout({
   );
 }
 
+function AppsGrantedAccess({ apps }: { apps: string[] }) {
+  const [expanded, setExpanded] = useState(true);
+  const ArrowIcon = expanded ? ChevronDown : ChevronRight;
+
+  // if its a single app, just show the app they are getting access to
+  if (apps.length === 1) {
+    return (
+      <Box mt={4} width="100%">
+        <Text mb={0}>
+          Grants access to the{' '}
+          <Text style={{ display: 'inline' }} color="brand">
+            {apps[0]}
+          </Text>{' '}
+          app
+        </Text>
+      </Box>
+    );
+  }
+
+  return (
+    <Box mt={7} width="100%">
+      <Box style={{ cursor: 'pointer' }}>
+        <Flex
+          justifyContent="space-between"
+          width="100%"
+          borderBottom={1}
+          onClick={() => setExpanded(!expanded)}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[1]};
+          `}
+        >
+          <Flex flexDirection="column" width="100%">
+            <LabelInput mb={0} style={{ cursor: 'pointer' }}>
+              {`Grants access to ${apps.length} apps`}
+            </LabelInput>
+          </Flex>
+          <ArrowIcon size="medium" />
+        </Flex>
+      </Box>
+      {expanded && (
+        <Box mt={2}>
+          {apps.map(app => {
+            return <Text>{app}</Text>;
+          })}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 function ResourceRequestRoles({
   roles,
   selectedRoles,
@@ -400,7 +465,7 @@ function ResourceRequestRoles({
   setSelectedRoles: (roles: string[]) => void;
   fetchAttempt: Attempt;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const ArrowIcon = expanded ? ChevronDown : ChevronRight;
 
   function onInputChange(
@@ -635,6 +700,8 @@ type Props = {
   selectedResource: NewRequestState['selectedResource'];
   toggleResource: NewRequestState['addOrRemoveResource'];
   addedResources: NewRequestState['addedResources'];
+  appsGrantedByUserGroup?: string[];
+  userGroupFetchAttempt?: Attempt;
   reset: NewRequestState['clearAddedResources'];
   SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
   transitionState: TransitionStatus;
