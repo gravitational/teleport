@@ -115,8 +115,10 @@ export async function getSessionEvents(sessionUrl: string): Promise<{
 
 export async function getSessionStream(sessionUrl: string) {
   const stream = await api.fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
-    Accept: 'text/plain',
-    'Content-Type': 'text/plain; charset=utf-8',
+    headers: {
+      Accept: 'text/plain',
+      'Content-Type': 'text/plain; charset=utf-8',
+    },
   });
 
   if (stream.status === 200) {
