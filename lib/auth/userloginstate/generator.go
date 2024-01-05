@@ -222,25 +222,14 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 		return nil
 	}
 
-	// Remove roles that don't exist in the backend so that we don't generate certs for non-existent roles.
-	// Doing so can prevent login from working properly. This could occur if access lists refer to roles that
-	// no longer exist, for example.
-	roles, err := g.access.GetRoles(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	roleLookup := map[string]bool{}
-	for _, role := range roles {
-		roleLookup[role.GetName()] = true
-	}
-
-	existingRoles := []string{}
+	// Make sure all the roles exist. If they don't, error out.
+	var existingRoles []string
 	for _, role := range state.Spec.Roles {
-		if roleLookup[role] {
+		_, err := g.access.GetRole(ctx, role)
+		if err == nil {
 			existingRoles = append(existingRoles, role)
 		} else {
-			g.log.Warnf("Role %s does not exist when trying to add user login state, will be skipped", role)
+			return trace.Wrap(err)
 		}
 	}
 	state.Spec.Roles = existingRoles
