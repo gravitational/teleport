@@ -27,7 +27,26 @@ import (
 
 	"github.com/gobwas/ws"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
+
+func applyWebSocketUpgradeHeaders(req *http.Request, alpnUpgradeType, challengeKey string) {
+	// Set standard WebSocket upgrade type.
+	req.Header.Add(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeWebSocket)
+
+	// Set "Connection" header to meet RFC spec:
+	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
+	// Quote: "the upgrade keyword MUST be supplied within a Connection header
+	// field (section 14.10) whenever Upgrade is present in an HTTP/1.1
+	// message."
+	req.Header.Set(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
+
+	// Set alpnUpgradeType as sub protocol.
+	req.Header.Set(websocketHeaderKeyProtocol, alpnUpgradeType)
+	req.Header.Set(websocketHeaderKeyVersion, "13")
+	req.Header.Set(websocketHeaderKeyChallengeKey, challengeKey)
+}
 
 func computeWebSocketAcceptKey(challengeKey string) string {
 	h := sha1.New()
@@ -55,7 +74,7 @@ func generateWebSocketChallengeKey() (string, error) {
 }
 
 func checkWebSocketUpgradeResponse(resp *http.Response, challengeKey string) error {
-	if computeWebSocketAcceptKey(challengeKey) != resp.Header.Get("Sec-WebSocket-Accept") {
+	if computeWebSocketAcceptKey(challengeKey) != resp.Header.Get(websocketHeaderKeyAccept) {
 		return trace.BadParameter("WebSocket handshake failed: invalid Sec-WebSocket-Accept")
 	}
 	return nil
@@ -117,3 +136,10 @@ func (c *websocketALPNClientConn) writeFrame(frame ws.Frame) error {
 	defer c.writeMutex.Unlock()
 	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
 }
+
+const (
+	websocketHeaderKeyProtocol     = "Sec-Websocket-Protocol"
+	websocketHeaderKeyVersion      = "Sec-Websocket-Version"
+	websocketHeaderKeyChallengeKey = "Sec-Websocket-Key"
+	websocketHeaderKeyAccept       = "Sec-Websocket-Accept"
+)

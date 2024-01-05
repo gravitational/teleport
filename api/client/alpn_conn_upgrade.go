@@ -208,12 +208,19 @@ func (d *alpnConnUpgradeDialer) upgradeType() string {
 	return constants.WebAPIConnUpgradeTypeALPN
 }
 
-func applyConnUpgradeHeaders(req *http.Request, alpnUpgradeType, challengeKey string) {
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
+	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeKey, err := generateWebSocketChallengeKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Prefer "websocket".
-	req.Header.Add(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeWebSocket)
-	req.Header.Set("Sec-Websocket-Protocol", alpnUpgradeType)
-	req.Header.Set("Sec-Websocket-Version", "13")
-	req.Header.Set("Sec-Websocket-Key", challengeKey)
+	applyWebSocketUpgradeHeaders(req, alpnUpgradeType, challengeKey)
 
 	// Append "legacy" custom upgrade type.
 	// TODO(greedy52) DELETE in 17.0
@@ -230,21 +237,7 @@ func applyConnUpgradeHeaders(req *http.Request, alpnUpgradeType, challengeKey st
 	// require this header to be set to complete the upgrade flow. The header
 	// must be set on both the upgrade request here and the 101 Switching
 	// Protocols response from the server.
-	req.Header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
-}
-
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
-	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challengeKey, err := generateWebSocketChallengeKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyConnUpgradeHeaders(req, alpnUpgradeType, challengeKey)
+	req.Header.Set(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
