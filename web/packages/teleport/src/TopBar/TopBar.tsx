@@ -37,7 +37,6 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { KeysEnum } from 'teleport/services/storageService';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
-import ClusterSelector from './ClusterSelector';
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
 
@@ -143,15 +142,6 @@ export function TopBar() {
         </Text>
       )}
       <Text fontSize="18px" id="topbar-portal" ml={2}></Text>
-      <ClusterSelector
-        value={clusterId}
-        width="384px"
-        maxMenuHeight={200}
-        mr="20px"
-        onChange={changeCluster}
-        onLoad={loadClusters}
-        style={styles}
-      />
       <Flex ml="auto" height="100%" alignItems="center">
         {!hasDockedElement && assistEnabled && (
           <ButtonIconContainer onClick={() => setShowAssist(true)}>
