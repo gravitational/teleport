@@ -122,7 +122,7 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
 	case TypeRDPChannelIDs:
-		return decodeRDPChannelIDs(in)
+		return decodeConnectionInitialized(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -357,26 +357,31 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// RDPChannelIDs are the IO and user channel IDs negotiated during the RDP connection.
+// ConnectionInitialized is sent to the browser when an RDP session is fully initialized.
+// It contains data that the browser needs in order to correctly handle the session.
 //
 // See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
 //
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-type RDPChannelIDs struct {
+type ConnectionInitialized struct {
 	IOChannelID   uint16
 	UserChannelID uint16
+	ScreenWidth   uint16
+	ScreenHeight  uint16
 }
 
-func (c RDPChannelIDs) Encode() ([]byte, error) {
+func (c ConnectionInitialized) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeRDPChannelIDs))
 	writeUint16(buf, c.IOChannelID)
 	writeUint16(buf, c.UserChannelID)
+	writeUint16(buf, c.ScreenWidth)
+	writeUint16(buf, c.ScreenHeight)
 	return buf.Bytes(), nil
 }
 
-func decodeRDPChannelIDs(in byteReader) (RDPChannelIDs, error) {
-	var ids RDPChannelIDs
+func decodeConnectionInitialized(in byteReader) (ConnectionInitialized, error) {
+	var ids ConnectionInitialized
 	err := binary.Read(in, binary.BigEndian, &ids)
 	return ids, trace.Wrap(err)
 }
