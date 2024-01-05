@@ -303,7 +303,7 @@ See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windo
 
 This message synchronizes the state of keyboard's modifier keys.
 
-`caps_lock_state` is one of:
+`*_lock_state` is one of:
 
-- `0` for caps lock inactive
-- `1` FOR CAPS LOCK ACTIVE
+- `0` for \* lock inactive
+- `1` FOR \* LOCK ACTIVE
