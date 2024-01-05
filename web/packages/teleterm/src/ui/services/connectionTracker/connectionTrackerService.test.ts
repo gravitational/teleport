@@ -116,6 +116,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
     targetSubresourceName: 'pg',
     port: '12345',
     origin: 'resource_table',
+    status: '',
   };
 
   const { connectionTrackerService, workspacesService } =

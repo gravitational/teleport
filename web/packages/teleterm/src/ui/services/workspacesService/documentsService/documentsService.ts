@@ -170,6 +170,7 @@ export class DocumentsService {
       title,
       port,
       origin,
+      status: '',
     };
   }
 

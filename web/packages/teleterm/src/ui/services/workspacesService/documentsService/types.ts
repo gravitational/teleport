@@ -101,6 +101,8 @@ export interface DocumentTshKube extends DocumentBase {
 
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
+  // status is used merely to show a progress bar when the gateway is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   gatewayUri?: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
   targetUser: string;
