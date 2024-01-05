@@ -25,11 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-<<<<<<< HEAD
-=======
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
->>>>>>> 913cc67c9e (Add access lists, members, and reviews to cache. (#36020))
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
