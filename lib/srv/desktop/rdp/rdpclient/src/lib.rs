@@ -612,6 +612,7 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
     // will terminate the connection if the websocket disconnects.
     shared_tcp.tcp.set_read_timeout(None)?;
 
+    #[allow(clippy::arc_with_non_send_sync)]
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
