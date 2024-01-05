@@ -635,6 +635,20 @@ func init() {
 	})
 }
 
+// CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
+// If r does not implement, then this is a nop.
+//
+// This method exists for backwards compatibility with old-style resources.
+// Prefer using RFD 153 style resources, passing concrete types and running
+// validations before storage writes only.
+func CheckAndSetDefaults(r any) error {
+	if r, ok := r.(interface{ CheckAndSetDefaults() error }); ok {
+		return trace.Wrap(r.CheckAndSetDefaults())
+	}
+
+	return nil
+}
+
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
 // if no marshaler has been registered.
 //

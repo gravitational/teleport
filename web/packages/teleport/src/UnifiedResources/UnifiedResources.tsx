@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 
 import { Flex } from 'design';
 
@@ -38,6 +38,7 @@ import {
   FeatureHeaderTitle,
   FeatureBox,
 } from 'teleport/components/Layout';
+import { useContentMinWidthContext } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
@@ -98,6 +99,16 @@ function ClusterResources({
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
+
+  const { setEnforceMinWidth } = useContentMinWidthContext();
+
+  useEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
 
   const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
