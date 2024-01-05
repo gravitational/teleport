@@ -16,7 +16,7 @@ limitations under the License.
 
 export {
   Main as default,
-  ContentMinWidth,
+  useContentMinWidthContext,
   HorizontalSplit,
   StyledIndicator,
 } from './Main';
