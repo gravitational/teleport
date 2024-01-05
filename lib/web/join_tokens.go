@@ -345,7 +345,7 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
-	discoveryGroupQueryParam := "discoveryGroup"
+	const discoveryGroupQueryParam = "discoveryGroup"
 
 	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
 	if err != nil {
