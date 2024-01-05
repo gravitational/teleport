@@ -2860,7 +2860,10 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
 	})
 	require.NoError(t, err)
 
@@ -2872,32 +2875,66 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
+	_, err = CreateUser(clt, username)
 	require.NoError(t, err)
 
-	token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
-		Name: username,
-		TTL:  time.Hour,
+	t.Run("Reset works when user exists", func(t *testing.T) {
+		token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			Name: username,
+			TTL:  time.Hour,
+		})
+		require.NoError(t, err)
+
+		res, err := tt.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:    token.GetName(),
+			DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		})
+		require.NoError(t, err)
+
+		_, registerSolved, err := NewTestDeviceFromChallenge(res)
+		require.NoError(t, err)
+
+		_, err = tt.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:                token.GetName(),
+			NewPassword:            []byte("qweqweqwe"),
+			NewMFARegisterResponse: registerSolved,
+		})
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
 
-	res, err := tt.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		TokenID:    token.GetName(),
-		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	t.Run("Reset link not allowed when user does not exist", func(t *testing.T) {
+		token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			Name: username,
+			TTL:  time.Hour,
+		})
+		require.NoError(t, err)
+		var resp *proto.MFARegisterResponse
+		for i := 0; i < 5; i++ {
+			res, err := tt.server.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:    token.GetName(),
+				DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			})
+			require.NoError(t, err)
+
+			_, registerSolved, err := NewTestDeviceFromChallenge(res)
+			require.NoError(t, err)
+
+			resp = registerSolved
+		}
+
+		require.NoError(t, tt.server.Auth().DeleteUser(ctx, username))
+
+		_, err = tt.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:                token.GetName(),
+			NewPassword:            []byte("qweqweqwe"),
+			NewMFARegisterResponse: resp,
+		})
+		require.Error(t, err)
+
+		tokens, err := tt.server.Auth().GetUserTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, tokens)
 	})
-	require.NoError(t, err)
-
-	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), tt.server.Clock().Now())
-	require.NoError(t, err)
-
-	_, err = tt.server.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
-		NewPassword: []byte("qweqweqwe"),
-		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
-		}},
-	})
-	require.NoError(t, err)
 }
 
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
