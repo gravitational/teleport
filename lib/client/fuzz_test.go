@@ -19,6 +19,7 @@
 package client
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,14 @@ func FuzzParseProxyHost(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, proxyHost string) {
 		require.NotPanics(t, func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic with payload: %s\n", proxyHost)
+					t.Logf("Panic with payload: %s\n", proxyHost)
+					t.Fail()
+				}
+			}()
+
 			_, _ = ParseProxyHost(proxyHost)
 		})
 	})
@@ -42,6 +51,14 @@ func FuzzParseLabelSpec(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, spec string) {
 		require.NotPanics(t, func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic with payload: %s\n", spec)
+					t.Logf("Panic with payload: %s\n", spec)
+					t.Fail()
+				}
+			}()
+
 			_, _ = ParseLabelSpec(spec)
 		})
 	})
@@ -69,6 +86,14 @@ func FuzzParsePortForwardSpec(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, spec string) {
 		require.NotPanics(t, func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic with payload: %s\n", spec)
+					t.Logf("Panic with payload: %s\n", spec)
+					t.Fail()
+				}
+			}()
+
 			_, _ = ParsePortForwardSpec([]string{spec})
 		})
 	})
@@ -83,6 +108,14 @@ func FuzzParseDynamicPortForwardSpec(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, spec string) {
 		require.NotPanics(t, func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic with payload: %s\n", spec)
+					t.Logf("Panic with payload: %s\n", spec)
+					t.Fail()
+				}
+			}()
+
 			_, _ = ParseDynamicPortForwardSpec([]string{spec})
 		})
 	})
