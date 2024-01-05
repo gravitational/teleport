@@ -184,14 +184,21 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 // notifyForAccessListReviews will notify if access list review dates are getting close. At the moment, this
 // only supports notifying owners.
 func (a *App) notifyForAccessListReviews(ctx context.Context, accessList *accesslist.AccessList) error {
+	log := logger.Get(ctx)
+
 	// Find the current notification window.
 	now := a.clock.Now()
 	notificationStart := accessList.Spec.Audit.NextAuditDate.Add(-accessList.Spec.Audit.Notifications.Start)
 
+	// If the current time before the notification start time, skip notifications.
+	if now.Before(notificationStart) {
+		log.Debugf("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
+		return nil
+	}
+
 	allRecipients := a.fetchRecipients(ctx, accessList, now, notificationStart)
 	if len(allRecipients) == 0 {
-		// Don't return an error here to avoid generating a noisy log.
-		return nil
+		return trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
 	}
 
 	// Try to create base notification data with a zero notification date. If these objects already
@@ -217,12 +224,6 @@ func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.Access
 	log := logger.Get(ctx)
 
 	allRecipients := make(map[string]common.Recipient, len(accessList.Spec.Owners))
-
-	// If the current time before the notification start time, skip notifications.
-	if now.Before(notificationStart) {
-		log.Debugf("Access list %s is not ready for notifications, notifications start at %s", accessList.GetName(), notificationStart.Format(time.RFC3339))
-		return nil
-	}
 
 	// Get the owners from the bot as recipients.
 	for _, owner := range accessList.Spec.Owners {
