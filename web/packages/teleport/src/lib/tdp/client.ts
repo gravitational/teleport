@@ -90,7 +90,6 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
   protected socket: WebSocket | undefined;
   private socketAddr: string;
-  protected spec?: ClientScreenSpec;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
 
@@ -156,34 +155,21 @@ export default class Client extends EventEmitterWebAuthnSender {
     init_wasm_log(wasmLogLevel);
   }
 
-  private initFastPathProcessor(ioChannelId: number, userChannelId: number) {
-    if (!this.spec.width || !this.spec.height) {
-      this.logger.error(
-        'client screen spec must be set before initializing fast path processor'
-      );
-      this.handleError(
-        new Error('internal error'),
-        TdpClientEvent.CLIENT_ERROR
-      );
-    }
+  private initFastPathProcessor(
+    ioChannelId: number,
+    userChannelId: number,
+    spec: ClientScreenSpec
+  ) {
     this.logger.debug(
-      'initializing fast path processor with screen spec {}x{}',
-      this.spec.width,
-      this.spec.height
+      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
+
     this.fastPathProcessor = new FastPathProcessor(
-      this.spec.width,
-      this.spec.height,
+      spec.width,
+      spec.height,
       ioChannelId,
       userChannelId
     );
-  }
-
-  protected setClientScreenSpec(spec: ClientScreenSpec) {
-    // Hold on to the spec for setting the fast path processor later.
-    this.spec = spec;
-    // Emit the spec to any listeners.
-    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   // processMessage should be await-ed when called,
@@ -325,12 +311,19 @@ export default class Client extends EventEmitterWebAuthnSender {
   handleRDPConnectionInitialized(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
       this.codec.decodeRDPConnectionInitialied(buffer);
-
+    const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `setting screen spec received from server ${screenWidth} x ${screenHeight}`
+      `setting screen spec received from server ${spec.width} x ${spec.height}`
     );
-    this.setClientScreenSpec({ width: screenWidth, height: screenHeight });
-    this.initFastPathProcessor(ioChannelId, userChannelId);
+
+    this.initFastPathProcessor(ioChannelId, userChannelId, {
+      width: screenWidth,
+      height: screenHeight,
+    });
+
+    // Emit the spec to any listeners. Listeners can then resize
+    // the canvas to the size we're actually using in this session.
+    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   handleRDPFastPathPDU(buffer: ArrayBuffer) {
@@ -589,7 +582,6 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.logger.info(
       `requesting screen spec from client ${spec.width} x ${spec.height}`
     );
-    this.setClientScreenSpec(spec);
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
 

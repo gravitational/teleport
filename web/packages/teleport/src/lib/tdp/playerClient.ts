@@ -71,7 +71,7 @@ export class PlayerClient extends Client {
   // Overrides Client implementation.
   handleClientScreenSpec(buffer: ArrayBuffer) {
     const spec = this.codec.decodeClientScreenSpec(buffer);
-    this.setClientScreenSpec(spec);
+    // this.setClientScreenSpec(spec); TODO
   }
 
   // Overrides Client implementation. This prevents the Client from sending
