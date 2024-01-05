@@ -18,7 +18,7 @@
 
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 
-import Client from './client';
+import Client, { TdpClientEvent } from './client';
 
 enum Action {
   TOGGLE_PLAY_PAUSE = 'play/pause',
@@ -69,9 +69,16 @@ export class PlayerClient extends Client {
   }
 
   // Overrides Client implementation.
+  // This override is deprecated (unnecessary) as of Teleport 15.0.0, since we no longer
+  // record the requested client spec (which is what this method is handling).
+  // Instead we record the negotiated screen spec sent back to us by the server
+  // in the RDPConnectionInitialized message. This method is left here for
+  // backwards compatibility with older recordings.
   handleClientScreenSpec(buffer: ArrayBuffer) {
-    const spec = this.codec.decodeClientScreenSpec(buffer);
-    // this.setClientScreenSpec(spec); TODO
+    this.emit(
+      TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
+      this.codec.decodeClientScreenSpec(buffer)
+    );
   }
 
   // Overrides Client implementation. This prevents the Client from sending
