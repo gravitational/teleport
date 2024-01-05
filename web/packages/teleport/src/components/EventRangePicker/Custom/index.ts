@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import CustomRange from './Custom';
-export default CustomRange;
+export { CustomRange } from './Custom';
