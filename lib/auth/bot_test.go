@@ -330,26 +330,11 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a new bot.
-	client, err := srv.NewClient(TestAdmin())
-	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
-				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
-				Roles: []string{"example"},
-			},
-		},
+	bot, err := srv.Auth().createBot(ctx, &proto.CreateBotRequest{
+		Name:  "test",
+		Roles: []string{"example"},
 	})
 	require.NoError(t, err)
-
-	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
-		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
-	})
-	require.NoError(t, err)
-	require.NoError(t, client.CreateToken(ctx, token))
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -359,7 +344,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 
 	certs, err := Register(RegisterParams{
-		Token: token.GetName(),
+		Token: bot.TokenID,
 		ID: IdentityID{
 			Role: types.RoleBot,
 		},
@@ -373,7 +358,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
 	require.NoError(t, err)
 
-	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.UserName, publicKey, privateKey)
 	require.NoError(t, err)
 
 	// Parse the Identity

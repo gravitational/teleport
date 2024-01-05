@@ -4052,7 +4052,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.TrustedClusterTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 				},
 			},
@@ -4213,7 +4214,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.TrustedClusterTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 				},
 			},
