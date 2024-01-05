@@ -309,6 +309,50 @@ function deserialize_teleport_accesslist_v1_ListAccessListsResponse(buffer_arg) 
   return teleport_accesslist_v1_accesslist_service_pb.ListAccessListsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_accesslist_v1_ListAllAccessListMembersRequest(arg) {
+  if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersRequest)) {
+    throw new Error('Expected argument of type teleport.accesslist.v1.ListAllAccessListMembersRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_accesslist_v1_ListAllAccessListMembersRequest(buffer_arg) {
+  return teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_accesslist_v1_ListAllAccessListMembersResponse(arg) {
+  if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersResponse)) {
+    throw new Error('Expected argument of type teleport.accesslist.v1.ListAllAccessListMembersResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_accesslist_v1_ListAllAccessListMembersResponse(buffer_arg) {
+  return teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_accesslist_v1_ListAllAccessListReviewsRequest(arg) {
+  if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListReviewsRequest)) {
+    throw new Error('Expected argument of type teleport.accesslist.v1.ListAllAccessListReviewsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_accesslist_v1_ListAllAccessListReviewsRequest(buffer_arg) {
+  return teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListReviewsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_accesslist_v1_ListAllAccessListReviewsResponse(arg) {
+  if (!(arg instanceof teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListReviewsResponse)) {
+    throw new Error('Expected argument of type teleport.accesslist.v1.ListAllAccessListReviewsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_accesslist_v1_ListAllAccessListReviewsResponse(buffer_arg) {
+  return teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListReviewsResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_accesslist_v1_Member(arg) {
   if (!(arg instanceof teleport_accesslist_v1_accesslist_pb.Member)) {
     throw new Error('Expected argument of type teleport.accesslist.v1.Member');
@@ -463,6 +507,18 @@ listAccessListMembers: {
     responseSerialize: serialize_teleport_accesslist_v1_ListAccessListMembersResponse,
     responseDeserialize: deserialize_teleport_accesslist_v1_ListAccessListMembersResponse,
   },
+  // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+listAllAccessListMembers: {
+    path: '/teleport.accesslist.v1.AccessListService/ListAllAccessListMembers',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersRequest,
+    responseType: teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListMembersResponse,
+    requestSerialize: serialize_teleport_accesslist_v1_ListAllAccessListMembersRequest,
+    requestDeserialize: deserialize_teleport_accesslist_v1_ListAllAccessListMembersRequest,
+    responseSerialize: serialize_teleport_accesslist_v1_ListAllAccessListMembersResponse,
+    responseDeserialize: deserialize_teleport_accesslist_v1_ListAllAccessListMembersResponse,
+  },
   // GetAccessListMember returns the specified access list member resource.
 getAccessListMember: {
     path: '/teleport.accesslist.v1.AccessListService/GetAccessListMember',
@@ -546,6 +602,18 @@ listAccessListReviews: {
     requestDeserialize: deserialize_teleport_accesslist_v1_ListAccessListReviewsRequest,
     responseSerialize: serialize_teleport_accesslist_v1_ListAccessListReviewsResponse,
     responseDeserialize: deserialize_teleport_accesslist_v1_ListAccessListReviewsResponse,
+  },
+  // ListAllAccessListReviews will list access list reviews for all access lists.
+listAllAccessListReviews: {
+    path: '/teleport.accesslist.v1.AccessListService/ListAllAccessListReviews',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListReviewsRequest,
+    responseType: teleport_accesslist_v1_accesslist_service_pb.ListAllAccessListReviewsResponse,
+    requestSerialize: serialize_teleport_accesslist_v1_ListAllAccessListReviewsRequest,
+    requestDeserialize: deserialize_teleport_accesslist_v1_ListAllAccessListReviewsRequest,
+    responseSerialize: serialize_teleport_accesslist_v1_ListAllAccessListReviewsResponse,
+    responseDeserialize: deserialize_teleport_accesslist_v1_ListAllAccessListReviewsResponse,
   },
   // CreateAccessListReview will create a new review for an access list. It will also modify the original access list
 // and its members depending on the details of the review.
