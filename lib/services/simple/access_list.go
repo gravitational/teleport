@@ -117,7 +117,7 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	return accessList, a.service.UpsertResource(ctx, accessList)
+	return a.service.UpsertResource(ctx, accessList)
 }
 
 // DeleteAccessList removes the specified access list resource.
@@ -156,7 +156,7 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessListN
 
 // UpsertAccessListMember creates or updates an access list member resource.
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
-	return member, trace.Wrap(a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member))
+	return a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
 }
 
 // DeleteAccessListMember hard deletes the specified access list member resource.
@@ -176,8 +176,9 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 
 // CreateAccessListReview will create a new review for an access list.
 func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
+	review, err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, review)
 	// Return a zero time here, as it will be ignored by the cache.
-	return review, time.Time{}, trace.Wrap(a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, review))
+	return review, time.Time{}, trace.Wrap(err)
 }
 
 // DeleteAccessListReview will delete an access list review from the backend.
