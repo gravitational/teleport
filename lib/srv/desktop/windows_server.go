@@ -1028,7 +1028,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 ) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
-		case tdp.MouseButton, tdp.MouseMove:
+		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")

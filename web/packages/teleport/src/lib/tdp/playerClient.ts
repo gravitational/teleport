@@ -69,11 +69,6 @@ export class PlayerClient extends Client {
   }
 
   // Overrides Client implementation.
-  // This override is deprecated (unnecessary) as of Teleport 15.0.0, since we no longer
-  // record the requested client spec (which is what this method is handling).
-  // Instead we record the negotiated screen spec sent back to us by the server
-  // in the RDPConnectionInitialized message. This method is left here for
-  // backwards compatibility with older recordings.
   handleClientScreenSpec(buffer: ArrayBuffer) {
     this.emit(
       TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
