@@ -123,6 +123,9 @@ export class SessionStartEvent extends jspb.Message {
     getDatabase(): SessionStartDatabaseMetadata | undefined;
     setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SessionStartEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
@@ -139,6 +142,7 @@ export namespace SessionStartEvent {
         userName: string,
         sessionType: string,
         database?: SessionStartDatabaseMetadata.AsObject,
+        userKind: UserKind,
     }
 }
 
@@ -1257,6 +1261,9 @@ export class KubeRequestEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): KubeRequestEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): KubeRequestEvent.AsObject;
@@ -1271,6 +1278,7 @@ export class KubeRequestEvent extends jspb.Message {
 export namespace KubeRequestEvent {
     export type AsObject = {
         userName: string,
+        userKind: UserKind,
     }
 }
 
@@ -1280,6 +1288,9 @@ export class SFTPEvent extends jspb.Message {
 
     getAction(): number;
     setAction(value: number): SFTPEvent;
+
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SFTPEvent;
 
 
     serializeBinary(): Uint8Array;
@@ -1296,6 +1307,7 @@ export namespace SFTPEvent {
     export type AsObject = {
         userName: string,
         action: number,
+        userKind: UserKind,
     }
 }
 
@@ -2054,6 +2066,12 @@ export enum ResourceKind {
     RESOURCE_KIND_NODE_OPENSSH = 6,
 }
 
+export enum UserKind {
+    USER_KIND_UNSPECIFIED = 0,
+    USER_KIND_HUMAN = 1,
+    USER_KIND_BOT = 2,
+}
+
 export enum DiscoverResource {
     DISCOVER_RESOURCE_UNSPECIFIED = 0,
     DISCOVER_RESOURCE_SERVER = 1,
@@ -2093,6 +2111,8 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
+    DISCOVER_RESOURCE_EC2_INSTANCE = 38,
+    DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39,
 }
 
 export enum DiscoverStatus {
