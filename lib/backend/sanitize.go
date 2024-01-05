@@ -19,7 +19,6 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"regexp"
 	"time"
@@ -37,9 +36,9 @@ const errorMessage = "special characters are not allowed in resource names, plea
 var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
 
 // denyPattern matches some unallowed combinations
-var denyPatterns = []string{
-	"//",
-	"..",
+var denyPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`//`),
+	regexp.MustCompile(`(^|/)\.\.?(/|$)`),
 }
 
 // isKeySafe checks if the passed in key conforms to whitelist
@@ -50,7 +49,7 @@ func isKeySafe(s []byte) bool {
 // denyPatternsMatch checks if the passed in key conforms to the deny patterns.
 func denyPatternsMatch(s []byte) bool {
 	for _, pattern := range denyPatterns {
-		if bytes.Contains(s, []byte(pattern)) {
+		if pattern.Match(s) {
 			return true
 		}
 	}
