@@ -35,6 +35,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
@@ -99,12 +100,14 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
 		Cache: cache.Options{
-			Namespaces: []string{agentNamespace},
+			DefaultNamespaces: map[string]cache.Config{
+				agentNamespace: {},
+			},
 			SyncPeriod: &syncPeriod,
 			ByObject: map[kclient.Object]cache.ByObject{
 				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
