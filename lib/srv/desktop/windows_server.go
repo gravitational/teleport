@@ -957,7 +957,7 @@ func (s *WindowsService) makeTDPSendHandler(
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypeRDPChannelIDs), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
+		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
 			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
@@ -1028,7 +1028,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 ) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
-		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
+		case tdp.MouseButton, tdp.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
 				s.cfg.Log.WithError(err).Warning("could not emit desktop recording event")

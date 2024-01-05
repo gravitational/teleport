@@ -93,7 +93,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
 
-  public logger = Logger.create('TDPClient');
+  private logger = Logger.create('TDPClient');
 
   constructor(socketAddr: string) {
     super();
