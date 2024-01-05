@@ -21,71 +21,77 @@ import { ButtonPrimary, Flex, Text } from 'design';
 
 import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
-
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-
-import { DocumentGatewayProps } from '../DocumentGateway/DocumentGateway';
+import { Attempt } from 'shared/hooks/useAsync';
 
 import { PortFieldInput } from './FieldInputs';
 
-type OfflineDocumentGatewayProps = Pick<
-  DocumentGatewayProps,
-  'connectAttempt' | 'defaultPort' | 'reconnect'
->;
+export function OfflineGateway(props: {
+  connectAttempt: Attempt<void>;
+  /** Setting `isSupported` to false hides the port input. */
+  gatewayPort:
+    | { isSupported: true; defaultPort: string }
+    | { isSupported: false };
+  reconnect(port?: string): void;
+  /** Gateway target displayed in the UI, for example, 'cockroachdb'. */
+  targetName: string;
+  /** Gateway kind displayed in the UI, for example, 'database'. */
+  gatewayKind: string;
+}) {
+  const defaultPort = props.gatewayPort.isSupported
+    ? props.gatewayPort.defaultPort
+    : undefined;
 
-export function OfflineGateway(props: OfflineDocumentGatewayProps) {
-  const [port, setPort] = useState(props.defaultPort);
-  const statusDescription =
-    props.connectAttempt.status === 'processing' ? 'being set up' : 'offline';
+  const [port, setPort] = useState(defaultPort);
+  const [reconnectRequested, setReconnectRequested] = useState(false);
+
   const isProcessing = props.connectAttempt.status === 'processing';
-  const shouldShowPortInput =
-    props.connectAttempt.status === 'error' || port !== props.defaultPort;
+  const statusDescription = isProcessing ? 'being set up…' : 'offline.';
+  const shouldShowReconnectControls =
+    props.connectAttempt.status === 'error' || reconnectRequested;
 
   return (
-    <Flex
-      maxWidth="680px"
-      width="100%"
-      flexDirection="column"
-      mx="auto"
-      alignItems="center"
-      mt={11}
-    >
-      <Text
-        typography="h5"
-        color="text.main"
-        mb={2}
-        style={{ position: 'relative' }}
-      >
-        The database connection is {statusDescription}
-        {/* TODO(ravicious): Use doc.status instead of LinearProgress. */}
-        {props.connectAttempt.status === 'processing' && <LinearProgress />}
+    <Flex flexDirection="column" m="auto" alignItems="center" maxWidth="500px">
+      <Text typography="h4" bold>
+        {props.targetName}
+      </Text>
+      <Text>
+        The {props.gatewayKind} connection is {statusDescription}
       </Text>
       {props.connectAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>{props.connectAttempt.statusText}</Alerts.Danger>
+        <Alerts.Danger mt={2} mb={0}>
+          {props.connectAttempt.statusText}
+        </Alerts.Danger>
       )}
       <Flex
         as="form"
-        onSubmit={() => props.reconnect(port)}
+        onSubmit={() => {
+          setReconnectRequested(true);
+          props.reconnect(props.gatewayPort.isSupported ? port : undefined);
+        }}
         alignItems="flex-end"
         flexWrap="wrap"
         justifyContent="space-between"
         mt={3}
         gap={2}
       >
-        {shouldShowPortInput && (
-          <Validation>
-            <PortFieldInput
-              label="Port (optional)"
-              value={port}
-              mb={0}
-              readonly={isProcessing}
-              onChange={e => setPort(e.target.value)}
-            />
-          </Validation>
+        {shouldShowReconnectControls && (
+          <>
+            {props.gatewayPort.isSupported && (
+              <Validation>
+                <PortFieldInput
+                  label="Port (optional)"
+                  value={port}
+                  mb={0}
+                  readonly={isProcessing}
+                  onChange={e => setPort(e.target.value)}
+                />
+              </Validation>
+            )}
+            <ButtonPrimary type="submit" disabled={isProcessing}>
+              Reconnect
+            </ButtonPrimary>
+          </>
         )}
-        <ButtonPrimary type="submit" disabled={isProcessing}>
-          Reconnect
-        </ButtonPrimary>
       </Flex>
     </Flex>
   );

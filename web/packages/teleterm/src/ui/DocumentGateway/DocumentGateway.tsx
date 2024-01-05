@@ -36,12 +36,14 @@ export default function Container(props: Props) {
   const state = useDocumentGateway(doc);
   return (
     <Document visible={visible}>
-      <DocumentGateway {...state} />
+      <DocumentGateway {...state} targetName={doc.targetName} />
     </Document>
   );
 }
 
-export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway>;
+export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway> & {
+  targetName: string;
+};
 
 export function DocumentGateway(props: DocumentGatewayProps) {
   if (!props.connected) {
@@ -49,7 +51,9 @@ export function DocumentGateway(props: DocumentGatewayProps) {
       <OfflineGateway
         connectAttempt={props.connectAttempt}
         reconnect={props.reconnect}
-        defaultPort={props.defaultPort}
+        gatewayPort={{ isSupported: true, defaultPort: props.defaultPort }}
+        targetName={props.targetName}
+        gatewayKind="database"
       />
     );
   }

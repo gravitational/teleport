@@ -28,7 +28,7 @@ import Document from 'teleterm/ui/Document';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import { routing } from 'teleterm/ui/uri';
 
-import { Reconnect } from './Reconnect';
+import { OfflineGateway } from '../components/OfflineGateway';
 
 /**
  * DocumentGatewayKube creates a terminal session that presets KUBECONFIG env
@@ -84,21 +84,17 @@ export const DocumentGatewayKube = (props: {
       return <DocumentTerminal doc={doc} visible={visible} />;
     }
 
-    case 'error': {
+    default:
       return (
-        <Document visible={visible} px={2}>
-          <Reconnect
-            kubeId={params.kubeId}
-            statusText={connectAttempt.statusText}
+        <Document visible={visible}>
+          <OfflineGateway
+            connectAttempt={connectAttempt}
+            targetName={params.kubeId}
+            gatewayKind="kube"
             reconnect={createGateway}
+            gatewayPort={{ isSupported: false }}
           />
         </Document>
       );
-    }
-
-    default: {
-      // Show waiting animation.
-      return <Document visible={visible} />;
-    }
   }
 };
