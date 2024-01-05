@@ -21,8 +21,9 @@ import React from 'react';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
+import { OfflineGateway } from '../components/OfflineGateway';
+
 import { useDocumentGateway } from './useDocumentGateway';
-import { OfflineDocumentGateway } from './OfflineDocumentGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
 
 type Props = {
@@ -45,7 +46,7 @@ export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway>;
 export function DocumentGateway(props: DocumentGatewayProps) {
   if (!props.connected) {
     return (
-      <OfflineDocumentGateway
+      <OfflineGateway
         connectAttempt={props.connectAttempt}
         reconnect={props.reconnect}
         defaultPort={props.defaultPort}

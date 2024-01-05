@@ -24,15 +24,16 @@ import Validation from 'shared/components/Validation';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
-import { PortFieldInput } from './common';
-import { DocumentGatewayProps } from './DocumentGateway';
+import { DocumentGatewayProps } from '../DocumentGateway/DocumentGateway';
+
+import { PortFieldInput } from './FieldInputs';
 
 type OfflineDocumentGatewayProps = Pick<
   DocumentGatewayProps,
   'connectAttempt' | 'defaultPort' | 'reconnect'
 >;
 
-export function OfflineDocumentGateway(props: OfflineDocumentGatewayProps) {
+export function OfflineGateway(props: OfflineDocumentGatewayProps) {
   const [port, setPort] = useState(props.defaultPort);
   const statusDescription =
     props.connectAttempt.status === 'processing' ? 'being set up' : 'offline';
