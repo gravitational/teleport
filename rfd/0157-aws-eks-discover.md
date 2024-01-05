@@ -23,7 +23,7 @@ their EKS clusters more quickly and with less effort.
 
 ## Scope
 
-This RFD focuses on Amazon EKS clusters. A similar approach can be taken later for other specialized Kubernetes providers, such as
+This RFD focuses on Amazon EKS clusters, specifically it applies to EKS clusters that use API_AND_CONFIG_MAP or API access mode. A similar approach can be taken later for other specialized Kubernetes providers, such as
 Azure AKS and Google GKE.
 
 ## Details
@@ -93,6 +93,9 @@ running a job inside the target EKS cluster with a special image that has Helm o
 would install the Teleport kube agent. By using the Helm Go SDK, we can run the installation directly from the Teleport
 process and don't need to maintain a new special image and EKS installation job.
 
+We will be able to enroll automatically only EKS clusters that are accessible to Teleport, if a client will want to 
+enroll private EKS cluster they will be able to use fallback manual instructions for installing Helm chart.
+
 ### Automatic Discovery and Enrollment
 
 Users will also be able to set up automatic discovery and enrollment of EKS clusters in the Discover UI.
@@ -119,8 +122,15 @@ Permissions can be granted in two ways: either directly through the access entry
 IAM role, or by associating one of the predefined access policies to the access entry.
 
 Teleport will create an access entry for the role AWS integration is running with, and then will associate
-cluster admin policy to this access entry. It will allow AWS integration to authenticate with the EKS cluster and 
-perform operations required for the installation of the kube agent chart.
+cluster admin (arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy) policy to this access entry. 
+It will allow AWS integration to authenticate with the EKS cluster and perform operations required for the installation
+of the kube agent chart. We need to use cluster admin policy to be able to create namespace and cluster role.
+
+Only EKS clusters that have access mode set to API_AND_CONFIG_MAP or API are supported. All new EKS clusters will automatically
+be supported, since default access mode now is API_AND_CONFIG_MAP. Clients with clusters that have an 
+old mode CONFIG_MAP can easily migrate them to the API_AND_CONFIG_MAP mode, in which their old access patterns will still
+keep working, but also access entries are supported. We will provide instructions in the documentation on how to migrate
+access mode for an EKS cluster from CONFIG_MAP to a supported one.
 
 ### Plan of implementation
 
