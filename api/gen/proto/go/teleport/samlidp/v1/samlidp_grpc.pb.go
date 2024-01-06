@@ -43,7 +43,7 @@ const (
 type SAMLIdPServiceClient interface {
 	// ProcessSAMLIdPRequest processes the SAML auth request.
 	ProcessSAMLIdPRequest(ctx context.Context, in *ProcessSAMLIdPRequestRequest, opts ...grpc.CallOption) (*ProcessSAMLIdPRequestResponse, error)
-	// TestSAMLIdPAttributeMapping creates test TestSAMLIdPServiceProvider
+	// TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
 	TestSAMLIdPAttributeMapping(ctx context.Context, in *TestSAMLIdPAttributeMappingRequest, opts ...grpc.CallOption) (*TestSAMLIdPAttributeMappingResponse, error)
 }
 
@@ -79,7 +79,7 @@ func (c *sAMLIdPServiceClient) TestSAMLIdPAttributeMapping(ctx context.Context, 
 type SAMLIdPServiceServer interface {
 	// ProcessSAMLIdPRequest processes the SAML auth request.
 	ProcessSAMLIdPRequest(context.Context, *ProcessSAMLIdPRequestRequest) (*ProcessSAMLIdPRequestResponse, error)
-	// TestSAMLIdPAttributeMapping creates test TestSAMLIdPServiceProvider
+	// TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
 	TestSAMLIdPAttributeMapping(context.Context, *TestSAMLIdPAttributeMappingRequest) (*TestSAMLIdPAttributeMappingResponse, error)
 	mustEmbedUnimplementedSAMLIdPServiceServer()
 }

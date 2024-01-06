@@ -51,7 +51,7 @@ message ProcessSAMLIdPRequestResponse {
 service SAMLIdPService {
   // ProcessSAMLIdPRequest processes the SAML auth request.
   rpc ProcessSAMLIdPRequest(ProcessSAMLIdPRequestRequest) returns (ProcessSAMLIdPRequestResponse);
-  //  TestSAMLIdPAttributeMapping creates test TestSAMLIdPServiceProvider
+  // TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
   rpc TestSAMLIdPAttributeMapping(TestSAMLIdPAttributeMappingRequest) returns (TestSAMLIdPAttributeMappingResponse);
 }
 
