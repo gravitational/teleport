@@ -534,7 +534,24 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
+
+			// DELETE IN 17.0: Delete the first if block. Keep the else case.
+			// Kept for backwards compatability.
+			//
+			// This case only adds an additional CSP `content-src` value of the
+			// app URL which allows requesting to the app domain required by
+			// the legacy app access.
+			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
+				// legacy app access needs to make a CORS fetch request,
+				// so we only set the default CSP on that page
+				parts := strings.Split(r.URL.Path, "/")
+				// grab the FQDN from the URL to allow in the connect-src CSP
+				applicationURL := "https://" + parts[3] + ":*"
+
+				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
+			} else {
+				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
+			}
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
