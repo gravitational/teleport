@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -53,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
@@ -90,118 +90,414 @@ func TestAuthPOST(t *testing.T) {
 		defaults.CATTL,
 	)
 	require.NoError(t, err)
-	appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
 
 	tests := []struct {
-		desc             string
-		stateInRequest   string
-		stateInCookie    string
-		subjectInRequest string
-		sessionError     error
-		outStatusCode    int
-		eventChecks      []eventCheckFn
+		desc            string
+		sessionError    error
+		outStatusCode   int
+		makeRequestBody func(types.WebSession) fragmentRequest
+		getEventChecks  func(types.WebSession) []eventCheckFn
 	}{
 		{
-			desc:             "success",
-			stateInRequest:   stateValue,
-			stateInCookie:    secretToken,
-			subjectInRequest: appSession.GetBearerToken(),
-			outStatusCode:    http.StatusOK,
-			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
-		},
-		{
-			desc:             "missing state token in request",
-			stateInRequest:   "",
-			stateInCookie:    secretToken,
-			subjectInRequest: appSession.GetBearerToken(),
-			outStatusCode:    http.StatusForbidden,
-			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
-		},
-		{
-			desc:             "missing subject session token in request",
-			stateInRequest:   stateValue,
-			stateInCookie:    secretToken,
-			subjectInRequest: "",
-			outStatusCode:    http.StatusForbidden,
-			eventChecks: []eventCheckFn{
-				hasAuditEventCount(1),
-				hasAuditEvent(0, &apievents.AuthAttempt{
-					Metadata: apievents.Metadata{
-						Type: events.AuthAttemptEvent,
-						Code: events.AuthAttemptFailureCode,
-					},
-					UserMetadata: apievents.UserMetadata{
-						Login: appSession.GetUser(),
-						User:  "unknown",
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error:   "subject session token is not set",
-					},
-				}),
+			desc: "success",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusOK,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{hasAuditEventCount(0)}
 			},
 		},
 		{
-			desc:             "subject session token in request does not match",
-			stateInRequest:   stateValue,
-			stateInCookie:    secretToken,
-			subjectInRequest: "foobar",
-			outStatusCode:    http.StatusForbidden,
-			eventChecks: []eventCheckFn{
-				hasAuditEventCount(1),
-				hasAuditEvent(0, &apievents.AuthAttempt{
-					Metadata: apievents.Metadata{
-						Type: events.AuthAttemptEvent,
-						Code: events.AuthAttemptFailureCode,
-					},
-					UserMetadata: apievents.UserMetadata{
-						Login: appSession.GetUser(),
-						User:  "unknown",
-					},
-					Status: apievents.Status{
-						Success: false,
-						Error:   "subject session token does not match",
-					},
-				}),
+			desc: "missing state token in request",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         "",
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User: "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: missing required fields in JSON request body",
+						},
+					}),
+				}
 			},
 		},
 		{
-			desc:             "invalid session",
-			stateInRequest:   stateValue,
-			stateInCookie:    secretToken,
-			subjectInRequest: appSession.GetBearerToken(),
-			sessionError:     trace.NotFound("invalid session"),
-			outStatusCode:    http.StatusForbidden,
-			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
+			desc: "missing subject session token in request",
+			makeRequestBody: func(ws types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: "",
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User: "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: missing required fields in JSON request body",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "subject session token in request does not match",
+			makeRequestBody: func(ws types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: "foobar",
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							Login: appSession.GetUser(),
+							User:  "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: subject session token does not match",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "invalid session",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			sessionError:  trace.NotFound("invalid session"),
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{hasAuditEventCount(0)}
+			},
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
 			authClient := &mockAuthClient{
 				sessionError: test.sessionError,
 				appSession:   appSession,
 			}
-			p := setup(t, fakeClock, authClient, nil)
+			p := setup(t, fakeClock, authClient, nil, nil)
 
-			req, err := json.Marshal(fragmentRequest{
-				StateValue:         test.stateInRequest,
-				CookieValue:        appCookieValue,
-				SubjectCookieValue: test.subjectInRequest,
-			})
+			reqBody := test.makeRequestBody(appSession)
+			req, err := json.Marshal(reqBody)
 			require.NoError(t, err)
 
 			status, _ := p.makeRequest(t, "POST", "/x-teleport-auth", req, []http.Cookie{{
 				Name:  fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID),
-				Value: test.stateInCookie,
+				Value: secretToken,
 			}})
 			require.Equal(t, status, test.outStatusCode)
+			for _, check := range test.getEventChecks(appSession) {
+				check(t, authClient.emittedEvents)
+			}
+		})
+	}
+}
+
+// DELETE IN 17.0
+func TestAuthPOST_Legacy(t *testing.T) {
+	const (
+		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
+	)
+
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	clusterName := "test-cluster"
+	publicAddr := "proxy.goteleport.com:443"
+
+	// Generate CA TLS key and cert with the cluster and application DNS.
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
+
+	tests := []struct {
+		desc               string
+		headers            map[string]string
+		sessionError       error
+		outStatusCode      int
+		eventChecks        []eventCheckFn
+		proxyAddrs         []utils.NetAddr
+		cookieValue        string
+		subjectCookieValue string
+	}{
+		{
+			desc: "success",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Cookie-Value":         cookieValue,
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusOK,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+			cookieValue:        cookieValue,
+			subjectCookieValue: appSession.GetBearerToken(),
+		},
+		{
+			desc: "success - proxy addr with custom port",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com:3080",
+				"X-Cookie-Value":         cookieValue,
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusOK,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr("proxy.goteleport.com:3080"),
+			},
+			cookieValue:        cookieValue,
+			subjectCookieValue: appSession.GetBearerToken(),
+		},
+		{
+			desc: "missing subject session token in request",
+			headers: map[string]string{
+				"Origin":         "https://proxy.goteleport.com",
+				"X-Cookie-Value": cookieValue,
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks: []eventCheckFn{
+				hasAuditEventCount(1),
+				hasAuditEvent(0, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						User: "unknown",
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "Failed app access authentication: missing X-Subject-Cookie-Value header",
+					},
+				}),
+			},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "missing subject session token in request",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Subject-Cookie-Value": "foobar",
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks: []eventCheckFn{
+				hasAuditEventCount(1),
+				hasAuditEvent(0, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						User: "unknown",
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "Failed app access authentication: missing X-Cookie-Value header",
+					},
+				}),
+			},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "subject session token in request does not match",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Cookie-Value":         cookieValue,
+				"X-Subject-Cookie-Value": "foobar",
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks: []eventCheckFn{
+				hasAuditEventCount(1),
+				hasAuditEvent(0, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						Login: appSession.GetUser(),
+						User:  "unknown",
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "Failed app access authentication: subject session token does not match",
+					},
+				}),
+			},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "invalid session",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Cookie-Value":         "foobar",
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			sessionError:  trace.NotFound("invalid session"),
+			outStatusCode: http.StatusForbidden,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "incorrect origin",
+			headers: map[string]string{
+				"Origin":                 "https://incorrect.origin.com",
+				"X-Cookie-Value":         "foobar",
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "incorrect origin port",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com:3080",
+				"X-Cookie-Value":         "foobar",
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			authClient := &mockAuthClient{
+				sessionError: test.sessionError,
+				appSession:   appSession,
+			}
+
+			p := setup(t, fakeClock, authClient, nil, test.proxyAddrs)
+
+			res := p.makeRequestWithHeaders(t, "/x-teleport-auth", test.headers)
+
+			require.NoError(t, res.Body.Close())
+			require.Equal(t, test.outStatusCode, res.StatusCode)
+
+			var cookieValue string
+			var subjectCookieValue string
+			for _, cookie := range res.Cookies() {
+				if cookie.Name == CookieName {
+					cookieValue = cookie.Value
+				}
+
+				if cookie.Name == SubjectCookieName {
+					subjectCookieValue = cookie.Value
+				}
+			}
+
+			require.Equal(t, subjectCookieValue, test.subjectCookieValue)
+			require.Equal(t, cookieValue, test.cookieValue)
+
 			for _, check := range test.eventChecks {
 				check(t, authClient.emittedEvents)
 			}
 		})
 	}
+}
+
+// DELETE IN 17.0
+func (p *testServer) makeRequestWithHeaders(t *testing.T, endpoint string, headers map[string]string) *http.Response {
+	u := url.URL{
+		Scheme: p.serverURL.Scheme,
+		Host:   p.serverURL.Host,
+		Path:   endpoint,
+	}
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	require.NoError(t, err)
+
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	// Issue request.
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	return resp
 }
 
 func TestHasName(t *testing.T) {
@@ -314,7 +610,7 @@ func TestMatchApplicationServers(t *testing.T) {
 		server.Close()
 	})
 
-	p := setup(t, fakeClock, authClient, tunnel)
+	p := setup(t, fakeClock, authClient, tunnel, nil)
 	status, content := p.makeRequest(t, "GET", "/", []byte{}, []http.Cookie{
 		{
 			Name:  CookieName,
@@ -436,13 +732,14 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
-		Clock:        clock,
-		AuthClient:   authClient,
-		AccessPoint:  authClient,
-		ProxyClient:  proxyClient,
-		CipherSuites: utils.DefaultCipherSuites(),
+		Clock:            clock,
+		AuthClient:       authClient,
+		AccessPoint:      authClient,
+		ProxyClient:      proxyClient,
+		CipherSuites:     utils.DefaultCipherSuites(),
+		ProxyPublicAddrs: proxyPublicAddrs,
 	})
 	require.NoError(t, err)
 
@@ -465,6 +762,7 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(reqBody))
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
 
 	// Attach the cookie.
 	for _, c := range cookies {
@@ -514,6 +812,10 @@ func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.emittedEvents = append(c.emittedEvents, event)
+	return nil
+}
+
+func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteAppSessionRequest) error {
 	return nil
 }
 
