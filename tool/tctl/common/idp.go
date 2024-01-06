@@ -92,6 +92,14 @@ func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c auth.ClientI) (ma
 
 func (s *samlIdPCommand) initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config) {
 	samlcmd := parent.Command("saml", "SAML Identity Provider.")
+	samlcmd.Alias(`
+Examples:
+
+  Test Attribute Mapping from spconfig.yaml with input traits from user.yaml
+  > tctl idp saml test_attribute_mapping --users user.yaml (or username) --serviceprovider sp.yaml (or service provider name)
+`)
+	s.cmd = samlcmd
+
 	testAttrMap := samlcmd.Command("test_attribute_mapping", "Test the parsing and evaluation of attribute mapping.")
 	testAttrMap.Flag("users", "username or name of a file containing user spec").StringsVar(&s.testAttributeMapping.users)
 	testAttrMap.Flag("serviceprovider", "service provider name or name of a file containing service provider spec").StringVar(&s.testAttributeMapping.serviceProvider)
@@ -108,14 +116,7 @@ Examples:
 	> tctl idp saml test_attribute_mapping --users user1.yaml --serviceprovider sp.yaml
 `)
 
-	// s.testAttributeMapping.cmd = testAttrMap
-
-	samlcmd.Alias(`
-Examples:
-
-  Test Attribute Mapping from spconfig.yaml with input traits from user.yaml
-  > tctl idp saml test_attribute_mapping --users user.yaml (or username) --serviceprovider sp.yaml (or service provider name)
-`)
+	s.testAttributeMapping.cmd = testAttrMap
 
 }
 
