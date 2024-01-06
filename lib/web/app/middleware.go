@@ -125,6 +125,10 @@ func (h *Handler) withCustomCORS(handle routerFunc) routerFunc {
 			}
 
 			h.log.Warn("Missing fields from parsed JSON request body")
+			h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+				sessionID: req.CookieValue,
+				err:       "missing required fields in JSON request body",
+			})
 			return trace.AccessDenied("access denied")
 		}
 

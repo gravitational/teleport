@@ -130,6 +130,10 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	secretToken, cookieID, ok := strings.Cut(req.StateValue, "_")
 	if !ok {
 		h.log.Warn("Request failed: request state token is not in the expected format")
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			sessionID: req.CookieValue,
+			err:       "state token was not in the expected format",
+		})
 		return trace.AccessDenied("access denied")
 	}
 
@@ -137,10 +141,18 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	stateCookie, err := r.Cookie(getAuthStateCookieName(cookieID))
 	if err != nil || stateCookie.Value == "" {
 		h.log.Warn("Request failed: state cookie is not set.")
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			sessionID: req.CookieValue,
+			err:       "auth state cookie was not set",
+		})
 		return trace.AccessDenied("access denied")
 	}
 	if subtle.ConstantTimeCompare([]byte(secretToken), []byte(stateCookie.Value)) != 1 {
 		h.log.Warn("Request failed: state token does not match.")
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			sessionID: req.CookieValue,
+			err:       "state token did not match",
+		})
 		return trace.AccessDenied("access denied")
 	}
 
@@ -158,23 +170,10 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	}
 	if err := checkSubjectToken(req.SubjectCookieValue, ws); err != nil {
 		h.log.Warnf("Request failed: %v.", err)
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
-			Metadata: apievents.Metadata{
-				Type: events.AuthAttemptEvent,
-				Code: events.AuthAttemptFailureCode,
-			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  "unknown",
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   err.Error(),
-			},
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			sessionID: req.CookieValue,
+			err:       err.Error(),
+			loginName: ws.GetUser(),
 		})
 		return trace.AccessDenied("access denied")
 	}
@@ -215,12 +214,21 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 
 	cookieValue := r.Header.Get("X-Cookie-Value")
 	if cookieValue == "" {
+		h.log.Warn("Request failed: missing X-Cookie-Value header")
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			err: "missing X-Cookie-Value header",
+		})
 		return trace.AccessDenied("access denied")
 	}
 
 	subjectCookieValue := r.Header.Get("X-Subject-Cookie-Value")
 	if subjectCookieValue == "" {
-		return trace.BadParameter("X-Subject-Cookie-Value header missing")
+		h.log.Warn("Request failed: X-Subject-Cookie-Value")
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			err:       "missing X-Subject-Cookie-Value header",
+			sessionID: cookieValue,
+		})
+		return trace.AccessDenied("access denied")
 	}
 
 	// Validate that the caller is asking for a session that exists.
@@ -235,23 +243,10 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 	if err := checkSubjectToken(subjectCookieValue, ws); err != nil {
 		h.log.Warnf("Request failed: %v.", err)
 
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
-			Metadata: apievents.Metadata{
-				Type: events.AuthAttemptEvent,
-				Code: events.AuthAttemptFailureCode,
-			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  "unknown",
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   err.Error(),
-			},
+		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
+			sessionID: cookieValue,
+			err:       err.Error(),
+			loginName: ws.GetUser(),
 		})
 
 		return trace.AccessDenied("access denied")
@@ -314,4 +309,40 @@ func clearAuthStateCookie(w http.ResponseWriter, cookieID string) {
 
 func getAuthStateCookieName(cookieID string) string {
 	return fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID)
+}
+
+type emitErrorEventFields struct {
+	loginName string
+	err       string
+	sessionID string
+}
+
+func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitErrorEventFields) {
+	// Attempt to delete app session.
+	if f.sessionID != "" {
+		_ = h.c.AuthClient.DeleteAppSession(r.Context(), types.DeleteAppSessionRequest{
+			SessionID: f.sessionID,
+		})
+	}
+
+	event := &apievents.AuthAttempt{
+		Metadata: apievents.Metadata{
+			Type: events.AuthAttemptEvent,
+			Code: events.AuthAttemptFailureCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:  "unknown",
+			Login: f.loginName,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  r.Host,
+			RemoteAddr: r.RemoteAddr,
+		},
+		Status: apievents.Status{
+			Success: false,
+			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
+		},
+	}
+
+	h.c.AuthClient.EmitAuditEvent(h.closeContext, event)
 }
