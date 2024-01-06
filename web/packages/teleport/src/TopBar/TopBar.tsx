@@ -17,90 +17,41 @@
  */
 
 import React, { lazy, Suspense, useState } from 'react';
-import styled from 'styled-components';
-import { Flex, Text, TopNav } from 'design';
+import styled, { useTheme } from 'styled-components';
+import { Link } from 'react-router-dom';
+import { Flex, Image, Text, TopNav } from 'design';
 
 import { matchPath, useHistory } from 'react-router';
 
 import { BrainIcon } from 'design/SVGIcon';
 
-import { ArrowLeft } from 'design/Icon';
+import { ArrowLeft, ChevronRight, SlidersVertical } from 'design/Icon';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import { useFeatures } from 'teleport/FeaturesContext';
-
-import cfg from 'teleport/config';
+import { NavigationCategory } from 'teleport/Navigation/categories';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
-import { KeysEnum } from 'teleport/services/storageService';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
+import logoLight from './logoLight.svg';
+import logoDark from './logoDark.svg';
 
 const Assist = lazy(() => import('teleport/Assist'));
 
-export function TopBar() {
+export function TopBar({ navigationItems }: NavigationProps) {
   const ctx = useTeleport();
   const history = useHistory();
   const features = useFeatures();
-
   const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
 
   const [showAssist, setShowAssist] = useState(false);
 
-  const { clusterId, hasClusterUrl } = useStickyClusterId();
-
   const { hasDockedElement } = useLayout();
-
-  function loadClusters() {
-    return ctx.clusterService.fetchClusters();
-  }
-
-  function changeCluster(value: string) {
-    const newPrefix = cfg.getClusterRoute(value);
-
-    const oldPrefix = cfg.getClusterRoute(clusterId);
-
-    const newPath = history.location.pathname.replace(oldPrefix, newPrefix);
-
-    // TODO (avatus) DELETE IN 15 (LEGACY RESOURCES SUPPORT)
-    // this is a temporary hack to support leaf clusters _maybe_ not having access
-    // to unified resources yet. When unified resources are loaded in fetchUnifiedResources,
-    // if the response is a 404 (the endpoint doesnt exist), we:
-    // 1. push them to the servers page (old default)
-    // 2. set this variable conditionally render the "legacy" navigation
-    // When we switch clusters (to leaf or root), we remove the item and perform the check again by pushing
-    // to the resource (new default view).
-    window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
-    // we also need to reset the pinned resources flag when we switch clusters to try again
-    window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
-    const legacyResourceRoutes = [
-      cfg.getNodesRoute(clusterId),
-      cfg.getAppsRoute(clusterId),
-      cfg.getKubernetesRoute(clusterId),
-      cfg.getDatabasesRoute(clusterId),
-      cfg.getDesktopsRoute(clusterId),
-    ];
-
-    if (
-      legacyResourceRoutes.some(route =>
-        history.location.pathname.includes(route)
-      )
-    ) {
-      const unifiedPath = cfg
-        .getUnifiedResourcesRoute(clusterId)
-        .replace(oldPrefix, newPrefix);
-
-      history.replace(unifiedPath);
-      return;
-    }
-
-    // keep current view just change the clusterId
-    history.push(newPath);
-  }
 
   // find active feature
   const feature = features
@@ -121,28 +72,71 @@ export function TopBar() {
     history.push(firstRouteForCategory);
   }
 
-  const title = feature?.route?.title || '';
-
-  // instead of re-creating an expensive react-select component,
-  // hide/show it instead
-  const styles = {
-    display: !hasClusterUrl ? 'none' : 'block',
-  };
-
   return (
     <TopBarContainer navigationHidden={feature?.hideNavigation}>
+      <TeleportLogo />
       {feature?.hideNavigation && (
         <ButtonIconContainer onClick={handleBack}>
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
       )}
-      {!hasClusterUrl && (
-        <Text fontSize="18px" bold data-testid="title">
-          {title}
-        </Text>
-      )}
-      <Text fontSize="18px" id="topbar-portal" ml={2}></Text>
+      <NavigationButton
+        selected={feature?.category === NavigationCategory.Management}
+        to="/web/users"
+        title="Access Management"
+      >
+        <>
+          <SlidersVertical
+            css={`
+              display: none;
+              @media screen and (max-width: ${p =>
+                  p.theme.breakpoints.medium}px) {
+                display: inline-flex;
+              }
+            `}
+            color="text.main"
+          />
+          <Text
+            css={`
+              display: none;
+              @media screen and (min-width: ${p =>
+                  p.theme.breakpoints.medium}px) {
+                display: block;
+              }
+            `}
+            fontSize={18}
+            fontWeight={500}
+            color="text.muted"
+          >
+            Access Management
+          </Text>
+          {feature?.category !== NavigationCategory.Management && (
+            <ChevronRight
+              css={`
+                align-self: center;
+                height: 100%;
+                @media screen and (max-width: ${p =>
+                    p.theme.breakpoints.medium}px) {
+                  display: none;
+                }
+              `}
+              color="text.muted"
+            />
+          )}
+        </>
+      </NavigationButton>
+
       <Flex ml="auto" height="100%" alignItems="center">
+        {navigationItems.map(({ Icon, path, title }) => (
+          <NavigationButton
+            key={path}
+            to={path}
+            selected={history.location.pathname.includes(path)}
+            title={title}
+          >
+            {Icon}
+          </NavigationButton>
+        ))}
         {!hasDockedElement && assistEnabled && (
           <ButtonIconContainer onClick={() => setShowAssist(true)}>
             <BrainIcon />
@@ -162,10 +156,121 @@ export function TopBar() {
 }
 
 export const TopBarContainer = styled(TopNav)`
-  height: 72px;
-  background-color: inherit;
-  padding-left: ${p => `${p.theme.space[p.navigationHidden ? 2 : 6]}px`};
+  background: ${p => p.theme.colors.levels.surface};
   overflow-y: initial;
   flex-shrink: 0;
+  z-index: 1000;
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
+
+  height: 48px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+    height: 56px;
+  }
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    height: 72px;
+  }
+
+  box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 2px 1px -1px rgba(0, 0, 0, 0.2);
 `;
+
+const TeleportLogo = () => {
+  const theme = useTheme();
+
+  return (
+    <HoverTooltip
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      tipContent="Teleport Resources Home"
+    >
+      <Link
+        css={`
+          cursor: pointer;
+          height: 100%;
+          display: flex;
+          width: 256px;
+
+          transition: background-color 0.1s linear;
+          &:hover {
+            background-color: ${p =>
+              p.theme.colors.interactive.tonal.primary[0]};
+          }
+          align-items: center;
+        `}
+        to="/web"
+      >
+        <Image
+          src={theme.type === 'dark' ? logoDark : logoLight}
+          alt="teleport logo"
+          css={`
+            padding-left: ${props => props.theme.space[4]}px;
+          `}
+        />
+      </Link>
+    </HoverTooltip>
+  );
+};
+
+const NavigationButton = ({
+  to,
+  selected,
+  children,
+  title,
+}: {
+  to: string;
+  selected: boolean;
+  children: JSX.Element;
+  title: string;
+}) => {
+  const theme = useTheme();
+  const selectedBorder = `2px solid ${theme.colors.brand}`;
+  const selectedBackground = theme.colors.interactive.tonal.primary[0];
+
+  return (
+    <HoverTooltip
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      tipContent={title}
+    >
+      <Link
+        to={to}
+        css={`
+          text-decoration: none;
+          color: rgba(0, 0, 0, 0.54);
+          height: 100%;
+          padding-left: 24px;
+          padding-right: 24px;
+          border-bottom: ${selected ? selectedBorder : 'none'};
+          background-color: ${selected ? selectedBackground : 'inherit'};
+          &:hover {
+            background-color: ${selected
+              ? selectedBackground
+              : theme.colors.buttons.secondary.default};
+          }
+        `}
+      >
+        <Flex
+          css={`
+            height: 100%;
+          `}
+          justifyContent="center"
+          alignItems="center"
+        >
+          {children}
+        </Flex>
+      </Link>
+    </HoverTooltip>
+  );
+};
+
+export type NavigationProps = {
+  CustomLogo?: () => React.ReactElement;
+  showPoweredByLogo?: boolean;
+  navigationItems?: NavigationItem[];
+};
+
+export type NavigationItem = {
+  title: string;
+  path: string;
+  Icon: JSX.Element;
+};
