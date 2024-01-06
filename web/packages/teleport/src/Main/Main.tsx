@@ -42,22 +42,15 @@ import useTeleport from 'teleport/useTeleport';
 import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
 import { storageService } from 'teleport/services/storageService';
-
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
-
-import { Navigation } from 'teleport/Navigation';
-
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
 import {
   getFirstRouteForCategory,
-  NavigationProps,
+  Navigation,
 } from 'teleport/Navigation/Navigation';
-
 import { NavigationCategory } from 'teleport/Navigation/categories';
-
+import { NavigationProps } from 'teleport/TopBar/TopBar';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
@@ -176,12 +169,12 @@ export function Main(props: MainProps) {
         billingBanners={featureFlags.billing && props.billingBanners}
         onBannerDismiss={dismissAlert}
       >
+        <TopBar navigationItems={props.navigationProps.navigationItems} />
         <MainContainer>
-          <Navigation {...props.navigationProps} />
+          <Navigation />
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
-                <TopBar />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
