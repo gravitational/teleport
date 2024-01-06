@@ -45,6 +45,7 @@ OAuth like `state` exchange pattern is used to protect the app route `/x-telepor
   - checks that the `state` value passed via request body matches the value found in `state` cookie (double submit cookie method)
   - validates the app session values passed via request body (session ID and bearer token)
   - sets the required app cookies with the validated app session values
+  - upon any error encountered related to missing cookies, tokens, and mismatching expected values, an audit event will be emitted as [auth attempt failure](https://github.com/gravitational/teleport/blob/0161397479e88dfcf97951cbc9ea6b7ebf02a497/lib/events/codes.go#L274), and delete's app session if a session ID was provided.
 
 The `app redirection HTML` is just a blank HTML page with an inline JS that runs upon loading. The JS makes a fetch-based POST request to `/x-teleport-auth` with a JSON body containing the `state` value, the session id, and the session bearer token. After successful validation of these values in the backend, the handler completes the authn flow by setting the required app cookies. After returning from the request, the JS will redirect the user to the originally requested URL.
 
@@ -85,7 +86,11 @@ sequenceDiagram
     App Handler->>Browser: Serve the app redirection HTML <br>(Just a blank page with inline JS that contains logic to complete auth exchange and redirect to target app path)
     Note left of Browser: App redirection HTML is loaded at <br>https://dumper.localhost:3080/x-teleport-auth...
     Browser->>App Handler: POST /dumper.localhost:3080/x-teleport-auth with body:<br>{state_value: <TOKEN>, subject_cookie: <SESSION_BEARER_TOKEN>, cookie_value: <SESSION_ID>}
+    alt Missing cookies or mismatching token
+    App Handler->>Auth Server: Delete app session and emit audit event
+    else Authentication successful
     App Handler->>Browser: Set the subject cookie with SESSION_BEARER_TOKEN and the session cookie with SESSION_ID
+    end
     Note left of Browser: App redirection HTML redirects user back to the <br>originally requested path
     Note left of Browser: User is now at: https://dumper.localhost:3080
 ```
