@@ -46,21 +46,22 @@ interface UserMenuNavProps {
 const Container = styled.div`
   position: relative;
   align-self: center;
-  margin-right: 30px;
+  padding-left: ${props => props.theme.space[4]}px;
+  padding-right: ${props => props.theme.space[4]}px;
+  &:hover {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+  height: 100%;
 `;
 
 const UserInfo = styled.div`
+  height: 100%;
   display: flex;
   align-items: center;
-  padding: 8px;
   border-radius: 5px;
   cursor: pointer;
   user-select: none;
   position: relative;
-
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
 `;
 
 const Username = styled(Text)`
@@ -68,6 +69,10 @@ const Username = styled(Text)`
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
+  display: none;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    display: inline-flex;
+  }
 `;
 
 const StyledAvatar = styled.div`
@@ -96,6 +101,11 @@ const Arrow = styled.div`
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
     transition: 0.1s linear transform;
+  }
+
+  display: none;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    display: inline-flex;
   }
 `;
 
