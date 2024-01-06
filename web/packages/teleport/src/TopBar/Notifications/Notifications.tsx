@@ -134,6 +134,8 @@ function NotificationItem({
 
 const NotificationButtonContainer = styled.div`
   position: relative;
+  height: 100%;
+  width: 72px;
 `;
 
 const AttentionDot = styled.div`

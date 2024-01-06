@@ -20,7 +20,7 @@ import styled from 'styled-components';
 
 export const ButtonIconContainer = styled.div`
   padding: 0 10px;
-  height: 48px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
