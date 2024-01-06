@@ -1287,7 +1287,7 @@ func TestPasswordCRUD(t *testing.T) {
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
 
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -1318,7 +1318,7 @@ func TestOTPCRUD(t *testing.T) {
 	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -1372,7 +1372,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
@@ -1462,7 +1462,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 
 	// Create user and roles.
 	username := "user"
-	password := []byte("hunter2")
+	password := []byte("hunter2hunter2")
 	baseRoleName := services.RoleNameForUser(username)
 	requestableRoleName := "requestable"
 	user, err := CreateUserRoleAndRequestable(clt, username, requestableRoleName)
@@ -1657,7 +1657,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user2"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
 	require.NoError(t, err)
@@ -1770,7 +1770,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user2"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	newUser, _, err := CreateUserAndRole(clt, user, nil, nil)
 	require.NoError(t, err)
@@ -1835,7 +1835,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 
 	const user = "user2"
 	const testRequestRole = "test-request-role"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	newUser, err := CreateUserRoleAndRequestable(adminClient, user, testRequestRole)
 	require.NoError(t, err)
@@ -2712,7 +2712,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "ws-test"
-	pass := []byte("ws-abc123")
+	pass := []byte("ws-abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -2745,7 +2745,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	// authentication attempt fails with wrong password
 	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
-		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
+		OTP:      &OTPCreds{Password: []byte("wrong password"), Token: validToken},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -2797,7 +2797,7 @@ func TestLoginAttempts(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
@@ -2811,7 +2811,7 @@ func TestLoginAttempts(t *testing.T) {
 	req := AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
-			Password: []byte("bad pass"),
+			Password: []byte("wrong password"),
 		},
 	}
 	// authentication attempt fails with bad password
@@ -2886,7 +2886,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 
 		_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 			TokenID:                token.GetName(),
-			NewPassword:            []byte("qweqweqwe"),
+			NewPassword:            []byte("qweqweqweqwe"),
 			NewMFARegisterResponse: registerSolved,
 		})
 		require.NoError(t, err)
@@ -2919,7 +2919,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 
 		_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 			TokenID:                tokenID,
-			NewPassword:            []byte("qweqweqwe"),
+			NewPassword:            []byte("qweqweqweqwe"),
 			NewMFARegisterResponse: resp,
 		})
 		require.Error(t, err)
@@ -2939,7 +2939,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	testSrv := newTestTLSServer(t)
 
 	user := "foo"
-	pass := []byte("barbaz")
+	pass := []byte("feefiefoefum")
 
 	// Create a local user.
 	clt, err := testSrv.NewClient(TestAdmin())
