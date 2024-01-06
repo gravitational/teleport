@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,8 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ProgressBar from './ProgressBar';
-import { ProgressBarDesktop } from './ProgressBarDesktop';
+package web
 
-export default ProgressBar;
-export { ProgressBarDesktop };
+import (
+	"testing"
+	"time"
+)
+
+func FuzzHandlePlaybackAction(f *testing.F) {
+	player := nopPlayer{}
+	f.Fuzz(func(t *testing.T, b []byte) {
+		handlePlaybackAction(b, player)
+	})
+}
+
+type nopPlayer struct{}
+
+func (nopPlayer) SetPos(time.Duration) error { return nil }
+func (nopPlayer) Play() error                { return nil }
+func (nopPlayer) Pause() error               { return nil }
