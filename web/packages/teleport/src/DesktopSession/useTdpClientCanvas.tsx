@@ -166,6 +166,12 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection('open');
   };
 
+  /**
+   * Returns the ButtonState corresponding to the given `keyArg`.
+   *
+   * @param e The `KeyboardEvent`
+   * @param keyArg The key to check the state of. Valid values can be found [here](https://www.w3.org/TR/uievents-key/#keys-modifier)
+   */
   const getModifierState = (e: KeyboardEvent, keyArg: string): ButtonState => {
     let state = ButtonState.UP;
     if (e.getModifierState(keyArg)) {
@@ -179,7 +185,7 @@ export default function useTdpClientCanvas(props: Props) {
       scrollLockState: getModifierState(e, 'ScrollLock'),
       numLockState: getModifierState(e, 'NumLock'),
       capsLockState: getModifierState(e, 'CapsLock'),
-      kanaLockState: getModifierState(e, 'KanaMode'),
+      kanaLockState: ButtonState.UP, // KanaLock is not supported, see https://www.w3.org/TR/uievents-key/#keys-modifier
     };
   };
 
