@@ -71,6 +71,7 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
+  RESET = 'reset',
 }
 
 export enum LogType {
