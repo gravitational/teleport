@@ -39,7 +39,7 @@ import (
 // Manager provides an interface to interact with teleport CA private keys,
 // which may be software keys or held in an HSM or other key manager.
 type Manager struct {
-	backend
+	backend backend
 }
 
 // RSAKeyOptions configure options for RSA key generation.
@@ -59,14 +59,9 @@ func WithDigestAlgorithm(alg crypto.Hash) RSAKeyOption {
 // backend is an interface that holds private keys and provides signing
 // operations.
 type backend interface {
-	// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
-	// 1. Labeled by this KeyStore when they were created
-	// 2. Not included in the argument activeKeys
-	DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error
-
-	// generateRSA creates a new RSA private key and returns its identifier and
-	// a crypto.Signer. The returned identifier can be passed to getSigner
-	// later to get the same crypto.Signer.
+	// generateRSA creates a new RSA key pair and returns its identifier and a
+	// crypto.Signer. The returned identifier can be passed to getSigner later
+	// to get the same crypto.Signer.
 	generateRSA(context.Context, ...RSAKeyOption) (keyID []byte, signer crypto.Signer, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
@@ -74,12 +69,19 @@ type backend interface {
 	// from the underlying backend, and it is always stored in the CA anyway.
 	getSigner(ctx context.Context, keyID []byte, pub crypto.PublicKey) (crypto.Signer, error)
 
-	// deleteKey deletes the given key from the KeyStore.
-	deleteKey(ctx context.Context, keyID []byte) error
-
-	// canSignWithKey returns true if this KeyStore is able to sign with the
+	// canSignWithKey returns true if this backend is able to sign with the
 	// given key.
 	canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error)
+
+	// deleteKey deletes the given key from the backend.
+	deleteKey(ctx context.Context, keyID []byte) error
+
+	// deleteUnusedKeys deletes all keys from the backend if they are:
+	// 1. Not included in the argument activeKeys which is meant to contain all
+	//    active keys currently referenced in the backend CA.
+	// 2. Created in the backend by this Teleport cluster.
+	// 3. Each backend may apply extra restrictions to which keys may be deleted.
+	deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error
 }
 
 // Config holds configuration parameters for the keystore. A software keystore
@@ -101,6 +103,10 @@ type Config struct {
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
+	if cfg.Logger == nil {
+		cfg.Logger = logrus.StandardLogger()
+	}
+
 	// We check for mutual exclusion when parsing the file config.
 	if (cfg.PKCS11 != PKCS11Config{}) {
 		return trace.Wrap(cfg.PKCS11.CheckAndSetDefaults())
@@ -120,24 +126,19 @@ func NewManager(ctx context.Context, cfg Config) (*Manager, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger := cfg.Logger
-	if logger == nil {
-		logger = logrus.StandardLogger()
-	}
-
 	if (cfg.PKCS11 != PKCS11Config{}) {
-		backend, err := newPKCS11KeyStore(&cfg.PKCS11, logger)
+		backend, err := newPKCS11KeyStore(&cfg.PKCS11, cfg.Logger)
 		return &Manager{backend: backend}, trace.Wrap(err)
 	}
 	if (cfg.GCPKMS != GCPKMSConfig{}) {
-		backend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, logger)
+		backend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, cfg.Logger)
 		return &Manager{backend: backend}, trace.Wrap(err)
 	}
 	if (cfg.AWSKMS != AWSKMSConfig{}) {
-		backend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, logger)
+		backend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, cfg.Logger)
 		return &Manager{backend: backend}, trace.Wrap(err)
 	}
-	return &Manager{backend: newSoftwareKeyStore(&cfg.Software, logger)}, nil
+	return &Manager{backend: newSoftwareKeyStore(&cfg.Software, cfg.Logger)}, nil
 }
 
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and
@@ -381,6 +382,10 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (boo
 		}
 	}
 	return false, nil
+}
+
+func (m *Manager) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+	return trace.Wrap(m.backend.deleteUnusedKeys(ctx, activeKeys))
 }
 
 // keyType returns the type of the given private key.
