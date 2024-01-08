@@ -64,7 +64,8 @@ export function DocumentGatewayApp(props: {
         port: gw.localPort,
         status: 'connected',
       });
-    }, [ctx, doc.port, doc.targetUri, doc.uri, documentsService])
+      ctx.usageService.captureProtocolUse(doc.targetUri, 'app', doc.origin);
+    }, [ctx, doc.origin, doc.port, doc.targetUri, doc.uri, documentsService])
   );
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
