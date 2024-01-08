@@ -18,24 +18,27 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { Indicator, Flex, Box } from 'design';
 import { Danger } from 'design/Alert';
-import { Indicator, Flex, Text, Box } from 'design';
 
 import cfg from 'teleport/config';
 import TtyPlayer, {
+  StatusEnum,
   StatusEnum as TtyStatusEnum,
 } from 'teleport/lib/term/ttyPlayer';
-import EventProvider from 'teleport/lib/term/ttyPlayerEventProvider';
+import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { ProgressBarTty } from './ProgressBar';
+import ProgressBar from './ProgressBar';
 import Xterm from './Xterm';
 
-export default function Player({ sid, clusterId }) {
-  const { tty } = useSshPlayer(clusterId, sid);
-  const { statusText, status } = tty;
-  const eventCount = tty.getEventCount();
-  const isError = status === TtyStatusEnum.ERROR;
-  const isLoading = status === TtyStatusEnum.LOADING;
+export default function Player({ sid, clusterId, durationMs }) {
+  const { tty, playerStatus, statusText, time } = useStreamingSshPlayer(
+    clusterId,
+    sid
+  );
+  const isError = playerStatus === TtyStatusEnum.ERROR;
+  const isLoading = playerStatus === TtyStatusEnum.LOADING;
+  const isPlaying = playerStatus === TtyStatusEnum.PLAYING;
 
   if (isError) {
     return (
@@ -53,22 +56,31 @@ export default function Player({ sid, clusterId }) {
     );
   }
 
-  if (!isLoading && eventCount === 0) {
-    return (
-      <StatusBox>
-        <Text typography="h4">
-          Recording for this session is not available.
-        </Text>
-      </StatusBox>
-    );
-  }
-
   return (
     <StyledPlayer>
       <Flex flex="1" flexDirection="column" overflow="auto">
         <Xterm tty={tty} />
       </Flex>
-      {eventCount > 0 && <ProgressBarTty tty={tty} />}
+      <ProgressBar
+        min={0}
+        max={durationMs}
+        current={time}
+        disabled={
+          playerStatus === TtyStatusEnum.ERROR ||
+          playerStatus === TtyStatusEnum.COMPLETE
+        }
+        isPlaying={isPlaying}
+        time={formatDisplayTime(time)}
+        onRestart={window.location.reload}
+        onStartMove={tty.suspendTimeUpdates}
+        move={pos => {
+          tty.move(pos);
+          tty.resumeTimeUpdates();
+        }}
+        toggle={() => {
+          isPlaying ? tty.stop() : tty.play();
+        }}
+      />
     </StyledPlayer>
   );
 }
@@ -87,35 +99,45 @@ const StyledPlayer = styled.div`
   justify-content: space-between;
 `;
 
-function useSshPlayer(clusterId: string, sid: string) {
-  const tty = React.useMemo(() => {
-    const prefixUrl = cfg.getSshPlaybackPrefixUrl({ clusterId, sid });
-    return new TtyPlayer(new EventProvider({ url: prefixUrl }));
-  }, [sid, clusterId]);
+function useStreamingSshPlayer(clusterId: string, sid: string) {
+  const [playerStatus, setPlayerStatus] = React.useState(StatusEnum.LOADING);
+  const [statusText, setStatusText] = React.useState('');
+  const [time, setTime] = React.useState(0);
 
-  // to trigger re-render when tty state changes
-  const [, rerender] = React.useState(tty.status);
+  const tty = React.useMemo(() => {
+    const url = cfg.api.ttyPlaybackWsAddr
+      .replace(':fqdn', getHostName())
+      .replace(':clusterId', clusterId)
+      .replace(':sid', sid)
+      .replace(':token', getAccessToken());
+    return new TtyPlayer({ url, setPlayerStatus, setStatusText, setTime });
+  }, [clusterId, sid, setPlayerStatus, setStatusText, setTime]);
 
   React.useEffect(() => {
-    function onChange() {
-      // trigger rerender when status changes
-      rerender(tty.status);
-    }
+    tty.connect();
+    tty.play();
 
-    function cleanup() {
+    return () => {
       tty.stop();
       tty.removeAllListeners();
-    }
-
-    tty.on('change', onChange);
-    tty.connect().then(() => {
-      tty.play();
-    });
-
-    return cleanup;
+    };
   }, [tty]);
 
-  return {
-    tty,
-  };
+  return { tty, playerStatus, statusText, time };
+}
+
+function formatDisplayTime(ms: number) {
+  if (ms <= 0) {
+    return '00:00';
+  }
+
+  const totalSec = Math.floor(ms / 1000);
+  const totalDays = (totalSec % 31536000) % 86400;
+  const h = Math.floor(totalDays / 3600);
+  const m = Math.floor((totalDays % 3600) / 60);
+  const s = (totalDays % 3600) % 60;
+
+  return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s
+    .toString()
+    .padStart(2, '0')}`;
 }

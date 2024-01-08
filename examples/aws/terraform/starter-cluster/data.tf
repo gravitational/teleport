@@ -3,7 +3,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
   }
 }
@@ -25,7 +25,7 @@ data "aws_subnets" "all" {
 
 data "aws_ami" "base" {
   most_recent = true
-  owners      = [126027368216]
+  owners      = [146628656107]
 
   filter {
     name   = "name"

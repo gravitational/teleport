@@ -265,6 +265,7 @@ type BotConfig struct {
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
+	Services   Services         `yaml:"services,omitempty"`
 
 	Debug           bool          `yaml:"debug"`
 	AuthServer      string        `yaml:"auth_server"`
@@ -372,6 +373,44 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Warn about config where renewals will fail due to weird TTL vs Interval
+	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
+		log.Warnf(
+			"Certificate TTL (%s) is shorter than the renewal interval (%s). This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval.",
+			conf.CertificateTTL,
+			conf.RenewalInterval,
+		)
+	}
+
+	return nil
+}
+
+// Services assists polymorphic unmarshaling of a slice of Services.
+type Services []bot.Service
+
+func (o *Services) UnmarshalYAML(node *yaml.Node) error {
+	var out []bot.Service
+	for _, node := range node.Content {
+		header := struct {
+			Type string `yaml:"type"`
+		}{}
+		if err := node.Decode(&header); err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch header.Type {
+		case ExampleServiceType:
+			v := &ExampleService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		default:
+			return trace.BadParameter("unrecognized service type (%s)", header.Type)
+		}
+	}
+
+	*o = out
 	return nil
 }
 

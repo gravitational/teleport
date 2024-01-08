@@ -1153,6 +1153,71 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, res, res2)
 }
 
+func TestUserGroupsGet(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.UserGroup `json:"items"`
+		StartKey   string         `json:"startKey"`
+		TotalCount int            `json:"totalCount"`
+	}
+
+	// add a user group
+	ug, err := types.NewUserGroup(types.Metadata{
+		Name: "ug1", Description: "ug1-description",
+		Labels: map[string]string{"test-field": "test-value"},
+	},
+		types.UserGroupSpecV1{Applications: []string{"appnameonly"}})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateUserGroup(ctx, ug)
+	require.NoError(t, err)
+
+	resource := &types.AppServerV3{
+		Metadata: types.Metadata{Name: "test-app-server"},
+		Kind:     types.KindApp,
+		Version:  types.V2,
+		Spec: types.AppServerSpecV3{
+			HostID: "hostid",
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:        "appnameonly",
+					Description: "app-description",
+				},
+				Spec: types.AppSpecV3{
+					URI: "appname-uri",
+				},
+			},
+		},
+	}
+
+	// Register app
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, resource)
+	require.NoError(t, err)
+
+	// Make the call.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "user-groups")
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{"sort": []string{"name"}})
+	require.NoError(t, err)
+
+	// The correct response should include application names (not app server names)
+	var resp testResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, 1, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.UserGroup{{
+		Name:        "ug1",
+		Description: ug.GetMetadata().Description,
+		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Applications: []ui.ApplicationAndFriendlyName{
+			{Name: "appnameonly", FriendlyName: ""},
+		},
+	}})
+}
+
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -1757,34 +1822,34 @@ func TestTerminalPing(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
+	closed := false
+	done := make(chan struct{})
+
 	term, err := connectToHost(ctx, connectConfig{
 		pack:              s.authPack(t, "foo"),
 		host:              s.node.ID(),
 		proxy:             s.webServer.Listener.Addr().String(),
 		keepAliveInterval: time.Second,
+		pingHandler: func(ws WSConn, message string) error {
+			if closed == false {
+				close(done)
+				closed = true
+			}
+
+			err := ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+			if errors.Is(err, websocket.ErrCloseSent) {
+				return nil
+			} else {
+				var e net.Error
+				if errors.As(err, &e) && e.Timeout() {
+					return nil
+				}
+				return err
+			}
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, term.Close()) })
-
-	closed := false
-	done := make(chan struct{})
-	term.ws.SetPingHandler(func(message string) error {
-		if closed == false {
-			close(done)
-			closed = true
-		}
-
-		err := term.ws.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
-		if errors.Is(err, websocket.ErrCloseSent) {
-			return nil
-		} else {
-			var e net.Error
-			if errors.As(err, &e) && e.Timeout() {
-				return nil
-			}
-			return err
-		}
-	})
 
 	select {
 	case <-done:
