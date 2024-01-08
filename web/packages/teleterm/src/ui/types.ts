@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MainProcessClient, SubscribeToTshdEvent } from 'teleterm/types';
+import {
+  MainProcessClient,
+  TshdEventContextBridgeService,
+} from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
@@ -49,7 +52,9 @@ export interface IAppContext {
   connectionTracker: ConnectionTrackerService;
   resourcesService: ResourcesService;
   fileTransferService: FileTransferService;
-  subscribeToTshdEvent: SubscribeToTshdEvent;
+  setupTshdEventContextBridgeService: (
+    service: TshdEventContextBridgeService
+  ) => void;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   usageService: UsageService;

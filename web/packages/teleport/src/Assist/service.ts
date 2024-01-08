@@ -101,6 +101,8 @@ export async function resolveServerMessage(
   }
 }
 
+// TODO(zmb3): check with Ryan about replacing this with streaming
+
 export async function getSessionEvents(sessionUrl: string): Promise<{
   events: SessionEvent[] | null;
 }> {
