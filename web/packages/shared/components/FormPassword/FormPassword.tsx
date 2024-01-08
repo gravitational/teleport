@@ -42,7 +42,7 @@ function FormPassword(props: Props) {
     onCancel,
     auth2faType = 'off',
     preferredMfaType,
-    dialogMode,
+    showCancel,
   } = props;
   const mfaEnabled = auth2faType !== 'off';
 
@@ -175,7 +175,7 @@ function FormPassword(props: Props) {
             >
               Update Password
             </ButtonPrimary>
-            {dialogMode && (
+            {showCancel && (
               <ButtonSecondary
                 disabled={isProcessing}
                 size="large"
@@ -210,7 +210,7 @@ type StatusProps = {
 type Props = {
   auth2faType?: Auth2faType;
   preferredMfaType?: PreferredMfaType;
-  dialogMode?: boolean;
+  showCancel?: boolean;
   onChangePass(oldPass: string, newPass: string, token: string): Promise<any>;
   onChangePassWithWebauthn(oldPass: string, newPass: string): Promise<any>;
   onCancel?(): void;

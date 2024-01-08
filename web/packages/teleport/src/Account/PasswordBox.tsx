@@ -93,7 +93,7 @@ export function PasswordBox({
         </DialogHeader>
         <DialogContent mb={0}>
           <FormPassword
-            dialogMode
+            showCancel
             auth2faType={auth2faType}
             preferredMfaType={preferredMfaType}
             onChangePass={onChangePass}

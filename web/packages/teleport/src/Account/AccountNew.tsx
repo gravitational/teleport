@@ -81,7 +81,10 @@ export function Account({
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
   const [prevTokenStatus, setPrevTokenStatus] = useState<Attempt['status']>('');
 
-  function addNotification(severity, content) {
+  function addNotification(
+    severity: NotificationItem['severity'],
+    content: string
+  ) {
     setNotifications(n => [
       ...n,
       {
@@ -96,6 +99,7 @@ export function Account({
     setNotifications(n => n.filter(item => item.id !== id));
   }
 
+  // TODO(bl.nero): Modify `useManageDevices` and export callbacks from there instead.
   if (prevFetchStatus !== fetchDevicesAttempt.status) {
     setPrevFetchStatus(fetchDevicesAttempt.status);
     if (fetchDevicesAttempt.status === 'failed') {
@@ -111,7 +115,7 @@ export function Account({
   }
 
   function onPasswordChange() {
-    addNotification('info', 'Your password has been changed!');
+    addNotification('info', 'Your password has been changed.');
   }
 
   return (
