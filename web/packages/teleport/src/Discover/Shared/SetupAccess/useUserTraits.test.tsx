@@ -66,17 +66,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       .spyOn(discoverCtx, 'updateAgentMeta')
       .mockImplementation(x => x);
 
-    const { result, waitFor, waitForNextUpdate } = renderHook(
-      () => useUserTraits(),
-      {
-        wrapper: wrapperFn(discoverCtx, teleCtx),
-      }
-    );
+    const { result, waitFor } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
 
     await waitFor(() =>
       expect(result.current.staticTraits.kubeUsers).toHaveLength(2)
     );
-    await waitForNextUpdate();
 
     const staticTraits = result.current.staticTraits;
     const dynamicTraits = result.current.dynamicTraits;
@@ -157,17 +153,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       .spyOn(discoverCtx, 'updateAgentMeta')
       .mockImplementation(x => x);
 
-    const { result, waitFor, waitForNextUpdate } = renderHook(
-      () => useUserTraits(),
-      {
-        wrapper: wrapperFn(discoverCtx, teleCtx),
-      }
-    );
+    const { result, waitFor } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
 
     await waitFor(() =>
       expect(result.current.staticTraits.databaseNames).toHaveLength(2)
     );
-    await waitForNextUpdate();
 
     const staticTraits = result.current.staticTraits;
     const dynamicTraits = result.current.dynamicTraits;
@@ -314,17 +306,13 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       .spyOn(discoverCtx, 'updateAgentMeta')
       .mockImplementation(x => x);
 
-    const { result, waitFor, waitForNextUpdate } = renderHook(
-      () => useUserTraits(),
-      {
-        wrapper: wrapperFn(discoverCtx, teleCtx),
-      }
-    );
+    const { result, waitFor } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
 
     await waitFor(() =>
       expect(result.current.staticTraits.logins).toHaveLength(2)
     );
-    await waitForNextUpdate();
 
     const staticTraits = result.current.staticTraits;
     const dynamicTraits = result.current.dynamicTraits;
@@ -400,13 +388,12 @@ describe('static and dynamic traits are correctly separated and correctly create
       ...getMeta(resourceKind),
     };
 
-    const { result, waitFor } = renderHook(() => useUserTraits(), {
+    const { result, waitForNextUpdate } = renderHook(() => useUserTraits(), {
       wrapper: wrapperFn(discoverCtx, teleCtx),
     });
 
-    await waitFor(() =>
-      expect(teleCtx.userService.fetchUser).toHaveBeenCalled()
-    );
+    await waitForNextUpdate();
+    expect(teleCtx.userService.fetchUser).toHaveBeenCalled();
 
     // Test correct making of dynamic traits.
     const dynamicTraits = result.current.dynamicTraits;
