@@ -23,6 +23,7 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   isDocumentTshNodeWithServerId,
+  DocumentGatewayApp,
 } from 'teleterm/ui/services/workspacesService';
 import { unique } from 'teleterm/ui/utils/uid';
 
@@ -30,6 +31,7 @@ import {
   TrackedGatewayConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
+  TrackedAppConnection,
 } from './types';
 
 export function getGatewayConnectionByDocument(document: DocumentGateway) {
@@ -58,6 +60,13 @@ export function getGatewayKubeConnectionByDocument(
 ) {
   return (i: TrackedKubeConnection) =>
     i.kind === 'connection.kube' && i.kubeUri === document.targetUri;
+}
+
+export function getGatewayAppConnectionByDocument(
+  document: DocumentGatewayApp
+) {
+  return (i: TrackedAppConnection) =>
+    i.kind === 'connection.app' && i.appUri === document.targetUri;
 }
 
 export function getGatewayDocumentByConnection(
@@ -90,6 +99,13 @@ export function getServerDocumentByConnection(
     isDocumentTshNodeWithServerId(i) &&
     i.serverUri === connection.serverUri &&
     i.login === connection.login;
+}
+
+export function getGatewayAppDocumentByConnection(
+  connection: TrackedAppConnection
+) {
+  return (i: DocumentGatewayApp) =>
+    i.kind === 'doc.gateway_app' && i.targetUri === connection.appUri;
 }
 
 export function createGatewayConnection(
@@ -144,5 +160,19 @@ export function createGatewayKubeConnection(
     id: unique(),
     title: document.title,
     kubeUri: document.targetUri,
+  };
+}
+
+export function createGatewayAppConnection(
+  document: DocumentGatewayApp
+): TrackedAppConnection {
+  return {
+    kind: 'connection.app',
+    connected: true,
+    id: unique(),
+    title: document.title,
+    appUri: document.targetUri,
+    port: document.port,
+    gatewayUri: document.gatewayUri,
   };
 }

@@ -148,6 +148,8 @@ function getKindName(kind: ExtendedTrackedConnection['kind']): string {
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
+    case 'connection.app':
+      return 'APP';
     default:
       assertUnreachable(kind);
   }

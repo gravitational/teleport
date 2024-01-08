@@ -395,6 +395,13 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
+  async removeAppGateway(appUri: uri.AppUri) {
+    const gateway = this.findGatewayByConnectionParams(appUri, '');
+    if (gateway) {
+      await this.removeGateway(gateway.uri);
+    }
+  }
+
   async setGatewayTargetSubresourceName(
     gatewayUri: uri.GatewayUri,
     targetSubresourceName: string
@@ -441,7 +448,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUri: uri.DatabaseUri | uri.KubeUri | uri.AppUri,
     targetUser: string
   ) {
     let found: Gateway;

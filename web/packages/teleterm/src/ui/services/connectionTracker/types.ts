@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DatabaseUri, GatewayUri, KubeUri, ServerUri } from 'teleterm/ui/uri';
+import {
+  DatabaseUri,
+  GatewayUri,
+  KubeUri,
+  ServerUri,
+  AppUri,
+} from 'teleterm/ui/uri';
 
 type TrackedConnectionBase = {
   connected: boolean;
@@ -50,10 +56,18 @@ export interface TrackedKubeConnection extends TrackedConnectionBase {
   kubeUri: KubeUri;
 }
 
+export interface TrackedAppConnection extends TrackedConnectionBase {
+  kind: 'connection.app';
+  appUri: AppUri;
+  gatewayUri: GatewayUri;
+  port?: string;
+}
+
 export type TrackedConnection =
   | TrackedServerConnection
   | TrackedGatewayConnection
-  | TrackedKubeConnection;
+  | TrackedKubeConnection
+  | TrackedAppConnection;
 
 export type ExtendedTrackedConnection = TrackedConnection & {
   clusterName: string;
