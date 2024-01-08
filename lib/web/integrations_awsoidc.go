@@ -217,7 +217,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.ClusterFeatures) {
-		cloudStableVersion, err := automaticupgrades.Version(ctx, "" /* use default version server */)
+		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
