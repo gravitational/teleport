@@ -104,7 +104,7 @@ const Component = () => {
       db: {} as any,
       selectedAwsRdsDb: {} as any,
       node: {} as any,
-      integration: {
+      awsIntegration: {
         kind: IntegrationKind.AwsOidc,
         name: 'test-oidc',
         resourceType: 'integration',

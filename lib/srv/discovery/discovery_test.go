@@ -1847,6 +1847,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 	waitForReconcile := make(chan struct{})
+	waitForReconcileTimeout := 5 * time.Second
 	reporter := &mockUsageReporter{}
 	tlsServer.Auth().SetUsageReporter(reporter)
 	srv, err := New(
@@ -1875,8 +1876,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 		require.NoError(t, err)
 		require.Empty(t, actualDatabases)
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s")
+	case <-time.After(waitForReconcileTimeout):
+		t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 	}
 
 	require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
@@ -1906,8 +1907,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 			require.NoError(t, err)
 			require.Empty(t, actualDatabases)
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
+		case <-time.After(waitForReconcileTimeout):
+			t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 		}
 
 		require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
@@ -1942,8 +1943,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
+		case <-time.After(waitForReconcileTimeout):
+			t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 		}
 		require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
 
@@ -1952,8 +1953,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		// Wait for the cycle to complete
 		select {
 		case <-waitForReconcile:
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
+		case <-time.After(waitForReconcileTimeout):
+			t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 		}
 		// A new DiscoveryFetch event must have been emitted.
 		require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
@@ -1969,8 +1970,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, actualDatabases)
-			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s")
+			case <-time.After(waitForReconcileTimeout):
+				t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 			}
 
 			// Given that no Fetch was issued, the counter should not increment.

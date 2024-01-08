@@ -222,6 +222,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 		Expiry:        e.sessionCtx.Identity.Expires,
 		SessionName:   e.sessionCtx.Identity.Username,
 		AWSRoleArn:    roleArn,
+		SessionTags:   e.sessionCtx.Database.GetAWS().SessionTags,
 	}
 	if meta.AssumeRoleARN == "" {
 		signingCtx.AWSExternalID = meta.ExternalID

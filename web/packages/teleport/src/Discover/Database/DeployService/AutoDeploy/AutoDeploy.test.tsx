@@ -31,7 +31,6 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
 import TeleportContext from 'teleport/teleportContext';
 import {
-  DbMeta,
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
@@ -82,10 +81,11 @@ describe('test AutoDeploy.tsx', () => {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
       resourceName: 'db1',
-      integration: mocKIntegration,
+      awsRegion: region,
+      awsIntegration: mocKIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
-    } as DbMeta,
+    },
     currentStep: 0,
     nextStep: jest.fn(x => x),
     prevStep: () => null,

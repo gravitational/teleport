@@ -18,7 +18,7 @@ import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
-import { AwsRdsDatabase, RdsEngine } from '../integrations';
+import { AwsRdsDatabase, RdsEngine, Regions } from '../integrations';
 
 export enum IamPolicyStatus {
   // Unspecified flag is most likely a result
@@ -66,6 +66,7 @@ export type CreateDatabaseRequest = {
   uri: string;
   labels?: ResourceLabel[];
   awsRds?: AwsRdsDatabase;
+  awsRegion?: Regions;
 };
 
 export type DatabaseIamPolicyResponse = {
