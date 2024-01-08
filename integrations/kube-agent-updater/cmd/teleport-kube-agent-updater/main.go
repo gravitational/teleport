@@ -188,6 +188,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctrl.Log.Info("starting the updater", "url", versionServerURL.String())
+
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")
 		os.Exit(1)

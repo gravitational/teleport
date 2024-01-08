@@ -19,7 +19,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -67,18 +66,13 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		return nil
 	}
 
-	// If criticalEndpoint or versionEndpoint are empty, the default stable/cloud endpoint will be used
-	var criticalEndpoint string
-	var versionEndpoint string
-	if automaticupgrades.GetChannel() != "" {
-		criticalEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "critical")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		versionEndpoint, err = url.JoinPath(automaticupgrades.GetChannel(), "version")
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// TODO: use the proxy channel if available?
+	// This would require to pass the proxy configuration there, but would avoid
+	// future inconsistencies: if the proxy is manually configured to serve a
+	// static version, it will not be picked up by the AWS OIDC deploy updater.
+	upgradeChannel, err := automaticupgrades.NewDefaultChannel()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	issuer, err := awsoidc.IssuerFromPublicAddress(process.proxyPublicAddr().Addr)
@@ -98,8 +92,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater() error {
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
 		AWSOIDCProviderAddr:    issuer,
-		CriticalEndpoint:       criticalEndpoint,
-		VersionEndpoint:        versionEndpoint,
+		UpgradeChannel:         upgradeChannel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -123,10 +116,8 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 	TeleportClusterVersion string
 	// AWSOIDCProvderAddr specifies the AWS OIDC provider address used to generate AWS OIDC tokens
 	AWSOIDCProviderAddr string
-	// CriticalEndpoint specifies the endpoint to check for critical updates
-	CriticalEndpoint string
-	// VersionEndpoint specifies the endpoint to check for current teleport version
-	VersionEndpoint string
+	// UpgradeChannel is the channel that serves the version used by the updater.
+	UpgradeChannel *automaticupgrades.Channel
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -201,7 +192,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 		return trace.Wrap(err)
 	}
 
-	critical, err := automaticupgrades.Critical(ctx, updater.CriticalEndpoint)
+	critical, err := updater.UpgradeChannel.GetCritical(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,7 +203,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 		return nil
 	}
 
-	stableVersion, err := automaticupgrades.Version(ctx, updater.VersionEndpoint)
+	stableVersion, err := updater.UpgradeChannel.GetVersion(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
