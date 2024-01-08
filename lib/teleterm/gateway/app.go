@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -62,7 +63,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, cfg *Config, listener net.Li
 }
 
 func alpnProtocolForApp(protocol string) alpncommon.Protocol {
-	if protocol == "TCP" {
+	if protocol == types.ProtocolTCP {
 		return alpncommon.ProtocolTCP
 	}
 	return alpncommon.ProtocolHTTP

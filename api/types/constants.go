@@ -1174,3 +1174,8 @@ const (
 	// installer script when agentless mode is enabled for a matcher
 	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
 )
+
+const (
+	ProtocolHTTP = "HTTP"
+	ProtocolTCP  = "TCP"
+)
