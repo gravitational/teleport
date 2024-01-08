@@ -135,6 +135,18 @@ func (c *Config) CheckAndSetDefaults() error {
 		if c.CertPath != "" {
 			return trace.BadParameter("cert path must not be passed for kube gateways")
 		}
+	case c.TargetURI.IsApp():
+		if len(c.Cert.Certificate) == 0 {
+			return trace.BadParameter("missing cert")
+		}
+
+		if c.KeyPath != "" {
+			return trace.BadParameter("key path must not be passed for app gateways")
+		}
+
+		if c.CertPath != "" {
+			return trace.BadParameter("cert path must not be passed for app gateways")
+		}
 	default:
 		return trace.BadParameter("unsupported gateway target %v", c.TargetURI)
 	}
