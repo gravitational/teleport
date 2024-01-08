@@ -102,7 +102,7 @@ func TestEKSAMConfig(t *testing.T) {
 				Region:          "us-east-1",
 				IntegrationRole: "integrationRole",
 			},
-			errCheck: notFounCheck,
+			errCheck: notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
