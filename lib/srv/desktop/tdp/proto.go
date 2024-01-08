@@ -78,7 +78,7 @@ const (
 	TypeNotification                  = MessageType(28)
 	TypeRDPFastPathPDU                = MessageType(29)
 	TypeRDPResponsePDU                = MessageType(30)
-	TypeRDPChannelIDs                 = MessageType(31)
+	TypeRDPConnectionInitialized      = MessageType(31)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -121,7 +121,7 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeRDPFastPathPDU(in)
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
-	case TypeRDPChannelIDs:
+	case TypeRDPConnectionInitialized:
 		return decodeConnectionInitialized(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
@@ -372,7 +372,7 @@ type ConnectionInitialized struct {
 
 func (c ConnectionInitialized) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeRDPChannelIDs))
+	buf.WriteByte(byte(TypeRDPConnectionInitialized))
 	writeUint16(buf, c.IOChannelID)
 	writeUint16(buf, c.UserChannelID)
 	writeUint16(buf, c.ScreenWidth)

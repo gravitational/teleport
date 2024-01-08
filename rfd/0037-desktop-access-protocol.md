@@ -290,7 +290,7 @@ is initialized. It contains data that the browser needs in order to
 correctly handle the session.
 
 ```
-| message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16
+| message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
 ```
 
 During the RDP connection sequence the client and server negotiate channel IDs

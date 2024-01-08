@@ -104,7 +104,7 @@ export type ClipboardData = {
   data: string;
 };
 
-// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
 export type RDPConnectionInitialized = {
   ioChannelId: number;
   userChannelId: number;
@@ -971,7 +971,7 @@ export default class Codec {
     return new Uint8Array(buffer, offset, dataLength);
   }
 
-  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
   decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
     const dv = new DataView(buffer);
     let offset = 0;
