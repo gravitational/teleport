@@ -732,7 +732,7 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 				filterErr = ErrUsingNonRegisteredDevice
 			}
 		default:
-			log.Warnf("FIDO2: Device %v: unexpected wait error: %q", info.path, waitErr)
+			log.Warnf("FIDO2: Device %v: unexpected wait error: %v", info.path, waitErr)
 		}
 
 		return false, trace.Wrap(filterErr)
@@ -920,11 +920,11 @@ func selectDevice(
 
 	select {
 	case <-done:
-		log.Debugf("FIDO2: device %v: selected with err=%v", dev.info.path, err)
+		log.Debugf("FIDO2: Device %v: selected with err=%v", dev.info.path, err)
 	case <-ctx.Done():
-		log.Debugf("FIDO2: device %v: requesting cancel", dev.info.path)
+		log.Debugf("FIDO2: Device %v: requesting cancel", dev.info.path)
 		if err := dev.Cancel(); err != nil {
-			log.Debugf("FIDO2: device %v: cancel errored: %v", dev.info.path, err)
+			log.Debugf("FIDO2: Device %v: cancel errored: %v", dev.info.path, err)
 		}
 
 		// Give the device a grace period to cancel/cleanup, but do not wait
