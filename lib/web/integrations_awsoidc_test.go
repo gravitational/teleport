@@ -482,7 +482,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 
 			Endpoint: &rdsTypes.Endpoint{
 				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    aws.Int32(5432),
+				Port:    *aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
 				Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String(fmt.Sprintf("subnet-for-%s", vpc))}},
@@ -569,7 +569,7 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 
 			Endpoint: &rdsTypes.Endpoint{
 				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    aws.Int32(5432),
+				Port:    *aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
 				Subnets: []rdsTypes.Subnet{
@@ -588,7 +588,7 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 
 			Endpoint: &rdsTypes.Endpoint{
 				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    aws.Int32(5432),
+				Port:    *aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
 				Subnets: []rdsTypes.Subnet{
@@ -609,7 +609,7 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 
 			Endpoint: &rdsTypes.Endpoint{
 				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    aws.Int32(5432),
+				Port:    *aws.Int32(5432),
 			},
 			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
 				Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet8")}},
