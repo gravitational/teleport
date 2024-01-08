@@ -135,6 +135,22 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 	}
 }
 
+// StatementForEKSAccess returns the statement that allows enrolling of EKS clusters into Teleport.
+func StatementForEKSAccess() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"eks:ListClusters",
+			"eks:DescribeCluster",
+			"eks:ListAccessEntries",
+			"eks:CreateAccessEntry",
+			"eks:DeleteAccessEntry",
+			"eks:AssociateAccessPolicy",
+		},
+		Resources: allResources,
+	}
+}
+
 // StatementForAWSOIDCRoleTrustRelationship returns the Trust Relationship to allow the OpenID Connect Provider
 // set up during the AWS OIDC Onboarding to assume this Role.
 func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, audiences []string) *Statement {
