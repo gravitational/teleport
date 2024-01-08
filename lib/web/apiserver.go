@@ -725,6 +725,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
 	h.GET("/scripts/:token/install-database.sh", h.WithLimiter(h.getDatabaseJoinScriptHandle))
+
+	// Discovery installation script requires a query param to define the DiscoveryGroup:
+	// ?discoveryGroup=<group name>
+	h.GET("/scripts/:token/install-discovery.sh", h.WithLimiter(h.getDiscoveryJoinScriptHandle))
+
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
@@ -822,6 +827,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:

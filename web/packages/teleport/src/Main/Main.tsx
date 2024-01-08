@@ -20,6 +20,8 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  createContext,
+  useContext,
 } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
@@ -177,7 +179,7 @@ export function Main(props: MainProps) {
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
-                <TopBar hidePopup={displayOnboardDiscover} />
+                <TopBar />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
@@ -263,12 +265,34 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   return <Switch>{routes}</Switch>;
 }
 
-export const ContentMinWidth = styled.div`
-  min-width: 1250px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
+// This context allows children components to disable this min-width in case they want to be able to shrink smaller.
+type MinWidthContextState = {
+  setEnforceMinWidth: (enforceMinWidth: boolean) => void;
+};
+
+const ContentMinWidthContext = createContext<MinWidthContextState>(null);
+
+export const useContentMinWidthContext = () =>
+  useContext(ContentMinWidthContext);
+
+const ContentMinWidth = ({ children }: { children: ReactNode }) => {
+  const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+
+  return (
+    <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
+      <div
+        css={`
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          ${enforceMinWidth ? 'min-width: 1250px;' : ''}
+        `}
+      >
+        {children}
+      </div>
+    </ContentMinWidthContext.Provider>
+  );
+};
 
 export const HorizontalSplit = styled.div`
   display: flex;

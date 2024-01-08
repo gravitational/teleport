@@ -265,6 +265,8 @@ const cfg = {
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
 
+    awsRdsDbRequiredVpcsPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -774,6 +776,15 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbRequiredVpcsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbRequiredVpcsPath, {
       clusterId,
       name: integrationName,
     });

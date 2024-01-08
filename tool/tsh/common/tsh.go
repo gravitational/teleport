@@ -140,6 +140,8 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// AssumeStartTimeRaw format is RFC3339
+	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
@@ -226,6 +228,8 @@ type CLIConf struct {
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
 	BenchExportPath string
+	// BenchMaxSessions is the maximum number of sessions to open
+	BenchMaxSessions int
 	// BenchTicks ticks per half distance
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
@@ -972,6 +976,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
 
+	benchWebSessions := benchWeb.Command("sessions", "Run session benchmark tests").Hidden()
+	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSessions.Flag("max", "The maximum number of sessions to open. If not specified a single session per node will be opened.").IntVar(&cf.BenchMaxSessions)
+
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
@@ -1035,12 +1044,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
+	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
+	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
@@ -1254,6 +1265,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			&benchmark.WebSSHBenchmark{
 				Command:  cf.RemoteCommand,
 				Random:   cf.BenchRandom,
+				Duration: cf.BenchDuration,
+			},
+		)
+	case benchWebSessions.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSessionBenchmark{
+				Command:  cf.RemoteCommand,
+				Max:      cf.BenchMaxSessions,
 				Duration: cf.BenchDuration,
 			},
 		)
@@ -2508,6 +2528,19 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
 	}
 
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
+		if err != nil {
+			return nil, trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+			return nil, trace.BadParameter("assume-start-time too far in future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		req.SetAssumeStartTime(assumeStartTime)
+	}
+
 	return req, nil
 }
 
@@ -2752,17 +2785,17 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, format string, verbose bool) error {
-	format = strings.ToLower(format)
+func showDatabases(cf *CLIConf, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker) error {
+	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(w, clusterFlag, databases, active, accessChecker, verbose)
+		showDatabasesAsText(cf, cf.Stdout(), databases, active, accessChecker, cf.Verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeDatabases(databases, format, accessChecker)
+		out, err := serializeDatabases(databases, cf.Format, accessChecker)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(w, out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2809,7 +2842,8 @@ type databaseWithUsers struct {
 	// *DatabaseV3 is used instead of types.Database because we want the db fields marshaled to JSON inline.
 	// An embedded interface (like types.Database) does not inline when marshaled to JSON.
 	*types.DatabaseV3
-	Users *dbUsers `json:"users"`
+	Users         *dbUsers `json:"users"`
+	DatabaseRoles []string `json:"database_roles,omitempty"`
 }
 
 func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUsers {
@@ -2841,6 +2875,15 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 		dbWithUsers.DatabaseV3 = db
 	default:
 		return nil, trace.BadParameter("unrecognized database type %T", db)
+	}
+
+	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
+		autoUser, roles, err := accessChecker.CheckDatabaseRoles(db)
+		if err != nil {
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", db.GetName(), err)
+		} else if autoUser.IsEnabled() {
+			dbWithUsers.DatabaseRoles = roles
+		}
 	}
 	return dbWithUsers, nil
 }
@@ -2900,17 +2943,16 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
-	name := database.GetName()
+// TODO(greedy52) more refactoring on db printing and move them to db_print.go.
+
+func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) databaseTableRow {
 	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
-		if a.ServiceName == name {
-			a.ServiceName = displayName
+		if a.ServiceName == database.GetName() {
 			// format the db name with the display name
-			displayName = formatActiveDB(a)
+			displayName = formatActiveDB(a, displayName)
 			// then revert it for connect string
-			a.ServiceName = name
 			switch a.Protocol {
 			case defaults.ProtocolDynamoDB:
 				// DynamoDB does not support "tsh db connect", so print the proxy command instead.
@@ -2922,81 +2964,60 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		}
 	}
 
-	row := make([]string, 0)
-	if proxy != "" && cluster != "" {
-		row = append(row, proxy, cluster)
+	return databaseTableRow{
+		Proxy:         proxy,
+		Cluster:       cluster,
+		DisplayName:   displayName,
+		Description:   database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		URI:           database.GetURI(),
+		AllowedUsers:  formatUsersForDB(database, accessChecker),
+		DatabaseRoles: formatDatabaseRolesForDB(database, accessChecker),
+		Labels:        common.FormatLabels(database.GetAllLabels(), verbose),
+		Connect:       connect,
 	}
-
-	labels := common.FormatLabels(database.GetAllLabels(), verbose)
-	if verbose {
-		row = append(row,
-			displayName,
-			database.GetDescription(),
-			database.GetProtocol(),
-			database.GetType(),
-			database.GetURI(),
-			formatUsersForDB(database, accessChecker),
-			labels,
-			connect,
-		)
-	} else {
-		row = append(row,
-			displayName,
-			database.GetDescription(),
-			formatUsersForDB(database, accessChecker),
-			labels,
-			connect,
-		)
-	}
-
-	return row
 }
 
-func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
-	var rows [][]string
+func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
+	var rows []databaseTableRow
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
-			clusterFlag,
+			cf.SiteName,
 			database,
 			active,
 			accessChecker,
 			verbose))
 	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
-	}
-	fmt.Fprintln(w, t.AsBuffer().String())
+	printDatabaseTable(printDatabaseTableConfig{
+		writer:  w,
+		rows:    rows,
+		verbose: verbose,
+	})
 }
 
-func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
-	var rows [][]string
+func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
+	var rows []databaseTableRow
 	for _, listing := range dbListings {
 		rows = append(rows, getDatabaseRow(
 			listing.Proxy,
 			listing.Cluster,
-			clusterFlag,
+			cf.SiteName,
 			listing.Database,
 			active,
 			listing.accessChecker,
-			verbose))
+			cf.Verbose))
 	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Proxy", "Cluster", "Name", "Description", "Allowed Users", "Labels", "Connect"},
-			rows,
-			"Labels",
-		)
-	}
-	fmt.Println(t.AsBuffer().String())
+	printDatabaseTable(printDatabaseTableConfig{
+		writer:              cf.Stdout(),
+		rows:                rows,
+		showProxyAndCluster: true,
+		verbose:             cf.Verbose,
+	})
 }
 
-func formatActiveDB(active tlsca.RouteToDatabase) string {
+func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {
+	active.ServiceName = displayName
 	switch {
 	case active.Username != "" && active.Database != "":
 		return fmt.Sprintf("> %v (user: %v, db: %v)", active.ServiceName, active.Username, active.Database)
@@ -3365,7 +3386,7 @@ func onSSH(cf *CLIConf) error {
 }
 
 // onBenchmark executes benchmark
-func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
+func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3374,6 +3395,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 	}
+
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
