@@ -608,3 +608,22 @@ export function makeKube(source: tsh.Kube) {
     labels: source.labelsList,
   };
 }
+
+export function makeApp(source: tsh.App) {
+  const { publicAddr, endpointUri } = source;
+
+  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
+
+  return { ...source, addrWithProtocol };
+}

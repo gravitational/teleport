@@ -19,6 +19,11 @@ spec:
       - resources: ['access_plugin_data']
         verbs: ['update']
 
+      # In order to provide access list review reminders, permissions to list and read access lists
+      # are necessary. This is currently only supported for a subset of plugins.
+      - resources: ['access_list']
+        verbs: ['list', 'read']
+
     # Optional: To display user-friendly names in resource-based Access
     # Requests instead of resource IDs, the plugin also needs permission
     # to list the resources being requested. Include this along with the

@@ -200,7 +200,11 @@ const cfg = {
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
+    ttyPlaybackWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+
+    // TODO(zmb3): remove this for v15
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -219,6 +223,8 @@ const cfg = {
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
+
+    discoveryConfigPath: '/v1/webapi/sites/:clusterId/discoveryconfig',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
@@ -268,6 +274,8 @@ const cfg = {
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
 
+    awsRdsDbDeployServicesPath:
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsRdsDbListPath:
@@ -594,6 +602,7 @@ const cfg = {
   },
 
   getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
+    // TODO(zmb3): remove
     return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 
@@ -731,6 +740,10 @@ const cfg = {
     return generatePath(cfg.api.rolesPath, { name });
   },
 
+  getDiscoveryConfigUrl(clusterId: string) {
+    return generatePath(cfg.api.discoveryConfigPath, { clusterId });
+  },
+
   getPresetRolesUrl() {
     return cfg.api.presetRolesPath;
   },
@@ -788,6 +801,15 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbRequiredVpcsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbsDeployServicesUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbDeployServicesPath, {
       clusterId,
       name: integrationName,
     });
@@ -1023,7 +1045,7 @@ export interface UrlPlayerParams {
 
 export interface UrlPlayerSearch {
   recordingType: RecordingType;
-  durationMs?: number; // this is only necessary for recordingType == desktop
+  durationMs?: number;
 }
 
 // /web/cluster/:clusterId/desktops/:desktopName/:username

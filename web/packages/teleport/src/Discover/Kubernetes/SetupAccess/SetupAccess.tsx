@@ -28,11 +28,10 @@ import {
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
 
-import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
-export default function Container(props: AgentStepProps) {
-  const state = useUserTraits(props);
+export default function Container() {
+  const state = useUserTraits();
   return <SetupAccess {...state} />;
 }
 
