@@ -21,6 +21,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -28,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {

@@ -24,10 +24,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 )
 
@@ -233,18 +233,4 @@ func (t *Table) SortRowsBy(colIdxKey []int, stable bool) {
 	} else {
 		slices.SortFunc(t.rows, lessFn)
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

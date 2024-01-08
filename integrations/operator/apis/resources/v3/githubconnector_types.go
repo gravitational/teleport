@@ -75,6 +75,8 @@ func (c TeleportGithubConnector) ToTeleport() types.GithubConnector {
 	}
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (c *TeleportGithubConnector) StatusConditions() *[]metav1.Condition {
 	return &c.Status.Conditions
 }

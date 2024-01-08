@@ -36,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -615,22 +617,28 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
 	require.NoError(t, err)
 	defer adminClient.Close()
-	bot, err := adminClient.CreateBot(ctx, &proto.CreateBotRequest{
-		Name: "request-approver",
-		Roles: []string{
-			// Grants the ability to approve requests
-			"admins",
+	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "request-approver",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{
+					// Grants the ability to approve requests
+					"admins",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
 
 	// Use the bot user to generate some certs using role impersonation.
 	// This mimics what the bot actually does.
-	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.UserName))
+	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.Status.UserName))
 	require.NoError(t, err)
 	defer botClient.Close()
 	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		Username:  bot.UserName,
+		Username:  bot.Status.UserName,
 		PublicKey: testPack.pubKey,
 		Expires:   time.Now().Add(time.Hour),
 
@@ -662,7 +670,7 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 
 	// Check the final state of the request
-	require.Equal(t, bot.UserName, accessRequest.GetReviews()[0].Author)
+	require.Equal(t, bot.Status.UserName, accessRequest.GetReviews()[0].Author)
 	require.Equal(t, types.RequestState_APPROVED, accessRequest.GetState())
 }
 
@@ -1119,7 +1127,6 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			IdentityGovernanceSecurity: true,
-			IsUsageBasedBilling:        true,
 		},
 	})
 

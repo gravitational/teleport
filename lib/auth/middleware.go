@@ -26,6 +26,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gravitational/oxy/ratelimit"
@@ -34,7 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -698,7 +698,12 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = authz.ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}
 	ctx = authz.ContextWithUser(ctx, user)
-	a.Handler.ServeHTTP(w, r.WithContext(ctx))
+	r = r.WithContext(ctx)
+	// set remote address to the one that was passed in the header
+	// this is needed because impersonation reuses the same connection
+	// and the remote address is not updated from 0.0.0.0:0
+	r.RemoteAddr = remoteAddr
+	a.Handler.ServeHTTP(w, r)
 }
 
 // WrapContextWithUser enriches the provided context with the identity information

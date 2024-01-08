@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"os/exec"
 	"sync"
 	"time"
@@ -30,7 +31,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -299,6 +302,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -317,8 +321,9 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
+// reissueGatewayCerts tries to reissue gateway certs. It handles asking the user to relogin and
+// per-session MFA checks.
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
@@ -329,17 +334,19 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		},
 	}
 
-	reissueDBCerts := func() error {
+	var cert tls.Certificate
+
+	reissueGatewayCerts := func() error {
 		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
+		cert, err = cluster.ReissueGatewayCerts(ctx, g)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		return trace.Wrap(g.ReloadCert())
+		return nil
 	}
 
 	// If the gateway certs have expired but the user cert is active,
@@ -348,7 +355,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
+	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
 		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
@@ -363,10 +370,10 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	return nil
+	return cert, nil
 }
 
 // RemoveGateway removes cluster gateway
@@ -542,6 +549,74 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		Roles:           response.RequestableRoles,
 		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
+}
+
+// PromoteAccessRequest promotes an access request to an access list.
+func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.ResourceURI, req *accesslistv1.AccessRequestPromoteRequest) (*clusters.AccessRequest, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response *clusters.AccessRequest
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		promoteResponse, err := authClient.AccessListClient().AccessRequestPromote(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessRequest := promoteResponse.AccessRequest
+		response = &clusters.AccessRequest{
+			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
+			AccessRequest: accessRequest,
+		}
+		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI uri.ResourceURI, accessRequestID string) ([]*accesslist.AccessList, error) {
+	_, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response []*accesslist.AccessList
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		accessLists, err := authClient.AccessListClient().GetSuggestedAccessLists(ctx, accessRequestID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		response = accessLists
+		return nil
+	})
+
+	return response, trace.Wrap(err)
 }
 
 // GetAccessRequests returns all access requests with filtered input
