@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 import { ButtonPrimary, Text, Flex, ButtonSecondary, Image } from 'design';
 
 import cfg from 'teleport/config';
@@ -27,6 +28,35 @@ import celebratePamPng from './celebrate-pam.png';
 import type { AgentStepProps } from '../../types';
 
 export function Finished(props: AgentStepProps) {
+  if (props.agentMeta.autoDiscovery) {
+    return (
+      <Container>
+        <Image width="120px" height="120px" src={celebratePamPng} />
+        <Text mt={3} mb={2} typography="h4" bold>
+          Completed Setup
+        </Text>
+        <Text mb={3}>You have completed setup for auto-enrolling.</Text>
+        <Flex>
+          <ButtonPrimary
+            width="270px"
+            size="large"
+            onClick={() => history.push(cfg.routes.root, true)}
+            mr={3}
+          >
+            Browse Existing Resources
+          </ButtonPrimary>
+          <ButtonSecondary
+            width="270px"
+            size="large"
+            onClick={() => history.reload()}
+          >
+            Add Another Resource
+          </ButtonSecondary>
+        </Flex>
+      </Container>
+    );
+  }
+
   let resourceText;
   if (props.agentMeta && props.agentMeta.resourceName) {
     resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
@@ -34,15 +64,7 @@ export function Finished(props: AgentStepProps) {
   }
 
   return (
-    <Flex
-      width="600px"
-      flexDirection="column"
-      alignItems="center"
-      css={`
-        margin: 0 auto;
-        text-align: center;
-      `}
-    >
+    <Container>
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
         Resource Successfully Added
@@ -68,6 +90,14 @@ export function Finished(props: AgentStepProps) {
           Add Another Resource
         </ButtonSecondary>
       </Flex>
-    </Flex>
+    </Container>
   );
 }
+
+const Container = styled(Flex)`
+  width: 600px;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  text-align: center;
+`;

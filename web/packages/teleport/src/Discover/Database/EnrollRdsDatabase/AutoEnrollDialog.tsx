@@ -27,34 +27,32 @@ import {
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
-import { Timeout } from 'teleport/Discover/Shared/Timeout';
-import { TextIcon } from 'teleport/Discover/Shared';
+import { Mark } from 'teleport/Discover/Shared';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
-export type CreateDatabaseDialogProps = {
-  pollTimeout: number;
+export type AutoEnrollDialog = {
   attempt: Attempt;
   retry(): void;
   close(): void;
   next(): void;
-  dbName: string;
+  region: string;
+  skipDeployment: boolean;
 };
 
-export function CreateDatabaseDialog({
-  pollTimeout,
+export function AutoEnrollDialog({
   attempt,
   retry,
   close,
   next,
-  dbName,
-}: CreateDatabaseDialogProps) {
+  region,
+  skipDeployment,
+}: AutoEnrollDialog) {
   let content: JSX.Element;
   if (attempt.status === 'failed') {
     content = (
       <>
         <Flex mb={5} alignItems="center">
-          {' '}
           <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
           <Text>{attempt.statusText}</Text>
         </Flex>
@@ -71,20 +69,7 @@ export function CreateDatabaseDialog({
   } else if (attempt.status === 'processing') {
     content = (
       <>
-        <AnimatedProgressBar mb={1} />
-        <TextIcon
-          mb={3}
-          css={`
-            white-space: pre;
-          `}
-        >
-          <Icons.Clock size="medium" />
-          <Timeout
-            timeout={pollTimeout}
-            message=""
-            tailMessage={' seconds left'}
-          />
-        </TextIcon>
+        <AnimatedProgressBar mb={5} />
         <ButtonPrimary width="100%" disabled>
           Next
         </ButtonPrimary>
@@ -94,10 +79,20 @@ export function CreateDatabaseDialog({
     // success
     content = (
       <>
-        <Text mb={5}>
+        <Flex mb={5}>
           <Icons.Check size="small" ml={1} mr={2} color="success" />
-          Database "{dbName}" successfully registered
-        </Text>
+          <Text>
+            Discovery config successfully created.
+            {skipDeployment && (
+              <>
+                {' '}
+                The discovery service can take a few minutes to finish
+                auto-enrolling RDS databases found in region{' '}
+                <Mark>{region}</Mark>.
+              </>
+            )}
+          </Text>
+        </Flex>
         <ButtonPrimary width="100%" onClick={next}>
           Next
         </ButtonPrimary>
@@ -114,7 +109,7 @@ export function CreateDatabaseDialog({
         textAlign="center"
       >
         <Text bold caps mb={4}>
-          Database Register
+          Creating Auto Discovery Config
         </Text>
         {content}
       </DialogContent>
