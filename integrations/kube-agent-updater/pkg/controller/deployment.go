@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -74,7 +75,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 
 	image, err := r.GetVersion(ctx, &obj, currentVersion)
 	var (
-		noNewVersionErr *NoNewVersionError
+		noNewVersionErr *version.NoNewVersionError
 		maintenanceErr  *MaintenanceNotTriggeredError
 	)
 	switch {
