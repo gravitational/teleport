@@ -238,12 +238,12 @@ func (p *pkcs11KeyStore) deleteKey(_ context.Context, rawKey []byte) error {
 	return trace.Wrap(signer.Delete())
 }
 
-// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
+// deleteUnusedKeys deletes all keys from the KeyStore if they are:
 // 1. Labeled with the local HostUUID when they were created
 // 2. Not included in the argument activeKeys
 // This is meant to delete unused keys after they have been rotated out by a CA
 // rotation.
-func (p *pkcs11KeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	p.log.Debug("Deleting unused keys from HSM")
 
 	// It's necessary to fetch all PublicKeys for the known activeKeys in order to
