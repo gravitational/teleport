@@ -138,8 +138,8 @@ func (c *websocketALPNClientConn) writeFrame(frame ws.Frame) error {
 }
 
 const (
-	websocketHeaderKeyProtocol     = "Sec-Websocket-Protocol"
-	websocketHeaderKeyVersion      = "Sec-Websocket-Version"
-	websocketHeaderKeyChallengeKey = "Sec-Websocket-Key"
-	websocketHeaderKeyAccept       = "Sec-Websocket-Accept"
+	websocketHeaderKeyProtocol     = "Sec-WebSocket-Protocol"
+	websocketHeaderKeyVersion      = "Sec-WebSocket-Version"
+	websocketHeaderKeyChallengeKey = "Sec-WebSocket-Key"
+	websocketHeaderKeyAccept       = "Sec-WebSocket-Accept"
 )

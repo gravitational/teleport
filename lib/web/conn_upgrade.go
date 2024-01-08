@@ -304,6 +304,8 @@ func (c *websocketALPNServerConn) WritePing() error {
 }
 
 func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
 	return trace.NewAggregate(
 		c.Conn.SetReadDeadline(t),
 		c.Conn.SetWriteDeadline(t),
