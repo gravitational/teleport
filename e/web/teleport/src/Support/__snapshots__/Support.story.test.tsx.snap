@@ -277,7 +277,7 @@ exports[`render support cloud section 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/ver/13.x/docs/faq?product=teleport&version=oss_13.4.0-dev"
+          href="https://goteleport.com/docs/ver/13.x/faq?product=teleport&version=oss_13.4.0-dev"
           rel="noreferrer"
           target="_blank"
         >
