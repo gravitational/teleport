@@ -765,8 +765,8 @@ github.com/gorilla/websocket v1.5.1 h1:gmztn0JnHVt9JZquRuzLw3g4wouNVzKL15iLr/zn/
 github.com/gorilla/websocket v1.5.1/go.mod h1:x3kM2JMyaluk02fnUJpQuwD2dCS5NDG2ZHL0uE0tcaY=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90 h1:fPNJE2kaWC0Oy2YKxk1tbnqhKl3aTeXVAfjXzphJmI8=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
-github.com/gravitational/go-libfido2 v1.5.3-0.20230728202351-0b44d4f35e28 h1:SMIYLghy2DvLsIYeyfux5mkliM8CbljqsRfDZk8vNYE=
-github.com/gravitational/go-libfido2 v1.5.3-0.20230728202351-0b44d4f35e28/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
+github.com/gravitational/go-libfido2 v1.5.3-0.20240115202727-b267d1ed4947 h1:0clh0rAkUeDYNvJGgUWIRR5zSVdVBeSI05jQYFqqsMM=
+github.com/gravitational/go-libfido2 v1.5.3-0.20240115202727-b267d1ed4947/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
 github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3 h1:3JGTacvAeV5tIC4/9XsdLC2K5K7FWaXxIwpW4t+dGH0=
 github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3/go.mod h1:LbRWqr72fXehxAGLXO8nDNQAi4gthRz4j7f8L2LS0XM=
 github.com/gravitational/go-mysql v1.5.0-teleport.1 h1:EyFryeiTYyP6KslLVp0Q5QTKwtUG5RioVrTIoP4pOuI=
