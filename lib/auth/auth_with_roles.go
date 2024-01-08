@@ -4137,25 +4137,6 @@ func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersio
 }
 
 func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) {
-	// DELETE IN 15.0.0
-	// The label expression checks can be deleted in 15.0.0 since all servers
-	// that don't support label expressions are on 13.x or older. If no other
-	// feature checks have been added at that time, checkInventorySupportsRole
-	// can be deleted entirely.
-	for _, kind := range types.LabelMatcherKinds {
-		for _, rct := range []types.RoleConditionType{types.Allow, types.Deny} {
-			labelMatchers, err := role.GetLabelMatchers(rct, kind)
-			if err != nil {
-				return semver.Version{}, "", trace.Wrap(err)
-			}
-			if len(labelMatchers.Expression) != 0 {
-				return minSupportedLabelExpressionVersion, fmt.Sprintf(
-					"one or more connected servers is running a Teleport version "+
-						"older than %s which does not support the label expressions used "+
-						"in this role.", minSupportedLabelExpressionVersion), nil
-			}
-		}
-	}
 	// Return the zero version to indicate all server versions are supported.
 	return semver.Version{}, "", nil
 }
