@@ -193,8 +193,8 @@ func (r *record) isExpired(now time.Time) bool {
 	if r.Expires == 0 {
 		return false
 	}
-	expiryDateUTC := time.Unix(r.Expires, 0).UTC()
-	return now.UTC().After(expiryDateUTC)
+
+	return now.UTC().Unix() > r.Expires
 }
 
 func (r *record) backendItem() backend.Item {
