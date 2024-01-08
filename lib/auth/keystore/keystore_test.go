@@ -323,31 +323,56 @@ func TestManager(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		if backendDesc.name != "software" {
-			// hsm keyStore should not get any signer from raw keys
-			_, err = manager.GetSSHSigner(ctx, ca)
-			require.True(t, trace.IsNotFound(err))
+		// Manager should always be able to get a signer for software keys.
+		hasUsableKeys, err := manager.HasUsableActiveKeys(ctx, ca)
+		require.NoError(t, err)
+		require.True(t, hasUsableKeys)
 
-			_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
-			require.True(t, trace.IsNotFound(err))
+		sshSigner, err = manager.GetSSHSigner(ctx, ca)
+		require.NoError(t, err)
+		require.NotNil(t, sshSigner)
 
-			_, err = manager.GetJWTSigner(ctx, ca)
-			require.True(t, trace.IsNotFound(err))
-		} else {
-			// software keyStore should be able to get a signer
-			sshSigner, err = manager.GetSSHSigner(ctx, ca)
-			require.NoError(t, err)
-			require.NotNil(t, sshSigner)
+		tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
+		require.NoError(t, err)
+		require.NotNil(t, tlsCert)
+		require.NotNil(t, tlsSigner)
 
-			tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
-			require.NoError(t, err)
-			require.NotNil(t, tlsCert)
-			require.NotNil(t, tlsSigner)
+		jwtSigner, err = manager.GetJWTSigner(ctx, ca)
+		require.NoError(t, err)
+		require.NotNil(t, jwtSigner)
 
-			jwtSigner, err = manager.GetJWTSigner(ctx, ca)
-			require.NoError(t, err)
-			require.NotNil(t, jwtSigner)
-		}
+		// Test a CA with only unusable keypairs - PKCS11 keypairs with a
+		// different hostID that this manager should not be able to use.
+		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.HostCA,
+			ClusterName: clusterName,
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{
+					testPKCS11SSHKeyPair,
+				},
+				TLS: []*types.TLSKeyPair{
+					testPKCS11TLSKeyPair,
+				},
+				JWT: []*types.JWTKeyPair{
+					testPKCS11JWTKeyPair,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// The manager should not be able to select a key.
+		hasUsableKeys, err = manager.HasUsableActiveKeys(ctx, ca)
+		require.NoError(t, err)
+		require.False(t, hasUsableKeys)
+
+		_, err = manager.GetSSHSigner(ctx, ca)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+		_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+		_, err = manager.GetJWTSigner(ctx, ca)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 	}
 }
 

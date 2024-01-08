@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -42,7 +43,7 @@ type SoftwareConfig struct {
 
 func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
 	if cfg.RSAKeyPairSource == nil {
-		return trace.BadParameter("must provide RSAKeyPairSource")
+		cfg.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	return nil
 }

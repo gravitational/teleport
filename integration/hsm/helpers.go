@@ -229,9 +229,6 @@ func (s teleportServices) waitForPhaseChange(ctx context.Context) error {
 }
 
 func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
-
 	config := servicecfg.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
 	config.Auth.StorageConfig.Params["path"] = filepath.Join(config.DataDir, defaults.BackendDir)
@@ -244,13 +241,14 @@ func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
 
 	config.Auth.Enabled = true
 	config.Auth.NoAudit = true
-	config.Auth.ListenAddr.Addr = net.JoinHostPort(hostName, "0")
+	config.Auth.ListenAddr.Addr = net.JoinHostPort("localhost", "0")
 	config.Auth.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        hostName,
+			Addr:        "localhost",
 		},
 	}
+	var err error
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
