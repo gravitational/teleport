@@ -142,13 +142,14 @@ func TestHSMRotation(t *testing.T) {
 	log.Debug("TestHSMRotation: starting auth server")
 	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log)
 	auth1 := newTeleportService(t, authConfig, "auth1")
-	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
-	})
 	allServices := teleportServices{auth1}
 
 	log.Debug("TestHSMRotation: waiting for auth server to start")
-	require.NoError(t, auth1.start(ctx))
+	err := auth1.start(ctx)
+	require.NoError(t, err, trace.DebugReport(err))
+	t.Cleanup(func() {
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
+	})
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMRotation: starting proxy")
@@ -157,7 +158,7 @@ func TestHSMRotation(t *testing.T) {
 	allServices = append(allServices, proxy)
 
 	log.Debug("TestHSMRotation: sending rotation request init")
-	err := auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
