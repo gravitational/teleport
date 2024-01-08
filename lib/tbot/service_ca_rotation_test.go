@@ -306,9 +306,9 @@ func TestBot_Run_CARotation(t *testing.T) {
 	time.Sleep(10 * time.Second)
 
 	// fetch initial host cert
-	require.Len(t, b.ident().TLSCACertsBytes, 2)
+	require.Len(t, b.BotIdentity().TLSCACertsBytes, 2)
 	initialCAs := [][]byte{}
-	copy(initialCAs, b.ident().TLSCACertsBytes)
+	copy(initialCAs, b.BotIdentity().TLSCACertsBytes)
 
 	// Begin rotating through all of the phases, testing the client after
 	// each rotation phase has completed.
@@ -316,27 +316,27 @@ func TestBot_Run_CARotation(t *testing.T) {
 	// TODO: These sleeps allow the client time to rotate. They could be
 	// replaced if tbot emitted a CA rotation/renewal event.
 	time.Sleep(time.Second * 30)
-	_, err := b.AuthenticatedUserClientFromIdentity(ctx, b.ident())
+	_, err := clientForIdentity(ctx, log, botConfig, b.BotIdentity())
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateClients)
 	time.Sleep(time.Second * 30)
 	// Ensure both sets of CA certificates are now available locally
-	require.Len(t, b.ident().TLSCACertsBytes, 3)
-	_, err = b.AuthenticatedUserClientFromIdentity(ctx, b.ident())
+	require.Len(t, b.BotIdentity().TLSCACertsBytes, 3)
+	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity())
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateServers)
 	time.Sleep(time.Second * 30)
-	_, err = b.AuthenticatedUserClientFromIdentity(ctx, b.ident())
+	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity())
 	require.NoError(t, err)
 
 	rotate(ctx, t, log, teleportProcess(), types.RotationStateStandby)
 	time.Sleep(time.Second * 30)
-	_, err = b.AuthenticatedUserClientFromIdentity(ctx, b.ident())
+	_, err = clientForIdentity(ctx, log, botConfig, b.BotIdentity())
 	require.NoError(t, err)
 
-	require.Len(t, b.ident().TLSCACertsBytes, 2)
-	finalCAs := b.ident().TLSCACertsBytes
+	require.Len(t, b.BotIdentity().TLSCACertsBytes, 2)
+	finalCAs := b.BotIdentity().TLSCACertsBytes
 	require.NotEqual(t, initialCAs, finalCAs)
 }
