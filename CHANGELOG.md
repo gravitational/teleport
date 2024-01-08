@@ -15,6 +15,24 @@ Teleport 15 now provides hardened AWS AMIs on ARM64.
 
 ### Breaking changes and deprecations
 
+#### Terraform provider correctly defaults Boolean values
+
+Prior to Teleport 15, the Terraform provider would incorrectly default Boolean
+values to `false` even where they should have been set to `true` or left `null`.
+
+This has been corrected in Teleport 15. When running Terraform for the first
+time after upgrading, you may see fields for which you did not explicitly 
+configure a value for switch from `false` to `true` if the default for that
+field is intended to be `true`. In particular, the `spec.options` fields of the
+`teleport_role` resource are impacted. As this is the usual default applied by
+Teleport, this is unlikely to result in loss of access to resources - review
+for any potential increase in access resulting from this.
+
+This resolved the following issues:
+
+- [Unable to configure null values in GitLab join tokens using Terraform provider](https://github.com/gravitational/teleport-plugins/issues/981)
+- [Terraform: BoolOption sets to false when null rather than the default](https://github.com/gravitational/teleport-plugins/issues/994)
+
 #### RDP engine requires RemoteFX
 
 Teleport 15 includes a new RDP engine that leverages the RemoteFX codec for
