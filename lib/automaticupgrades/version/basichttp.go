@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/cache"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
+	"github.com/gravitational/teleport/lib/automaticupgrades/cache"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 // basicHTTPVersionClient retrieves the version from an HTTP endpoint
@@ -47,8 +47,12 @@ func (b *basicHTTPVersionClient) Get(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	response := string(body)
+	if response == constants.NoVersion {
+		return "", &NoNewVersionError{Message: "version server did not advertise a version"}
+	}
 	// We trim spaces because the value might end with one or many newlines
-	version, err := EnsureSemver(strings.TrimSpace(string(body)))
+	version, err := EnsureSemver(strings.TrimSpace(response))
 	return version, trace.Wrap(err)
 }
 

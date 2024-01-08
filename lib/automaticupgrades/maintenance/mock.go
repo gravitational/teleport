@@ -22,33 +22,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// TriggerMock is a fake Trigger that return a static answer. This is used
+// StaticTrigger is a fake Trigger that return a static answer. This is used
 // for testing purposes and is inherently disruptive.
-type TriggerMock struct {
+type StaticTrigger struct {
 	name     string
 	canStart bool
 }
 
-// Name returns the TriggerMock name.
-func (m TriggerMock) Name() string {
+// Name returns the StaticTrigger name.
+func (m StaticTrigger) Name() string {
 	return m.name
 }
 
 // CanStart returns the statically defined maintenance approval result.
-func (m TriggerMock) CanStart(_ context.Context, _ client.Object) (bool, error) {
+func (m StaticTrigger) CanStart(_ context.Context, _ client.Object) (bool, error) {
 	return m.canStart, nil
 }
 
 // Default returns the default behavior if the trigger fails. This cannot
-// happen for a TriggerMock and is here solely to implement the Trigger
+// happen for a StaticTrigger and is here solely to implement the Trigger
 // interface.
-func (m TriggerMock) Default() bool {
+func (m StaticTrigger) Default() bool {
 	return m.canStart
 }
 
-// NewMaintenanceTriggerMock creates a TriggerMock
-func NewMaintenanceTriggerMock(name string, canStart bool) Trigger {
-	return TriggerMock{
+// NewMaintenanceStaticTrigger creates a StaticTrigger
+func NewMaintenanceStaticTrigger(name string, canStart bool) Trigger {
+	return StaticTrigger{
 		name:     name,
 		canStart: canStart,
 	}
