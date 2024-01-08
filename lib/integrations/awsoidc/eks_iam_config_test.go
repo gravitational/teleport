@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -29,51 +29,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEICEIAMConfigReqDefaults(t *testing.T) {
-	baseReq := func() EICEIAMConfigureRequest {
-		return EICEIAMConfigureRequest{
-			Region:          "us-east-1",
-			IntegrationRole: "integrationrole",
-		}
-	}
-
+func TestEKSIAMConfigReqDefaults(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		req      func() EICEIAMConfigureRequest
+		req      EKSIAMConfigureRequest
 		errCheck require.ErrorAssertionFunc
-		expected EICEIAMConfigureRequest
+		expected EKSIAMConfigureRequest
 	}{
 		{
-			name:     "set defaults",
-			req:      baseReq,
+			name: "set defaults",
+			req: EKSIAMConfigureRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationRole",
+			},
 			errCheck: require.NoError,
-			expected: EICEIAMConfigureRequest{
-				Region:                    "us-east-1",
-				IntegrationRole:           "integrationrole",
-				IntegrationRoleEICEPolicy: "EC2InstanceConnectEndpoint",
+			expected: EKSIAMConfigureRequest{
+				Region:                   "us-east-1",
+				IntegrationRole:          "integrationRole",
+				IntegrationRoleEKSPolicy: "EKSAccess",
 			},
 		},
 		{
 			name: "missing region",
-			req: func() EICEIAMConfigureRequest {
-				req := baseReq()
-				req.Region = ""
-				return req
+			req: EKSIAMConfigureRequest{
+				IntegrationRole: "integrationRole",
 			},
 			errCheck: badParameterCheck,
 		},
 		{
 			name: "missing integration role",
-			req: func() EICEIAMConfigureRequest {
-				req := baseReq()
-				req.IntegrationRole = ""
-				return req
+			req: EKSIAMConfigureRequest{
+				Region: "us-east-1",
 			},
 			errCheck: badParameterCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			req := tt.req()
+			req := tt.req
 			err := req.CheckAndSetDefaults()
 			tt.errCheck(t, err)
 			if err != nil {
@@ -85,51 +77,51 @@ func TestEICEIAMConfigReqDefaults(t *testing.T) {
 	}
 }
 
-func TestEICEIAMConfig(t *testing.T) {
+func TestEKSAMConfig(t *testing.T) {
 	ctx := context.Background()
-	baseReq := func() EICEIAMConfigureRequest {
-		return EICEIAMConfigureRequest{
-			Region:          "us-east-1",
-			IntegrationRole: "integrationrole",
-		}
-	}
 
 	for _, tt := range []struct {
 		name              string
 		mockExistingRoles []string
-		req               func() EICEIAMConfigureRequest
+		req               EKSIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
 	}{
 		{
-			name:              "valid",
-			req:               baseReq,
-			mockExistingRoles: []string{"integrationrole"},
+			name: "valid",
+			req: EKSIAMConfigureRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationRole",
+			},
+			mockExistingRoles: []string{"integrationRole"},
 			errCheck:          require.NoError,
 		},
 		{
 			name:              "integration role does not exist",
 			mockExistingRoles: []string{},
-			req:               baseReq,
-			errCheck:          notFoundCheck,
+			req: EKSIAMConfigureRequest{
+				Region:          "us-east-1",
+				IntegrationRole: "integrationRole",
+			},
+			errCheck: notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			clt := mockEICEIAMConfigClient{
+			clt := mockEKSIAMConfigClient{
 				existingRoles: tt.mockExistingRoles,
 			}
 
-			err := ConfigureEICEIAM(ctx, &clt, tt.req())
+			err := ConfigureEKSIAM(ctx, &clt, tt.req)
 			tt.errCheck(t, err)
 		})
 	}
 }
 
-type mockEICEIAMConfigClient struct {
+type mockEKSIAMConfigClient struct {
 	existingRoles []string
 }
 
 // PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
-func (m *mockEICEIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
+func (m *mockEKSIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
 		return nil, &iamTypes.NoSuchEntityException{
