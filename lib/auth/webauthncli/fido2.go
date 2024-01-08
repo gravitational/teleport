@@ -63,6 +63,9 @@ type FIDODevice interface {
 	// Cancel mirrors libfido2.Device.Cancel.
 	Cancel() error
 
+	// Close mirrors libfido2.Device.Close.
+	Close() error
+
 	// MakeCredential mirrors libfido2.Device.MakeCredential.
 	MakeCredential(
 		clientDataHash []byte,
@@ -574,6 +577,10 @@ func runOnFIDO2Devices(
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		err := dev.Close()
+		log.Debugf("FIDO2: Close device %v: %v", dev.info.path, err)
+	}()
 
 	if err := ackTouch(); err != nil {
 		return trace.Wrap(err)
@@ -799,6 +806,7 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 	}
 	selectC := make(chan selectResp)
 	selectGoroutines := 0
+	var allDevices []*deviceWithInfo
 
 	defer func() {
 		innerCancel() // Cancel all goroutines
@@ -815,6 +823,14 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 				break
 			}
 		}
+
+		// Close all but the selected device.
+		for _, otherDev := range allDevices {
+			if otherDev != dev {
+				err := otherDev.Close()
+				log.Debugf("FIDO2: Close device %v: %v", otherDev.info.path, err)
+			}
+		}
 	}()
 
 	cb := withInteractiveError(filter, deviceCallback)
@@ -825,6 +841,7 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 			if resp.err != nil {
 				return nil, false, trace.Wrap(resp.err)
 			}
+			allDevices = append(allDevices, resp.devs...)
 			for _, dev := range resp.devs {
 				dev := dev
 				selectGoroutines++
@@ -860,6 +877,16 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 	}
 
 	var devs []*deviceWithInfo
+	ok := false
+	defer func() {
+		if !ok {
+			for _, dev := range devs {
+				err := dev.Close()
+				log.Debugf("FIDO2: Close device %v: %v", dev.info.path, err)
+			}
+		}
+	}()
+
 	for _, loc := range locs {
 		path := loc.Path
 		if _, ok := knownPaths[path]; ok {
@@ -907,6 +934,7 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 		log.Debugf("FIDO2: Found %v new devices", l)
 	}
 
+	ok = true // Don't close devices.
 	return devs, nil
 }
 

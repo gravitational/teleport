@@ -2060,6 +2060,10 @@ func newFIDO2Device(path, pin string, info *libfido2.DeviceInfo, creds ...*libfi
 	}, nil
 }
 
+func (f *fakeFIDO2Device) Close() error {
+	return nil
+}
+
 func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
