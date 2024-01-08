@@ -307,27 +307,27 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 				*buf = fmt.Appendf(*buf, " \u001B[%dm%s\u001B[0m", color, level)
 			}
 		case componentField:
+			// If a component is provided with the attributes, it should be used instead of
+			// the component set on the handler. Note that if there are multiple components
+			// specified in the arguments, the one with the lowest index is used and the others are ignored.
+			// In the example below, the resulting component in the message output would be "alpaca".
+			//
+			//	logger := logger.With(trace.Component, "fish")
+			//	logger.InfoContext(ctx, "llama llama llama", trace.Component, "alpaca", "foo", 123, trace.Component, "shark")
 			component := s.component
-			// If there is no component for the handler check if one was provided with
-			// the attributes of the log message. If one is found, use that instead of
-			// an empty string and abort processing the component later. Note that if
-			// there are multiple components specified, the first one with the lowest index
-			// is used and the others are ignored.
-			if component == "" {
-				r.Attrs(func(attr slog.Attr) bool {
-					if attr.Key == trace.Component {
-						component = fmt.Sprintf("[%v]", attr.Value)
-						component = strings.ToUpper(padMax(component, s.cfg.Padding))
-						if component[len(component)-1] != ' ' {
-							component = component[:len(component)-1] + "]"
-						}
-
-						return false
+			r.Attrs(func(attr slog.Attr) bool {
+				if attr.Key == trace.Component {
+					component = fmt.Sprintf("[%v]", attr.Value)
+					component = strings.ToUpper(padMax(component, s.cfg.Padding))
+					if component[len(component)-1] != ' ' {
+						component = component[:len(component)-1] + "]"
 					}
 
-					return true
-				})
-			}
+					return false
+				}
+
+				return true
+			})
 
 			*buf = s.appendAttr(*buf, slog.String(trace.Component, component))
 		default:
