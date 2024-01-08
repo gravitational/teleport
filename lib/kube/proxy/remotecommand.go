@@ -119,7 +119,11 @@ func upgradeRequestToRemoteCommandProxy(req remoteCommandRequest, exec func(*rem
 	if err := proxy.sendStatus(err); err != nil {
 		log.Warningf("Failed to send status: %v", err)
 	}
-	return nil, nil
+	// return rsp=nil, err=nil to indicate that the request has been handled
+	// by the hijacked connection. If we return an error, the request will be
+	// considered unhandled and the middleware will try to write the error
+	// or response into the hicjacked connection, which will fail.
+	return nil /* rsp */, nil /* err */
 }
 
 func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {

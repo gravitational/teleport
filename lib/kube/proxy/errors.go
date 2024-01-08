@@ -42,7 +42,7 @@ var sessionTerminatedByModeratorErr = &kubeerrors.StatusError{
 			Causes: []metav1.StatusCause{
 				{
 					Type:    metav1.CauseTypeForbidden,
-					Message: "Session terminated by moderator.",
+					Message: kubernetesSessionTerminatedByModerator,
 				},
 			},
 		},
@@ -56,5 +56,7 @@ func isSessionTerminatedError(err error) bool {
 	if err == nil {
 		return false
 	}
+	// This check is required because the error is wrapped into a new error string
+	// by StreamWithContext and we lose the type information.
 	return err.Error() == kubernetesSessionTerminatedByModerator
 }
