@@ -151,6 +151,16 @@ export interface DocumentGatewayKube extends DocumentBase {
   origin: DocumentOrigin;
 }
 
+export interface DocumentGatewayApp extends DocumentBase {
+  kind: 'doc.gateway_app';
+  targetUri: uri.AppUri;
+  port?: string;
+  gatewayUri?: uri.GatewayUri;
+  origin: DocumentOrigin;
+  // status is used merely to show a progress bar when the doc waits for the gateway to be created.
+  status: '' | 'connecting' | 'connected' | 'error';
+}
+
 export interface DocumentCluster extends DocumentBase {
   kind: 'doc.cluster';
   clusterUri: uri.ClusterUri;
@@ -223,7 +233,8 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer;
+  | DocumentConnectMyComputer
+  | DocumentGatewayApp;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

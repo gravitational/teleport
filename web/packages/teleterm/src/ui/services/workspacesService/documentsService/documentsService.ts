@@ -25,6 +25,7 @@ import {
   routing,
   RootClusterUri,
   KubeUri,
+  AppUri,
 } from 'teleterm/ui/uri';
 
 import {
@@ -43,6 +44,7 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
+  DocumentGatewayApp,
 } from './types';
 
 export class DocumentsService {
@@ -219,6 +221,32 @@ export class DocumentsService {
       targetUri,
       title: `${params.kubeId}`,
       origin,
+    };
+  }
+
+  createGatewayAppDocument({
+    targetUri,
+    origin,
+    port,
+    gatewayUri,
+  }: {
+    targetUri: AppUri;
+    origin: DocumentOrigin;
+    port?: string;
+    gatewayUri?: uri.GatewayUri;
+  }): DocumentGatewayApp {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseAppUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_app',
+      targetUri,
+      title: `${params.appId}`,
+      origin,
+      port,
+      gatewayUri,
+      status: '',
     };
   }
 
