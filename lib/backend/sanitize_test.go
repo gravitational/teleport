@@ -42,6 +42,54 @@ func TestSanitize(t *testing.T) {
 			assert: require.Error,
 		},
 		{
+			inKey:  []byte("/namespaces/.."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/../params"),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/..params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("/namespaces/."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/./params"),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("/namespaces/.params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte(".."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("..params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("../params"),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte("."),
+			assert: require.Error,
+		},
+		{
+			inKey:  []byte(".params"),
+			assert: require.NoError,
+		},
+		{
+			inKey:  []byte("./params"),
+			assert: require.Error,
+		},
+		{
 			inKey:  RangeEnd([]byte("a-b/c:d/.e_f/01")),
 			assert: require.NoError,
 		},

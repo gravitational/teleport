@@ -43,6 +43,12 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
+func init() {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p)
+	})
+}
+
 const (
 	// BackendName is the name of this backend.
 	BackendName = "sqlite"

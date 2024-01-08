@@ -87,11 +87,11 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
-	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/pgbk"
+	_ "github.com/gravitational/teleport/lib/backend/lite"
+	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -5443,32 +5443,15 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 }
 
 // initAuthStorage initializes the storage backend for the auth service.
-func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
+func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	ctx := context.TODO()
-	bc := &process.Config.Auth.StorageConfig
-	process.log.Debugf("Using %v backend.", bc.Type)
-	switch bc.Type {
-	// SQLite backend (or alt name dir).
-	case lite.GetName():
-		bk, err = lite.New(ctx, bc.Params)
-	// Firestore backend:
-	case firestore.GetName():
-		bk, err = firestore.New(ctx, bc.Params, firestore.Options{})
-	// DynamoDB backend.
-	case dynamo.GetName():
-		bk, err = dynamo.New(ctx, bc.Params)
-	// etcd backend.
-	case etcdbk.GetName():
-		bk, err = etcdbk.New(ctx, bc.Params)
-	// PostgreSQL backend
-	case pgbk.Name, pgbk.AltName:
-		bk, err = pgbk.NewFromParams(ctx, bc.Params)
-	default:
-		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
-	}
+	process.log.Debugf("Using %v backend.", process.Config.Auth.StorageConfig.Type)
+	bc := process.Config.Auth.StorageConfig
+	bk, err := backend.New(ctx, bc.Type, bc.Params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),

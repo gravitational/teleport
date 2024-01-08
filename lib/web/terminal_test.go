@@ -103,6 +103,7 @@ type connectConfig struct {
 	keepAliveInterval time.Duration
 	mfaCeremony       func(challenge client.MFAAuthenticateChallenge) []byte
 	handlers          map[string]WSHandlerFunc
+	pingHandler       func(WSConn, string) error
 }
 
 func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
@@ -159,6 +160,12 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 	}
 	if err := resp.Body.Close(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.pingHandler != nil {
+		ws.SetPingHandler(func(message string) error {
+			return cfg.pingHandler(ws, message)
+		})
 	}
 
 	t := &terminal{ws: ws, sessionC: make(chan session.Session, 1)}

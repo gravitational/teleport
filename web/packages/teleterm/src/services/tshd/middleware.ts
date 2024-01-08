@@ -128,7 +128,7 @@ export const withLogging = (logger: Logger): UnaryInterceptor => {
   };
 };
 
-function filterSensitiveProperties(toFilter: object): object {
+export function filterSensitiveProperties(toFilter: object): object {
   const acc = {};
   const transformer = (result: object, value: any, key: any) => {
     if (
