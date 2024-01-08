@@ -27,6 +27,15 @@ import {
 
 import { LabelTip, defaultRule } from './shared';
 
+/**
+ * Returns a styled SelectCreatable with label, input validation rule and error handling.
+ * @param {() => void} onChange - change handler.
+ * @param {defaultRule} rule - rules for the select component.
+ * @param {boolean} markAsError - manually mark the component as error.
+ * @param {string} placeholder - placeholder value.
+ * @param {string} formatCreateLabel - custom formatting for create label.
+ * @returns SelectCreatable
+ */
 export function FieldSelectCreatable({
   components,
   label,
