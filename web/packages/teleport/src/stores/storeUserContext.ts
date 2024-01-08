@@ -170,7 +170,7 @@ export default class StoreUserContext extends Store<UserContext> {
   // has access to a Support external link in the side menu.
   // This should only be displayed on `dashboards`.
   hasSupportPageLinkAccess() {
-    return cfg.isDashboard
+    return cfg.isDashboard;
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.
