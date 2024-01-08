@@ -162,7 +162,7 @@ export class TrackedConnectionOperationsFactory {
     connection: TrackedAppConnection
   ): TrackedConnectionOperations {
     const { rootClusterId, leafClusterId } = routing.parseAppUri(
-      connection.appUri
+      connection.targetUri
     ).params;
     const { rootClusterUri, leafClusterUri } = this.getClusterUris({
       rootClusterId,
@@ -182,7 +182,7 @@ export class TrackedConnectionOperationsFactory {
 
         if (!gwDoc) {
           gwDoc = documentsService.createGatewayAppDocument({
-            targetUri: connection.appUri,
+            targetUri: connection.targetUri,
             origin: params.origin,
             port: connection.port,
             gatewayUri: connection.gatewayUri,
@@ -193,7 +193,7 @@ export class TrackedConnectionOperationsFactory {
       },
       disconnect: async () => {
         return this._clustersService
-          .removeAppGateway(connection.appUri)
+          .removeGateway(connection.gatewayUri)
           .then(() => {
             documentsService
               .getDocuments()

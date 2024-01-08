@@ -185,7 +185,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         case 'connection.kube':
           return s.kubeUri === resourceUri;
         case 'connection.app':
-          return s.appUri === resourceUri;
+          return s.targetUri === resourceUri;
         default:
           return assertUnreachable(s);
       }
@@ -221,7 +221,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           }
           case 'connection.app': {
             i.connected = !!this._clusterService.findGatewayByConnectionParams(
-              i.appUri,
+              i.targetUri,
               ''
             );
             break;

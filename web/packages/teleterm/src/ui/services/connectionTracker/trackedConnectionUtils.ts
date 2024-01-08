@@ -66,7 +66,7 @@ export function getGatewayAppConnectionByDocument(
   document: DocumentGatewayApp
 ) {
   return (i: TrackedAppConnection) =>
-    i.kind === 'connection.app' && i.appUri === document.targetUri;
+    i.kind === 'connection.app' && i.targetUri === document.targetUri;
 }
 
 export function getGatewayDocumentByConnection(
@@ -105,7 +105,7 @@ export function getGatewayAppDocumentByConnection(
   connection: TrackedAppConnection
 ) {
   return (i: DocumentGatewayApp) =>
-    i.kind === 'doc.gateway_app' && i.targetUri === connection.appUri;
+    i.kind === 'doc.gateway_app' && i.targetUri === connection.targetUri;
 }
 
 export function createGatewayConnection(
@@ -171,7 +171,7 @@ export function createGatewayAppConnection(
     connected: true,
     id: unique(),
     title: document.title,
-    appUri: document.targetUri,
+    targetUri: document.targetUri,
     port: document.port,
     gatewayUri: document.gatewayUri,
   };

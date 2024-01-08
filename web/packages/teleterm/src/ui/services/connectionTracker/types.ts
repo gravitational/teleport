@@ -58,7 +58,7 @@ export interface TrackedKubeConnection extends TrackedConnectionBase {
 
 export interface TrackedAppConnection extends TrackedConnectionBase {
   kind: 'connection.app';
-  appUri: AppUri;
+  targetUri: AppUri;
   gatewayUri: GatewayUri;
   port?: string;
 }
