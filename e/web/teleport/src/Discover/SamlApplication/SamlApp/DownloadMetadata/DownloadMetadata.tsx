@@ -2,13 +2,12 @@ import React from 'react';
 import { Text, ButtonPrimary } from 'design';
 
 import cfg from 'teleport/config';
-
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
   HeaderSubtitle,
   Header,
-  StepBox,
   ActionButtons,
+  StyledBox,
 } from 'teleport/Discover/Shared';
 
 const idpMetadataUrl = cfg.baseUrl + '/enterprise/saml-idp/metadata';
@@ -37,7 +36,7 @@ export function DownloadMetadata({ prevStep, nextStep }: Props) {
 
 function StepOne() {
   return (
-    <StepBox mb={4}>
+    <StyledBox mb={4} padding={6}>
       <Text bold>Step 1</Text>
       <Text typography="subtitle1" mb={3}>
         Download Teleport's IdP metadata file.
@@ -45,13 +44,13 @@ function StepOne() {
       <ButtonPrimary as="a" href={idpMetadataUrl} mb={2}>
         Download Metadata
       </ButtonPrimary>
-    </StepBox>
+    </StyledBox>
   );
 }
 
 function StepTwo() {
   return (
-    <StepBox>
+    <StyledBox>
       <Text bold>Step 2</Text>
       <Text typography="subtitle1" mb={2}>
         Configure your service provider with the IdP metadata you just
@@ -60,7 +59,7 @@ function StepTwo() {
         button below.
         <br />
       </Text>
-    </StepBox>
+    </StyledBox>
   );
 }
 

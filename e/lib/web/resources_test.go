@@ -10,7 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -263,59 +262,109 @@ func TestSAMLConnector(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 
-func TestUpsertSAMLIdpServiceProvider(t *testing.T) {
+func TestUpsertSAMLIdpServiceProvider_InvalidInputs(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
-	existingServiceProviders := make(map[string]types.SAMLIdPServiceProvider)
-	m.mockCreateSAMLIdPServiceProvider = func(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-		existingServiceProviders[sp.GetName()] = sp
-		return nil
+	var testCases = []struct {
+		name             string
+		appName          string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		attributeMapping []*types.SAMLAttributeMapping
+		errVal           string
+	}{
+		{
+			name:             "missing app name",
+			appName:          "",
+			entityDescriptor: entityDescriptor,
+			entityID:         "",
+			acsURL:           "",
+			attributeMapping: []*types.SAMLAttributeMapping{},
+			errVal:           "missing parameter Name",
+		},
+		{
+			name:             "missing entity descriptor and entity ID",
+			appName:          "newSAMLApp",
+			entityDescriptor: "",
+			entityID:         "",
+			acsURL:           "https://example.com/saml/acs",
+			attributeMapping: []*types.SAMLAttributeMapping{},
+			errVal:           types.ErrEmptyEntityDescriptorAndEntityID.Message,
+		},
+		{
+			name:             "missing entity descriptor and ACS URL",
+			appName:          "newSAMLApp",
+			entityDescriptor: "",
+			entityID:         "https://example.com/saml/metadata",
+			acsURL:           "",
+			attributeMapping: []*types.SAMLAttributeMapping{},
+			errVal:           types.ErrEmptyEntityDescriptorAndACSURL.Message,
+		},
+		{
+			name:             "missing attribute name",
+			appName:          "newSAMLApp",
+			entityDescriptor: "",
+			entityID:         "https://example.com/saml/metadata",
+			acsURL:           "https://example.com/saml/metadata",
+			attributeMapping: []*types.SAMLAttributeMapping{{Name: "", NameFormat: "", Value: "user.spec.roles"}},
+			errVal:           "attribute name is required",
+		},
+		{
+			name:             "missing attribute value",
+			appName:          "newSAMLApp",
+			entityDescriptor: "",
+			entityID:         "https://example.com/saml/metadata",
+			acsURL:           "https://example.com/saml/metadata",
+			attributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: ""}},
+			errVal:           "attribute value is required",
+		},
+		{
+			name:             "duplicate attribute name and value",
+			appName:          "newSAMLApp",
+			entityDescriptor: "",
+			entityID:         "https://example.com/saml/metadata",
+			acsURL:           "https://example.com/saml/metadata",
+			attributeMapping: []*types.SAMLAttributeMapping{{Name: "roles", NameFormat: "", Value: "user.spec.roles"}, {Name: "roles", NameFormat: "", Value: "user.spec.roles"}},
+			errVal:           types.ErrDuplicateAttributeName.Message,
+		},
 	}
-	m.mockGetSAMLIdPServiceProvider = func(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-		sp, ok := existingServiceProviders[name]
-		if ok {
-			return sp, nil
-		}
-		return nil, trace.NotFound("")
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := upsertSAMLIdPServiceProvider(
+				context.Background(),
+				m,
+				enterpriseui.CreateSAMLIdPServiceProviderRequest{
+					Name:             tc.appName,
+					EntityDescriptor: tc.entityDescriptor,
+					EntityID:         tc.entityID,
+					ACSURL:           tc.acsURL,
+					AttributeMapping: tc.attributeMapping,
+				})
+			require.ErrorContains(t, err, tc.errVal)
+		})
 	}
-
-	// Test bad request.
-	invalidRequest := &enterpriseui.CreateSAMLIdPServiceProviderRequest{Name: "app_saml", EntityDescriptor: "<invalid xml"}
-
-	sp, err := upsertSAMLIdPServiceProvider(context.Background(), m, *invalidRequest, "", httprouter.Params{})
-	require.Nil(t, sp)
-	require.Error(t, err)
-
-	goodRequest := &enterpriseui.CreateSAMLIdPServiceProviderRequest{Name: "app_saml", EntityDescriptor: `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.739Z" entityID="https://test.com/saml/metadata">
-	<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.738823Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
-	 <KeyDescriptor use="encryption">
-		<KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
-		 <X509Data xmlns="http://www.w3.org/2000/09/xmldsig#">
-			<X509Certificate xmlns="http://www.w3.org/2000/09/xmldsig#">abcdefg</X509Certificate>
-		 </X509Data>
-		</KeyInfo>
-		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"></EncryptionMethod>
-		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc"></EncryptionMethod>
-		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"></EncryptionMethod>
-		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"></EncryptionMethod>
-	 </KeyDescriptor>
-	 <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
-	 <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://test.com/saml/acs" index="1"></AssertionConsumerService>
-	 <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://test.com/saml/acs" index="2"></AssertionConsumerService>
-	</SPSSODescriptor>
- </EntityDescriptor>`}
-
-	// Creating new service provider succeeds.
-	sp, err = upsertSAMLIdPServiceProvider(context.Background(), m, *goodRequest, "POST", httprouter.Params{})
-	require.NoError(t, err)
-	require.Contains(t, sp.Content, "entity_id: https://test.com/saml/metadata")
-
-	// Creating existing service provider fails.
-	sp, err = upsertSAMLIdPServiceProvider(context.Background(), m, *goodRequest, "POST", httprouter.Params{})
-	require.Nil(t, sp)
-	require.Error(t, err)
-	require.True(t, trace.IsAlreadyExists(err))
 }
+
+const entityDescriptor = `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.739Z" entityID="https://test.com/saml/metadata">
+<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.738823Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
+ <KeyDescriptor use="encryption">
+	<KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+	 <X509Data xmlns="http://www.w3.org/2000/09/xmldsig#">
+		<X509Certificate xmlns="http://www.w3.org/2000/09/xmldsig#">abcdefg</X509Certificate>
+	 </X509Data>
+	</KeyInfo>
+	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"></EncryptionMethod>
+	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc"></EncryptionMethod>
+	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"></EncryptionMethod>
+	<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"></EncryptionMethod>
+ </KeyDescriptor>
+ <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
+ <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://test.com/saml/acs" index="1"></AssertionConsumerService>
+ <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://test.com/saml/acs" index="2"></AssertionConsumerService>
+</SPSSODescriptor>
+</EntityDescriptor>`
 
 type mockedResourceAPIGetter struct {
 	mockGetGithubConnectors          func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)

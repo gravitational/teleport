@@ -1,45 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Box } from 'design';
-import { Danger } from 'design/Alert';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
-import FieldInput from 'shared/components/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import React from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { AgentMeta, useDiscover } from 'teleport/Discover/useDiscover';
-import {
-  HeaderSubtitle,
-  Header,
-  Mark,
-  ActionButtons,
-} from 'teleport/Discover/Shared';
+import { Mark } from 'teleport/Discover/Shared';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import { EntityDescriptorInput } from '../../SamlApp';
+import { ServiceProvider } from '../../SamlApp/AddServiceProvider';
+
+import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
 export function Container() {
   const { idpService } = useTeleportE();
   const { attempt, run } = useAttempt('');
   const { prevStep, nextStep, updateAgentMeta, agentMeta } = useDiscover();
 
-  function onSubmit(
-    validator: Validator,
-    name: string,
-    entityDescriptor: string
-  ) {
-    if (!validator.validate()) {
-      return;
-    }
-    run(() =>
-      idpService.createSamlIdpServiceProvider({ name, entityDescriptor })
-    );
-  }
+  const createSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
+    run(() => idpService.createSamlIdpServiceProvider(spConfig));
+  };
+
+  const header: React.ReactNode = 'Add Grafana SAML Configuration to Teleport';
+  const subtitle: React.ReactNode = (
+    <>
+      Enter a name for the integration and paste your Grafana host's entity
+      descriptor XML content. <br />
+      You can find your entity descriptor at{' '}
+      <Mark>https://{`<your-grafana-url>`}/saml/metadata</Mark>.
+    </>
+  );
 
   return (
-    <AddGrafanaSaml
+    <ServiceProvider
+      header={header}
+      subtitle={subtitle}
       attempt={attempt}
-      onSubmit={onSubmit}
+      createSP={createSP}
       prevStep={prevStep}
       nextStep={nextStep}
       updateAgentMeta={updateAgentMeta}
@@ -47,78 +42,3 @@ export function Container() {
     />
   );
 }
-
-export function AddGrafanaSaml({
-  attempt,
-  onSubmit,
-  agentMeta,
-  updateAgentMeta,
-  nextStep,
-  prevStep,
-}: Props) {
-  const [name, setName] = useState('');
-  const [entityDescriptor, setEntityDescriptor] = useState('');
-
-  useEffect(() => {
-    if (attempt.status === 'success') {
-      updateAgentMeta({ ...agentMeta, resourceName: name });
-      nextStep();
-    }
-  }, [attempt, nextStep]);
-
-  return (
-    <>
-      <Header>Add SAML for Grafana To Teleport</Header>
-      <HeaderSubtitle>
-        Enter a name for the integration and paste your Grafana host's entity
-        descriptor XML content. <br />
-        You can find your entity descriptor at{' '}
-        <Mark>https://{`<your-grafana-url>`}/saml/metadata</Mark>.
-      </HeaderSubtitle>
-      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      <Box maxWidth="800px">
-        <Validation>
-          {({ validator }) => (
-            <>
-              <FieldInput
-                mb={3}
-                rule={requiredField('Name is required')}
-                label="Name"
-                autoFocus
-                value={name}
-                placeholder="grafana_saml"
-                width="240px"
-                mr="3"
-                onChange={e => setName(e.target.value)}
-                disabled={attempt.status === 'processing'}
-              />
-              <EntityDescriptorInput
-                entityDescriptor={entityDescriptor}
-                setEntityDescriptor={setEntityDescriptor}
-              />
-              <ActionButtons
-                onProceed={() => onSubmit(validator, name, entityDescriptor)}
-                disableProceed={attempt.status === 'processing'}
-                onPrev={prevStep}
-                lastStep
-              />
-            </>
-          )}
-        </Validation>
-      </Box>
-    </>
-  );
-}
-
-export type Props = {
-  attempt: Attempt;
-  agentMeta: AgentMeta;
-  updateAgentMeta: (meta: AgentMeta) => void;
-  prevStep: () => void;
-  nextStep: () => void;
-  onSubmit: (
-    validator: Validator,
-    name: string,
-    entityDescriptor: string
-  ) => void;
-};

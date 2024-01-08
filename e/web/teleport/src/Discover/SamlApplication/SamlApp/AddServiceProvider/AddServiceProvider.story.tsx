@@ -3,10 +3,7 @@ import { MemoryRouter } from 'react-router';
 
 import { AgentMeta } from 'teleport/Discover/useDiscover';
 
-import {
-  AddServiceProvider as AddServiceProviderComponent,
-  Props,
-} from './AddServiceProvider';
+import { ServiceProvider, SPProps } from './AddServiceProvider';
 
 export default {
   title: 'TeleportE/Discover/SAML Application/AddServiceProvider',
@@ -15,7 +12,7 @@ export default {
 export const Default = () => {
   return (
     <MemoryRouter>
-      <AddServiceProviderComponent {...props} attempt={{ status: '' }} />
+      <ServiceProvider {...props} attempt={{ status: '' }} />
     </MemoryRouter>
   );
 };
@@ -23,10 +20,7 @@ export const Default = () => {
 export const Processing = () => {
   return (
     <MemoryRouter>
-      <AddServiceProviderComponent
-        {...props}
-        attempt={{ status: 'processing' }}
-      />
+      <ServiceProvider {...props} attempt={{ status: 'processing' }} />
     </MemoryRouter>
   );
 };
@@ -34,7 +28,7 @@ export const Processing = () => {
 export const Failed = () => {
   return (
     <MemoryRouter>
-      <AddServiceProviderComponent
+      <ServiceProvider
         {...props}
         attempt={{
           status: 'failed',
@@ -45,14 +39,17 @@ export const Failed = () => {
   );
 };
 
-const props: Props = {
+const props: SPProps = {
+  header: 'Add Service Provider To Teleport',
+  subtitle:
+    "Please refer to your Service Provider's documentation for instruction's on how to obtain the Entity ID and ACS URL.",
   attempt: { status: '' },
   agentMeta: {
     resourceName: 'SAML Application',
     agentMatcherLabels: [],
   } as AgentMeta,
   updateAgentMeta: () => null,
-  onSubmit: () => null,
+  createSP: () => null,
   nextStep: () => null,
   prevStep: () => null,
 };

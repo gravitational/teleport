@@ -1,44 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { Box, LabelInput, Flex } from 'design';
+import { Box, Text } from 'design';
 import { Danger } from 'design/Alert';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import useAttempt, { State as AttemptState } from 'shared/hooks/useAttemptNext';
 import FieldInput from 'shared/components/FieldInput';
-import Validation, { useRule, Validator } from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-
-import TextEditor from 'shared/components/TextEditor';
 
 import { AgentMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   HeaderSubtitle,
   Header,
   ActionButtons,
+  StyledBox,
 } from 'teleport/Discover/Shared';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+
+import { AddEntityDescriptor } from './EntityDescriptorEditor';
+import { AttributeMapping } from './AttributeMapping';
+
+import type {
+  AttributeMapping as AttributeMappingType,
+  CreateSamlIdpServiceProviderRequest,
+} from 'e-teleport/services/idp/types';
 
 export function Container() {
   const { idpService } = useTeleportE();
   const { attempt, run } = useAttempt('');
   const { prevStep, nextStep, updateAgentMeta, agentMeta } = useDiscover();
 
-  function onSubmit(
-    validator: Validator,
-    name: string,
-    entityDescriptor: string
-  ) {
-    if (!validator.validate()) {
-      return;
-    }
-    run(() =>
-      idpService.createSamlIdpServiceProvider({ name, entityDescriptor })
-    );
-  }
+  const createSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
+    run(() => idpService.createSamlIdpServiceProvider(spConfig));
+  };
+
+  const header: React.ReactNode = 'Add Service Provider To Teleport';
+  const subtitle: React.ReactNode =
+    "Please refer to your Service Provider's documentation for instruction's on how to obtain the Entity ID and ACS URL.";
 
   return (
-    <AddServiceProvider
+    <ServiceProvider
+      header={header}
+      subtitle={subtitle}
       attempt={attempt}
-      onSubmit={onSubmit}
+      createSP={createSP}
       prevStep={prevStep}
       nextStep={nextStep}
       updateAgentMeta={updateAgentMeta}
@@ -47,55 +51,128 @@ export function Container() {
   );
 }
 
-export function AddServiceProvider({
+/**
+ * ServiceProvider is used for adding a generic SAML app as well as specific ones such as Grafana SAML app.
+ */
+export function ServiceProvider({
+  header,
+  subtitle,
   attempt,
-  onSubmit,
+  createSP,
   agentMeta,
   updateAgentMeta,
   nextStep,
   prevStep,
-}: Props) {
-  const [name, setName] = useState('');
-  const [entityDescriptor, setEntityDescriptor] = useState('');
+}: SPProps) {
+  const [spConfig, setSPConfig] = useState<CreateSamlIdpServiceProviderRequest>(
+    {
+      name: '',
+      entityID: '',
+      acsURL: '',
+      entityDescriptor: '',
+      attributeMapping: [{ name: '', nameFormat: 'unspecified', value: '' }],
+    }
+  );
+
+  function validateAndSubmit(
+    validator: Validator,
+    spConfig: CreateSamlIdpServiceProviderRequest
+  ) {
+    const spConfigReq = structuredClone(spConfig);
+    if (!validator.validate()) {
+      return;
+    }
+
+    // One empty attribute mapping row is shown. Remove it from
+    // request if the values are still empty at this stage.
+    if (spConfigReq.attributeMapping.length === 1) {
+      if (
+        spConfigReq.attributeMapping[0].name.length === 0 &&
+        spConfigReq.attributeMapping[0].value.length === 0
+      ) {
+        spConfigReq.attributeMapping = [];
+      }
+    }
+
+    // set attribute mapping field error if either attribute name
+    // or value is set and the other is not provided.
+    for (const attribute of spConfigReq.attributeMapping) {
+      if (!checkAndSetAttrMapErr(attribute)) {
+        return;
+      }
+    }
+
+    createSP(spConfigReq);
+  }
+
+  // Only one parent field text is shown for each attribute mapping
+  // category(name, name format and value). Individual label field is
+  // not utilized so empty fields needs to be manually marked as error
+  // and LabelInput will be rendered at end of the field with error text.
+  const [attrMapErr, setAttrMapErr] = useState({
+    emptyName: false,
+    emptyValue: false,
+  });
+  function checkAndSetAttrMapErr(attribute: AttributeMappingType) {
+    if (attribute.name.length === 0) {
+      setAttrMapErr({ ...attrMapErr, emptyName: true });
+      return false;
+    }
+    if (attribute.value.length === 0) {
+      setAttrMapErr({ ...attrMapErr, emptyValue: true });
+      return false;
+    }
+    return true;
+  }
+
+  function addAttrMap() {
+    if (spConfig.attributeMapping.length > 0) {
+      const lastAttrMap =
+        spConfig.attributeMapping[spConfig.attributeMapping.length - 1];
+      if (!checkAndSetAttrMapErr(lastAttrMap)) {
+        return;
+      }
+    }
+    setSPConfig({
+      ...spConfig,
+      attributeMapping: [
+        ...spConfig.attributeMapping,
+        { name: '', nameFormat: 'unspecified', value: '' },
+      ],
+    });
+  }
 
   useEffect(() => {
     if (attempt.status === 'success') {
-      updateAgentMeta({ ...agentMeta, resourceName: name });
+      updateAgentMeta({ ...agentMeta, resourceName: spConfig.name });
       nextStep();
     }
   }, [attempt, nextStep]);
 
   return (
     <>
-      <Header>Add Your Service Provider To Teleport</Header>
-      <HeaderSubtitle>
-        Enter a name for the SAML integration and paste your service provider's
-        entity descriptor's XML content. Please refer to your service provider's
-        documentation for instructions on how to obtain the entity descriptor.
-      </HeaderSubtitle>
+      <Header>{header}</Header>
+      <HeaderSubtitle>{subtitle}</HeaderSubtitle>
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
       <Box maxWidth="800px">
         <Validation>
           {({ validator }) => (
             <>
-              <FieldInput
-                mb={3}
-                rule={requiredField('Name is required')}
-                label="Name"
-                autoFocus
-                value={name}
-                placeholder="app_saml"
-                width="240px"
-                mr="3"
-                onChange={e => setName(e.target.value)}
-                disabled={attempt.status === 'processing'}
+              <SAMLGeneralConfig
+                spConfig={spConfig}
+                setSPConfig={setSPConfig}
+                attempt={attempt}
               />
-              <EntityDescriptorInput
-                entityDescriptor={entityDescriptor}
-                setEntityDescriptor={setEntityDescriptor}
+              <AttributeMapping
+                spConfig={spConfig}
+                setSPConfig={setSPConfig}
+                attrMapErr={attrMapErr}
+                setAttrMapErr={setAttrMapErr}
+                addAttrMap={addAttrMap}
+                attempt={attempt}
               />
               <ActionButtons
-                onProceed={() => onSubmit(validator, name, entityDescriptor)}
+                onProceed={() => validateAndSubmit(validator, spConfig)}
                 disableProceed={attempt.status === 'processing'}
                 onPrev={prevStep}
                 lastStep
@@ -108,68 +185,77 @@ export function AddServiceProvider({
   );
 }
 
-export function EntityDescriptorInput({
-  entityDescriptor,
-  setEntityDescriptor,
-}: {
-  entityDescriptor: string;
-  setEntityDescriptor: (string) => void;
-}) {
-  const { valid, message } = useRule(
-    validateEntityDescriptor(entityDescriptor)
-  );
-  const hasError = !valid;
-  const labelText = hasError ? message : 'Entity Descriptor';
-
-  return (
-    <>
-      <LabelInput mt={3} hasError={hasError}>
-        {labelText}
-      </LabelInput>
-      <Flex
-        height="320px"
-        mt={2}
-        borderRadius={2}
-        border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.main' : 'levels.sunken'}
-      >
-        <TextEditor
-          readOnly={false}
-          bg="levels.deep"
-          data={[{ content: entityDescriptor }]}
-          onChange={setEntityDescriptor}
-        />
-      </Flex>
-    </>
-  );
-}
-
-const validateEntityDescriptor = (value: string) => () => {
-  if (!value) {
-    return {
-      valid: false,
-      message: 'Entity descriptor is required',
-    };
-  }
-  // Basic validation of the XML to make sure the entity descriptor starts with < and ends with >
-  if (!value.startsWith('<') || !value.endsWith('>')) {
-    return {
-      valid: false,
-      message: 'Entity descriptor XML is invalid',
-    };
-  }
-  return { valid: true };
-};
-
-export type Props = {
-  attempt: Attempt;
+export type SPProps = {
+  header: React.ReactNode;
+  subtitle: React.ReactNode;
+  attempt: AttemptState['attempt'];
+  createSP: (spConfig: CreateSamlIdpServiceProviderRequest) => void;
   agentMeta: AgentMeta;
   updateAgentMeta: (meta: AgentMeta) => void;
   prevStep: () => void;
   nextStep: () => void;
-  onSubmit: (
-    validator: Validator,
-    name: string,
-    entityDescriptor: string
-  ) => void;
+};
+
+export const ErrMissingEntityIDOrACSURL =
+  'Either Entity ID and ACS URL or Entity descriptor should be provided';
+
+export function SAMLGeneralConfig({
+  setSPConfig,
+  spConfig,
+  attempt,
+}: SAMLGeneralConfig) {
+  return (
+    <StyledBox>
+      <Text bold>Enter the SAML App Service Provider's Metadata</Text>
+      <FieldInput
+        mb={3}
+        rule={requiredField('Name is required')}
+        label="App Name"
+        autoFocus
+        value={spConfig.name}
+        placeholder="app_saml"
+        width="500px"
+        mr="3"
+        onChange={e => setSPConfig({ ...spConfig, name: e.target.value })}
+        disabled={attempt.status === 'processing'}
+      />
+      <FieldInput
+        mb={3}
+        rule={
+          !spConfig.entityDescriptor
+            ? requiredField(ErrMissingEntityIDOrACSURL)
+            : undefined
+        }
+        label="Entity ID"
+        value={spConfig.entityID}
+        placeholder="https://example.com/saml/metadata"
+        width="500px"
+        mr="3"
+        onChange={e => setSPConfig({ ...spConfig, entityID: e.target.value })}
+        disabled={attempt.status === 'processing'}
+      />
+      <FieldInput
+        mb={3}
+        rule={
+          !spConfig.entityDescriptor
+            ? requiredField(ErrMissingEntityIDOrACSURL)
+            : undefined
+        }
+        label="ACS URL"
+        value={spConfig.acsURL}
+        placeholder="https://example.com/saml/acs"
+        width="500px"
+        mr="3"
+        onChange={e => setSPConfig({ ...spConfig, acsURL: e.target.value })}
+        disabled={attempt.status === 'processing'}
+      />
+      <AddEntityDescriptor spConfig={spConfig} setSPConfig={setSPConfig} />
+    </StyledBox>
+  );
+}
+
+type SAMLGeneralConfig = {
+  setSPConfig: (CreateSamlIdpServiceProviderRequest) => void;
+  spConfig: CreateSamlIdpServiceProviderRequest;
+  attempt: AttemptState['attempt'];
 };

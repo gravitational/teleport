@@ -1,4 +1,6 @@
 export {
   Container as AddServiceProvider,
-  EntityDescriptorInput,
+  ServiceProvider,
 } from './AddServiceProvider';
+export { AddEntityDescriptor } from './EntityDescriptorEditor';
+export { AttributeMapping } from './AttributeMapping';

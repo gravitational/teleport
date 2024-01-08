@@ -141,7 +141,7 @@ func (p *Plugin) upsertSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	upsertedItem, err := upsertSAMLIdPServiceProvider(r.Context(), clt, req, r.Method, params)
+	upsertedItem, err := upsertSAMLIdPServiceProvider(r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,17 +149,21 @@ func (p *Plugin) upsertSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *ht
 	return upsertedItem, nil
 }
 
-func upsertSAMLIdPServiceProvider(ctx context.Context, clt resourcesAPIGetter, req enterpriseui.CreateSAMLIdPServiceProviderRequest, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
-	get := func(ctx context.Context, name string) (types.Resource, error) {
-		return clt.GetSAMLIdPServiceProvider(ctx, name)
+func upsertSAMLIdPServiceProvider(ctx context.Context, clt resourcesAPIGetter, req enterpriseui.CreateSAMLIdPServiceProviderRequest) (*ui.ResourceItem, error) {
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: req.Name,
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: req.EntityDescriptor,
+			EntityID:         req.EntityID,
+			ACSURL:           req.ACSURL,
+			AttributeMapping: req.AttributeMapping,
+		},
 	}
-
-	if err := web.CheckResourceUpsert(ctx, httpMethod, params, req.Name, get); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sp, err := services.GenerateIdPServiceProviderFromFields(req.Name, req.EntityDescriptor)
-	if err != nil {
+	if err := sp.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
