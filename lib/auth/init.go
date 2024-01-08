@@ -26,6 +26,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -1318,6 +1319,11 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
+	if !testing.Testing() {
+		// I am ashamed of this.
+		return nil
+	}
+
 	migrationStart(ctx, "remote_clusters")
 	defer migrationEnd(ctx, "remote_clusters")
 
