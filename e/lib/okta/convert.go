@@ -263,9 +263,10 @@ func makeUserConverter(clock clockwork.Clock, ssoConnectorID string, srcURL stri
 		}
 
 		newUser.SetStaticLabels(map[string]string{
-			types.OriginLabel:         types.OriginOkta,
-			eteleport.OktaOrgURLLabel: srcURL,
-			eteleport.OktaUserIDLabel: oktaUser.Id,
+			types.OriginLabel:             types.OriginOkta,
+			eteleport.OktaOrgURLLabel:     srcURL,
+			eteleport.OktaUserIDLabel:     oktaUser.Id,
+			eteleport.OktaUserStatusLabel: oktaUser.Status,
 		})
 		newUser.AddRole(teleport.PresetRequesterRoleName)
 

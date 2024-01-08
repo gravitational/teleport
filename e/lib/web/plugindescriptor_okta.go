@@ -77,9 +77,9 @@ func installOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		return nil, trace.Wrap(err)
 	}
 
-	logrus.Infof("Creating SSO Connection to %s", orgURL)
+	p.Log.Infof("Creating SSO Connection to %s", orgURL)
 	if err = createSSOConnector(ctx, sessCtx, orgURL.String(), apiToken); err != nil {
-		logrus.WithError(err).Errorf("Failed creating SSO connector.")
+		p.Log.WithError(err).Error("Failed creating SSO connector.")
 	}
 
 	return ui, nil

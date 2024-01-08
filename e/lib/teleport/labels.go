@@ -15,6 +15,12 @@ const (
 	// OktaUserIDLabel is the label for the Okta user ID on User objects.
 	OktaUserIDLabel = types.TeleportInternalLabelPrefix + "okta-user-id"
 
+	// OktaUserStatusLabel is the label for the Okta user status on User objects.
+	OktaUserStatusLabel = types.TeleportInternalLabelPrefix + "okta-user-status"
+
+	// OktaLockReasonLabel is the label for the lock reason on Lock objects.
+	OktaLockReasonLabel = types.TeleportInternalLabelPrefix + "okta-lock-reason"
+
 	// OktaAssignmentSourceLabel is the label for the source of the Okta assignment.
 	OktaAssignmentSourceLabel = types.TeleportInternalLabelPrefix + "source"
 
