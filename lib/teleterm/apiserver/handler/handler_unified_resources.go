@@ -82,6 +82,20 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 				},
 			})
 		}
+		if resource.App != nil {
+			response.Resources = append(response.Resources, &api.PaginatedResource{
+				Resource: &api.PaginatedResource_App{
+					App: newAPIApp(*resource.App),
+				},
+			})
+		}
+		if resource.SAMLIdPServiceProvider != nil {
+			response.Resources = append(response.Resources, &api.PaginatedResource{
+				Resource: &api.PaginatedResource_App{
+					App: newSAMLIdPServiceProviderAPIApp(*resource.SAMLIdPServiceProvider),
+				},
+			})
+		}
 	}
 
 	return &response, nil
