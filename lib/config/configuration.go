@@ -634,18 +634,22 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = os.Stdout
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
-		// TODO(tross): add slog support for syslog.
-		hook, err := utils.CreateSyslogHook()
+		w = os.Stderr
+		sw, err := utils.NewSyslogWriter()
 		if err != nil {
-			// syslog is not available
 			logger.Errorf("Failed to switch logging to syslog: %v.", err)
-			w = os.Stderr
 			break
 		}
+
+		hook, err := utils.NewSyslogHook(sw)
+		if err != nil {
+			logger.Errorf("Failed to switch logging to syslog: %v.", err)
+			break
+		}
+
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
-		// ... and disable stderr:
-		w = io.Discard
+		w = sw
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(loggerConfig.Output)
@@ -681,7 +685,12 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	sharedWriter := logutils.NewSharedWriter(w)
+	// If syslog output has been configured and is supported by the operating system,
+	// then the shared writer is not needed because the syslog writer is already
+	// protected with a mutex.
+	if len(logger.Hooks) == 0 {
+		w = logutils.NewSharedWriter(w)
+	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
@@ -697,10 +706,16 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
-		logger.SetOutput(sharedWriter)
 		logger.SetFormatter(formatter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
 
-		slogLogger = slog.New(logutils.NewSlogTextHandler(sharedWriter, logutils.SlogTextHandlerConfig{
+		slogLogger = slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
 			Level:            level,
 			EnableColors:     enableColors,
 			ConfiguredFields: configuredFields,
@@ -716,9 +731,15 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		}
 
 		logger.SetFormatter(formatter)
-		logger.SetOutput(sharedWriter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
 
-		slogLogger = slog.New(logutils.NewSlogJSONHandler(sharedWriter, logutils.SlogJSONHandlerConfig{
+		slogLogger = slog.New(logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
 			Level:            level,
 			ConfiguredFields: configuredFields,
 		}))

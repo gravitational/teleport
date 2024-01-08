@@ -19,16 +19,18 @@
 package utils
 
 import (
+	"io"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
-// SwitchLoggingToSyslog configures the default logger to send output to syslog.
-func SwitchLoggingToSyslog() error {
-	return trace.NotImplemented("cannot use syslog on Windows")
+// NewSyslogHook always returns an error on Windows.
+func NewSyslogHook(io.Writer) (logrus.Hook, error) {
+	return nil, trace.NotImplemented("cannot use syslog on Windows")
 }
 
-// CreateSyslogHook provides a [logrus.Hook] that sends output to syslog.
-func CreateSyslogHook() (logrus.Hook, error) {
+// NewSyslogWriter always returns an error on Windows.
+func NewSyslogWriter() (io.Writer, error) {
 	return nil, trace.NotImplemented("cannot use syslog on Windows")
 }
