@@ -71,7 +71,7 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
-##### Packages no longer published to legacy Debian and RPM repos
+#### Packages no longer published to legacy Debian and RPM repos
 
 `deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
 Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
@@ -149,6 +149,32 @@ naming scheme for these AMIs has been changed to include the architecture.
 
 - Previous naming scheme: `teleport-oss-14.0.0-$TIMESTAMP`
 - New naming scheme: `teleport-oss-15.0.0-x86_64-$TIMESTAMP`
+
+##### Legacy Amazon Linux 2 AMIs
+
+Teleport-provided Amazon Linux 2 AMIs were deprecated, and Teleport 14 is the
+last version to produce such legacy AMIs. With Teleport 15's release, only
+the newer hardened Amazon Linux 2023 AMIs will be produced.
+
+The legacy AMIs will continue to be published for Teleport 13 and 14 throughout
+the remainder of these releases' lifecycle.
+
+#### `windows_desktop_service` no longer writes to the NTAuth store
+
+In Teleport 15, the process that periodically publishes Teleport's user CA to
+the Windows NTAuth store has been removed. It is not necessary for Teleport to
+perform this step since it must be done by an administrator at installation
+time. As a result, Teleport's service account can use more restrictive
+permissions.
+
+#### Example AWS cluster deployments updated
+
+The AWS terraform examples for Teleport clusters have been updated to use the
+newer hardened Amazon Linux 2023 AMIs. Additionally, the default architecture
+and instance type has been changed to ARM64/Graviton.
+
+As a result of this modernization, the legacy monitoring stack configuration
+used with the legacy AMIs has been removed.
 
 ## 14.0.0 (09/20/23)
 

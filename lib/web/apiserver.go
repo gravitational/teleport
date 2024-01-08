@@ -717,8 +717,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
-	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
-	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
+	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
+
+	// DELETE in 16(zmb3): v15+ web UIs use new streaming 'ttyplayback' endpoint
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
 	// scp file transfer
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
@@ -741,6 +744,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
 	h.GET("/scripts/:token/install-database.sh", h.WithLimiter(h.getDatabaseJoinScriptHandle))
+
+	// Discovery installation script requires a query param to define the DiscoveryGroup:
+	// ?discoveryGroup=<group name>
+	h.GET("/scripts/:token/install-discovery.sh", h.WithLimiter(h.getDiscoveryJoinScriptHandle))
+
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
@@ -2932,7 +2940,7 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(&req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2980,8 +2988,8 @@ func (h *Handler) siteNodeConnect(
 	terminalConfig := TerminalHandlerConfig{
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
-		AuthProvider:       clt,
-		LocalAuthProvider:  h.auth.accessPoint,
+		UserAuthClient:     clt,
+		LocalAccessPoint:   h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  keepAliveInterval,
@@ -3012,11 +3020,11 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
+func (h *Handler) generateSession(req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
 	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	host, err := findByHost(ctx, clt, req.Server)
+	host, port, err := serverHostPort(req.Server)
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
 	}
@@ -3031,10 +3039,10 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	return session.Session{
 		Kind:           types.SSHSessionKind,
 		Login:          req.Login,
-		ServerID:       host.id,
+		ServerID:       host,
 		ClusterName:    clusterName,
-		ServerHostname: host.hostName,
-		ServerHostPort: host.port,
+		ServerHostname: host,
+		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
@@ -3091,35 +3099,6 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 	}
 
 	return hosts, nil
-}
-
-// findByHost return a host matching by the host name.
-func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
-	initialHost, initialPort, err := serverHostPort(serverName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-		Host: initialHost,
-		Port: strconv.Itoa(initialPort),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var host hostInfo
-	if len(rsp.Servers) == 1 {
-		host.hostName = rsp.Servers[0].GetHostname()
-		host.id = rsp.Servers[0].GetName()
-		host.port = 0
-	} else {
-		host.hostName = initialHost
-		host.id = initialHost
-		host.port = initialPort
-	}
-
-	return &host, nil
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
@@ -3441,6 +3420,8 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 // It returns the binary stream unencoded, directly in the respose body,
 // with Content-Type of application/octet-stream, gzipped with up to 95%
 // compression ratio.
+//
+// DELETE IN 16(zmb3)
 func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	httplib.SetNoCacheHeaders(w.Header())
 

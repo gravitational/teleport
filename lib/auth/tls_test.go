@@ -2850,7 +2850,10 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
 	})
 	require.NoError(t, err)
 
@@ -2862,32 +2865,69 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
-	require.NoError(t, err)
+	t.Run("Reset works when user exists", func(t *testing.T) {
+		_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
+		require.NoError(t, err)
 
-	token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
-		Name: username,
-		TTL:  time.Hour,
+		token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			Name: username,
+			TTL:  time.Hour,
+		})
+		require.NoError(t, err)
+
+		res, err := testSrv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:    token.GetName(),
+			DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		})
+		require.NoError(t, err)
+
+		_, registerSolved, err := NewTestDeviceFromChallenge(res)
+		require.NoError(t, err)
+
+		_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:                token.GetName(),
+			NewPassword:            []byte("qweqweqwe"),
+			NewMFARegisterResponse: registerSolved,
+		})
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
 
-	res, err := testSrv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		TokenID:    token.GetName(),
-		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	t.Run("Reset link not allowed when user does not exist", func(t *testing.T) {
+		var tokenID string
+		var resp *proto.MFARegisterResponse
+		for i := 0; i < 5; i++ {
+			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+				Name: username,
+				TTL:  time.Hour,
+			})
+			require.NoError(t, err)
+
+			res, err := testSrv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:    token.GetName(),
+				DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			})
+			require.NoError(t, err)
+
+			_, registerSolved, err := NewTestDeviceFromChallenge(res)
+			require.NoError(t, err)
+
+			tokenID = token.GetName()
+			resp = registerSolved
+		}
+
+		require.NoError(t, testSrv.Auth().DeleteUser(ctx, username))
+
+		_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:                tokenID,
+			NewPassword:            []byte("qweqweqwe"),
+			NewMFARegisterResponse: resp,
+		})
+		require.Error(t, err)
+
+		tokens, err := testSrv.Auth().GetUserTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, tokens)
 	})
-	require.NoError(t, err)
-
-	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), testSrv.Clock().Now())
-	require.NoError(t, err)
-
-	_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
-		NewPassword: []byte("qweqweqwe"),
-		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
-		}},
-	})
-	require.NoError(t, err)
 }
 
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
@@ -4015,7 +4055,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -4043,7 +4084,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -4164,7 +4206,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -4192,7 +4235,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -4222,7 +4266,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode},
 					JoinMethod: types.JoinMethodToken,

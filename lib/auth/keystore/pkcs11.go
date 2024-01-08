@@ -171,7 +171,11 @@ func (p *pkcs11KeyStore) generateRSA(ctx context.Context, options ...RSAKeyOptio
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
-func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	return p.getSignerWithoutPublicKey(ctx, rawKey)
+}
+
+func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
 		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())
 	}
@@ -260,7 +264,7 @@ func (p *pkcs11KeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// by FindKeyPairs below which queries by host UUID.
 			continue
 		}
-		signer, err := p.getSigner(ctx, activeKey)
+		signer, err := p.getSignerWithoutPublicKey(ctx, activeKey)
 		if trace.IsNotFound(err) {
 			// Failed to find a currently active key owned by this host.
 			// The cluster is in a bad state, refuse to delete any keys.
