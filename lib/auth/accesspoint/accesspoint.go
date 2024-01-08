@@ -23,12 +23,12 @@ package accesspoint
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
