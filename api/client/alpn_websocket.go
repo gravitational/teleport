@@ -73,7 +73,10 @@ func generateWebSocketChallengeKey() (string, error) {
 	return base64.StdEncoding.EncodeToString(p), nil
 }
 
-func checkWebSocketUpgradeResponse(resp *http.Response, challengeKey string) error {
+func checkWebSocketUpgradeResponse(resp *http.Response, alpnUpgradeType, challengeKey string) error {
+	if alpnUpgradeType != resp.Header.Get(websocketHeaderKeyProtocol) {
+		return trace.BadParameter("WebSocket handshake failed: Sec-WebSocket-Protocol does not match")
+	}
 	if computeWebSocketAcceptKey(challengeKey) != resp.Header.Get(websocketHeaderKeyAccept) {
 		return trace.BadParameter("WebSocket handshake failed: invalid Sec-WebSocket-Accept")
 	}

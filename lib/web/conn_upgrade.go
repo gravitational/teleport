@@ -245,6 +245,13 @@ func newWebSocketALPNServerConn(wsConn *websocket.Conn) *websocketALPNServerConn
 	}
 }
 
+func (c *websocketALPNServerConn) convertError(err error) error {
+	if isOKWebsocketCloseError(err) {
+		return io.EOF
+	}
+	return err
+}
+
 func (c *websocketALPNServerConn) Read(b []byte) (n int, err error) {
 	// Stop reading if any previous read err.
 	if c.readError != nil {
@@ -264,10 +271,7 @@ func (c *websocketALPNServerConn) Read(b []byte) (n int, err error) {
 	for {
 		messageType, data, err := c.ReadMessage()
 		if err != nil {
-			c.readError = err
-			if isOKWebsocketCloseError(c.readError) {
-				c.readError = io.EOF
-			}
+			c.readError = c.convertError(err)
 			return 0, trace.Wrap(c.readError)
 		}
 
@@ -285,10 +289,7 @@ func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-		if isOKWebsocketCloseError(err) {
-			err = io.EOF
-		}
-		return 0, trace.Wrap(err)
+		return 0, trace.Wrap(c.convertError(err))
 	}
 	return len(b), nil
 }
@@ -297,10 +298,7 @@ func (c *websocketALPNServerConn) WritePing() error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 	err := c.Conn.WriteMessage(websocket.PingMessage, nil)
-	if isOKWebsocketCloseError(err) {
-		err = io.EOF
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(c.convertError(err))
 }
 
 func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {

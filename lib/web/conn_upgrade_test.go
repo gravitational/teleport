@@ -89,39 +89,50 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	tests := []struct {
 		name                  string
 		inputRequest          *http.Request
-		inputUpgradeType      string
+		expectUpgradeType     string
 		checkHandlerError     func(error) bool
 		checkClientConnString func(*testing.T, net.Conn, string)
 	}{
 		{
 			name:              "unsupported type",
 			inputRequest:      makeConnUpgradeRequest(t, "", "unsupported-protocol", expectedIP),
-			inputUpgradeType:  "unsupported-protocol",
 			checkHandlerError: trace.IsNotFound,
 		},
 		{
 			name:                  "upgraded to ALPN (legacy)",
 			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPN, expectedIP),
-			inputUpgradeType:      constants.WebAPIConnUpgradeTypeALPN,
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
 			checkClientConnString: mustReadClientConnString,
 		},
 		{
 			name:                  "upgraded to ALPN with Ping (legacy)",
 			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPNPing, expectedIP),
-			inputUpgradeType:      constants.WebAPIConnUpgradeTypeALPNPing,
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPNPing,
 			checkClientConnString: mustReadClientPingConnString,
 		},
 		{
 			name:                  "upgraded to ALPN with Teleport-specific header",
 			inputRequest:          makeConnUpgradeRequest(t, constants.WebAPIConnUpgradeTeleportHeader, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
-			inputUpgradeType:      constants.WebAPIConnUpgradeTypeALPN,
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
 			checkClientConnString: mustReadClientConnString,
 		},
 		{
 			name:                  "upgraded to WebSocket",
 			inputRequest:          makeConnUpgradeWebSocketRequest(t, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
-			inputUpgradeType:      constants.WebAPIConnUpgradeTypeWebSocket,
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
 			checkClientConnString: mustReadClientWebSocketConnString,
+		},
+		{
+			name:                  "upgraded to WebSocket with ping",
+			inputRequest:          makeConnUpgradeWebSocketRequest(t, constants.WebAPIConnUpgradeTypeALPNPing, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
+			checkClientConnString: mustReadClientWebSocketConnString,
+		},
+		{
+			name:                  "unsupported WebSocket sub-protocol",
+			inputRequest:          makeConnUpgradeWebSocketRequest(t, "unsupported-protocol", expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
+			checkClientConnString: mustReadClientWebSocketClosed,
 		},
 	}
 
@@ -155,7 +166,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 				}
 
 			case <-w.hijackedCtx.Done():
-				mustReadSwitchProtocolsResponse(t, test.inputRequest, clientConn, test.inputUpgradeType)
+				mustReadSwitchProtocolsResponse(t, test.inputRequest, clientConn, test.expectUpgradeType)
 				test.checkClientConnString(t, clientConn, expectedPayload)
 
 			case <-time.After(5 * time.Second):
@@ -185,7 +196,11 @@ func makeConnUpgradeWebSocketRequest(t *testing.T, alpnUpgradeType, xForwardedFo
 	r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 	require.NoError(t, err)
 
+	// Append "legacy" upgrade. This tests whether the handler prefers "websocket".
+	r.Header.Add(constants.WebAPIConnUpgradeHeader, alpnUpgradeType)
 	r.Header.Add("X-Forwarded-For", xForwardedFor)
+
+	// Add WebSocket headers
 	r.Header.Add(constants.WebAPIConnUpgradeHeader, "websocket")
 	r.Header.Add(constants.WebAPIConnUpgradeConnectionHeader, "upgrade")
 	r.Header.Set("Sec-Websocket-Protocol", alpnUpgradeType)
@@ -243,6 +258,13 @@ func mustReadClientWebSocketConnString(t *testing.T, clientConn net.Conn, expect
 			require.Fail(t, "does not expect WebSocket frame %v", frame)
 		}
 	}
+}
+
+func mustReadClientWebSocketClosed(t *testing.T, clientConn net.Conn, expectedPayload string) {
+	t.Helper()
+
+	_, err := ws.ReadFrame(clientConn)
+	require.True(t, utils.IsOKNetworkError(err))
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a
