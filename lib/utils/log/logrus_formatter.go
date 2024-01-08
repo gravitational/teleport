@@ -95,7 +95,7 @@ func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 	return &TextFormatter{
 		ComponentPadding: trace.DefaultComponentPadding,
 		FormatCaller:     formatCallerWithPathAndLine,
-		ExtraFields:      knownFormatFieldNames,
+		ExtraFields:      defaultFormatFields,
 		EnableColors:     enableColors,
 		callerEnabled:    true,
 		timestampEnabled: false,
@@ -115,24 +115,18 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 	if tf.ExtraFields == nil {
 		tf.timestampEnabled = true
 		tf.callerEnabled = true
-		tf.ExtraFields = knownFormatFieldNames
+		tf.ExtraFields = defaultFormatFields
 		return nil
 	}
-	// parse input
-	res, err := parseInputFormat(tf.ExtraFields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	if slices.Contains(res, timestampField) {
+	if slices.Contains(tf.ExtraFields, timestampField) {
 		tf.timestampEnabled = true
 	}
 
-	if slices.Contains(res, callerField) {
+	if slices.Contains(tf.ExtraFields, callerField) {
 		tf.callerEnabled = true
 	}
 
-	tf.ExtraFields = res
 	return nil
 }
 
@@ -149,7 +143,7 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 	for _, field := range tf.ExtraFields {
 		switch field {
-		case "level":
+		case levelField:
 			var color int
 			var level string
 			switch e.Level {
@@ -181,7 +175,7 @@ func (tf *TextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 
 			w.writeField(padMax(level, trace.DefaultLevelPadding), color)
-		case "component":
+		case componentField:
 			padding := trace.DefaultComponentPadding
 			if tf.ComponentPadding != 0 {
 				padding = tf.ComponentPadding
@@ -230,6 +224,9 @@ type JSONFormatter struct {
 	logrus.JSONFormatter
 
 	ExtraFields []string
+	// FormatCaller is a function to return (part) of source file path for output.
+	// Defaults to filePathAndLine() if unspecified
+	FormatCaller func() (caller string)
 
 	callerEnabled    bool
 	componentEnabled bool
@@ -239,24 +236,16 @@ type JSONFormatter struct {
 func (j *JSONFormatter) CheckAndSetDefaults() error {
 	// set log formatting
 	if j.ExtraFields == nil {
-		j.ExtraFields = knownFormatFieldNames
+		j.ExtraFields = defaultFormatFields
 	}
+	// set caller
+	j.FormatCaller = formatCallerWithPathAndLine
 
-	// parse input
-	res, err := parseInputFormat(j.ExtraFields)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if slices.Contains(res, timestampField) {
-		j.JSONFormatter.DisableTimestamp = true
-	}
-
-	if slices.Contains(res, callerField) {
+	if slices.Contains(j.ExtraFields, callerField) {
 		j.callerEnabled = true
 	}
 
-	if slices.Contains(res, componentField) {
+	if slices.Contains(j.ExtraFields, componentField) {
 		j.componentEnabled = true
 	}
 
@@ -267,6 +256,7 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 			logrus.FieldKeyLevel: levelField,
 			logrus.FieldKeyMsg:   messageField,
 		},
+		DisableTimestamp: !slices.Contains(j.ExtraFields, timestampField),
 	}
 
 	return nil
@@ -275,7 +265,7 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 // Format formats each log line as configured in teleport config file.
 func (j *JSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	if j.callerEnabled {
-		path := formatCallerWithPathAndLine()
+		path := j.FormatCaller()
 		e.Data[callerField] = path
 	}
 
@@ -460,7 +450,7 @@ func frameToTrace(frame runtime.Frame) trace.Trace {
 	}
 }
 
-var knownFormatFieldNames = []string{levelField, componentField, callerField, timestampField}
+var defaultFormatFields = []string{levelField, componentField, callerField, timestampField}
 
 var knownFormatFields = map[string]struct{}{
 	levelField:     {},
@@ -469,7 +459,7 @@ var knownFormatFields = map[string]struct{}{
 	timestampField: {},
 }
 
-func parseInputFormat(formatInput []string) (result []string, err error) {
+func ValidateFields(formatInput []string) (result []string, err error) {
 	for _, component := range formatInput {
 		component = strings.TrimSpace(component)
 		if _, ok := knownFormatFields[component]; !ok {
