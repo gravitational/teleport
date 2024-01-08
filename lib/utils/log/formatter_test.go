@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package log
 
@@ -22,15 +26,18 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,16 +71,10 @@ func (a fakeAddr) String() string {
 }
 
 func TestOutput(t *testing.T) {
-	// Set a specific time zone so that the regex doesn't have to match
-	// against any possible timezone. Note this mucks around with the global
-	// time zone which prevents running this test in parallel.
 	loc, err := time.LoadLocation("Africa/Cairo")
 	require.NoError(t, err, "failed getting timezone")
-	oldLoc := time.Local
-	time.Local = loc
-	t.Cleanup(func() {
-		time.Local = oldLoc
-	})
+	clock := clockwork.NewFakeClockAt(time.Now().In(loc))
+	formattedNow := clock.Now().UTC().Format(time.RFC3339)
 
 	t.Run("text", func(t *testing.T) {
 		// fieldsRegex matches all the key value pairs emitted after the message and before the caller. All fields are
@@ -85,7 +86,7 @@ func TestOutput(t *testing.T) {
 		// 2) the message
 		// 3) the fields
 		// 4) the caller
-		outputRegex := regexp.MustCompile("(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+\\d{2}:\\d{2})(\\s+.*)(\".*diag_addr`\\.\")(.*)(\\slog/formatter_test.go:\\d{3})")
+		outputRegex := regexp.MustCompile("(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z)(\\s+.*)(\".*diag_addr`\\.\")(.*)(\\slog/formatter_test.go:\\d{3})")
 
 		tests := []struct {
 			name        string
@@ -137,14 +138,19 @@ func TestOutput(t *testing.T) {
 				logrusLogger.SetOutput(&logrusOutput)
 				logrusLogger.ReplaceHooks(logrus.LevelHooks{})
 				logrusLogger.SetLevel(test.logrusLevel)
-				entry := logrusLogger.WithField(trace.Component, "test")
+				entry := logrusLogger.WithField(trace.Component, "test").WithTime(clock.Now().UTC())
 
 				// Create a slog logger using the custom handler which outputs to a local buffer.
 				var slogOutput bytes.Buffer
-				slogConfig := &SlogTextHandlerConfig{
+				slogConfig := SlogTextHandlerConfig{
 					Level:        test.slogLevel,
 					EnableColors: true,
-					WithCaller:   true,
+					ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+						if a.Key == slog.TimeKey {
+							a.Value = slog.StringValue(formattedNow)
+						}
+						return a
+					},
 				}
 				slogLogger := slog.New(NewSlogTextHandler(&slogOutput, slogConfig)).With(trace.Component, "test")
 
@@ -176,7 +182,7 @@ func TestOutput(t *testing.T) {
 				slogTime, err := time.Parse(time.RFC3339, slogMatches[1])
 				assert.NoError(t, err, "invalid slog timestamp found %s", slogMatches[1])
 
-				assert.InDelta(t, logrusTime.UnixNano(), slogTime.UnixNano(), 10)
+				assert.InDelta(t, logrusTime.Unix(), slogTime.Unix(), 10)
 
 				// Match level, and component: DEBU [TEST]
 				assert.Empty(t, cmp.Diff(logrusMatches[2], slogMatches[2]), "level, and component to be identical")
@@ -265,7 +271,7 @@ func TestOutput(t *testing.T) {
 
 				// Create a slog logger using the custom formatter which outputs to a local buffer.
 				var slogOutput bytes.Buffer
-				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, test.slogLevel)).With(trace.Component, "test")
+				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{Level: test.slogLevel})).With(trace.Component, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", logErr)
@@ -314,7 +320,7 @@ func TestOutput(t *testing.T) {
 				slogTime, err := time.Parse(time.RFC3339, slogTimestamp)
 				assert.NoError(t, err, "invalid slog timestamp %s", slogTimestamp)
 
-				assert.InDelta(t, logrusTime.UnixNano(), slogTime.UnixNano(), 10)
+				assert.InDelta(t, logrusTime.Unix(), slogTime.Unix(), 10)
 
 				require.Empty(t,
 					cmp.Diff(
@@ -338,6 +344,7 @@ func getCallerLineNumber() int {
 }
 
 func BenchmarkFormatter(b *testing.B) {
+	ctx := context.Background()
 	b.ReportAllocs()
 	b.Run("logrus", func(b *testing.B) {
 		b.Run("text", func(b *testing.B) {
@@ -346,7 +353,6 @@ func BenchmarkFormatter(b *testing.B) {
 			logger := logrus.New()
 			logger.SetFormatter(formatter)
 			logger.SetOutput(io.Discard)
-			logger.ReplaceHooks(logrus.LevelHooks{})
 			b.ResetTimer()
 
 			entry := logger.WithField(trace.Component, "test")
@@ -376,50 +382,253 @@ func BenchmarkFormatter(b *testing.B) {
 	b.Run("slog", func(b *testing.B) {
 		b.Run("default_text", func(b *testing.B) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
-				AddSource:   true,
-				Level:       slog.LevelDebug,
-				ReplaceAttr: nil,
+				AddSource: true,
+				Level:     slog.LevelDebug,
 			})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("text", func(b *testing.B) {
-			logger := slog.New(NewSlogTextHandler(io.Discard, &SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(trace.Component, "test")
+			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("default_json", func(b *testing.B) {
 			logger := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{
-				AddSource:   true,
-				Level:       slog.LevelDebug,
-				ReplaceAttr: nil,
+				AddSource: true,
+				Level:     slog.LevelDebug,
 			})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 
 		b.Run("json", func(b *testing.B) {
-			logger := slog.New(NewSlogJSONHandler(io.Discard, slog.LevelDebug)).With(trace.Component, "test")
+			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
-				l.With(trace.ComponentFields, fields).Info(message, "diag_addr", &addr)
+				l.With(trace.ComponentFields, fields).InfoContext(ctx, message, "diag_addr", &addr)
 			}
 		})
 	})
+}
+
+func TestConcurrentOutput(t *testing.T) {
+	t.Run("logrus", func(t *testing.T) {
+		debugFormatter := NewDefaultTextFormatter(true)
+		require.NoError(t, debugFormatter.CheckAndSetDefaults())
+		logrus.SetFormatter(debugFormatter)
+		logrus.SetOutput(os.Stdout)
+
+		logger := logrus.WithField(trace.Component, "test")
+
+		var wg sync.WaitGroup
+		for i := 0; i < 1000; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				logger.Infof("Detected Teleport component %d is running in a degraded state.", i)
+			}(i)
+		}
+		wg.Wait()
+	})
+
+	t.Run("slog", func(t *testing.T) {
+		logger := slog.New(NewSlogTextHandler(os.Stdout, SlogTextHandlerConfig{
+			EnableColors: true,
+		})).With(trace.Component, "test")
+
+		var wg sync.WaitGroup
+		ctx := context.Background()
+		for i := 0; i < 1000; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				logger.InfoContext(ctx, "Teleport component entered degraded state", "component", i)
+			}(i)
+		}
+		wg.Wait()
+	})
+}
+
+// allPossibleSubsets returns all combinations of subsets for the
+// provided slice, including the nil/empty set.
+func allPossibleSubsets(in []string) [][]string {
+	// include the empty set in the output
+	subsets := [][]string{nil}
+	length := len(in)
+
+	for subsetBits := 1; subsetBits < (1 << length); subsetBits++ {
+		var subset []string
+
+		for object := 0; object < length; object++ {
+			if (subsetBits>>object)&1 == 1 {
+				subset = append(subset, in[object])
+			}
+		}
+		subsets = append(subsets, subset)
+	}
+	return subsets
+}
+
+// TestExtraFields validates that the output is identical for the
+// logrus formatter and slog handler based on the configured extra
+// fields.
+func TestExtraFields(t *testing.T) {
+	// Capture a fake time that all output will use.
+	now := clockwork.NewFakeClock().Now()
+
+	// Capture the caller information to be injected into all messages.
+	pc, _, _, _ := runtime.Caller(0)
+	fs := runtime.CallersFrames([]uintptr{pc})
+	f, _ := fs.Next()
+	callerTrace := &trace.Trace{
+		Func: f.Function,
+		Path: f.File,
+		Line: f.Line,
+	}
+
+	const message = "testing 123"
+
+	// Test against every possible configured combination of allowed format fields.
+	fields := allPossibleSubsets(defaultFormatFields)
+
+	t.Run("text", func(t *testing.T) {
+		for _, configuredFields := range fields {
+			name := "not configured"
+			if len(configuredFields) > 0 {
+				name = strings.Join(configuredFields, " ")
+			}
+
+			t.Run(name, func(t *testing.T) {
+				logrusFormatter := TextFormatter{
+					ExtraFields: configuredFields,
+				}
+				// Call CheckAndSetDefaults to exercise the extra fields logic. Since
+				// FormatCaller is always overridden within CheckAndSetDefaults, it is
+				// explicitly set afterward so the caller points to our fake call site.
+				require.NoError(t, logrusFormatter.CheckAndSetDefaults())
+				logrusFormatter.FormatCaller = callerTrace.String
+
+				var slogOutput bytes.Buffer
+				var slogHandler slog.Handler = NewSlogTextHandler(&slogOutput, SlogTextHandlerConfig{ConfiguredFields: configuredFields})
+
+				entry := &logrus.Entry{
+					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", trace.Component: "test"},
+					Time:    now,
+					Level:   logrus.DebugLevel,
+					Caller:  &f,
+					Message: message,
+				}
+
+				logrusOut, err := logrusFormatter.Format(entry)
+				require.NoError(t, err)
+
+				record := slog.Record{
+					Time:    now,
+					Message: message,
+					Level:   slog.LevelDebug,
+					PC:      pc,
+				}
+
+				record.AddAttrs(slog.String(trace.Component, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
+
+				require.NoError(t, slogHandler.Handle(context.Background(), record))
+
+				require.Equal(t, string(logrusOut), slogOutput.String())
+			})
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		for _, configuredFields := range fields {
+			name := "not configured"
+			if len(configuredFields) > 0 {
+				name = strings.Join(configuredFields, " ")
+			}
+
+			t.Run(name, func(t *testing.T) {
+				logrusFormatter := JSONFormatter{
+					ExtraFields: configuredFields,
+				}
+				// Call CheckAndSetDefaults to exercise the extra fields logic. Since
+				// FormatCaller is always overridden within CheckAndSetDefaults, it is
+				// explicitly set afterward so the caller points to our fake call site.
+				require.NoError(t, logrusFormatter.CheckAndSetDefaults())
+				logrusFormatter.FormatCaller = callerTrace.String
+
+				var slogOutput bytes.Buffer
+				var slogHandler slog.Handler = NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{ConfiguredFields: configuredFields})
+
+				entry := &logrus.Entry{
+					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", trace.Component: "test"},
+					Time:    now,
+					Level:   logrus.DebugLevel,
+					Caller:  &f,
+					Message: message,
+				}
+
+				logrusOut, err := logrusFormatter.Format(entry)
+				require.NoError(t, err)
+
+				record := slog.Record{
+					Time:    now,
+					Message: message,
+					Level:   slog.LevelDebug,
+					PC:      pc,
+				}
+
+				record.AddAttrs(slog.String(trace.Component, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
+
+				require.NoError(t, slogHandler.Handle(context.Background(), record))
+
+				var slogData, logrusData map[string]any
+				require.NoError(t, json.Unmarshal(logrusOut, &logrusData))
+				require.NoError(t, json.Unmarshal(slogOutput.Bytes(), &slogData))
+
+				require.Equal(t, slogData, logrusData)
+			})
+		}
+	})
+}
+
+func TestValidateFields(t *testing.T) {
+	tests := []struct {
+		comment     string
+		extraFields []string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			comment:     "invalid key (does not exist)",
+			extraFields: []string{levelField, "invalid key"},
+			assertErr:   require.Error,
+		},
+		{
+			comment:     "valid keys",
+			extraFields: defaultFormatFields,
+			assertErr:   require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			_, err := ValidateFields(tt.extraFields)
+			tt.assertErr(t, err)
+		})
+	}
 }

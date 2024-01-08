@@ -676,6 +676,11 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
+	configuredFields, err := logutils.ValidateFields(loggerConfig.Format.ExtraFields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	sharedWriter := logutils.NewSharedWriter(w)
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
@@ -684,7 +689,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "text":
 		enableColors := trace.IsTerminal(os.Stderr)
 		formatter := &logutils.TextFormatter{
-			ExtraFields:  loggerConfig.Format.ExtraFields,
+			ExtraFields:  configuredFields,
 			EnableColors: enableColors,
 		}
 
@@ -695,15 +700,15 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		logger.SetOutput(sharedWriter)
 		logger.SetFormatter(formatter)
 
-		slogLogger = slog.New(logutils.NewSlogTextHandler(sharedWriter, &logutils.SlogTextHandlerConfig{
-			Level:        level,
-			EnableColors: enableColors,
-			WithCaller:   true,
+		slogLogger = slog.New(logutils.NewSlogTextHandler(sharedWriter, logutils.SlogTextHandlerConfig{
+			Level:            level,
+			EnableColors:     enableColors,
+			ConfiguredFields: configuredFields,
 		}))
 		slog.SetDefault(slogLogger)
 	case "json":
 		formatter := &logutils.JSONFormatter{
-			ExtraFields: loggerConfig.Format.ExtraFields,
+			ExtraFields: configuredFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -713,7 +718,10 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		logger.SetFormatter(formatter)
 		logger.SetOutput(sharedWriter)
 
-		slogLogger = slog.New(logutils.NewSlogJSONHandler(sharedWriter, level))
+		slogLogger = slog.New(logutils.NewSlogJSONHandler(sharedWriter, logutils.SlogJSONHandlerConfig{
+			Level:            level,
+			ConfiguredFields: configuredFields,
+		}))
 		slog.SetDefault(slogLogger)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
