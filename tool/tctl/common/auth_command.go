@@ -763,8 +763,8 @@ Scylla version 5.4.0), add the following to your scylla.yaml configuration file:
 
 authenticator: com.scylladb.auth.CertificateAuthenticator
 auth_certificate_role_queries:
-- source: SUBJECT
-  query: CN=([^,\s]+)
+    - source: SUBJECT
+      query: CN=([^,\s]+)
 `))
 )
 
