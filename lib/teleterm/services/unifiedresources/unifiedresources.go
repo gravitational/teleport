@@ -90,17 +90,19 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 			})
 		case *proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider:
 			if e.AppServerOrSAMLIdPServiceProvider.IsAppServer() {
+				app := e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp()
 				response.Resources = append(response.Resources, UnifiedResource{
 					App: &clusters.App{
-						URI: cluster.URI.AppendApp(e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp().GetName()),
-						App: e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp(),
+						URI: cluster.URI.AppendApp(app.GetName()),
+						App: app,
 					},
 				})
 			} else {
+				provider := e.AppServerOrSAMLIdPServiceProvider.GetSAMLIdPServiceProvider()
 				response.Resources = append(response.Resources, UnifiedResource{
 					SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-						URI:      cluster.URI.AppendApp(e.AppServerOrSAMLIdPServiceProvider.GetSAMLIdPServiceProvider().GetName()),
-						Provider: e.AppServerOrSAMLIdPServiceProvider.GetSAMLIdPServiceProvider(),
+						URI:      cluster.URI.AppendApp(provider.GetName()),
+						Provider: provider,
 					},
 				})
 			}
