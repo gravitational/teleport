@@ -364,6 +364,9 @@ func newTLSRoutingWithConnUpgradeDialer(ssh ssh.ClientConfig, params connectPara
 			},
 			ALPNConnUpgradeRequired: IsALPNConnUpgradeRequired(ctx, params.addr, insecure),
 			GetClusterCAs: func(_ context.Context) (*x509.CertPool, error) {
+				// TODO(noah): there's potentially a bug here when multiple
+				// credentials have been configured as the CAs are always
+				// retrieved from the first credential.
 				tlsConfig, err := params.cfg.Credentials[0].TLSConfig()
 				if err != nil {
 					return nil, trace.Wrap(err)
