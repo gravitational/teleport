@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/mfa"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -39,15 +40,17 @@ type CreateGatewayParams struct {
 	// name on a database server.
 	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort        string
-	TCPPortAllocator gateway.TCPPortAllocator
-	OnExpiredCert    gateway.OnExpiredCertFunc
-	KubeconfigsDir   string
-	MFAPrompt        mfa.Prompt
+	LocalPort            string
+	TCPPortAllocator     gateway.TCPPortAllocator
+	OnExpiredCert        gateway.OnExpiredCertFunc
+	KubeconfigsDir       string
+	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 }
 
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
+	c.clusterClient.MFAPromptConstructor = params.MFAPromptConstructor
+
 	switch {
 	case params.TargetURI.IsDB():
 		gateway, err := c.createDBGateway(ctx, params)
@@ -118,7 +121,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 	var err error
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueKubeCert(ctx, kube, params.MFAPrompt)
+		cert, err = c.reissueKubeCert(ctx, kube)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -150,7 +153,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 // At the moment, kube gateways reload their certs in memory while db gateways use the old approach
 // of saving a cert to disk and only then loading it to memory.
 // TODO(ravicious): Refactor db gateways to reload cert in memory and support MFA.
-func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway, mfaPrompt mfa.Prompt) (tls.Certificate, error) {
+func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	switch {
 	case g.TargetURI().IsDB():
 		db, err := gateway.AsDatabase(g)
@@ -172,7 +175,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway, mf
 		// from ReissueGatewayCerts, at least not until we add support for MFA to them.
 		return tls.Certificate{}, nil
 	case g.TargetURI().IsKube():
-		cert, err := c.reissueKubeCert(ctx, g.TargetName(), mfaPrompt)
+		cert, err := c.reissueKubeCert(ctx, g.TargetName())
 		return cert, trace.Wrap(err)
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())

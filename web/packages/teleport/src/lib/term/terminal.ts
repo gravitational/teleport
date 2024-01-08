@@ -158,7 +158,11 @@ export default class TtyTerminal {
   _processData(data) {
     try {
       this.tty.pauseFlow();
-      this.term.write(data, () => this.tty.resumeFlow());
+
+      // during a live session, data is emitted as a string.
+      // during playback, data from the websocket comes over as a DataView
+      const d: any = typeof data === 'string' ? data : new Uint8Array(data);
+      this.term.write(d, () => this.tty.resumeFlow());
     } catch (err) {
       logger.error('xterm.write', data, err);
       // recover xtermjs by resetting it

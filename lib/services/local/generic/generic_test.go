@@ -129,17 +129,21 @@ func TestGenericCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Create both resources.
-	err = service.CreateResource(ctx, r1)
+	r1, err = service.CreateResource(ctx, r1)
 	require.NoError(t, err)
-	err = service.CreateResource(ctx, r2)
+	r2, err = service.CreateResource(ctx, r2)
 	require.NoError(t, err)
+
+	require.NotEmpty(t, r1.GetRevision())
+	require.NotEmpty(t, r2.GetRevision())
+	require.NotEqual(t, r1.GetRevision(), r2.GetRevision())
 
 	// Fetch all resources using paging default.
 	out, nextToken, err = service.ListResources(ctx, 0, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Fetch a paginated list of resources.
@@ -158,21 +162,21 @@ func TestGenericCRUD(t *testing.T) {
 
 	require.Equal(t, 2, numPages)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, paginatedOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Fetch a list of all resources
 	allResources, err := service.GetResources(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(paginatedOut, allResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r2, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Try to fetch a resource that doesn't exist.
@@ -180,22 +184,22 @@ func TestGenericCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Try to create the same resource.
-	err = service.CreateResource(ctx, r1)
+	_, err = service.CreateResource(ctx, r1)
 	require.ErrorIs(t, err, trace.AlreadyExists(`generic resource "r1" already exists`))
 
 	// Update a resource.
 	r1.SetStaticLabels(map[string]string{"newlabel": "newvalue"})
-	err = service.UpdateResource(ctx, r1)
+	r1, err = service.UpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource("doesnotexist")
-	err = service.UpdateResource(ctx, doesNotExist)
+	_, err = service.UpdateResource(ctx, doesNotExist)
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Delete a resource.
@@ -205,41 +209,42 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Upsert a resource (create).
-	err = service.UpsertResource(ctx, r1)
+	r1, err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Upsert a resource (update).
 	r1.SetStaticLabels(map[string]string{"newerlabel": "newervalue"})
-	err = service.UpsertResource(ctx, r1)
+	r1, err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Update and swap a value
-	require.NoError(t, service.UpdateAndSwapResource(ctx, r2.GetName(), func(tr *testResource) error {
+	r2, err = service.UpdateAndSwapResource(ctx, r2.GetName(), func(tr *testResource) error {
 		tr.SetStaticLabels(map[string]string{"updateandswap": "labelvalue"})
 		return nil
-	}))
+	})
+	require.NoError(t, err)
 	r2.SetStaticLabels(map[string]string{"updateandswap": "labelvalue"})
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
 	// Try to delete a resource that doesn't exist.
@@ -251,10 +256,10 @@ func TestGenericCRUD(t *testing.T) {
 		item, err := backend.Get(ctx, service.MakeKey(r1.GetName()))
 		require.NoError(t, err)
 
-		r, err = unmarshalResource(item.Value)
+		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r1, r,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 
 		return nil

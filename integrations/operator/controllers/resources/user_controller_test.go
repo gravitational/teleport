@@ -40,6 +40,7 @@ import (
 	v2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 const teleportUserKind = "TeleportUser"
@@ -410,9 +411,10 @@ func getUserStatusConditionError(object map[string]interface{}) []metav1.Conditi
 }
 
 func compareRoles(expected, actual []string) bool {
+	opts := testlib.CompareOptions(cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 	return cmp.Diff(
 		expected,
 		actual,
-		cmpopts.SortSlices(func(a, b string) bool { return a < b }),
+		opts...,
 	) == ""
 }

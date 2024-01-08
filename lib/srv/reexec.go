@@ -995,7 +995,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// build env for `teleport exec`
 	env := &envutils.SafeEnv{}
-	env.AddFullTrusted(cmdmsg.Environment...)
 	env.AddExecEnvironment()
 
 	// Build the "teleport exec" command.

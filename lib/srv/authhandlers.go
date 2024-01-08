@@ -206,6 +206,9 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if _, ok := certificate.Extensions[teleport.CertExtensionRenewable]; ok {
 		identity.Renewable = true
 	}
+	if botName, ok := certificate.Extensions[teleport.CertExtensionBotName]; ok {
+		identity.BotName = botName
+	}
 	if generationStr, ok := certificate.Extensions[teleport.CertExtensionGeneration]; ok {
 		generation, err := strconv.ParseUint(generationStr, 10, 64)
 		if err != nil {

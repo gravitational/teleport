@@ -11,8 +11,8 @@ IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 # BPF support will only be built into Teleport if headers exist at build time.
 BPF_MESSAGE := without-BPF-support
 
-# We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
-# have compilation issues that require fixing.
+# We don't compile BPF for anything except linux/amd64 and linux/arm64 for now,
+# as other builds have compilation issues that require fixing.
 with_bpf := no
 ifeq ("$(OS)","linux")
 # True if $ARCH == amd64 || $ARCH == arm64

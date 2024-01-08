@@ -75,6 +75,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		Impersonator:         "",
 		AWSRoleARN:           "",
 		AccessRequests:       []string(nil),
+		UserKind:             apievents.UserKind_USER_KIND_HUMAN,
 		XXX_NoUnkeyedLiteral: struct{}{},
 		XXX_unrecognized:     []uint8(nil),
 		XXX_sizecache:        0,

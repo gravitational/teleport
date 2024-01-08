@@ -115,15 +115,8 @@ func (g *oidcTestingPrimitives) ModifyKubernetesResource(ctx context.Context, na
 }
 
 func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.OIDCConnector, kubeResource *resourcesv3.TeleportOIDCConnector) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return equal, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-
-	return equal, ""
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
+	return diff == "", diff
 }
 
 func TestOIDCConnectorCreation(t *testing.T) {
