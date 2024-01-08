@@ -762,7 +762,9 @@ To enable x509 certificate authentication on you Scylla server (available from
 Scylla version 5.4.0), add the following to your scylla.yaml configuration file:
 
 authenticator: com.scylladb.auth.CertificateAuthenticator
-auth_certificate_role_query: CN=([^,\s]+)
+auth_certificate_role_queries:
+- source: SUBJECT
+  query: CN=([^,\s]+)
 `))
 )
 

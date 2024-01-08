@@ -1765,7 +1765,7 @@ type DatabaseOracle struct {
 
 // DatabaseCassandra are additional Cassandra database options.
 type DatabaseCassandra struct {
-	// CertAuthe indidicates if the database is using certificate based
+	// CertAuth indidicates if the database is using certificate based
 	// authentication.
 	CertAuth bool `yaml:"cert_auth,omitempty"`
 }
