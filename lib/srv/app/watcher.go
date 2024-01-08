@@ -168,7 +168,7 @@ func (s *Server) onCreate(ctx context.Context, app types.Application) error {
 	return s.registerApp(ctx, app)
 }
 
-func (s *Server) onUpdate(ctx context.Context, app types.Application) error {
+func (s *Server) onUpdate(ctx context.Context, app, _ types.Application) error {
 	return s.updateApp(ctx, app)
 }
 

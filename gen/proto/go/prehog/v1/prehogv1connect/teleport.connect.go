@@ -57,6 +57,15 @@ const (
 
 // TeleportReportingServiceClient is a client for the prehog.v1.TeleportReportingService service.
 type TeleportReportingServiceClient interface {
+	// encodes and forwards usage reports to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
 	SubmitUsageReports(context.Context, *connect_go.Request[v1.SubmitUsageReportsRequest]) (*connect_go.Response[v1.SubmitUsageReportsResponse], error)
 }
 
@@ -91,6 +100,15 @@ func (c *teleportReportingServiceClient) SubmitUsageReports(ctx context.Context,
 // TeleportReportingServiceHandler is an implementation of the prehog.v1.TeleportReportingService
 // service.
 type TeleportReportingServiceHandler interface {
+	// encodes and forwards usage reports to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
 	SubmitUsageReports(context.Context, *connect_go.Request[v1.SubmitUsageReportsRequest]) (*connect_go.Response[v1.SubmitUsageReportsResponse], error)
 }
 

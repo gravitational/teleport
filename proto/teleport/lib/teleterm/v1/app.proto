@@ -1,0 +1,47 @@
+/*
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.v1;
+
+import "teleport/lib/teleterm/v1/label.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
+
+// App describes an app resource.
+message App {
+  // uri is the cluster resource URI.
+  string uri = 1;
+  // name is the name of the app.
+  string name = 2;
+  // endpoint_uri is the app connection endpoint.
+  string endpoint_uri = 3;
+  // desc is the app description.
+  string desc = 4;
+  // aws_console is true if this app is AWS management console.
+  bool aws_console = 5;
+  // public_addr is the public address the application is accessible at.
+  string public_addr = 6;
+  // friendly_name is a user readable name of the app.
+  string friendly_name = 7;
+  // saml_app is true if the application is a SAML Application (Service Provider).
+  bool saml_app = 8;
+  // labels is a list of labels for the app.
+  repeated Label labels = 9;
+}

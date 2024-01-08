@@ -764,6 +764,82 @@ db_service:
 	}
 }
 
+func TestGetDiscoveryJoinScript(t *testing.T) {
+	const validToken = "f18da1c9f6630a51e8daf121e7451daa"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			var s types.ServerV2
+			s.SetPublicAddrs([]string{"test-host:12345678"})
+
+			return []types.Server{&s}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			provisionToken := &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+				Spec: types.ProvisionTokenSpecV2{},
+			}
+			if token == validToken {
+				return provisionToken, nil
+			}
+			return nil, trace.NotFound("token does not exist")
+		},
+	}
+
+	for _, test := range []struct {
+		desc            string
+		settings        scriptSettings
+		errAssert       require.ErrorAssertionFunc
+		extraAssertions func(t *testing.T, script string)
+	}{
+		{
+			desc: "valid",
+			settings: scriptSettings{
+				discoveryInstallMode: true,
+				discoveryGroup:       "my-group",
+				token:                validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, `
+discovery_service:
+  enabled: "yes"
+  discovery_group: "my-group"`)
+			},
+		},
+		{
+			desc: "fails when discovery group is not defined",
+			settings: scriptSettings{
+				discoveryInstallMode: true,
+				token:                validToken,
+			},
+			errAssert: require.Error,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), test.settings, m)
+			test.errAssert(t, err)
+			if err != nil {
+				require.Empty(t, script)
+			}
+
+			if test.extraAssertions != nil {
+				test.extraAssertions(t, script)
+			}
+		})
+	}
+}
+
 func TestIsSameRuleSet(t *testing.T) {
 	tt := []struct {
 		name     string

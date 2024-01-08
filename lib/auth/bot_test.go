@@ -227,6 +227,77 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NotEmpty(t, locks)
 }
 
+// TestRegisterBotCertificateExtensions ensures bot cert extensions are present.
+func TestRegisterBotCertificateExtensions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// Create a new bot.
+	client, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
+		Roles:   types.SystemRoles{types.RoleBot},
+		BotName: bot.Metadata.Name,
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.CreateToken(ctx, token))
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	certs, err := Register(RegisterParams{
+		Token: token.GetName(),
+		ID: IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
+	})
+	require.NoError(t, err)
+	checkCertLoginIP(t, certs.TLS, "127.0.0.1")
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
+	require.NoError(t, err)
+
+	_, certs, _, err = renewBotCerts(ctx, srv, tlsCert, bot.Status.UserName, publicKey, privateKey)
+	require.NoError(t, err)
+
+	// Parse the Identity
+	impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
+	require.NoError(t, err)
+
+	// Check for proper cert extensions
+	require.True(t, impersonatedIdent.Renewable)
+	require.False(t, impersonatedIdent.DisallowReissue)
+	require.Equal(t, "test", impersonatedIdent.BotName)
+
+	// Initial certs have generation=1 and we start with a renewal, so add 2
+	require.Equal(t, uint64(2), impersonatedIdent.Generation)
+}
+
 // TestRegisterBot_RemoteAddr checks that certs returned for bot registration contain specified in the request remote addr.
 func TestRegisterBot_RemoteAddr(t *testing.T) {
 	t.Parallel()

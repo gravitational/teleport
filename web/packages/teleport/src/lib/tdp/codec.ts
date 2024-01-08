@@ -18,8 +18,6 @@
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-import { RDPFastPathPDU } from 'teleport/ironrdp/pkg/ironrdp';
-
 export type Message = ArrayBuffer;
 
 export enum MessageType {
@@ -86,6 +84,17 @@ export type PngFrame = {
   bottom: number;
   data: HTMLImageElement;
 };
+
+/**
+ * `| message type (29) | data_length uint32 | data []byte |`
+ *
+ * `RdpFastPathPdu` is an alias to a `Uint8Array` so that it can
+ * be passed into the `FastPathProcessor`'s `process` method and
+ * used without copying. See [the wasm-bindgen guide].
+ *
+ * [the wasm-bindgen guide]: (https://rustwasm.github.io/docs/wasm-bindgen/reference/types/number-slices.html#number-slices-u8-i8-u16-i16-u32-i32-u64-i64-f32-and-f64)
+ */
+export type RdpFastPathPdu = Uint8Array;
 
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
@@ -879,9 +888,10 @@ export default class Codec {
     if (mfaType !== 'n' && mfaType !== 'u') {
       throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
     }
+    let messageLength = dv.getUint32(offset);
     offset += uint32Length; // eat message_length
     const jsonString = this.decoder.decode(
-      new Uint8Array(buffer.slice(offset))
+      new Uint8Array(buffer, offset, messageLength)
     );
     return { mfaType, jsonString };
   }
@@ -894,9 +904,7 @@ export default class Codec {
     const msgLength = dv.getUint32(offset);
     offset += uint32Length; // eat messageLength
 
-    return this.decoder.decode(
-      new Uint8Array(buffer.slice(offset, offset + msgLength))
-    );
+    return this.decoder.decode(new Uint8Array(buffer, offset, msgLength));
   }
 
   // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame
@@ -952,12 +960,13 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRDPFastPathPDU(buffer: ArrayBuffer): RDPFastPathPDU {
+  decodeRDPFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
+    const dv = new DataView(buffer);
     let offset = 0;
     offset += byteLength; // eat message type
+    const dataLength = dv.getUint32(offset);
     offset += uint32Length; // eat data_length
-    const data = buffer.slice(offset);
-    return new RDPFastPathPDU(new Uint8Array(data));
+    return new Uint8Array(buffer, offset, dataLength);
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
@@ -999,8 +1008,11 @@ export default class Codec {
     offset += uint32Length; // eat completion_id
     const directoryId = dv.getUint32(offset);
     offset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(offset);
     offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1022,8 +1034,11 @@ export default class Codec {
     offset += uint32Length; // eat directory_id
     const fileType = dv.getUint32(offset);
     offset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(offset);
     offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1044,8 +1059,11 @@ export default class Codec {
     offset += uint32Length; // eat completion_id
     const directoryId = dv.getUint32(offset);
     offset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(offset);
     offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1068,7 +1086,7 @@ export default class Codec {
     const pathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat path_length
     const path = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+      new Uint8Array(buffer, bufOffset, pathLength)
     );
     bufOffset += pathLength; // eat path
     const offset = dv.getBigUint64(bufOffset);
@@ -1100,14 +1118,12 @@ export default class Codec {
     const pathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat path_length
     const path = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+      new Uint8Array(buffer, bufOffset, pathLength)
     );
     bufOffset += pathLength; // eat path
     const writeDataLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat write_data_length
-    const writeData = new Uint8Array(
-      buffer.slice(bufOffset, bufOffset + writeDataLength)
-    );
+    const writeData = new Uint8Array(buffer, bufOffset, writeDataLength);
 
     return {
       completionId,
@@ -1132,13 +1148,13 @@ export default class Codec {
     const originalPathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat original_path_length
     const originalPath = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + originalPathLength))
+      new Uint8Array(buffer, bufOffset, originalPathLength)
     );
     bufOffset += originalPathLength; // eat original_path
     const newPathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat new_path_length
     const newPath = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + newPathLength))
+      new Uint8Array(buffer, bufOffset, newPathLength)
     );
 
     return {

@@ -451,8 +451,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
-		AccessLists: services,
-		Access:      services,
+		AccessLists: &as,
+		Access:      &as,
 		UsageEvents: &as,
 		Clock:       cfg.Clock,
 	})
@@ -1775,6 +1775,8 @@ type certRequest struct {
 	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
+	// botName is the name of the bot requesting this cert, if any
+	botName string
 }
 
 // check verifies the cert request is valid.
@@ -2520,6 +2522,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -2616,6 +2619,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -4284,7 +4288,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(sessionTTL, BearerTokenTTL)
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {

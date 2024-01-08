@@ -46,6 +46,12 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+func init() {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p, Options{})
+	})
+}
+
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML
 type Config struct {
 	// Credentials path for the Firestore client
