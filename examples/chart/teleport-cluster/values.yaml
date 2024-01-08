@@ -19,7 +19,7 @@ clusterName: ""
 kubeClusterName: ""
 
 # Common labels for the all resources
-additionalLabels: {}
+extraLabels: {}
   # app: teleport-cluster
     
 ##################################################

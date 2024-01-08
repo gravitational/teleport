@@ -59,7 +59,7 @@ nameOverride: ""
 fullNameOverride: ""
 
 # Common labels for the all resources
-additionalLabels: {}
+extraLabels: {}
 # app: teleport-operator
 
 # image(string) -- sets the container image used for Teleport Kubernetes Operator

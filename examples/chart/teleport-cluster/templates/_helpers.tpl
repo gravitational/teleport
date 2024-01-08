@@ -36,7 +36,7 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
-{{- with .Values.additionalLabels }}
+{{- with .Values.extraLabels }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
@@ -55,7 +55,7 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
-{{- with .Values.additionalLabels }}
+{{- with .Values.extraLabels }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
@@ -73,7 +73,7 @@ helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
 app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
-{{- with .Values.additionalLabels }}
+{{- with .Values.extraLabels }}
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
