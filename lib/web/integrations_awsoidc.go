@@ -17,16 +17,21 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -365,6 +370,118 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 	return ui.AWSOIDCListSecurityGroupsResponse{
 		NextToken:      resp.NextToken,
 		SecurityGroups: resp.SecurityGroups,
+	}, nil
+}
+
+// awsOIDCRequiredDatabasesVPCS returns a map of required VPC's and its subnets.
+// This is required during the web UI discover flow (where users opt for auto
+// discovery) to determine if user can skip the auto deployment screen (where we deploy
+// database agents).
+//
+// This api will return empty if we already have agents that can proxy the discovered databases.
+// Otherwise it will return with a map of VPC and its subnets where it's values are later used
+// to configure and deploy an agent (deploy an agent per unique VPC).
+func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCRequiredVPCSRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, listDBsClient, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRequest, listDBsClient awsoidc.ListDatabasesClient, clt auth.ClientI) (*ui.AWSOIDCRequiredVPCSResponse, error) {
+	resp, err := awsoidc.ListAllDatabases(ctx, listDBsClient, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(resp.Databases) == 0 {
+		return nil, trace.BadParameter("there are no available RDS instances or clusters found in region %q", req.Region)
+	}
+
+	// Get all database services with ecs/fargate metadata label.
+	nextToken := ""
+	fetchedDbSvcs := []types.DatabaseService{}
+	for {
+		page, err := client.GetResourcePage[types.DatabaseService](ctx, clt, &proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.MaxIterationLimit,
+			StartKey:     nextToken,
+			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fetchedDbSvcs = append(fetchedDbSvcs, page.Resources...)
+		nextToken = page.NextKey
+		if len(nextToken) == 0 {
+			break
+		}
+	}
+
+	// Construct map of VPCs and its subnets.
+	vpcLookup := map[string][]string{}
+	for _, db := range resp.Databases {
+		rds := db.GetAWS().RDS
+		vpcId := rds.VPCID
+		if _, found := vpcLookup[vpcId]; !found {
+			vpcLookup[vpcId] = rds.Subnets
+			continue
+		}
+		combinedSubnets := append(vpcLookup[vpcId], rds.Subnets...)
+		vpcLookup[vpcId] = utils.Deduplicate(combinedSubnets)
+	}
+
+	for _, svc := range fetchedDbSvcs {
+		if len(svc.GetResourceMatchers()) != 1 || svc.GetResourceMatchers()[0].Labels == nil {
+			continue
+		}
+
+		// Database services deployed by Teleport have known configurations where
+		// we will only define a single resource matcher.
+		labelMatcher := *svc.GetResourceMatchers()[0].Labels
+
+		// We check for length 3, because we are only
+		// wanting/checking for 3 discovery labels.
+		if len(labelMatcher) != 3 {
+			continue
+		}
+		if slices.Compare(labelMatcher[types.DiscoveryLabelAccountID], []string{req.AccountID}) != 0 {
+			continue
+		}
+		if slices.Compare(labelMatcher[types.DiscoveryLabelRegion], []string{req.Region}) != 0 {
+			continue
+		}
+		if len(labelMatcher[types.DiscoveryLabelVPCID]) != 1 {
+			continue
+		}
+		delete(vpcLookup, labelMatcher[types.DiscoveryLabelVPCID][0])
+	}
+
+	return &ui.AWSOIDCRequiredVPCSResponse{
+		VPCMapOfSubnets: vpcLookup,
 	}, nil
 }
 
