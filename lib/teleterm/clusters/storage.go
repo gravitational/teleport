@@ -152,11 +152,8 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, nil, trace.BadParameter("cluster directory is missing")
 	}
 
-	cfg := client.MakeDefaultConfig()
+	cfg := s.makeDefaultClientConfig()
 	cfg.WebProxyAddr = webProxyAddress
-	cfg.HomePath = s.Dir
-	cfg.KeysDir = s.Dir
-	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 
 	profileName := parseName(webProxyAddress)
 	clusterURI := uri.NewClusterURI(profileName)
@@ -200,14 +197,10 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 
 	profileStore := client.NewFSProfileStore(s.Dir)
 
-	cfg := client.MakeDefaultConfig()
+	cfg := s.makeDefaultClientConfig()
 	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	cfg.KeysDir = s.Dir
-	cfg.HomePath = s.Dir
-	cfg.InsecureSkipVerify = s.InsecureSkipVerify
-	cfg.WebauthnLogin = s.WebauthnLogin
 
 	if leafClusterName != "" {
 		clusterNameForKey = leafClusterName
@@ -262,6 +255,27 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	}
 
 	return status, nil
+}
+
+func (s *Storage) makeDefaultClientConfig() *client.Config {
+	cfg := client.MakeDefaultConfig()
+
+	cfg.HomePath = s.Dir
+	cfg.KeysDir = s.Dir
+	cfg.InsecureSkipVerify = s.InsecureSkipVerify
+	cfg.WebauthnLogin = s.WebauthnLogin
+	// Set AllowStdinHijack to true to enable daemon.mfaPrompt to ask for both TOTP and Webauthn at
+	// the same time if available.
+	//
+	// tsh sets AllowStdinHijack to true only during tsh login to avoid input swallowing bugs where
+	// calling a command would prompt for MFA and then expect some further data through stdin. tsh
+	// login does not ask for any further input after the MFA prompt.
+	//
+	// Since tsh daemon ran by Connect never expects data over stdin, it can always set this flag to
+	// true.
+	cfg.AllowStdinHijack = true
+
+	return cfg
 }
 
 // parseName gets cluster name from cluster web proxy address

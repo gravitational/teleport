@@ -849,6 +849,11 @@ export default function createClient(
                             kind: 'kube' as const,
                             resource: p.getKube().toObject() as types.Kube,
                           };
+                        case api.PaginatedResource.ResourceCase.APP:
+                          return {
+                            kind: 'app' as const,
+                            resource: p.getApp().toObject() as types.App,
+                          };
                         default:
                           logger.info(
                             `Ignoring unsupported resource ${JSON.stringify(

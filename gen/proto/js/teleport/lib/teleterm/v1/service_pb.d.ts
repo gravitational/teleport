@@ -7,6 +7,7 @@
 import * as jspb from "google-protobuf";
 import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
+import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
@@ -1849,6 +1850,12 @@ export class PaginatedResource extends jspb.Message {
     setKube(value?: teleport_lib_teleterm_v1_kube_pb.Kube): PaginatedResource;
 
 
+    hasApp(): boolean;
+    clearApp(): void;
+    getApp(): teleport_lib_teleterm_v1_app_pb.App | undefined;
+    setApp(value?: teleport_lib_teleterm_v1_app_pb.App): PaginatedResource;
+
+
     getResourceCase(): PaginatedResource.ResourceCase;
 
     serializeBinary(): Uint8Array;
@@ -1866,6 +1873,7 @@ export namespace PaginatedResource {
         database?: teleport_lib_teleterm_v1_database_pb.Database.AsObject,
         server?: teleport_lib_teleterm_v1_server_pb.Server.AsObject,
         kube?: teleport_lib_teleterm_v1_kube_pb.Kube.AsObject,
+        app?: teleport_lib_teleterm_v1_app_pb.App.AsObject,
     }
 
     export enum ResourceCase {
@@ -1876,6 +1884,8 @@ export namespace PaginatedResource {
     SERVER = 2,
 
     KUBE = 3,
+
+    APP = 4,
 
     }
 

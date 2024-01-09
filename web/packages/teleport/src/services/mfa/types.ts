@@ -24,6 +24,7 @@ export type MfaDevice = {
   description: string;
   registeredDate: Date;
   lastUsedDate: Date;
+  residentKey: boolean;
 };
 
 export type AddNewTotpDeviceRequest = {

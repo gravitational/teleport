@@ -266,7 +266,7 @@ func handlePlaybackAction(b []byte, p play) error {
 	msgType := b[0]
 	msgLen := binary.BigEndian.Uint16(b[1:])
 
-	if len(b) < int(msgLen+3) {
+	if len(b) < int(msgLen)+3 {
 		return trace.BadParameter("invalid message length")
 	}
 
@@ -349,7 +349,7 @@ This message is used to seek to a new position in the recording.
 
 ### 5 - Resize
 
-This message is used to indicate that the termina was resized.
+This message is used to indicate that the terminal was resized.
 
 - Message ID: 5
 - 2-byte width

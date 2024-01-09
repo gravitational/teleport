@@ -112,6 +112,7 @@ const props: State = {
       name: 'iphone 12',
       registeredDate: new Date(1628799417000),
       lastUsedDate: new Date(1628799417000),
+      residentKey: false,
     },
     {
       id: '2',
@@ -119,6 +120,7 @@ const props: State = {
       name: 'solokey',
       registeredDate: new Date(1623722252000),
       lastUsedDate: new Date(1623981452000),
+      residentKey: false,
     },
     {
       id: '3',
@@ -126,6 +128,7 @@ const props: State = {
       name: 'backup yubikey',
       registeredDate: new Date(1618711052000),
       lastUsedDate: new Date(1626472652000),
+      residentKey: false,
     },
     {
       id: '4',
@@ -133,6 +136,7 @@ const props: State = {
       name: 'yubikey',
       registeredDate: new Date(1612493852000),
       lastUsedDate: new Date(1614481052000),
+      residentKey: false,
     },
   ],
 };
