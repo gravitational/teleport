@@ -2721,7 +2721,6 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream authpb.AuthServic
 	auth := gctx.authServer
 	user := gctx.User.GetName()
 
-	const passwordless = false
 	challenge, err := auth.mfaAuthChallenge(ctx, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_SESSION, false /* allowReuse */)
 	if err != nil {
 		return nil, trace.Wrap(err)
