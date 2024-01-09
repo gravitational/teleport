@@ -111,7 +111,7 @@ function FormPassword(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <>
+        <form>
           <Status attempt={attempt} />
           <FieldInput
             rule={requiredField('Current Password is required')}
@@ -185,7 +185,7 @@ function FormPassword(props: Props) {
               </ButtonSecondary>
             )}
           </Flex>
-        </>
+        </form>
       )}
     </Validation>
   );

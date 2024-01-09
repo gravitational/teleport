@@ -58,7 +58,13 @@ function getTableCellContents() {
 }
 
 test('renders devices', () => {
-  render(<AuthDeviceList header="Header" devices={devices} />);
+  render(
+    <AuthDeviceList
+      header="Header"
+      deviceTypeColumnName="Passkey Type"
+      devices={devices}
+    />
+  );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(getTableCellContents()).toEqual({
     header: ['Passkey Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
@@ -70,7 +76,13 @@ test('renders devices', () => {
 });
 
 test('renders no devices', () => {
-  render(<AuthDeviceList header="Header" devices={[]} />);
+  render(
+    <AuthDeviceList
+      deviceTypeColumnName="Passkey Type"
+      header="Header"
+      devices={[]}
+    />
+  );
   expect(screen.getByText('Header')).toBeInTheDocument();
   expect(screen.queryAllByRole('row')).toEqual([]);
 });
