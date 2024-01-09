@@ -36,14 +36,33 @@ import AddDevice from './ManageDevices/AddDevice';
 import { ActionButton, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 
-export default function Container() {
+export interface EnterpriseComponentProps {
+  // TODO(bl-nero): Consider moving the notifications to its own store and
+  // unifying them between this screen and the unified resources screen.
+  addNotification: (
+    severity: NotificationItem['severity'],
+    content: string
+  ) => void;
+}
+
+export interface AccountPageProps {
+  enterpriseComponent?: React.ComponentType<EnterpriseComponentProps>;
+}
+
+export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
   const ctx = useTeleport();
   const isSso = ctx.storeUser.isSso();
   const manageDevicesState = useManageDevices(ctx);
-  return <Account isSso={isSso} {...manageDevicesState} />;
+  return (
+    <Account
+      isSso={isSso}
+      {...manageDevicesState}
+      enterpriseComponent={enterpriseComponent}
+    />
+  );
 }
 
-export interface AccountProps extends ManageDevicesState {
+export interface AccountProps extends ManageDevicesState, AccountPageProps {
   isSso: boolean;
 }
 
@@ -66,6 +85,7 @@ export function Account({
   hideRemoveDevice,
   mfaDisabled,
   isSso,
+  enterpriseComponent: EnterpriseComponent,
 }: AccountProps) {
   const passkeys = devices.filter(d => d.residentKey);
   const mfaDevices = devices.filter(d => !d.residentKey);
@@ -120,8 +140,8 @@ export function Account({
 
   return (
     <Relative>
-      <FeatureBox>
-        <Box mt={4}>
+      <FeatureBox gap={4} mt={4}>
+        <Box>
           <AuthDeviceList
             header={
               <Header
@@ -156,7 +176,7 @@ export function Account({
             onPasswordChange={onPasswordChange}
           />
         )}
-        <Box mt={4}>
+        <Box>
           <AuthDeviceList
             header={
               <Header
@@ -196,6 +216,9 @@ export function Account({
             token={token}
             onClose={hideAddDevice}
           />
+        )}
+        {EnterpriseComponent && (
+          <EnterpriseComponent addNotification={addNotification} />
         )}
       </FeatureBox>
 

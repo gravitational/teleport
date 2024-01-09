@@ -68,7 +68,7 @@ export function PasswordBox({
   }
 
   return (
-    <Box mt={4}>
+    <Box>
       <SingleRowBox>
         <Header
           title="Password"
