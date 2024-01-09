@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/form"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -256,9 +255,9 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 	logger := p.Log.WithField("auth", "saml")
 	logger.Debug("Callback start.")
 
-	var samlResponse string
-	if err := form.Parse(r, form.String("SAMLResponse", &samlResponse, form.Required())); err != nil {
-		logger.WithError(err).Error("Error parsing response.")
+	samlResponse := r.FormValue("SAMLResponse")
+	if samlResponse == "" {
+		logger.Error("Missing SAMLResponse form value in request")
 		return client.LoginFailedRedirectURL
 	}
 
