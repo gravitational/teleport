@@ -240,6 +240,8 @@ github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.20.6 h1:Y0pqdpafA8TdG
 github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.20.6/go.mod h1:y6fUhf01cjz+VUz+zrmJh3KfIXhefV7dS4STCxgHx7g=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.36.0 h1:XjN5jaDmvP0fDGEOn/Ws06wNKNXUAPGLdeBhKUetQcc=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.36.0/go.mod h1:kt+L4lMA2nvv9evq9S6TOH1up95/2RsQG4GXfxoPRfM=
+github.com/aws/aws-sdk-go-v2/service/eks v1.37.1 h1:5eFw5vlZI2KOChY0DOWxsnuC6N01WC3ZUo5+lco9mN8=
+github.com/aws/aws-sdk-go-v2/service/eks v1.37.1/go.mod h1:0R62cZb66e+iaJU7jG3GQbenxD8B7kh4UFNZ19pauTA=
 github.com/aws/aws-sdk-go-v2/service/glue v1.73.1 h1:z/NBYW8RygzWrDgNWib10fuLUBl0SLj0KruGoEHxnKQ=
 github.com/aws/aws-sdk-go-v2/service/glue v1.73.1/go.mod h1:F3B9DC5FsIHAxUtHZdY5KUeqN+tHoGlRPzSSYdXjC38=
 github.com/aws/aws-sdk-go-v2/service/iam v1.28.7 h1:FKPRDYZOO0Eur19vWUL1B40Op0j89KQj3kARjrszMK8=

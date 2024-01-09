@@ -234,6 +234,25 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 	ClusterDashboardURL string `json:"clusterDashboardUrl"`
 }
 
+// AWSOIDCListEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
+type AWSOIDCListEKSClustersRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEKSClustersResponse contains a list of clusters and a next token if more pages are available.
+type AWSOIDCListEKSClustersResponse struct {
+	// Clusters contains the page with list of EKSCluster
+	Clusters []EKSCluster `json:"clusters"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
 // AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
 type AWSOIDCListEC2Request struct {
 	// Region is the AWS Region.
