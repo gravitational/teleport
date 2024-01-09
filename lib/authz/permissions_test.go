@@ -690,7 +690,13 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			authAdminActionErr := AuthorizeAdminAction(ctx, authCtx, tt.allowedReusedMFA)
+			var authAdminActionErr error
+			if tt.allowedReusedMFA {
+				authAdminActionErr = AuthorizeAdminActionAllowReusedMFA(ctx, authCtx)
+			} else {
+				authAdminActionErr = AuthorizeAdminAction(ctx, authCtx)
+			}
+
 			if tt.wantAdminActionAuthorized {
 				require.NoError(t, authAdminActionErr)
 			} else {
