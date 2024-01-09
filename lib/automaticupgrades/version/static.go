@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 )
 
 // StaticGetter is a fake version.Getter that return a static answer. This is used

@@ -1003,6 +1003,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	if fc.Proxy.AutomaticUpgradesChannels != nil {
+		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
+	}
+
 	if fc.Proxy.MySQLServerVersion != "" {
 		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
 	}
