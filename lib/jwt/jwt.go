@@ -32,12 +32,12 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/cryptosigner"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/cryptosigner"
-	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
