@@ -118,12 +118,21 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	return &accessList, nil
 }
 
+// AccessListMemberGetter defines an interface that can retrieve access list members.
+type AccessListMemberGetter interface {
+	// GetAccessListMember returns the specified access list member resource.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
 // AccessListMembersGetter defines an interface for reading access list members.
 type AccessListMembersGetter interface {
+	AccessListMemberGetter
+
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // AccessListMembers defines an interface for managing AccessListMembers.
@@ -213,13 +222,13 @@ func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessLis
 // AccessListMembershipChecker will check if users are members of an access list and
 // makes sure the user is not locked and meets membership requirements.
 type AccessListMembershipChecker struct {
-	members AccessListMembersGetter
+	members AccessListMemberGetter
 	locks   LockGetter
 	clock   clockwork.Clock
 }
 
 // NewAccessListMembershipChecker will create a new access list membership checker.
-func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListMembersGetter, locks LockGetter) *AccessListMembershipChecker {
+func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListMemberGetter, locks LockGetter) *AccessListMembershipChecker {
 	return &AccessListMembershipChecker{
 		members: members,
 		locks:   locks,
@@ -266,7 +275,7 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 }
 
 // TODO(mdwn): Remove this in favor of using the access list membership checker.
-func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListMembersGetter) error {
+func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListMemberGetter) error {
 	// See if the member getter also implements lock getter. If so, use it. Otherwise, nil is fine.
 	lockGetter, _ := members.(LockGetter)
 	return AccessListMembershipChecker{
@@ -344,14 +353,17 @@ type AccessListReviews interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
+	// ListAllAccessListReviews will list access list reviews for all access lists. Only to be used by the cache.
+	ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+
 	// CreateAccessListReview will create a new review for an access list.
 	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, nextReviewDate time.Time, err error)
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
 
-	// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-	DeleteAllAccessListReviews(ctx context.Context, accessListName string) error
+	// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
+	DeleteAllAccessListReviews(ctx context.Context) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.

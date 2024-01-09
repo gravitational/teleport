@@ -133,5 +133,7 @@ message Event {
     teleport.userloginstate.v1.UserLoginState UserLoginState = 46;
     // AccessListMember is an access list member resource.
     teleport.accesslist.v1.Member AccessListMember = 47;
+    // AccessListReview is an access list review resource.
+    teleport.accesslist.v1.Review AccessListReview = 53;
   }
 }

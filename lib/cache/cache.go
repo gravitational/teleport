@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -116,6 +118,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIntegration},
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
+		{Kind: types.KindAccessList},
+		{Kind: types.KindAccessListMember},
+		{Kind: types.KindAccessListReview},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -384,6 +389,8 @@ func ForOkta(cfg Config) Config {
 		{Kind: types.KindProxy},
 		{Kind: types.KindRole},
 		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindAccessList},
+		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -472,6 +479,7 @@ type Cache struct {
 	integrationsCache            services.Integrations
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	userLoginStateCache          services.UserLoginStates
+	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -627,6 +635,8 @@ type Config struct {
 	Integrations services.Integrations
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
+	// AccessLists is the access lists service.
+	AccessLists services.AccessLists
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -802,6 +812,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	accessListCache, err := simple.NewAccessListService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -832,6 +848,7 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		userLoginStateCache:          userLoginStatesCache,
+		accessListCache:              accessListCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2558,6 +2575,90 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 	}
 	defer rg.Release()
 	return uls, trace.Wrap(err)
+}
+
+// GetAccessLists returns a list of all access lists.
+func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessLists(ctx)
+}
+
+// ListAccessLists returns a paginated list of access lists.
+func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessLists(ctx, pageSize, nextToken)
+}
+
+// GetAccessList returns the specified access list resource.
+func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessList(ctx, name)
+}
+
+// ListAccessListMembers returns a paginated list of all access list members.
+// May return a DynamicAccessListError if the requested access list has an
+// implicit member list and the underlying implementation does not have
+// enough information to compute the dynamic member list.
+func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
+}
+
+// GetAccessListMember returns the specified access list member resource.
+// May return a DynamicAccessListError if the requested access list has an
+// implicit member list and the underlying implementation does not have
+// enough information to compute the dynamic member record.
+func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListReviews")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListReviews)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
 }
 
 // ListResources is a part of auth.Cache implementation
