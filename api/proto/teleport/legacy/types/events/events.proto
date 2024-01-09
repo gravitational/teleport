@@ -61,6 +61,21 @@ message SessionMetadata {
   string WithMFA = 2 [(gogoproto.jsontag) = "with_mfa,omitempty"];
 }
 
+// The kind of user a given username refers to. Usernames should always refer to
+// a valid cluster user (even if temporary, e.g. SSO), but may be Machine ID
+// bot users.
+enum UserKind {
+  // Indicates a legacy cluster emitting events without a defined user kind.
+  USER_KIND_UNSPECIFIED = 0;
+
+  // Indicates the user associated with this event is human, either created
+  // locally or via SSO.
+  USER_KIND_HUMAN = 1;
+
+  // Indicates the user associated with this event is a Machine ID bot user.
+  USER_KIND_BOT = 2;
+}
+
 // UserMetadata is a common user event metadata
 message UserMetadata {
   // User is teleport user name
@@ -87,6 +102,13 @@ message UserMetadata {
   // TrustedDevice contains information about the users' trusted device.
   // Requires a registered and enrolled device to be used during authentication.
   DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
+
+  // RequiredPrivateKeyPolicy is the private key policy enforced for this login.
+  string RequiredPrivateKeyPolicy = 9 [(gogoproto.jsontag) = "required_private_key_policy,omitempty"];
+
+  // UserKind indicates what type of user this is, e.g. a human or Machine ID
+  // bot user.
+  UserKind UserKind = 10 [(gogoproto.jsontag) = "user_kind,omitempty"];
 }
 
 // Server is a server metadata
@@ -3632,6 +3654,11 @@ message Identity {
   repeated string AzureIdentities = 24 [(gogoproto.jsontag) = "azure_identities,omitempty"];
   // GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+  // PrivateKeyPolicy is the private key policy of the user's private key.
+  string PrivateKeyPolicy = 26 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
+  // BotName indicates the name of the Machine ID bot this identity was issued
+  // to, if any.
+  string BotName = 27 [(gogoproto.jsontag) = "bot_name,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.

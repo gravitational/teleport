@@ -367,6 +367,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					GCPServiceAccount: "gcpaccount",
 				},
 				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "",
 			},
 			want: apievents.UserMetadata{
 				User:              "alpaca",
@@ -375,6 +376,30 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				AccessRequests:    []string{"accessreq1", "accessreq2"},
 				AzureIdentity:     "azureidentity",
 				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for bot",
+			identity: Identity{
+				Username:     "alpaca",
+				Impersonator: "llama",
+				RouteToApp: RouteToApp{
+					AWSRoleARN:        "awsrolearn",
+					AzureIdentity:     "azureidentity",
+					GCPServiceAccount: "gcpaccount",
+				},
+				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "foo",
+			},
+			want: apievents.UserMetadata{
+				User:              "alpaca",
+				Impersonator:      "llama",
+				AWSRoleARN:        "awsrolearn",
+				AccessRequests:    []string{"accessreq1", "accessreq2"},
+				AzureIdentity:     "azureidentity",
+				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_BOT,
 			},
 		},
 		{
@@ -386,6 +411,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialID: "credentialid1",
 				},
+				BotName: "",
 			},
 			want: apievents.UserMetadata{
 				User: "llama",
@@ -394,6 +420,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialId: "credentialid1",
 				},
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
 			},
 		},
 	}

@@ -179,6 +179,9 @@ type Identity struct {
 	Renewable bool
 	// Generation counts the number of times this certificate has been renewed.
 	Generation uint64
+	// BotName indicates the name of the Machine ID bot this identity was issued
+	// to, if any.
+	BotName string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -486,6 +489,9 @@ var (
 
 	// CreateWindowsUserOID
 	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
+
+	// BotASN1ExtensionOID is an extension OID used to indicate an identity is associated with a Machine ID bot.
+	BotASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 18}
 )
 
 // Device Trust OIDs.
@@ -753,6 +759,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.BotName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotASN1ExtensionOID,
+				Value: id.BotName,
+			})
+	}
+
 	if len(id.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
@@ -983,6 +997,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				id.Generation = generation
 			}
+		case attr.Type.Equal(BotASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotName = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1037,6 +1056,11 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		}
 	}
 
+	userKind := events.UserKind_USER_KIND_HUMAN
+	if id.BotName != "" {
+		userKind = events.UserKind_USER_KIND_BOT
+	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1044,6 +1068,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AzureIdentity:     id.RouteToApp.AzureIdentity,
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		AccessRequests:    id.ActiveRequests,
+		UserKind:          userKind,
 		TrustedDevice:     device,
 	}
 }
