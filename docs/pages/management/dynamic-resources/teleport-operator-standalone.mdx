@@ -9,7 +9,7 @@ If your Teleport cluster is deployed using the `teleport-cluster` Helm chart, yo
 
 ## Prerequisites
 
-(!docs/pages/includes/self-hosted-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - a Kubernetes cluster. You must be able to create/read Namespace, ServiceAccount,
   Deployment, Secret, Role, RoleBinding and CustomResourceDefinition resources.
@@ -127,11 +127,17 @@ At this point, you can configure and run the operator:
    ```code
    $ kubectl get pods -n teleport-iac
    ```
+   
+## Next steps
+
+Follow [the user and role IaC guide](./user-and-role.mdx) to use your newly
+deployed Teleport Kubernetes Operator to create Teleport users and grant them
+roles.
+
+Helm Chart parameters are documented in the [`teleport-operator` Helm chart reference](../../reference/helm-reference/teleport-operator.mdx).
 
 ## Troubleshooting
 
+TODO: add troubleshooting steps for operator pod
+
 (!docs/pages/includes/diagnostics/kubernetes-operator-troubleshooting.mdx!)
-
-## Next steps
-
-Helm Chart parameters are documented in the [`teleport-operator` Helm chart reference](../../reference/helm-reference/teleport-operator.mdx).
