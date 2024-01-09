@@ -73,7 +73,6 @@ import (
 	_ "github.com/google/go-cmp/cmp/cmpopts"
 	_ "github.com/google/go-tpm-tools/simulator"
 	_ "github.com/google/uuid"
-	_ "github.com/gravitational/form"
 	_ "github.com/gravitational/license"
 	_ "github.com/gravitational/license/generate"
 	_ "github.com/gravitational/oxy/ratelimit"
