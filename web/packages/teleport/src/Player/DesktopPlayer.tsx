@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -152,13 +153,20 @@ const useDesktopPlayer = ({
     if (originalAspectRatio > currentAspectRatio) {
       // Use the full width of the screen and scale the height.
       canvas.style.height = `${(fullWidth * height) / width}px`;
+      console.debug(
+        `set canvas.style.height to ${(fullWidth * height) / width}px`
+      );
     } else if (originalAspectRatio < currentAspectRatio) {
       // Use the full height of the screen and scale the width.
       canvas.style.width = `${(fullHeight * width) / height}px`;
+      console.debug(
+        `set canvas.style.width to ${(fullHeight * width) / height}px`
+      );
     }
 
     canvas.width = width;
     canvas.height = height;
+    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
 
     setAttempt({ status: 'success' });
   };

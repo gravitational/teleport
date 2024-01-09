@@ -224,6 +224,8 @@ const cfg = {
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
+    discoveryConfigPath: '/v1/webapi/sites/:clusterId/discoveryconfig',
+
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
@@ -271,7 +273,11 @@ const cfg = {
       '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+    awsConfigureIamEksScriptPath:
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
 
+    awsRdsDbDeployServicesPath:
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsRdsDbListPath:
@@ -736,6 +742,10 @@ const cfg = {
     return generatePath(cfg.api.rolesPath, { name });
   },
 
+  getDiscoveryConfigUrl(clusterId: string) {
+    return generatePath(cfg.api.discoveryConfigPath, { clusterId });
+  },
+
   getPresetRolesUrl() {
     return cfg.api.presetRolesPath;
   },
@@ -793,6 +803,15 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbRequiredVpcsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbsDeployServicesUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbDeployServicesPath, {
       clusterId,
       name: integrationName,
     });
@@ -945,6 +964,15 @@ const cfg = {
     return (
       cfg.baseUrl +
       generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
+        ...params,
+      })
+    );
+  },
+
+  getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEksScriptPath, {
         ...params,
       })
     );
