@@ -125,6 +125,27 @@ spec:
                       user to obtain access.
                     type: object
                 type: object
+              owner_grants:
+                description: owner_grants describes the access granted by owners to
+                  this access list.
+                nullable: true
+                properties:
+                  roles:
+                    description: roles are the roles that are granted to users who
+                      are members of the access list.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  traits:
+                    additionalProperties:
+                      items:
+                        type: string
+                      type: array
+                    description: traits are the traits that are granted to users who
+                      are members of the access list.
+                    type: object
+                type: object
               owners:
                 description: owners is a list of owners of the access list.
                 items:

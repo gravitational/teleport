@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -289,6 +290,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.CloudClients == nil {
+		cfg.CloudClients, err = cloud.NewClients()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -307,6 +314,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
+	} else if cfg.KeyStoreConfig.AWSKMS != (keystore.AWSKMSConfig{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+		cfg.KeyStoreConfig.AWSKMS.Cluster = cfg.ClusterName.GetClusterName()
+		cfg.KeyStoreConfig.AWSKMS.CloudClients = cfg.CloudClients
 	} else {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
@@ -317,6 +330,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                   cfg.Trust,
 		PresenceInternal:        cfg.Presence,
@@ -351,7 +365,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginData:              cfg.PluginData,
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:                      cfg.Backend,
 		clock:                   cfg.Clock,
@@ -1568,6 +1581,25 @@ func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) err
 // safe to use before server start.
 func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
+}
+
+// GetClusterID returns the cluster ID.
+func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	clusterName, err := a.GetClusterName(opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName.GetClusterID(), nil
+}
+
+// GetAnonymizationKey returns the anonymization key that identifies this client.
+// It falls back to the cluster ID if the anonymization key is not set in license file.
+func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
+		return a.GetClusterID(ctx, opts...)
+	}
+
+	return string(a.license.AnonymizationKey), nil
 }
 
 // GetDomainName returns the domain name that identifies this authority server.

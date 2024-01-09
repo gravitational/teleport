@@ -28,9 +28,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
@@ -45,88 +43,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// transportForRequest determines the transport to use for a request to a specific
-// Kubernetes cluster. If the servers don't support impersonation, a single
-// transport is used per request. Otherwise, a new transport is used for all
-// requests in order to improve performance.
-// TODO(tigrato): DELETE IN 15.0.0
-// TODO(tigrato): Remove the check in Teleport 15, when all servers support impersonation.
+// transportForRequest returns a transport that can be used to dial the next hop
+// for the provided request using Impersonation.
 func (f *Forwarder) transportForRequest(sess *clusterSession) (http.RoundTripper, error) {
-	// allServersSupportImpersonation returns true if all servers support impersonation,
-	// otherwise fallback to using a single transport per request with user's identity
-	// embedded in the certificate.
-	if f.allServersSupportImpersonation(sess) {
-		// If all servers support impersonation, use a new transport for each
-		// request. This will ensure that the client certificate is valid for the
-		// server that the request is being sent to.
-		transport, _, err := f.transportForRequestWithImpersonation(sess)
-		return transport, trace.Wrap(err)
-	}
-	// Otherwise, use a single transport per request.
-	return f.transportForRequestWithoutImpersonation(sess)
-}
-
-// allServersSupportImpersonation returns true if all servers support impersonation.
-// If the cluster is remote, it checks if all remote proxies support impersonation, otherwise
-// it checks if all kube_services support impersonation.
-// TODO(tigrato): DELETE in 15.0.0
-func (f *Forwarder) allServersSupportImpersonation(sess *clusterSession) bool {
-	// If the cluster is remote, we need to check if all remote proxies support
-	// impersonation. If it does, use a single transport per request. Otherwise,
-	// fall back to using a new transport for each request.
-	if sess.teleportCluster.isRemote {
-		proxies, err := f.getRemoteClusterProxies(sess.teleportCluster.name)
-		return err == nil && allServersSupportImpersonation(proxies)
-	}
-	// If the cluster is not remote, validate the kube services support of
-	// impersonation.
-	return allServersSupportImpersonation(sess.kubeServers)
-}
-
-// getRemoteClusterProxies returns a list of proxies registered at the remote cluster.
-// It's used to determine whether the remote cluster supports identity forwarding.
-func (f *Forwarder) getRemoteClusterProxies(clusterName string) ([]types.Server, error) {
-	targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Get the remote cluster's cache.
-	caching, err := targetCluster.CachingAccessPoint()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxies, err := caching.GetProxies()
-	return proxies, trace.Wrap(err)
+	transport, _, err := f.transportForRequestWithImpersonation(sess)
+	return transport, trace.Wrap(err)
 }
 
 // dialContextFunc is a context network dialer function that returns a network connection
 type dialContextFunc func(context.Context, string, string) (net.Conn, error)
-
-// transportForRequestWithoutImpersonation returns a transport that does not
-// support impersonation. This is used when the at least one kube_server or proxy
-// don't support impersonation in order to ensure that the client request
-// can be routed correctly.
-//
-// DELETE IN 15.0.0
-// TODO(tigrato): Remove this once all servers support impersonation.
-func (f *Forwarder) transportForRequestWithoutImpersonation(sess *clusterSession) (http.RoundTripper, error) {
-	if sess.kubeAPICreds != nil {
-		return sess.kubeAPICreds.getTransport(), nil
-	}
-	// Get the TLS config for the next hop that does not support impersonation.
-	tlsConfig, _, err := f.getTLSConfig(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	transport := newTransport(sess.DialWithContext(), tlsConfig)
-	if !sess.upgradeToHTTP2 {
-		return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
-	}
-	if err := http2.ConfigureTransport(transport); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
-}
 
 // transportForRequestWithImpersonation returns a transport that supports
 // impersonation. This allows the client to reuse the same transport for all
@@ -233,87 +158,6 @@ func newTransport(dial dialContextFunc, tlsConfig *tls.Config) *http.Transport {
 		// will cause memory leaks in a long running process.
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
 	}
-}
-
-// versionWithoutImpersonation is the version of Teleport that starts supporting
-// impersonation. Before this version, the client will not use impersonation.
-var versionWithoutImpersonation = semver.New(utils.VersionBeforeAlpha("13.0.0"))
-
-// teleportVersionInterface is an interface that allows to get the Teleport version of
-// a server.
-// DELETE IN 15.0.0
-type teleportVersionInterface interface {
-	GetTeleportVersion() string
-}
-
-// allServersSupportImpersonation returns true if all servers in the list
-// support impersonation. This is used to determine if the client should
-// create a new client certificate and use a different [http.Transport]
-// (https://golang.org/pkg/net/http/#Transport) for each request.
-// Only returns true if all servers in the list support impersonation.
-// DELETE IN 15.0.0
-func allServersSupportImpersonation[T teleportVersionInterface](servers []T) bool {
-	if len(servers) == 0 {
-		return false
-	}
-	for _, server := range servers {
-		serverVersion := server.GetTeleportVersion()
-		semVer, err := semver.NewVersion(serverVersion)
-		if err != nil || semVer.LessThan(*versionWithoutImpersonation) {
-			return false
-		}
-	}
-	return true
-}
-
-// getOrRequestClientCreds returns the client credentials for the provided auth context.
-// If the credentials are not cached, they will be requested from the auth server.
-// DELETE IN 15.0.0
-func (f *Forwarder) getOrRequestClientCreds(tracingCtx context.Context, authCtx authContext) (*tls.Config, error) {
-	c := f.getClientCreds(authCtx)
-	if c == nil {
-		return f.serializedRequestClientCreds(tracingCtx, authCtx)
-	}
-	return c, nil
-}
-
-// getClientCreds returns the client credentials for the provided auth context.
-// DELETE IN 15.0.0
-func (f *Forwarder) getClientCreds(ctx authContext) *tls.Config {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	creds, ok := f.clientCredentials.Get(ctx.key())
-	if !ok {
-		return nil
-	}
-	c := creds.(*tls.Config)
-	if !validClientCreds(f.cfg.Clock, c) {
-		return nil
-	}
-	return c
-}
-
-// saveClientCreds saves the client credentials for the provided auth context.
-// DELETE IN 15.0.0
-func (f *Forwarder) saveClientCreds(ctx authContext, c *tls.Config) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.clientCredentials.Set(ctx.key(), c, ctx.sessionTTL)
-}
-
-// validClientCreds returns true if the provided client credentials are valid.
-// DELETE IN 15.0.0
-func validClientCreds(clock clockwork.Clock, c *tls.Config) bool {
-	if len(c.Certificates) == 0 || len(c.Certificates[0].Certificate) == 0 {
-		return false
-	}
-	crt, err := x509.ParseCertificate(c.Certificates[0].Certificate[0])
-	if err != nil {
-		return false
-	}
-	// Make sure that the returned cert will be valid for at least 1 more
-	// minute.
-	return clock.Now().After(crt.NotBefore) && clock.Now().Add(time.Minute).Before(crt.NotAfter)
 }
 
 // newRemoteClusterTransport returns a new [http.Transport] (https://golang.org/pkg/net/http/#Transport)
@@ -538,23 +382,8 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 		return sess.kubeAPICreds.getTLSConfig(), false, nil
 	}
 
-	// if the next hop supports impersonation, we can use the TLS config
-	// of the proxy to connect to it.
-	if f.allServersSupportImpersonation(sess) {
-		_, tlsConfig, err := f.transportForRequestWithImpersonation(sess)
-		return tlsConfig, err == nil, trace.Wrap(err)
-	}
-
-	// If the next hop does not support impersonation, we need to get a
-	// certificate from the auth server with the identity of the user
-	// that is requesting the connection.
-	// TODO(tigrato): DELETE in 15.0.0
-	tlsConfig, err := f.getOrRequestClientCreds(sess.requestContext, sess.authContext)
-	if err != nil {
-		f.log.Warningf("Failed to get certificate for %v: %v.", sess.authContext, err)
-		return nil, false, trace.AccessDenied("access denied: failed to authenticate with auth server")
-	}
-	return tlsConfig, false, nil
+	_, tlsConfig, err := f.transportForRequestWithImpersonation(sess)
+	return tlsConfig, err == nil, trace.Wrap(err)
 }
 
 // getContextDialerFunc returns a dialer function that can be used to connect

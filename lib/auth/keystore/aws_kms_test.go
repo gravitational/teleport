@@ -31,12 +31,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -57,8 +60,13 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			Cluster:    "test-cluster",
 			AWSAccount: "123456789012",
 			AWSRegion:  "us-west-2",
-			KMS:        fakeKMS,
-			clock:      clock,
+			CloudClients: &cloud.TestCloudClients{
+				KMS: fakeKMS,
+				STS: &fakeAWSSTSClient{
+					account: "123456789012",
+				},
+			},
+			clock: clock,
 		},
 	}
 	keyStore, err := NewManager(ctx, cfg)
@@ -108,6 +116,25 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			assert.Equal(t, "PendingDeletion", key.state)
 		}
 	}
+}
+
+func TestAWSKMS_WrongAccount(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cfg := Config{
+		AWSKMS: AWSKMSConfig{
+			Cluster:    "test-cluster",
+			AWSAccount: "111111111111",
+			AWSRegion:  "us-west-2",
+			CloudClients: &cloud.TestCloudClients{
+				KMS: newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
+				STS: &fakeAWSSTSClient{
+					account: "222222222222",
+				},
+			},
+		},
+	}
+	_, err := NewManager(context.Background(), cfg)
+	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of ambient credentials "222222222222"`))
 }
 
 type fakeAWSKMSService struct {
@@ -264,4 +291,17 @@ func (f *fakeAWSKMSService) findKey(arn string) (*fakeAWSKMSKey, bool) {
 		return nil, false
 	}
 	return f.keys[i], true
+}
+
+type fakeAWSSTSClient struct {
+	stsiface.STSAPI
+	account, arn, userID string
+}
+
+func (f *fakeAWSSTSClient) GetCallerIdentity(*sts.GetCallerIdentityInput) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Account: aws.String(f.account),
+		Arn:     aws.String(f.arn),
+		UserId:  aws.String(f.userID),
+	}, nil
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -51,8 +52,8 @@ type AWSKMSConfig struct {
 	AWSAccount string
 	AWSRegion  string
 
-	KMS   kmsiface.KMSAPI
-	clock clockwork.Clock
+	CloudClients cloud.Clients
+	clock        clockwork.Clock
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -67,15 +68,12 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 	if c.AWSRegion == "" {
 		return trace.BadParameter("AWS region is required")
 	}
-	if c.KMS == nil {
+	if c.CloudClients == nil {
 		cloudClients, err := cloud.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.KMS, err = cloudClients.GetAWSKMSClient(context.Background(), c.AWSRegion, cloud.WithAmbientCredentials())
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		c.CloudClients = cloudClients
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -93,11 +91,27 @@ type awsKMSKeystore struct {
 }
 
 func newAWSKMSKeystore(ctx context.Context, cfg *AWSKMSConfig, logger logrus.FieldLogger) (*awsKMSKeystore, error) {
+	stsClient, err := cfg.CloudClients.GetAWSSTSClient(ctx, cfg.AWSRegion, cloud.WithAmbientCredentials())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id, err := stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if aws.StringValue(id.Account) != cfg.AWSAccount {
+		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of ambient credentials %q",
+			cfg.AWSAccount, aws.StringValue(id.Account))
+	}
+	kmsClient, err := cfg.CloudClients.GetAWSKMSClient(ctx, cfg.AWSRegion, cloud.WithAmbientCredentials())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &awsKMSKeystore{
 		cluster:    cfg.Cluster,
 		awsAccount: cfg.AWSAccount,
 		awsRegion:  cfg.AWSRegion,
-		kms:        cfg.KMS,
+		kms:        kmsClient,
 		clock:      cfg.clock,
 		logger:     logger,
 	}, nil
