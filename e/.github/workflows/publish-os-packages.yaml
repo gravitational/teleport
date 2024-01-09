@@ -1,0 +1,56 @@
+---
+name: Publish Teleport OS packages to OS repos
+on:
+  workflow_dispatch: 
+    inputs:
+      artifact-version:
+        required: true
+        description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
+        type: string
+      environment:
+        description: "Environment to deploy the package to"
+        type: environment
+        required: true
+      workflow-tag:
+        description: Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
+jobs:
+  deploy-teleport-artifacts:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        repo-type:
+          - apt
+          - yum # Deploying to YUM repos will deploy to Zypper repos as well because the Zypper repos just alias to YUM
+        deployment-config:
+          - name: Teleport
+            version-channel: ${{ inputs.artifact-version }}
+            package-to-test: teleport-ent
+          - name: Teleport
+            version-channel: rolling
+            package-to-test: teleport-ent
+          - name: Teleport-ent-updater
+            version-channel: cloud
+            package-name-filter: teleport-ent-updater-*
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Deploy package to `stable/${{ matrix.deployment-config.version-channel }}` ${{ matrix.deployment-config.name }} repos
+        uses: ./.github/actions/deploy-os-package
+        with:
+          environment: ${{ inputs.environment }}
+          repo-type: ${{ matrix.repo-type }}
+          artifact-tag: ${{ inputs.artifact-version }}
+          version-channel: ${{ matrix.deployment-config.version-channel }}
+          package-name-filter: ${{ matrix.deployment-config.package-name-filter }}
+          package-to-test: ${{ matrix.deployment-config.package-to-test }}
+          do-teleport-package-tests: ${{ matrix.deployment-config.package-to-test != '' }}
+          workflow-git-reference: ${{ github.event_name == 'pull_request' && github.head_ref || 'refs/heads/master' }}
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: |
+          # Do nothing
