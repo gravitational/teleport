@@ -273,6 +273,8 @@ const cfg = {
       '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+    awsConfigureIamEksScriptPath:
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
 
     awsRdsDbDeployServicesPath:
       '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
@@ -962,6 +964,15 @@ const cfg = {
     return (
       cfg.baseUrl +
       generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
+        ...params,
+      })
+    );
+  },
+
+  getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEksScriptPath, {
         ...params,
       })
     );
