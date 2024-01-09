@@ -139,6 +139,7 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+  WindowsDesktopNonAD = 'DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD',
 
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
@@ -234,6 +235,7 @@ export enum CtaEvent {
   CTA_ACCESS_LIST = 8,
   CTA_ACCESS_MONITORING = 9,
   CTA_EXTERNAL_AUDIT_STORAGE = 10,
+  CTA_OKTA_USER_SYNC = 11,
 }
 
 export enum Feature {

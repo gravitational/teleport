@@ -84,11 +84,13 @@ export const DocumentGatewayKube = (props: {
 
     case 'error': {
       return (
-        <Reconnect
-          kubeId={params.kubeId}
-          statusText={connectAttempt.statusText}
-          reconnect={createGateway}
-        />
+        <Document visible={visible} px={2}>
+          <Reconnect
+            kubeId={params.kubeId}
+            statusText={connectAttempt.statusText}
+            reconnect={createGateway}
+          />
+        </Document>
       );
     }
 

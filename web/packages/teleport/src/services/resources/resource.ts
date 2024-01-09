@@ -54,7 +54,11 @@ class ResourceService {
         // TODO (avatus) : a temporary check to catch unimplemented errors for unified resources
         // This is a quick hacky way to catch the error until we migrate completely to unified resources
         // DELETE IN 15.0
-        if (res.response?.status === 404 || res.response?.status === 501) {
+        if (
+          (res.response?.status === 404 &&
+            res.message?.includes('unknown method ListUnifiedResources')) ||
+          res.response?.status === 501
+        ) {
           localStorage.setItem(
             KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED,
             'true'

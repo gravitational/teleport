@@ -80,11 +80,14 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev
 
 ARG LIBBPF_VERSION
+# BUILD_STATIC_ONLY - builds only static libraries without shared ones
+# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
+# DESTDIR - where to install the library
+# V=1 - verbose build
 RUN mkdir -p /opt && cd /opt &&  \
     curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install install_uapi_headers
+    BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers
 
 ## BUILDBOX ###################################################################
 #
@@ -307,7 +310,7 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.11.0
+RUN go install github.com/daixiang0/gci@v0.12.1
 
 # Install gotestsum.
 RUN go install gotest.tools/gotestsum@v1.10.1

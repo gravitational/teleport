@@ -810,7 +810,7 @@ const (
 
 	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
 	// for port forwarding.
-	ForwardSubCommand = "forward"
+	ForwardSubCommand = "forwardv2"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.

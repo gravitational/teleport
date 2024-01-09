@@ -212,7 +212,7 @@ Save this role as `interns.yaml`:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: interns
 spec:
@@ -228,10 +228,9 @@ spec:
     kubernetes_labels:
       'env': 'dev'
     kubernetes_resources:
-      - kind: *
+      - kind: 'pod'
         namespace: "*"
         name: "*"
-        verbs: ["*"]
     app_labels:
       'type': ['monitoring']
   # The deny rules always override allow rules.
@@ -243,8 +242,9 @@ spec:
     kubernetes_labels:
       'env': 'prod'
     kubernetes_resources:
-      - kind: "namespace"
-        name: "prod"
+      - kind: 'pod'
+        namespace: 'prod'
+        name: '*'
     db_labels:
       'env': 'prod'
     app_labels:

@@ -39,6 +39,8 @@ type WatcherConfig struct {
 	FetchersFn func() []Fetcher
 	// Interval is the interval between fetches.
 	Interval time.Duration
+	// TriggerFetchC can be used to force an instant Poll, instead of waiting for the next poll Interval.
+	TriggerFetchC chan struct{}
 	// Log is the watcher logger.
 	Log logrus.FieldLogger
 	// Clock is used to control time.
@@ -59,6 +61,9 @@ type WatcherConfig struct {
 func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Interval == 0 {
 		c.Interval = 5 * time.Minute
+	}
+	if c.TriggerFetchC == nil {
+		c.TriggerFetchC = make(chan struct{})
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()
@@ -106,6 +111,8 @@ func (w *Watcher) Start() {
 	for {
 		select {
 		case <-ticker.Chan():
+			w.fetchAndSend()
+		case <-w.cfg.TriggerFetchC:
 			w.fetchAndSend()
 		case <-w.ctx.Done():
 			w.cfg.Log.Infof("Watcher done.")

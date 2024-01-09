@@ -52,7 +52,7 @@ with the `auditor` role and the `moderator` mode present to start SSH or Kuberne
 kind: role
 metadata:
   name: prod-access
-version: v7
+version: v6
 spec:
   allow:
     require_session_join:
@@ -73,10 +73,9 @@ spec:
     kubernetes_users:
     - USER
     kubernetes_resources:
-    - kind: '*'
+    - kind: 'pod'
       name: '*'
       namespace: '*'
-      verbs: ['*']
 ```
 
 Because this sample policy requires that at least one user with the `auditor` role to be present

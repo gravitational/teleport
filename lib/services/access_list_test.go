@@ -569,61 +569,6 @@ func TestIsAccessListMemberChecker(t *testing.T) {
 	}
 }
 
-func TestSelectNextReviewDate(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name              string
-		frequency         accesslist.ReviewFrequency
-		dayOfMonth        accesslist.ReviewDayOfMonth
-		currentReviewDate time.Time
-		expected          time.Time
-	}{
-		{
-			name:              "one month, first day",
-			frequency:         accesslist.OneMonth,
-			dayOfMonth:        accesslist.FirstDayOfMonth,
-			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-		},
-		{
-			name:              "one month, fifteenth day",
-			frequency:         accesslist.OneMonth,
-			dayOfMonth:        accesslist.FifteenthDayOfMonth,
-			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
-		},
-		{
-			name:              "one month, last day",
-			frequency:         accesslist.OneMonth,
-			dayOfMonth:        accesslist.LastDayOfMonth,
-			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
-		},
-		{
-			name:              "six months, last day",
-			frequency:         accesslist.SixMonths,
-			dayOfMonth:        accesslist.LastDayOfMonth,
-			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			accessList := newAccessList(t)
-			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
-			accessList.Spec.Audit.Recurrence = accesslist.Recurrence{
-				Frequency:  test.frequency,
-				DayOfMonth: test.dayOfMonth,
-			}
-			require.Equal(t, test.expected, SelectNextReviewDate(accessList))
-		})
-	}
-}
-
 // TestAccessListReviewUnmarshal verifies an access list review resource can be unmarshaled.
 func TestAccessListReviewUnmarshal(t *testing.T) {
 	expected, err := accesslist.NewReview(

@@ -870,11 +870,12 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *authpb.Requ
 		ctx = authz.WithDelegator(ctx, req.Delegator)
 	}
 	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-		RequestID:   req.ID,
-		State:       req.State,
-		Reason:      req.Reason,
-		Annotations: req.Annotations,
-		Roles:       req.Roles,
+		RequestID:       req.ID,
+		State:           req.State,
+		Reason:          req.Reason,
+		Annotations:     req.Annotations,
+		Roles:           req.Roles,
+		AssumeStartTime: req.AssumeStartTime,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2143,17 +2144,41 @@ func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
 			// If the role specifies any kubernetes resources, the V6 role will
 			// be unable to be used for kubernetes access because the labels
 			// will be empty and won't match anything.
-			downgraded.SetLabelMatchers(
-				types.Allow,
-				types.KindKubernetesCluster,
-				types.LabelMatchers{
-					Labels: types.Labels{},
-				},
-			)
-			// Clear out the allow list so that the V6 role doesn't include unknown
-			// resources in the allow list.
-			downgraded.SetKubeResources(types.Allow, nil)
-			restricted = true
+			hasRestrictiveRules := false
+			for _, resource := range r.GetKubeResources(types.Allow) {
+				if resource.Kind != types.Wildcard ||
+					resource.Namespace != types.Wildcard ||
+					resource.Name != types.Wildcard ||
+					(len(resource.Verbs) != 1 || resource.Verbs[0] != types.Wildcard) {
+					hasRestrictiveRules = true
+					break
+				}
+			}
+			if hasRestrictiveRules {
+				downgraded.SetLabelMatchers(
+					types.Allow,
+					types.KindKubernetesCluster,
+					types.LabelMatchers{
+						Labels: types.Labels{},
+					},
+				)
+				// Clear out the allow list so that the V6 role doesn't include unknown
+				// resources in the allow list.
+				downgraded.SetKubeResources(types.Allow, nil)
+				restricted = true
+			} else {
+				// Clear out the allow list so that the V6 role doesn't include unknown
+				// resources in the allow list.
+				downgraded.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: types.Wildcard,
+							Name:      types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						},
+					})
+			}
 		}
 
 		return downgraded, restricted, nil

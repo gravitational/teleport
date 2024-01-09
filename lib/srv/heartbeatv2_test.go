@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -473,11 +474,24 @@ func (f *fakeDownstreamHandle) CloseContext() context.Context {
 func mockMetadataGetter() (metadataGetter, chan *metadata.Metadata) {
 	ch := make(chan *metadata.Metadata, 1)
 	return func(ctx context.Context) (*metadata.Metadata, error) {
-		meta := <-ch
-		if meta == nil {
-			return nil, fmt.Errorf("error fetching metadata")
+		select {
+		case meta := <-ch:
+			if meta == nil {
+				return nil, errors.New("error fetching metadata")
+			}
+			return meta, nil
+		default:
 		}
-		return meta, nil
+
+		select {
+		case meta := <-ch:
+			if meta == nil {
+				return nil, errors.New("error fetching metadata")
+			}
+			return meta, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}, ch
 }
 
@@ -525,11 +539,4 @@ func TestNewHeartbeatFetchMetadata(t *testing.T) {
 	meta := inner.getServer(ctx).GetCloudMetadata()
 	assert.NotNil(t, meta, "Heartbeat never got metadata")
 	assert.Equal(t, "foo", meta.AWS.InstanceID)
-
-	// Metadata won't be fetched more than once.
-	metaCh <- makeMetadata("bar")
-	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
-	meta = inner.getServer(ctx).GetCloudMetadata()
-	assert.NotNil(t, meta, "Lost metadata")
-	assert.NotEqual(t, "bar", meta.AWS.InstanceID)
 }

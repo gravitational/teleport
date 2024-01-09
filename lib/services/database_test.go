@@ -789,6 +789,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			types.DiscoveryLabelEngineVersion: "13.0",
 			types.DiscoveryLabelEndpointType:  "instance",
 			types.DiscoveryLabelStatus:        "available",
+			types.DiscoveryLabelVPCID:         "vpc-asd",
 			"key":                             "val",
 		},
 	}, types.DatabaseSpecV3{
@@ -893,6 +894,8 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 
 // TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
 func TestDatabaseFromRDSCluster(t *testing.T) {
+	vpcid := uuid.NewString()
+	dbInstanceMembers := []*rds.DBInstance{{DBSubnetGroup: &rds.DBSubnetGroup{VpcId: aws.String(vpcid)}}}
 	cluster := &rds.DBCluster{
 		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
@@ -934,6 +937,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
 				types.DiscoveryLabelEndpointType:  "primary",
+				types.DiscoveryLabelVPCID:         vpcid,
 				"key":                             "val",
 			},
 		}, types.DatabaseSpecV3{
@@ -942,7 +946,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			AWS:      expectedAWS,
 		})
 		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSCluster(cluster)
+		actual, err := NewDatabaseFromRDSCluster(cluster, dbInstanceMembers)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(expected, actual))
 	})
@@ -958,6 +962,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
 				types.DiscoveryLabelEndpointType:  "reader",
+				types.DiscoveryLabelVPCID:         vpcid,
 				"key":                             "val",
 			},
 		}, types.DatabaseSpecV3{
@@ -966,7 +971,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			AWS:      expectedAWS,
 		})
 		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster, dbInstanceMembers)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(expected, actual))
 	})
@@ -979,6 +984,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 			types.DiscoveryLabelEngineVersion: "8.0.0",
 			types.DiscoveryLabelEndpointType:  "custom",
+			types.DiscoveryLabelVPCID:         vpcid,
 			"key":                             "val",
 		}
 
@@ -1010,7 +1016,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+		databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster, dbInstanceMembers)
 		require.NoError(t, err)
 		require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
 	})
@@ -1021,7 +1027,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			aws.String("badendpoint1"),
 			aws.String("badendpoint2"),
 		}
-		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
+		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster, dbInstanceMembers)
 		require.Error(t, err)
 	})
 }
@@ -1127,6 +1133,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 				types.DiscoveryLabelEngineVersion: "8.0.0",
 				types.DiscoveryLabelEndpointType:  "primary",
 				types.DiscoveryLabelStatus:        "available",
+				types.DiscoveryLabelVPCID:         "vpc-123",
 				"key":                             "val",
 			},
 		}, types.DatabaseSpecV3{
@@ -1153,6 +1160,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 
 // TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
 func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
+	dbInstanceMembers := []*rds.DBInstance{{DBSubnetGroup: &rds.DBSubnetGroup{VpcId: aws.String("vpc-123")}}}
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		cluster := &rds.DBCluster{
 			DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
@@ -1195,6 +1203,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 					types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 					types.DiscoveryLabelEngineVersion: "8.0.0",
 					types.DiscoveryLabelEndpointType:  "primary",
+					types.DiscoveryLabelVPCID:         "vpc-123",
 					overrideLabel:                     "mycluster-2",
 					"key":                             "val",
 				},
@@ -1204,7 +1213,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 				AWS:      expectedAWS,
 			})
 			require.NoError(t, err)
-			actual, err := NewDatabaseFromRDSCluster(cluster)
+			actual, err := NewDatabaseFromRDSCluster(cluster, dbInstanceMembers)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 		})
@@ -1220,6 +1229,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 					types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 					types.DiscoveryLabelEngineVersion: "8.0.0",
 					types.DiscoveryLabelEndpointType:  "reader",
+					types.DiscoveryLabelVPCID:         "vpc-123",
 					overrideLabel:                     "mycluster-2",
 					"key":                             "val",
 				},
@@ -1229,7 +1239,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 				AWS:      expectedAWS,
 			})
 			require.NoError(t, err)
-			actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+			actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster, dbInstanceMembers)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 		})
@@ -1242,6 +1252,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
 				types.DiscoveryLabelEndpointType:  "custom",
+				types.DiscoveryLabelVPCID:         "vpc-123",
 				overrideLabel:                     "mycluster-2",
 				"key":                             "val",
 			}
@@ -1274,7 +1285,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+			databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster, dbInstanceMembers)
 			require.NoError(t, err)
 			require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
 		})
@@ -1285,7 +1296,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 				aws.String("badendpoint1"),
 				aws.String("badendpoint2"),
 			}
-			_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
+			_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster, dbInstanceMembers)
 			require.Error(t, err)
 		})
 	}

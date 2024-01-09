@@ -141,6 +141,7 @@ const Provider = props => {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
       resourceName: 'db-name',
+      awsRegion: 'us-east-1',
       agentMatcherLabels: [],
       db: {
         aws: {
@@ -151,7 +152,7 @@ const Provider = props => {
         },
       },
       selectedAwsRdsDb: { region: 'us-east-1' } as any,
-      integration: {
+      awsIntegration: {
         kind: 'aws-oidc',
         name: 'test-integration',
         resourceType: 'integration',

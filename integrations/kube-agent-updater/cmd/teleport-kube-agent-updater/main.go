@@ -35,11 +35,14 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	podmaintenance "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 var (
@@ -63,6 +66,7 @@ func main() {
 	var versionServer string
 	var versionChannel string
 	var insecureNoVerify bool
+	var insecureNoResolve bool
 	var disableLeaderElection bool
 
 	flag.StringVar(&agentName, "agent-name", "", "The name of the agent that should be updated. This is mandatory.")
@@ -70,7 +74,8 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "healthz-addr", ":8081", "The address the probe endpoint binds to.")
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
-	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification.")
+	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification. The image tag is still resolved and image must exist.")
+	flag.BoolVar(&insecureNoResolve, "insecure-no-resolve-image", false, "Disable image signature verification AND resolution. The updater can update to non-existing images.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used when running the kube-agent-updater outside of Kubernetes.")
 	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "cloud/stable", "Version channel to get updates from.")
@@ -95,12 +100,14 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
 		Cache: cache.Options{
-			Namespaces: []string{agentNamespace},
+			DefaultNamespaces: map[string]cache.Config{
+				agentNamespace: {},
+			},
 			SyncPeriod: &syncPeriod,
 			ByObject: map[kclient.Object]cache.ByObject{
 				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
@@ -121,15 +128,19 @@ func main() {
 	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
 	maintenanceTriggers := maintenance.Triggers{
 		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL),
-		maintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
-		maintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
+		podmaintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
+		podmaintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
 	}
 
 	var imageValidators img.Validators
-	if insecureNoVerify {
+	switch {
+	case insecureNoResolve:
+		ctrl.Log.Info("INSECURE: Image validation and resolution disabled")
+		imageValidators = append(imageValidators, img.NewNopValidator("insecure no resolution"))
+	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
-		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verify"))
-	} else {
+		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified"))
+	default:
 		validator, err := img.NewCosignSingleKeyValidator(teleportProdOCIPubKey, "cosign signature validator")
 		if err != nil {
 			ctrl.Log.Error(err, "failed to build image validator, exiting")
@@ -177,6 +188,8 @@ func main() {
 		ctrl.Log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+
+	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version, "url", versionServerURL.String())
 
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")

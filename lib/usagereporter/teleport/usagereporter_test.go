@@ -513,6 +513,24 @@ func TestConvertUsageEvent(t *testing.T) {
 						Id: expectedAnonymizedAccessListIDString,
 					},
 				},
+			},
+			},
+		},
+		{
+			name: "discovery fetch event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent{
+				DiscoveryFetchEvent: &usageeventsv1.DiscoveryFetchEvent{
+					CloudProvider: "AWS",
+					ResourceType:  "rds",
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_DiscoveryFetchEvent{
+				DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
+					CloudProvider: "AWS",
+					ResourceType:  "rds",
+				},
 			}},
 		},
 	} {

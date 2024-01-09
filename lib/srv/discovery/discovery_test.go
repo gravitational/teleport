@@ -112,20 +112,34 @@ func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEve
 }
 
 type mockUsageReporter struct {
-	mu          sync.Mutex
-	eventsCount int
+	mu                       sync.Mutex
+	resourceAddedEventCount  int
+	discoveryFetchEventCount int
 }
 
 func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.eventsCount++
+	for _, e := range events {
+		switch e.(type) {
+		case *usagereporter.ResourceCreateEvent:
+			m.resourceAddedEventCount++
+		case *usagereporter.DiscoveryFetchEvent:
+			m.discoveryFetchEventCount++
+		}
+	}
 }
 
-func (m *mockUsageReporter) EventsCount() int {
+func (m *mockUsageReporter) ResourceCreateEventCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.eventsCount
+	return m.resourceAddedEventCount
+}
+
+func (m *mockUsageReporter) DiscoveryFetchEventCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.discoveryFetchEventCount
 }
 
 type mockEC2Client struct {
@@ -168,14 +182,14 @@ func genEC2Instances(n int) []*ec2.Instance {
 
 type mockSSMInstaller struct {
 	mu                 sync.Mutex
-	installedInstances []string
+	installedInstances map[string]struct{}
 }
 
 func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
-		m.installedInstances = append(m.installedInstances, inst.InstanceID)
+		m.installedInstances[inst.InstanceID] = struct{}{}
 	}
 	return nil
 }
@@ -183,7 +197,11 @@ func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) erro
 func (m *mockSSMInstaller) GetInstalledInstances() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installedInstances
+	keys := make([]string, 0, len(m.installedInstances))
+	for k := range m.installedInstances {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestDiscoveryServer(t *testing.T) {
@@ -466,7 +484,9 @@ func TestDiscoveryServer(t *testing.T) {
 
 			logger := logrus.New()
 			reporter := &mockUsageReporter{}
-			installer := &mockSSMInstaller{}
+			installer := &mockSSMInstaller{
+				installedInstances: make(map[string]struct{}),
+			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -485,13 +505,6 @@ func TestDiscoveryServer(t *testing.T) {
 			if tc.discoveryConfig != nil {
 				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
-
-				// Wait for the DiscoveryConfig to be added to the dynamic matchers
-				require.Eventually(t, func() bool {
-					server.muDynamicServerAWSFetchers.RLock()
-					defer server.muDynamicServerAWSFetchers.RUnlock()
-					return len(server.dynamicServerAWSFetchers) > 0
-				}, 1*time.Second, 100*time.Millisecond)
 			}
 
 			go server.Start()
@@ -502,13 +515,15 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
+
 				}, 5000*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
+			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
 		})
 	}
 }
@@ -1045,11 +1060,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
+					return reporter.ResourceCreateEventCount() == tc.wantEvents
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
+					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
 			}
 		})
@@ -1783,11 +1798,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			if tc.wantEvents > 0 {
 				require.Eventually(t, func() bool {
-					return reporter.EventsCount() == tc.wantEvents
+					return reporter.ResourceCreateEventCount() == tc.wantEvents
 				}, time.Second, 100*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return reporter.EventsCount() != 0
+					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
 			}
 		})
@@ -1832,6 +1847,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 	waitForReconcile := make(chan struct{})
+	waitForReconcileTimeout := 5 * time.Second
 	reporter := &mockUsageReporter{}
 	tlsServer.Auth().SetUsageReporter(reporter)
 	srv, err := New(
@@ -1860,9 +1876,11 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 		require.NoError(t, err)
 		require.Empty(t, actualDatabases)
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s")
+	case <-time.After(waitForReconcileTimeout):
+		t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 	}
+
+	require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
 
 	// Adding a Dynamic Matcher for a different Discovery Group, should not bring any new resources.
 	t.Run("DiscoveryGroup does not match: matcher is not loaded", func(t *testing.T) {
@@ -1882,14 +1900,6 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			srv.muDynamicDatabaseFetchers.RLock()
-			defer srv.muDynamicDatabaseFetchers.RUnlock()
-			return len(srv.dynamicDatabaseFetchers) == 0
-		}, 1*time.Second, 100*time.Millisecond)
-
-		// Advance clock to trigger a poll.
-		clock.Advance(5 * time.Minute)
 
 		// Reconcile should not have any databases
 		select {
@@ -1897,9 +1907,11 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 			require.NoError(t, err)
 			require.Empty(t, actualDatabases)
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
+		case <-time.After(waitForReconcileTimeout):
+			t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 		}
+
+		require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
 	})
 
 	t.Run("New DiscoveryConfig with valid Group", func(t *testing.T) {
@@ -1917,16 +1929,9 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		)
 		require.NoError(t, err)
 
+		require.Zero(t, reporter.DiscoveryFetchEventCount())
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			srv.muDynamicDatabaseFetchers.RLock()
-			defer srv.muDynamicDatabaseFetchers.RUnlock()
-			return len(srv.dynamicDatabaseFetchers) > 0
-		}, 1*time.Second, 100*time.Millisecond)
-
-		// Advance clock to trigger a poll.
-		clock.Advance(5 * time.Minute)
 
 		// Check for new resource in reconciler
 		expectDatabases := []types.Database{awsRDSDB}
@@ -1938,22 +1943,26 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
+		case <-time.After(waitForReconcileTimeout):
+			t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 		}
+		require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
+
+		// Advance clock to trigger a poll.
+		clock.Advance(5 * time.Minute)
+		// Wait for the cycle to complete
+		select {
+		case <-waitForReconcile:
+		case <-time.After(waitForReconcileTimeout):
+			t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
+		}
+		// A new DiscoveryFetch event must have been emitted.
+		require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
 			// Remove DiscoveryConfig
 			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
 			require.NoError(t, err)
-			require.Eventually(t, func() bool {
-				srv.muDynamicDatabaseFetchers.RLock()
-				defer srv.muDynamicDatabaseFetchers.RUnlock()
-				return len(srv.dynamicDatabaseFetchers) == 0
-			}, 1*time.Second, 100*time.Millisecond)
-
-			// Advance clock to trigger a poll.
-			clock.Advance(5 * time.Minute)
 
 			// Existing databases must be removed.
 			select {
@@ -1961,9 +1970,12 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, actualDatabases)
-			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s")
+			case <-time.After(waitForReconcileTimeout):
+				t.Fatalf("Didn't receive reconcile event after %s", waitForReconcileTimeout)
 			}
+
+			// Given that no Fetch was issued, the counter should not increment.
+			require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
 		})
 	})
 }
@@ -2066,14 +2078,14 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 
 type mockAzureInstaller struct {
 	mu                 sync.Mutex
-	installedInstances []string
+	installedInstances map[string]struct{}
 }
 
 func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
-		m.installedInstances = append(m.installedInstances, *inst.Name)
+		m.installedInstances[*inst.Name] = struct{}{}
 	}
 	return nil
 }
@@ -2081,7 +2093,11 @@ func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) 
 func (m *mockAzureInstaller) GetInstalledInstances() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installedInstances
+	keys := make([]string, 0, len(m.installedInstances))
+	for k := range m.installedInstances {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -2276,7 +2292,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
-			installer := &mockAzureInstaller{}
+			installer := &mockAzureInstaller{
+				installedInstances: make(map[string]struct{}),
+			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -2312,11 +2330,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 		})
@@ -2350,14 +2368,14 @@ func (m *mockGCPClient) RemoveSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) er
 
 type mockGCPInstaller struct {
 	mu                 sync.Mutex
-	installedInstances []string
+	installedInstances map[string]struct{}
 }
 
 func (m *mockGCPInstaller) Run(_ context.Context, req server.GCPRunRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
-		m.installedInstances = append(m.installedInstances, inst.Name)
+		m.installedInstances[inst.Name] = struct{}{}
 	}
 	return nil
 }
@@ -2365,7 +2383,12 @@ func (m *mockGCPInstaller) Run(_ context.Context, req server.GCPRunRequest) erro
 func (m *mockGCPInstaller) GetInstalledInstances() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installedInstances
+
+	keys := make([]string, 0, len(m.installedInstances))
+	for k := range m.installedInstances {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestGCPVMDiscovery(t *testing.T) {
@@ -2529,7 +2552,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
-			installer := &mockGCPInstaller{}
+			installer := &mockGCPInstaller{
+				installedInstances: make(map[string]struct{}),
+			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
@@ -2565,11 +2590,11 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.EventsCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.EventsCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 
@@ -2589,43 +2614,18 @@ func TestServer_onCreate(t *testing.T) {
 			Log:         logrus.New(),
 		},
 	}
-	type args struct {
-		resource types.ResourceWithLabels
-		onCreate func(context.Context, types.ResourceWithLabels) error
-	}
-	tests := []struct {
-		name   string
-		args   args
-		verify func(t *testing.T, accessPoint *fakeAccessPoint)
-	}{
-		{
-			name: "onCreate update kube",
-			args: args{
-				resource: mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"),
-				onCreate: s.onKubeCreate,
-			},
-			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
-				require.True(t, accessPoint.updateKube)
-			},
-		},
-		{
-			name: "onCreate update database",
-			args: args{
-				resource: awsRedshiftDB,
-				onCreate: s.onDatabaseCreate,
-			},
-			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
-				require.True(t, accessPoint.updateDatabase)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.args.onCreate(context.Background(), tt.args.resource)
-			require.NoError(t, err)
-			tt.verify(t, accessPoint)
-		})
-	}
+
+	t.Run("onCreate update kube", func(t *testing.T) {
+		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.NoError(t, err)
+		require.True(t, accessPoint.updateKube)
+	})
+
+	t.Run("onCreate update database", func(t *testing.T) {
+		err := s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.NoError(t, err)
+		require.True(t, accessPoint.updateDatabase)
+	})
 }
 
 func TestEmitUsageEvents(t *testing.T) {
@@ -2669,20 +2669,20 @@ func TestEmitUsageEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, 0, reporter.EventsCount())
+	require.Equal(t, 0, reporter.ResourceCreateEventCount())
 	// Check that events are emitted for new instances.
 	event := &usageeventsv1.ResourceCreateEvent{}
 	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		"inst1": event,
 		"inst2": event,
 	}))
-	require.Equal(t, 2, reporter.EventsCount())
+	require.Equal(t, 2, reporter.ResourceCreateEventCount())
 	// Check that events for duplicate instances are discarded.
 	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		"inst1": event,
 		"inst3": event,
 	}))
-	require.Equal(t, 3, reporter.EventsCount())
+	require.Equal(t, 3, reporter.ResourceCreateEventCount())
 }
 
 type fakeAccessPoint struct {
