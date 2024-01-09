@@ -45,7 +45,7 @@ export function ChangePassword({
       <FeatureHeader border="none">
         <FeatureHeaderTitle>Change Password</FeatureHeaderTitle>
       </FeatureHeader>
-      <Card as="form" width="456px" p="6">
+      <Card width="456px" p="6">
         <PasswordForm
           auth2faType={auth2faType}
           preferredMfaType={preferredMfaType}

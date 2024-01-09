@@ -37,7 +37,7 @@ export function Header({
 }: HeaderProps) {
   const theme = useTheme();
   return (
-    <Flex alignItems="start" gap={3}>
+    <Flex alignItems="center" gap={3}>
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box

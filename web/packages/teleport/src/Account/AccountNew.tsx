@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -157,12 +157,13 @@ export function Account({
                     title={addButtonTitle}
                     onClick={onAddDevice}
                   >
-                    <Icon.Add />
+                    <Icon.Add size={20} />
                     Add a Passkey
                   </ActionButton>
                 }
               />
             }
+            deviceTypeColumnName="Passkey Type"
             devices={passkeys}
             onRemove={onRemoveDevice}
           />
@@ -191,12 +192,13 @@ export function Account({
                     title={addButtonTitle}
                     onClick={onAddDevice}
                   >
-                    <Icon.Add />
+                    <Icon.Add size={20} />
                     Add MFA
                   </ActionButton>
                 }
               />
             }
+            deviceTypeColumnName="MFA Type"
             devices={mfaDevices}
             onRemove={onRemoveDevice}
           />

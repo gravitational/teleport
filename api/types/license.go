@@ -147,6 +147,12 @@ type License interface {
 	GetUsageBasedBilling() Bool
 	// SetUsageBasedBilling sets flag for usage based billing
 	SetUsageBasedBilling(Bool)
+
+	// GetAnonymizationKey returns a key that should be used to
+	// anonymize usage data if it's set.
+	GetAnonymizationKey() string
+	// SetAnonymizationKey sets the anonymization key.
+	SetAnonymizationKey(string)
 }
 
 // FeatureSource defines where the list of features enabled
@@ -472,6 +478,17 @@ func (c *LicenseV3) SetTrial(value Bool) {
 	c.Spec.Trial = value
 }
 
+// GetAnonymizationKey returns a key that should be used to
+// anonymize usage data if it's set.
+func (c *LicenseV3) GetAnonymizationKey() string {
+	return c.Spec.AnonymizationKey
+}
+
+// SetAnonymizationKey sets the anonymization key.
+func (c *LicenseV3) SetAnonymizationKey(anonKey string) {
+	c.Spec.AnonymizationKey = anonKey
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
@@ -574,4 +591,7 @@ type LicenseSpecV3 struct {
 	SupportsIdentityGovernanceSecurity Bool `json:"identity_governance_security,omitempty"`
 	// UsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
 	UsageBasedBilling Bool `json:"usage_based_billing,omitempty"`
+	// AnonymizationKey is a key that is used to anonymize usage data when it is set.
+	// It should only be set when UsageBasedBilling is true.
+	AnonymizationKey string `json:"anonymization_key,omitempty"`
 }

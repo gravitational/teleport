@@ -44,6 +44,7 @@ export function EmptyList() {
           }
         />
       }
+      deviceTypeColumnName="Passkey Type"
       devices={[]}
     />
   );
@@ -65,6 +66,7 @@ export function ListWithDevices() {
           }
         />
       }
+      deviceTypeColumnName="Passkey Type"
       devices={devices}
     />
   );

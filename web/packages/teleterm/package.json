@@ -29,7 +29,6 @@
   "homepage": "https://goteleport.com",
   "dependencies": {
     "@types/tar-fs": "^2.0.1",
-    "emittery": "^1.0.1",
     "node-pty": "1.1.0-beta5",
     "strip-ansi": "^7.1.0",
     "tar-fs": "^3.0.3"

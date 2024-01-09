@@ -110,6 +110,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		Priv:        privateKey,
 		Pub:         certs.SSH,
 		TLSCert:     certs.TLS,
+		LoginTime:   a.clock.Now(),
 		Expires:     a.clock.Now().Add(ttl),
 		BearerToken: bearer,
 	})
