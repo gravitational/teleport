@@ -36,7 +36,12 @@ const gateway: Gateway = {
   localAddress: 'localhost',
   localPort: '1337',
   targetSubresourceName: 'bar',
-  gatewayCliCommand: { path: '', preview: '', envList: [], argsList: [] },
+  gatewayCliCommand: {
+    path: '',
+    preview: 'curl http://localhost:1337',
+    envList: [],
+    argsList: [],
+  },
   targetUser: '',
   protocol: 'HTTP',
 };

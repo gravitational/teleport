@@ -24,8 +24,11 @@ import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { copyToClipboard } from 'design/utils/copyToClipboard';
+
 import { PortFieldInput } from 'teleterm/ui/DocumentGateway/common';
 import { Gateway } from 'teleterm/services/tshd/types';
+import { CliCommand } from 'teleterm/ui/DocumentGateway/CliCommand';
 
 export function AppGateway(props: {
   gateway: Gateway;
@@ -35,6 +38,7 @@ export function AppGateway(props: {
   onDisconnect(): void;
 }) {
   const formRef = useRef<HTMLFormElement>();
+  const cliCommandPreview = props.gateway.gatewayCliCommand.preview;
 
   const handleChangePort = useMemo(() => {
     return debounce((value: string) => {
@@ -70,6 +74,14 @@ export function AppGateway(props: {
           />
         </Validation>
       </Flex>
+      {cliCommandPreview && (
+        <CliCommand
+          cliCommand={cliCommandPreview}
+          isLoading={props.changePortAttempt.status === 'processing'}
+          runButtonText="Copy"
+          onRun={() => copyToClipboard(cliCommandPreview)}
+        />
+      )}
       {props.changePortAttempt.status === 'error' && (
         <Alert>
           Could not change the port number: {props.changePortAttempt.statusText}

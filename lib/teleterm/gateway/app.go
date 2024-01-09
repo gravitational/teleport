@@ -19,6 +19,8 @@ package gateway
 import (
 	"context"
 	"net"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -27,29 +29,44 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
+type app struct {
+	*base
+}
+
+// LocalProxyURL returns the URL of the local proxy.
+func (a *app) LocalProxyURL() string {
+	proxyURL := url.URL{
+		Scheme: strings.ToLower(a.Protocol()),
+		Host:   a.LocalAddress() + ":" + a.LocalPort(),
+	}
+	return proxyURL.String()
+}
+
 func makeAppGateway(cfg Config) (Gateway, error) {
 	base, err := newBase(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listener, err := base.cfg.makeListener()
+	a := &app{base}
+
+	listener, err := a.cfg.makeListener()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(base.closeContext, base.cfg, listener),
-		alpnproxy.WithALPNProtocol(alpnProtocolForApp(base.cfg.Protocol)),
-		alpnproxy.WithClientCerts(base.cfg.Cert),
-		alpnproxy.WithClusterCAsIfConnUpgrade(base.closeContext, base.cfg.RootClusterCACertPoolFunc),
+		makeBasicLocalProxyConfig(a.closeContext, a.cfg, listener),
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(a.cfg.Protocol)),
+		alpnproxy.WithClientCerts(a.cfg.Cert),
+		alpnproxy.WithClusterCAsIfConnUpgrade(a.closeContext, a.cfg.RootClusterCACertPoolFunc),
 	)
 	if err != nil {
 		return nil, trace.NewAggregate(err, listener.Close())
 	}
 
-	base.localProxy = lp
-	return base, nil
+	a.localProxy = lp
+	return a, nil
 }
 
 func makeBasicLocalProxyConfig(ctx context.Context, cfg *Config, listener net.Listener) alpnproxy.LocalProxyConfig {

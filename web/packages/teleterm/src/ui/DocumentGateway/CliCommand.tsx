@@ -24,9 +24,15 @@ interface CliCommandProps {
   cliCommand: string;
   onRun(): void;
   isLoading: boolean;
+  runButtonText?: string;
 }
 
-export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
+export function CliCommand({
+  cliCommand,
+  onRun,
+  isLoading,
+  runButtonText = 'Run',
+}: CliCommandProps) {
   const [shouldDisplayIsLoading, setShouldDisplayIsLoading] = useState(false);
 
   useEffect(() => {
@@ -93,7 +99,7 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
           font-size: 10px;
         `}
       >
-        Run
+        {runButtonText}
       </ButtonPrimary>
     </Flex>
   );
