@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { PropsWithChildren } from 'react';
+import React from 'react';
 
 import {
   DatabaseEngine,
@@ -94,7 +94,7 @@ export function getDbMeta(): DbMeta {
   };
 }
 
-export const ComponentWrapper: React.FC<PropsWithChildren> = ({ children }) => (
+export const ComponentWrapper: React.FC = ({ children }) => (
   <TeleportProvider
     agentMeta={getDbMeta()}
     resourceKind={ResourceKind.Database}
