@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1590,7 +1591,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 // if per session mfa is required, after completing the mfa ceremony. In the event that both
 // fail the error from the connection attempt with the already provisioned certificates will
 // be returned. The client from whichever attempt succeeds first will be returned.
-func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (_ *NodeClient, err error) {
 	node := nodeName(targetNode{addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1601,7 +1602,15 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			attribute.String("node", node),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			// The error is unwrapped here so that the error reported is any underlying
+			// error and not a trace.TraceErr.
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -1622,7 +1631,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	directCtx, directCancel := context.WithCancel(ctx)
 	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
-		ctx, span := tc.Tracer.Start(
+		connectCtx, span := tc.Tracer.Start(
 			directCtx,
 			"teleportClient/connectToNode",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -1633,7 +1642,10 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		)
 		defer span.End()
 
-		// try connecting to the node with the certs we already have
+		// Try connecting to the node with the certs we already have. Note that the different context being provided
+		// here is intentional. The underlying stream backing the connection will run for the duration of the session
+		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
+		// parent context is used.
 		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
 			directResultC <- clientRes{err: err}
@@ -1641,7 +1653,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		}
 
 		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
+		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
 			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
@@ -2919,7 +2931,7 @@ func formatConnectToProxyErr(err error) error {
 
 // ConnectToCluster will dial the auth and proxy server and return a ClusterClient when
 // successful.
-func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient, error) {
+func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClient, err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToCluster",
@@ -2929,7 +2941,15 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			// The error is unwrapped here so that the error reported is any underlying
+			// error and not a trace.TraceErr.
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	cfg, err := tc.generateClientConfig(ctx)
 	if err != nil {

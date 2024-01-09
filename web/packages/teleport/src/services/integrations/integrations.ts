@@ -32,7 +32,6 @@ import {
   ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
   AwsOidcDeployServiceRequest,
-  AwsOidcDeployServiceResponse,
   ListEc2InstancesRequest,
   ListEc2InstancesResponse,
   Ec2InstanceConnectEndpoint,
@@ -43,6 +42,7 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
+  AwsOidcDeployDatabaseServicesRequest,
 } from './types';
 
 export const integrationService = {
@@ -142,8 +142,19 @@ export const integrationService = {
   deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest
-  ): Promise<AwsOidcDeployServiceResponse> {
-    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
+  ): Promise<string> {
+    return api
+      .post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req)
+      .then(resp => resp.serviceDashboardUrl);
+  },
+
+  deployDatabaseServices(
+    integrationName,
+    req: AwsOidcDeployDatabaseServicesRequest
+  ): Promise<string> {
+    return api
+      .post(cfg.getAwsRdsDbsDeployServicesUrl(integrationName), req)
+      .then(resp => resp.clusterDashboardUrl);
   },
 
   // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.

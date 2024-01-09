@@ -22,6 +22,7 @@ import React, {
   useCallback,
   Children,
   PropsWithChildren,
+  useRef,
 } from 'react';
 
 import styled from 'styled-components';
@@ -78,6 +79,10 @@ import { mapResourceToViewItem } from './shared/viewItemsFactory';
 const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
 export const FETCH_MORE_SIZE = 24;
+
+// The breakpoint at which to force the card view. This is to improve responsiveness
+// since list view looks cluttered on narrow viewports.
+const FORCE_CARD_VIEW_BREAKPOINT = 800;
 
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
@@ -173,11 +178,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     bulkActions = [],
   } = props;
 
+  const containerRef = useRef<HTMLDivElement>();
+
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [forceCardView, setForceCardView] = useState(false);
 
   const pinnedResourcesGetter =
     pinning.kind === 'supported'
@@ -355,10 +363,27 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences.labelsViewMode ===
     LabelsViewMode.LABELS_VIEW_MODE_EXPANDED;
 
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(entries => {
+      const container = entries[0];
+      if (container.contentRect.width <= FORCE_CARD_VIEW_BREAKPOINT) {
+        setForceCardView(true);
+      } else {
+        setForceCardView(false);
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
-      ? ListView
-      : CardsView;
+    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_CARD ||
+    forceCardView
+      ? CardsView
+      : ListView;
 
   return (
     <div
@@ -367,7 +392,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         width: 100%;
         max-width: 1800px;
         margin: 0 auto;
+        min-width: 450px;
       `}
+      ref={containerRef}
     >
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
@@ -419,6 +446,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED
           );
         }}
+        hideViewModeOptions={forceCardView}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -432,9 +460,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                         textTransform="none"
                         onClick={() => action(getSelectedResources())}
                         disabled={disabled}
+                        size="small"
                         css={`
                           border: none;
                           color: ${props => props.theme.colors.brand};
+                          height: 22px;
+                          font-size: 12px;
                         `}
                       >
                         <Icon size="small" color="brand" mr={2} />

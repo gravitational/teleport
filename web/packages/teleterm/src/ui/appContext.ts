@@ -19,13 +19,8 @@
 import {
   MainProcessClient,
   ElectronGlobals,
-  SubscribeToTshdEvent,
+  TshdEventContextBridgeService,
 } from 'teleterm/types';
-import {
-  ReloginRequest,
-  SendNotificationRequest,
-  SendPendingHeadlessAuthenticationRequest,
-} from 'teleterm/services/tshdEvents';
 import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -49,6 +44,7 @@ import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
+import { createTshdEventsContextBridgeService } from './tshdEvents';
 
 export default class AppContext implements IAppContext {
   private logger: Logger;
@@ -66,19 +62,16 @@ export default class AppContext implements IAppContext {
   resourcesService: ResourcesService;
   tshd: TshClient;
   /**
-   * subscribeToTshdEvent lets you add a listener that's going to be called every time a client
-   * makes a particular RPC to the tshd events service. The listener receives the request converted
-   * to a simple JS object since classes cannot be passed through the context bridge.
+   * setupTshdEventContextBridgeService adds a context-bridge-compatible version of a gRPC service
+   * that's going to be called every time a client makes a particular RPC to the tshd events
+   * service. The service receives requests converted to simple JS objects since classes cannot be
+   * passed through the context bridge.
    *
-   * @param {string} eventName - Name of the event.
-   * @param {function} listener - A function that gets called when a client calls the specific
-   * event. It accepts an object with two properties:
-   *
-   * - request is the request payload converted to a simple JS object.
-   * - onCancelled is a function which lets you register a callback which will be called when the
-   * request gets canceled by the client.
+   * See the JSDoc for TshdEventContextBridgeService for more details.
    */
-  subscribeToTshdEvent: SubscribeToTshdEvent;
+  setupTshdEventContextBridgeService: (
+    service: TshdEventContextBridgeService
+  ) => void;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   headlessAuthenticationService: HeadlessAuthenticationService;
@@ -91,7 +84,8 @@ export default class AppContext implements IAppContext {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.logger = new Logger('AppContext');
     this.tshd = tshClient;
-    this.subscribeToTshdEvent = config.subscribeToTshdEvent;
+    this.setupTshdEventContextBridgeService =
+      config.setupTshdEventContextBridgeService;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
     this.configService = this.mainProcessClient.configService;
@@ -167,36 +161,13 @@ export default class AppContext implements IAppContext {
   }
 
   async pullInitialState(): Promise<void> {
-    this.setUpTshdEventSubscriptions();
+    this.setupTshdEventContextBridgeService(
+      createTshdEventsContextBridgeService(this)
+    );
+
     this.subscribeToDeepLinkLaunch();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
-  }
-
-  private setUpTshdEventSubscriptions() {
-    this.subscribeToTshdEvent('relogin', ({ request, onCancelled }) => {
-      // The handler for the relogin event should return only after the relogin procedure finishes.
-      return this.reloginService.relogin(
-        request as ReloginRequest,
-        onCancelled
-      );
-    });
-
-    this.subscribeToTshdEvent('sendNotification', ({ request }) => {
-      this.tshdNotificationsService.sendNotification(
-        request as SendNotificationRequest
-      );
-    });
-
-    this.subscribeToTshdEvent(
-      'sendPendingHeadlessAuthentication',
-      ({ request, onCancelled }) => {
-        return this.headlessAuthenticationService.sendPendingHeadlessAuthentication(
-          request as SendPendingHeadlessAuthenticationRequest,
-          onCancelled
-        );
-      }
-    );
   }
 
   private subscribeToDeepLinkLaunch() {
