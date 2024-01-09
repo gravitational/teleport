@@ -1,4 +1,5 @@
-/**
+/*
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -142,6 +143,7 @@ export { NoteAdded } from './Icons/NoteAdded';
 export { Notification } from './Icons/Notification';
 export { NotificationsActive } from './Icons/NotificationsActive';
 export { PaperPlane } from './Icons/PaperPlane';
+export { Password } from './Icons/Password';
 export { Pencil } from './Icons/Pencil';
 export { Planet } from './Icons/Planet';
 export { Plus } from './Icons/Plus';
@@ -184,6 +186,7 @@ export { UserIdBadge } from './Icons/UserIdBadge';
 export { UserList } from './Icons/UserList';
 export { Users } from './Icons/Users';
 export { UsersTriple } from './Icons/UsersTriple';
+export { Vault } from './Icons/Vault';
 export { VideoGame } from './Icons/VideoGame';
 export { VolumeUp } from './Icons/VolumeUp';
 export { VpnKey } from './Icons/VpnKey';

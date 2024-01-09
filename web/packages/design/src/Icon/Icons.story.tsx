@@ -1,19 +1,19 @@
-/**
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+/*
+Teleport
+Copyright (C) 2023  Gravitational, Inc.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
@@ -154,6 +154,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Notification} text="Notification" />
     <IconBox IconCmpt={Icon.NotificationsActive} text="NotificationsActive" />
     <IconBox IconCmpt={Icon.PaperPlane} text="PaperPlane" />
+    <IconBox IconCmpt={Icon.Password} text="Password" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
     <IconBox IconCmpt={Icon.Plus} text="Plus" />
@@ -196,6 +197,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.UserList} text="UserList" />
     <IconBox IconCmpt={Icon.Users} text="Users" />
     <IconBox IconCmpt={Icon.UsersTriple} text="UsersTriple" />
+    <IconBox IconCmpt={Icon.Vault} text="Vault" />
     <IconBox IconCmpt={Icon.VideoGame} text="VideoGame" />
     <IconBox IconCmpt={Icon.VolumeUp} text="VolumeUp" />
     <IconBox IconCmpt={Icon.VpnKey} text="VpnKey" />
