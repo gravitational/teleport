@@ -148,8 +148,40 @@ func TestFromProtoNils(t *testing.T) {
 	accessList = ToProto(newAccessList(t, "access-list"))
 	accessList.Spec.Grants = nil
 
+<<<<<<< HEAD
 	_, err = FromProto(accessList)
 	require.Error(t, err)
+=======
+		_, err := FromProto(accessList)
+		require.Error(t, err)
+	})
+
+	t.Run("membership", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Spec.Membership = ""
+
+		uut, err := FromProto(msg)
+		require.NoError(t, err)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Membership)
+	})
+
+	t.Run("ownership", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Spec.Ownership = ""
+
+		uut, err := FromProto(msg)
+		require.NoError(t, err)
+		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
+	})
+
+	t.Run("owner_grants", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Spec.OwnerGrants = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
+>>>>>>> 5331c2e48b (Add role grants for access list owners. (#35974))
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
@@ -194,6 +226,13 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+			OwnerGrants: accesslist.Grants{
+				Roles: []string{"ogrole1", "ogrole2"},
+				Traits: map[string][]string{
+					"ogtrait1": {"ogvalue1", "ogvalue2"},
+					"ogtrait2": {"ogvalue3", "ogvalue4"},
 				},
 			},
 		},

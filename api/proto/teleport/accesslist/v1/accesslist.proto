@@ -63,6 +63,9 @@ message AccessListSpec {
 
   // title is a plaintext short description of the access list.
   string title = 8;
+
+  // owner_grants describes the access granted by owners to this access list.
+  AccessListGrants owner_grants = 11;
 }
 
 // AccessListOwner is an owner of an access list.
