@@ -27,8 +27,8 @@ package teleport
 
 // Remember to check that e is up to date and that there is not a go.work file
 // before running the following command to generate the import list. The list of
-// tags that might be needed in e (currently only "piv") can be extracted with a
-// (cd e && git grep //go:build).
+// tags that might be needed in e (currently "piv" and "tpmsimulator") can be
+// extracted with a (cd e && git grep //go:build).
 
 // TODO(espadolini): turn this into a lint (needs access to teleport.e in CI and
 // ideally a resolution to https://github.com/golang/go/issues/42504 )
@@ -38,7 +38,7 @@ go list -f '
 {{- range .Imports}}{{println .}}{{end -}}
 {{- range .TestImports}}{{println .}}{{end -}}
 {{- range .XTestImports}}{{println .}}{{end -}}
-' -tags piv ./e/... |
+' -tags piv,tpmsimulator ./e/... |
 sort -u |
 xargs go list -find -f '{{if (and
 (not .Standard)
@@ -71,6 +71,7 @@ import (
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/google/go-cmp/cmp"
 	_ "github.com/google/go-cmp/cmp/cmpopts"
+	_ "github.com/google/go-tpm-tools/simulator"
 	_ "github.com/google/uuid"
 	_ "github.com/gravitational/form"
 	_ "github.com/gravitational/license"
