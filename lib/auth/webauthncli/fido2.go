@@ -886,7 +886,7 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 			case err != nil:
 				// Unexpected error, retry anyway.
 				// Note that U2F devices fail in a variety of different ways.
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(fido2RetryInterval)
 				continue
 			}
 			break // err == nil
