@@ -66,7 +66,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		var parser resourceParser
 		switch kind.Kind {
 		case types.KindCertAuthority:
-			parser = newCertAuthorityParser(kind.LoadSecrets)
+			parser = newCertAuthorityParser(kind.LoadSecrets, kind.Filter)
 		case types.KindToken:
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
@@ -349,16 +349,20 @@ func (p baseParser) match(key []byte) bool {
 	return false
 }
 
-func newCertAuthorityParser(loadSecrets bool) *certAuthorityParser {
+func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {
+	var caFilter types.CertAuthorityFilter
+	caFilter.FromMap(filter)
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
 		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
+		filter:      caFilter,
 	}
 }
 
 type certAuthorityParser struct {
 	baseParser
 	loadSecrets bool
+	filter      types.CertAuthorityFilter
 }
 
 func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error) {
@@ -382,6 +386,9 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.WithRevision(event.Item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !p.filter.Match(ca) {
+			return nil, nil
 		}
 		// never send private signing keys over event stream?
 		// this might not be true
