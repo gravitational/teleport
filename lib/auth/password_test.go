@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -88,6 +89,16 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 
 	err = s.a.SetClusterName(clusterName)
 	require.NoError(t, err)
+
+	// set lock watcher
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentAuth,
+			Client:    s.a,
+		},
+	})
+	require.NoError(t, err, "NewLockWatcher")
+	s.a.SetLockWatcher(lockWatcher)
 
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
