@@ -363,7 +363,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 
 	awsRegion := queryParams.Get("awsRegion")
 	if err := aws.IsValidRegion(awsRegion); err != nil {
-		return nil, trace.BadParameter("invalid awsRegion")
+		return nil, trace.BadParameter("invalid aws region")
 	}
 
 	role := queryParams.Get("role")
