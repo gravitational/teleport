@@ -37,7 +37,7 @@ export type Props = {
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
-  options: Option<any, any>[] | GroupOption[];
+  options?: Option<any, any>[] | GroupOption[];
   width?: string | number;
   menuPlacement?: string;
   name?: string;
@@ -51,6 +51,7 @@ export type Props = {
   // Whether or not the element is on an elevated platform (such as a dialog).
   elevated?: boolean;
   stylesConfig?: StylesConfig;
+  formatCreateLabel?: (i: string) => string;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {
@@ -64,7 +65,7 @@ export type AsyncProps = Omit<Props, 'options'> & {
 /**
  * Properties specific to `react-select`'s Creatable widget.
  */
-export type CreatableProps = Omit<Props, 'options'> & {
+export type CreatableProps = Props & {
   onBlur?(e: FocusEvent): void;
 };
 

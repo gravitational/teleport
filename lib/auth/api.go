@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -1067,6 +1068,27 @@ type Cache interface {
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
+	// ListAccessLists returns a paginated list of access lists.
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+
+	// ListAccessListMembers returns a paginated list of all access list members.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListMember returns the specified access list member resource.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member record.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+
+	// ListAccessListReviews will list access list reviews for a particular access list.
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
