@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/services"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // oktaInstanceFactory will create Okta services based on the plugin specification.
@@ -26,6 +27,11 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	if staticToken == "" {
 		return nil, trace.BadParameter("api token is empty")
 	}
+
+	// TODO: Propagate license changes to Okta hosted plugin runtime.
+	// Currently, if license gets upgraded, okta service will still be
+	// running with stale settings (unless it was restarted).
+	oktaSpec.EnableUserSync = oktaSpec.EnableUserSync && modules.GetModules().Features().IGSEnabled()
 
 	return func() error {
 		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, *oktaSpec, staticToken, plugin.GetName())

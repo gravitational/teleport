@@ -20,8 +20,9 @@ import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
-import { IntegrationEnrollKind } from 'teleport/services/userEvent';
+import { CtaEvent, IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { PluginKind } from 'teleport/services/integrations';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 import cfg from 'e-teleport/config';
 
@@ -208,51 +209,73 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     cloudHostable: true,
     selfHostable: false,
     fullName: 'Okta Integration',
-    Description: () => (
-      <Text>
-        <p>
-          The Teleport Okta integration synchronizes Okta and Teleport users,
-          apps and permissions.
-        </p>
-        <ul>
-          <li>
-            <strong>SSO integration</strong>: Installing the Okta integration
-            creates an Okta applicaton with a SAML SSO connector called{' '}
-            <em>okta-integration</em> that grants your Okta users access to the
-            Teleport cluster with the
-            <em>requester</em> role.
-          </li>
-          <li>
-            <strong>App Synchronization</strong>: Routinely synchronizes Okta
-            applications and groups with Teleport.
-          </li>
-          <li>
-            <strong>User Synchronization</strong>: Routinely synchronizes Okta
-            users with Teleport. The Okta user profile data is exposed to
-            Teleport via user traits.
-          </li>
-          <li>
-            <strong>User Access</strong>: Longer lived permissions that grant
-            users access to the Okta applications and groups based on their
-            Teleport access permissions.
-          </li>
-          <li>
-            <strong>Access Requests</strong>: Short lived permissions to request
-            temporary access to Okta applications and user groups based on their
-            Teleport access permissions.
-          </li>
-        </ul>
-      </Text>
-    ),
+    Description: () => {
+      let cta = 'Identity Governance & Security';
+      if (cfg.oss.isTeam) {
+        cta = 'Teleport Enterprise';
+      }
+      return (
+        <Box>
+          <p>
+            The Teleport Okta integration synchronizes Okta and Teleport users,
+            apps and permissions.
+          </p>
+          <ul>
+            <li>
+              <strong>SSO integration</strong>: Installing the Okta integration
+              creates an Okta applicaton with a SAML SSO connector called{' '}
+              <em>okta-integration</em> that grants your Okta users access to
+              the Teleport cluster with the
+              <em>requester</em> role.
+            </li>
+            <li>
+              <strong>App Synchronization</strong>: Routinely synchronizes Okta
+              applications and groups with Teleport.
+            </li>
+            <li>
+              <strong>User Access</strong>: Longer lived permissions that grant
+              users access to the Okta applications and groups based on their
+              Teleport access permissions.
+            </li>
+            <li>
+              <strong>Access Requests</strong>: Short lived permissions to
+              request temporary access to Okta applications and user groups
+              based on their Teleport access permissions.
+            </li>
+          </ul>
+          <Box mb={4}>
+            <Text bold fontSize={2}>
+              User Synchronization
+            </Text>
+            <Text>
+              Routinely synchronizes Okta users with Teleport. The Okta user
+              profile data is exposed to Teleport via user traits.
+            </Text>
+            {!cfg.oss.isIgsEnabled && (
+              <ButtonLockedFeature
+                event={CtaEvent.CTA_OKTA_USER_SYNC}
+                width={cfg.oss.isTeam ? '390px' : '460px'}
+                mt={3}
+              >
+                Unlock User Synchronization with {cta}
+              </ButtonLockedFeature>
+            )}
+          </Box>
+        </Box>
+      );
+    },
     Setup: () => (
       <Text>
         <p>Generate an API key so you can set up the Okta plugin:</p>
         <ol>
           <li>
             Create an admin role for the Teleport Okta Service by following the{' '}
-            <a href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-role.htm">
+            <Link
+              target="_blank"
+              href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-role.htm"
+            >
               Okta documentation
-            </a>
+            </Link>
             . The role must have the following permissions:
             <ul>
               <li>
@@ -281,9 +304,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           </li>
           <li>
             Follow the{' '}
-            <a href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-admin-role-assignment-by-admin.htm">
+            <Link
+              target="_blank"
+              href="https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-admin-role-assignment-by-admin.htm"
+            >
               Okta documentation
-            </a>{' '}
+            </Link>{' '}
             to create a user for the Teleport Okta Service and assign two roles
             to the user:
             <ul>
@@ -296,9 +322,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           </li>
           <li>
             Sign in to Okta as the user you created and follow the{' '}
-            <a href="https://help.okta.com/en-us/content/topics/security/api.htm">
+            <Link
+              target="_blank"
+              href="https://help.okta.com/en-us/content/topics/security/api.htm"
+            >
               Okta documentation
-            </a>{' '}
+            </Link>{' '}
             to generate an API token, which inherits the permissions of the
             user. Paste the API token into the form at the bottom of this
             screen.
@@ -380,9 +409,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <p>
             After enabling the Okta integration, create an import rule to
             configure the applications that Teleport imports from Okta. See the{' '}
-            <a href="https://goteleport.com/docs/application-access/okta/reference/">
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/application-access/okta/reference/"
+            >
               Teleport documentation
-            </a>{' '}
+            </Link>{' '}
             for details.
           </p>
 
@@ -424,9 +456,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <ol>
           <li>
             Follow the instructions in the{' '}
-            <a href="https://support.atlassian.com/opsgenie/docs/api-key-management/">
+            <Link
+              target="_blank"
+              href="https://support.atlassian.com/opsgenie/docs/api-key-management/"
+            >
               Opsgenie documentation
-            </a>
+            </Link>
             , assigning the following permissions to your API key:
             <ul>
               <li>read</li>
@@ -676,37 +711,52 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <ol>
           <li>
             Ensure that your ServiceNow account includes the{' '}
-            <a href="https://docs.servicenow.com/en-US/bundle/vancouver-it-service-management/page/product/incident-management/task/req-itsm-roles-inci-mgmt.html">
+            <Link
+              target="_blank"
+              href="https://docs.servicenow.com/en-US/bundle/vancouver-it-service-management/page/product/incident-management/task/req-itsm-roles-inci-mgmt.html"
+            >
               ITSM Roles plugin
-            </a>
+            </Link>
             , which enables the “sn_incident_read” and “sn_incident_write”
             roles.
           </li>
           <li>
-            <a href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_CreateARole.html">
+            <Link
+              target="_blank"
+              href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_CreateARole.html"
+            >
               Create a ServiceNow role
-            </a>{' '}
+            </Link>{' '}
             that we will later assign to the user account for the Teleport
             integration.
           </li>
           <li>
-            <a href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_AddARoleToAnExistingRole.html">
+            <Link
+              target="_blank"
+              href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/roles/task/t_AddARoleToAnExistingRole.html"
+            >
               Edit the role you created
-            </a>{' '}
+            </Link>{' '}
             to add the “sn_incident_read” and “sn_incident_write” roles.
           </li>
           <li>
             Follow the{' '}
-            <a href="https://docs.servicenow.com/en-US/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_CreateAUser.html">
+            <Link
+              target="_blank"
+              href="https://docs.servicenow.com/en-US/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_CreateAUser.html"
+            >
               ServiceNow documentation
-            </a>{' '}
+            </Link>{' '}
             to create a ServiceNow user. Paste the name and password of the user
             in the form at the bottom of this page.
           </li>
           <li>
-            <a href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_AssignARoleToAUser.html">
+            <Link
+              target="_blank"
+              href="https://docs.servicenow.com/bundle/vancouver-platform-administration/page/administer/users-and-groups/task/t_AssignARoleToAUser.html"
+            >
               Assign the role you created
-            </a>{' '}
+            </Link>{' '}
             to the ServiceNow user you created.
           </li>
         </ol>
@@ -805,17 +855,23 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <ol>
           <li>
             Follow the{' '}
-            <a href="https://support.atlassian.com/jira-software-cloud/docs/create-a-new-project/">
+            <Link
+              target="_blank"
+              href="https://support.atlassian.com/jira-software-cloud/docs/create-a-new-project/"
+            >
               Jira documentation
-            </a>{' '}
+            </Link>{' '}
             to create a project. Ensure that the project has the following
             attributes:
             <ul>
               <li>
                 Uses the{' '}
-                <a href="https://www.atlassian.com/software/jira/templates/kanban">
+                <Link
+                  target="_blank"
+                  href="https://www.atlassian.com/software/jira/templates/kanban"
+                >
                   Kanban
-                </a>{' '}
+                </Link>{' '}
                 template.
               </li>
               <li>Is a company-managed project.</li>
@@ -842,9 +898,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             include a field called “teleportAccessRequestId”, which it uses to
             track individual access requests. This prevents users from tampering
             with or forging access requests. Follow the{' '}
-            <a href="https://support.atlassian.com/jira-cloud-administration/docs/create-a-custom-field/">
+            <Link
+              target="_blank"
+              href="https://support.atlassian.com/jira-cloud-administration/docs/create-a-custom-field/"
+            >
               Jira documentation
-            </a>{' '}
+            </Link>{' '}
             to create a custom field and add it to the project you created.
             Ensure that the custom field has the following attributes:
             <ul>
@@ -856,9 +915,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <li>
             Obtain an API token for the Teleport Jira integration to use to make
             changes to your Jira project by following the{' '}
-            <a href="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/#Create-an-API-token">
+            <Link
+              target="_blank"
+              href="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/#Create-an-API-token"
+            >
               Jira documentation
-            </a>
+            </Link>
             . Copy the API key into the form on this screen.{' '}
           </li>
         </ol>
@@ -984,9 +1046,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <ol>
           <li>
             Follow the{' '}
-            <a href="https://support.pagerduty.com/docs/api-access-keys#generate-a-general-access-rest-api-key">
+            <Link
+              target="_blank"
+              href="https://support.pagerduty.com/docs/api-access-keys#generate-a-general-access-rest-api-key"
+            >
               PagerDuty documentation
-            </a>{' '}
+            </Link>{' '}
             to create a REST API key. The key <strong>must not</strong> be read
             only.
           </li>
@@ -1113,9 +1178,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       <ol>
         <li>
           Follow the{' '}
-          <a href="https://discord.com/developers/docs/getting-started">
+          <Link
+            target="_blank"
+            href="https://discord.com/developers/docs/getting-started"
+          >
             Discord documentation
-          </a>{' '}
+          </Link>{' '}
           to create a bot application and install it on your Discord server. The
           application must have the following attributes:
           <ul>
@@ -1193,9 +1261,12 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <ol>
           <li>
             Follow the Mattermost{' '}
-            <a href="https://developers.mattermost.com/integrate/reference/bot-accounts/#user-interface-ui">
+            <Link
+              target="_blank"
+              href="https://developers.mattermost.com/integrate/reference/bot-accounts/#user-interface-ui"
+            >
               documentation
-            </a>{' '}
+            </Link>{' '}
             to create a bot account. Ensure that the bot account has the
             following attributes:
             <ul>

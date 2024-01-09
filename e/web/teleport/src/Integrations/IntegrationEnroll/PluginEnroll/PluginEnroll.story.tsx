@@ -12,6 +12,7 @@ import { PluginEnroll } from './PluginEnroll';
 
 const defaultIsTeamFlag = cfg.isTeam;
 const defaultIsEnterprise = cfg.isEnterprise;
+const defaultIgs = cfg.isIgsEnabled;
 
 export default {
   title: 'TeleportE/Integrations/Enroll',
@@ -22,6 +23,7 @@ export default {
         return () => {
           cfg.isTeam = defaultIsTeamFlag;
           cfg.isEnterprise = defaultIsEnterprise;
+          cfg.isIgsEnabled = defaultIgs;
         };
       }, []);
       return <Story />;
@@ -59,8 +61,25 @@ export const EnrollDiscord = () =>
 export const EnrollOpsgenie = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('opsgenie'));
 
-export const EnrollOkta = () =>
-  renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'));
+export const EnrollOktaIsTeam = () => {
+  cfg.isTeam = true;
+  cfg.isEnterprise = true;
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
+};
+
+export const EnrollOktaEnterprise = () => {
+  cfg.isTeam = false;
+  cfg.isEnterprise = true;
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
+};
+
+export const EnrollOktaWithIgs = () => {
+  cfg.isIgsEnabled = true;
+  const ctx = createTeleportContextE();
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
+};
 
 export const EnrollServiceNow = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('servicenow'));

@@ -72,7 +72,7 @@ export function SubmittablePluginForm({
 
   return (
     <Box mt={3} style={{ position: 'relative' }}>
-      <Text fontWeight="bold" typography="h1">
+      <Text my={1} fontSize={4} bold>
         {plugin.fullName}
       </Text>
       {attempt.status === 'failed' && (
@@ -82,13 +82,15 @@ export function SubmittablePluginForm({
       <Box style={wrapperStyle}>
         {plugin.permissions?.length && (
           <>
-            <Text typography="h2">Required permissions</Text>
+            <Text fontSize={2} bold>
+              Required permissions:
+            </Text>
             <Flex
               gap={6}
               p={4}
               bg="levels.surface"
               borderRadius={2}
-              mt={3}
+              mt={1}
               mb={4}
             >
               {plugin.permissions.map((perm, index) => (
@@ -113,12 +115,16 @@ export function SubmittablePluginForm({
         )}
         {plugin.Setup && (
           <>
-            <Text typography="h2">Set up the plugin</Text>
+            <Text fontSize={4} bold>
+              Set up the plugin
+            </Text>
             <plugin.Setup />
           </>
         )}
-        <Box mt={3}>
-          <Text typography="h2">Configure and connect</Text>
+        <Box mt={4}>
+          <Text mb={2} fontSize={4} bold>
+            Configure and connect
+          </Text>
           <Validation>
             {/* A "normal" HTTP form is used here instead of an AJAX request,
         since the user needs to be redirected to the OAuth provider after submitting. */}
@@ -141,7 +147,7 @@ export function SubmittablePluginForm({
                 />
                 <input type="hidden" name="type" value={plugin.type} />
                 <Box>{plugin.FormMixin && <plugin.FormMixin />}</Box>
-                <Box mt={6}>
+                <Box mt={6} mb={6}>
                   <ButtonPrimary
                     type="submit"
                     mr={3}
