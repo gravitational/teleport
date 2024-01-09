@@ -53,3 +53,13 @@ export const Rds = () => {
     />
   );
 };
+
+export const TAGSync = () => {
+  return (
+    <ConfigureIamPerms
+      kind="tag-sync"
+      region="us-east-1"
+      integrationRoleArn="arn:aws:iam::123456789012:role/some-iam-role-name"
+    />
+  );
+};

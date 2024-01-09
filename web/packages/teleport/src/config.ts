@@ -277,6 +277,8 @@ const cfg = {
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamEksScriptPath:
       '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
+      awsConfigureIamTAGSyncScriptPath:
+      '/v1/webapi/scripts/integrations/configure/tag-iam.sh?awsRegion=:region&role=:iamRoleName',
 
     awsRdsDbDeployServicesPath:
       '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
@@ -986,6 +988,15 @@ const cfg = {
     return (
       cfg.baseUrl +
       generatePath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
+        ...params,
+      })
+    );
+  },
+
+  getTAGSyncIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamTAGSyncScriptPath, {
         ...params,
       })
     );

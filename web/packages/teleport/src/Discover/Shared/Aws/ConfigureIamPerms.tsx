@@ -28,7 +28,7 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
-type AwsResourceKind = 'rds' | 'ec2' | 'eks';
+type AwsResourceKind = 'rds' | 'ec2' | 'eks' | 'tag-sync';
 
 export function ConfigureIamPerms({
   region,
@@ -151,6 +151,72 @@ export function ConfigureIamPerms({
 
       editor = (
         <EditorWrapper $height={245}>
+          <TextEditor
+            readOnly={true}
+            data={[{ content: json, type: 'json' }]}
+            bg="levels.deep"
+          />
+        </EditorWrapper>
+      );
+      break;
+    }
+    case 'tag-sync': {
+      iamPolicyName = 'AWSTAGSyncAccess';
+      msg = 'We were unable to setup AWS Sync for TAG.';
+      scriptUrl = cfg.getTAGSyncIamConfigureScriptUrl({
+        region,
+        iamRoleName,
+      });
+
+      const json = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeImages",
+        "ec2:DescribeTags",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeKeyPairs",
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "eks:ListAccessEntries",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters",
+        "rds:ListTagsForResource",
+        "rds:List*",
+        "dynamodb:ListTables",
+        "dynamodb:DescribeTable",
+        "redshift:DescribeClusters",
+        "redshift:Describe*",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketPolicy",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "iam:ListUsers",
+        "iam:GetUser",
+        "iam:ListRoles",
+        "iam:ListGroups",
+        "iam:ListPolicies",
+        "iam:ListGroupsForUser",
+        "iam:ListInstanceProfiles",
+        "iam:ListUserPolicies",
+        "iam:GetUserPolicy",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListGroupPolicies",
+        "iam:GetGroupPolicy",
+        "iam:ListAttachedGroupPolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`;
+
+      editor = (
+        <EditorWrapper $height={345}>
           <TextEditor
             readOnly={true}
             data={[{ content: json, type: 'json' }]}
