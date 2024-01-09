@@ -1926,7 +1926,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 			if !assert.NoError(t, err) {
-				t.FailNow()
+				return
 			}
 			assert.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
@@ -1953,7 +1953,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				if !assert.NoError(t, err) {
-					t.FailNow()
+					return
 				}
 				assert.Empty(t, actualDatabases)
 			}, waitForReconcileTimeout, 100*time.Millisecond)
