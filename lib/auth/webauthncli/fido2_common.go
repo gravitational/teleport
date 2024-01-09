@@ -27,8 +27,11 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-// FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
-var FIDO2PollInterval = 200 * time.Millisecond
+var (
+	// FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
+	FIDO2PollInterval  = 5 * time.Second        // Poll less frequently than 2 Hz / 0.5 second.
+	fido2RetryInterval = 600 * time.Millisecond // Poll less frequently than 2 Hz / 0.5 second.
+)
 
 // FIDO2Login implements Login for CTAP1 and CTAP2 devices.
 // It must be called with a context with timeout, otherwise it can run
