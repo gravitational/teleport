@@ -23,28 +23,13 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { Gateway } from 'teleterm/services/tshd/types';
+import { makeAppGateway } from 'teleterm/services/tshd/testHelpers';
 
 export default {
   title: 'Teleterm/DocumentGatewayApp',
 };
 
-const gateway: Gateway = {
-  uri: '/gateways/bar',
-  targetName: 'sales-production',
-  targetUri: '/clusters/bar/apps/foo',
-  localAddress: 'localhost',
-  localPort: '1337',
-  targetSubresourceName: 'bar',
-  gatewayCliCommand: {
-    path: '',
-    preview: 'curl http://localhost:1337',
-    envList: [],
-    argsList: [],
-  },
-  targetUser: '',
-  protocol: 'HTTP',
-};
+const gateway = makeAppGateway();
 
 const documentGateway: types.DocumentGatewayApp = {
   kind: 'doc.gateway_app',
