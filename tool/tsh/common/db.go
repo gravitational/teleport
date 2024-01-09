@@ -849,6 +849,13 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	return info, nil
 }
 
+func requestedDatabaseRoles(cf *CLIConf) []string {
+	if cf.DatabaseRoles == "" {
+		return nil
+	}
+	return strings.Split(cf.DatabaseRoles, ",")
+}
+
 // checkAndSetDefaults checks the db route, applies cli flags, and sets defaults.
 func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient) error {
 	if d.ServiceName == "" {
@@ -860,8 +867,8 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	if cf.DatabaseName != "" {
 		d.Database = cf.DatabaseName
 	}
-	if len(cf.DatabaseRoles) > 0 {
-		d.Roles = cf.DatabaseRoles
+	if dbRoles := requestedDatabaseRoles(cf); len(dbRoles) > 0 {
+		d.Roles = dbRoles
 	}
 	db, err := d.GetDatabase(cf.Context, tc)
 	if err != nil {
@@ -1274,7 +1281,8 @@ func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
 func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
-	if cf.DatabaseUser == "" && cf.DatabaseName == "" && len(cf.DatabaseRoles) == 0 {
+	dbRoles := requestedDatabaseRoles(cf)
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" && len(dbRoles) == 0 {
 		return false, nil
 	}
 
@@ -1299,8 +1307,9 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
 		return true, nil
 	}
-	if !apiutils.ContainSameUniqueElements(cf.DatabaseRoles, identity.RouteToDatabase.Roles) {
-		log.Debugf("Will reissue database certificate for database roles %v (was %v)", cf.DatabaseRoles, identity.RouteToDatabase.Roles)
+
+	if !apiutils.ContainSameUniqueElements(dbRoles, identity.RouteToDatabase.Roles) {
+		log.Debugf("Will reissue database certificate for database roles %v (was %v)", dbRoles, identity.RouteToDatabase.Roles)
 		return true, nil
 	}
 	return false, nil

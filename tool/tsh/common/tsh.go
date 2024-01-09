@@ -209,7 +209,7 @@ type CLIConf struct {
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
 	// DatabaseRoles specifies database roles to embed in the certificate.
-	DatabaseRoles []string
+	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive, when set to true, launches remote command with the terminal attached
@@ -821,7 +821,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
-	proxyDB.Flag("db-role", "List of database roles to use for auto-provisioned user (e.g. --db-role roleA -r roleB).").Short('r').StringsVar(&cf.DatabaseRoles)
+	proxyDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
@@ -867,7 +867,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbLogin.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
 	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
-	dbLogin.Flag("db-role", "List of database roles to configure as default for auto-provisioned user (e.g. --db-role roleA -r roleB).").Short('r').StringsVar(&cf.DatabaseRoles)
+	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -891,7 +891,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
 	dbConnect.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
-	dbConnect.Flag("db-role", "List of database roles to use for auto-provisioned user (e.g. --db-role roleA -r roleB).").Short('r').StringsVar(&cf.DatabaseRoles)
+	dbConnect.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
