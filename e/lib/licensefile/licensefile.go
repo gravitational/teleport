@@ -100,6 +100,7 @@ func FromPEM(pem []byte) (*LicenseFile, error) {
 			return nil, trace.Wrap(err)
 		}
 		license.SetExpiry(licenseKeyPair.Cert.NotAfter)
+		license.SetAnonymizationKey(string(licenseKeyPair.AnonymizationKey))
 	}
 
 	return &LicenseFile{licenseKeyPair, license}, nil

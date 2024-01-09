@@ -68,8 +68,13 @@ func InitStreamingUsageReporting(
 		return trace.Wrap(err)
 	}
 
+	anonymizationKey, err := process.GetAuthServer().GetAnonymizationKey(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Replace the discard usage reporter with the real implementation.
-	reporter, err := usagereporter.NewStreamingUsageReporter(log, clusterName, submitter)
+	reporter, err := usagereporter.NewStreamingUsageReporter(log, clusterName, anonymizationKey, submitter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

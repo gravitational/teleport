@@ -72,6 +72,7 @@ describe('all recovery flows should show correct screens', () => {
           name: 'iphone 12',
           registeredDate: new Date(1626464043),
           lastUsedDate: new Date(1626472652),
+          residentKey: false,
         },
         {
           id: '2',
@@ -79,6 +80,7 @@ describe('all recovery flows should show correct screens', () => {
           name: 'solokey',
           registeredDate: new Date(1623722252),
           lastUsedDate: new Date(1623981452),
+          residentKey: false,
         },
       ]);
 
