@@ -69,11 +69,12 @@ func TestReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
-		Backend:     bk,
-		Log:         logrus.StandardLogger(),
-		Clock:       clk,
-		ClusterName: clusterName,
-		HostID:      uuid.NewString(),
+		Backend:          bk,
+		Log:              logrus.StandardLogger(),
+		Clock:            clk,
+		ClusterName:      clusterName,
+		HostID:           uuid.NewString(),
+		AnonymizationKey: "0123456789abcdef",
 	})
 	require.NoError(t, err)
 

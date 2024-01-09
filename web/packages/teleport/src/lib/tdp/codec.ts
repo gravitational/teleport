@@ -51,7 +51,7 @@ export enum MessageType {
   NOTIFICATION = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
-  RDP_CHANNEL_IDS = 31,
+  RDP_CONNECTION_INITIALIZED = 31,
   __LAST, // utility value
 }
 
@@ -104,10 +104,12 @@ export type ClipboardData = {
   data: string;
 };
 
-// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-export type RDPChannelIDs = {
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+export type RDPConnectionInitialized = {
   ioChannelId: number;
   userChannelId: number;
+  screenWidth: number;
+  screenHeight: number;
 };
 
 export enum Severity {
@@ -969,15 +971,22 @@ export default class Codec {
     return new Uint8Array(buffer, offset, dataLength);
   }
 
-  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-  decodeRDPChannelIDs(buffer: ArrayBuffer): RDPChannelIDs {
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+  decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += byteLength; // eat message type
     const ioChannelId = dv.getUint16(offset);
-    offset += uint16Length; // eat io_channel_id
+    offset += uint16Length;
     const userChannelId = dv.getUint16(offset);
-    return { ioChannelId, userChannelId };
+    offset += uint16Length;
+
+    const screenWidth = dv.getUint16(offset);
+    offset += uint16Length;
+    const screenHeight = dv.getUint16(offset);
+    offset += uint16Length;
+
+    return { ioChannelId, userChannelId, screenWidth, screenHeight };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |

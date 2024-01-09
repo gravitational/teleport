@@ -1003,6 +1003,8 @@ enum PrivateKeyType {
   PKCS11 = 1;
   // GCP_KMS is a private key backed by GCP KMS.
   GCP_KMS = 2;
+  // AWS_KMS is a private key backed by AWS KMS.
+  AWS_KMS = 3;
 }
 
 // SSHKeyPair is an SSH CA key pair.

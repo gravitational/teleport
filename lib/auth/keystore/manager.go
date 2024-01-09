@@ -22,7 +22,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -68,7 +70,9 @@ type backend interface {
 	generateRSA(context.Context, ...RSAKeyOption) (keyID []byte, signer crypto.Signer, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
-	getSigner(ctx context.Context, keyID []byte) (crypto.Signer, error)
+	// The public key is passed as well so that it does not need to be fetched
+	// from the underlying backend, and it is always stored in the CA anyway.
+	getSigner(ctx context.Context, keyID []byte, pub crypto.PublicKey) (crypto.Signer, error)
 
 	// deleteKey deletes the given key from the KeyStore.
 	deleteKey(ctx context.Context, keyID []byte) error
@@ -80,7 +84,7 @@ type backend interface {
 
 // Config holds configuration parameters for the keystore. A software keystore
 // will be the default if no other is configured. Only one inner config other
-// than Softare should be set. It is okay to always set the Software config even
+// than Software should be set. It is okay to always set the Software config even
 // when a different keystore is desired because it will only be used if all
 // others are empty.
 type Config struct {
@@ -90,6 +94,8 @@ type Config struct {
 	PKCS11 PKCS11Config
 	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
 	GCPKMS GCPKMSConfig
+	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
+	AWSKMS AWSKMSConfig
 	// Logger is a logger to be used by the keystore.
 	Logger logrus.FieldLogger
 }
@@ -101,6 +107,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if (cfg.GCPKMS != GCPKMSConfig{}) {
 		return trace.Wrap(cfg.GCPKMS.CheckAndSetDefaults())
+	}
+	if (cfg.AWSKMS != AWSKMSConfig{}) {
+		return trace.Wrap(cfg.AWSKMS.CheckAndSetDefaults())
 	}
 	return trace.Wrap(cfg.Software.CheckAndSetDefaults())
 }
@@ -122,6 +131,10 @@ func NewManager(ctx context.Context, cfg Config) (*Manager, error) {
 	}
 	if (cfg.GCPKMS != GCPKMSConfig{}) {
 		backend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, logger)
+		return &Manager{backend: backend}, trace.Wrap(err)
+	}
+	if (cfg.AWSKMS != AWSKMSConfig{}) {
+		backend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, logger)
 		return &Manager{backend: backend}, trace.Wrap(err)
 	}
 	return &Manager{backend: newSoftwareKeyStore(&cfg.Software, logger)}, nil
@@ -150,7 +163,11 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 		if !canSign {
 			continue
 		}
-		signer, err := m.backend.getSigner(ctx, keyPair.PrivateKey)
+		pub, err := publicKeyFromSSHAuthorizedKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse SSH public key")
+		}
+		signer, err := m.backend.getSigner(ctx, keyPair.PrivateKey, pub)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -162,6 +179,18 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 		return toRSASHA512Signer(sshSigner), trace.Wrap(err)
 	}
 	return nil, trace.NotFound("no usable SSH key pairs found")
+}
+
+func publicKeyFromSSHAuthorizedKey(sshAuthorizedKey []byte) (crypto.PublicKey, error) {
+	sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(sshAuthorizedKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse SSH public key")
+	}
+	cryptoPublicKey, ok := sshPublicKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, trace.BadParameter("unsupported SSH public key type %q", sshPublicKey.Type())
+	}
+	return cryptoPublicKey.CryptoPublicKey(), nil
 }
 
 // toRSASHA512Signer forces an ssh.MultiAlgorithmSigner into using
@@ -205,13 +234,29 @@ func (m *Manager) getTLSCertAndSigner(ctx context.Context, keySet types.CAKeySet
 		if !canSign {
 			continue
 		}
-		signer, err := m.backend.getSigner(ctx, keyPair.Key)
+		pub, err := publicKeyFromTLSCertPem(keyPair.Cert)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		signer, err := m.backend.getSigner(ctx, keyPair.Key, pub)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return keyPair.Cert, signer, nil
 	}
 	return nil, nil, trace.NotFound("no usable TLS key pairs found")
+}
+
+func publicKeyFromTLSCertPem(certPem []byte) (crypto.PublicKey, error) {
+	block, _ := pem.Decode(certPem)
+	if block == nil {
+		return nil, trace.BadParameter("failed to parse PEM block")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse x509 certificate")
+	}
+	return cert.PublicKey, nil
 }
 
 // GetJWTSigner selects a usable JWT keypair from the given keySet and returns
@@ -225,7 +270,11 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 		if !canSign {
 			continue
 		}
-		signer, err := m.backend.getSigner(ctx, keyPair.PrivateKey)
+		pub, err := utils.ParsePublicKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signer, err := m.backend.getSigner(ctx, keyPair.PrivateKey, pub)
 		return signer, trace.Wrap(err)
 	}
 	return nil, trace.NotFound("no usable JWT key pairs found")
@@ -341,6 +390,9 @@ func keyType(key []byte) types.PrivateKeyType {
 	}
 	if bytes.HasPrefix(key, []byte(gcpkmsPrefix)) {
 		return types.PrivateKeyType_GCP_KMS
+	}
+	if bytes.HasPrefix(key, []byte(awskmsPrefix)) {
+		return types.PrivateKeyType_AWS_KMS
 	}
 	return types.PrivateKeyType_RAW
 }

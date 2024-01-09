@@ -10,8 +10,8 @@ resource "aws_vpc" "teleport" {
 
 // Elastic IP for NAT gateways
 resource "aws_eip" "nat" {
-  count = length(local.azs)
-  vpc   = true
+  count  = length(local.azs)
+  domain = "vpc"
   tags = {
     TeleportCluster = var.cluster_name
   }
