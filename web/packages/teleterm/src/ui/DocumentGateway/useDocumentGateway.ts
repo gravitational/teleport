@@ -25,7 +25,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-import { isDatabaseUri } from 'teleterm/ui/uri';
+import { isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
 export function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
@@ -61,7 +61,12 @@ export function useGateway(doc: types.DocumentGateway) {
       // same port number.
       port: gw.localPort,
     });
-    ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
+    if (isDatabaseUri(doc.targetUri)) {
+      ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
+    }
+    if (isAppUri(doc.targetUri)) {
+      ctx.usageService.captureProtocolUse(doc.targetUri, 'app', doc.origin);
+    }
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
