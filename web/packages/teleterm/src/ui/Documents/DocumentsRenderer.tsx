@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 import styled from 'styled-components';
@@ -44,7 +44,7 @@ import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 
 import Document from 'teleterm/ui/Document';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
 import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
 
@@ -120,12 +120,28 @@ const DocumentsContainer = styled.div`
 
 function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
   const { doc, visible } = props;
-  return React.useMemo(() => {
+
+  return useMemo(() => {
+    const unsupportedDocument = (
+      <Document visible={visible}>
+        Document kind "{doc.kind}" is not supported
+      </Document>
+    );
     switch (doc.kind) {
       case 'doc.cluster':
         return <DocumentCluster doc={doc} visible={visible} />;
-      case 'doc.gateway':
-        return <DocumentGateway doc={doc} visible={visible} />;
+      case 'doc.gateway': {
+        //TODO(gzdunek): Reorganize the code related to gateways.
+        // We should have a parent DocumentGateway component that
+        // would render DocumentGatewayDatabase and DocumentGatewayApp.
+        if (isDatabaseUri(doc.targetUri)) {
+          return <DocumentGateway doc={doc} visible={visible} />;
+        }
+        if (isAppUri(doc.targetUri)) {
+          return <DocumentGatewayApp doc={doc} visible={visible} />;
+        }
+        return unsupportedDocument;
+      }
       case 'doc.gateway_cli_client':
         return <DocumentGatewayCliClient doc={doc} visible={visible} />;
       case 'doc.gateway_kube':
@@ -140,14 +156,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
-      case 'doc.gateway_app':
-        return <DocumentGatewayApp doc={doc} visible={visible} />;
       default:
-        return (
-          <Document visible={visible}>
-            Document kind "{doc.kind}" is not supported
-          </Document>
-        );
+        return unsupportedDocument;
     }
   }, [visible, doc]);
 }

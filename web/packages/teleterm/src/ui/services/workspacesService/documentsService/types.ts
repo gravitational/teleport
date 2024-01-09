@@ -102,7 +102,7 @@ export interface DocumentTshKube extends DocumentBase {
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetUser: string;
   targetName: string;
   targetSubresourceName?: string;
@@ -149,16 +149,6 @@ export interface DocumentGatewayKube extends DocumentBase {
   leafClusterId: string | undefined;
   targetUri: uri.KubeUri;
   origin: DocumentOrigin;
-}
-
-export interface DocumentGatewayApp extends DocumentBase {
-  kind: 'doc.gateway_app';
-  targetUri: uri.AppUri;
-  port?: string;
-  gatewayUri?: uri.GatewayUri;
-  origin: DocumentOrigin;
-  // status is used merely to show a progress bar when the doc waits for the gateway to be created.
-  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -233,8 +223,7 @@ export type Document =
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer
-  | DocumentGatewayApp;
+  | DocumentConnectMyComputer;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
@@ -254,7 +243,7 @@ export function isDocumentTshNodeWithServerId(
 
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetName: string;
   targetUser: string;
   targetSubresourceName?: string;

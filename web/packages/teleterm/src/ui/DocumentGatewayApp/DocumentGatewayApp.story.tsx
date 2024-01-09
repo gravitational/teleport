@@ -31,14 +31,15 @@ export default {
 
 const gateway = makeAppGateway();
 
-const documentGateway: types.DocumentGatewayApp = {
-  kind: 'doc.gateway_app',
+const documentGateway: types.DocumentGateway = {
+  kind: 'doc.gateway',
   targetUri: '/clusters/bar/apps/quux',
   origin: 'resource_table',
-  status: '',
   gatewayUri: gateway.uri,
   uri: '/docs/123',
   title: 'quux',
+  targetUser: '',
+  targetName: 'quux',
 };
 
 const rootClusterUri = '/clusters/bar';

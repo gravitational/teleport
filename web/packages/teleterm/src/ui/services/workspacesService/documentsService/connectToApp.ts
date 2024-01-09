@@ -46,9 +46,11 @@ export async function connectToApp(
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
-  const doc = documentsService.createGatewayAppDocument({
+  const doc = documentsService.createGatewayDocument({
     targetUri: target.uri,
     origin: telemetry.origin,
+    targetName: routing.parseAppUri(target.uri).params.appId,
+    targetUser: '',
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);

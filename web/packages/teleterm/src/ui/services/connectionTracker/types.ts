@@ -39,7 +39,7 @@ export interface TrackedServerConnection extends TrackedConnectionBase {
 
 export interface TrackedGatewayConnection extends TrackedConnectionBase {
   kind: 'connection.gateway';
-  targetUri: DatabaseUri;
+  targetUri: DatabaseUri | AppUri;
   targetName: string;
   targetUser?: string;
   port?: string;
@@ -56,18 +56,10 @@ export interface TrackedKubeConnection extends TrackedConnectionBase {
   kubeUri: KubeUri;
 }
 
-export interface TrackedAppConnection extends TrackedConnectionBase {
-  kind: 'connection.app';
-  targetUri: AppUri;
-  gatewayUri: GatewayUri;
-  port?: string;
-}
-
 export type TrackedConnection =
   | TrackedServerConnection
   | TrackedGatewayConnection
-  | TrackedKubeConnection
-  | TrackedAppConnection;
+  | TrackedKubeConnection;
 
 export type ExtendedTrackedConnection = TrackedConnection & {
   clusterName: string;
