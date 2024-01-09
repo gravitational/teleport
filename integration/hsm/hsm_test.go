@@ -262,11 +262,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	require.NoError(t, authServices.start(ctx), "auth service failed initial startup")
 
 	log.Debug("TestHSMDualAuthRotation: Starting load balancer")
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
 		auth1.authAddr(t),
 	)
 	require.NoError(t, err)
@@ -488,12 +486,15 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, auth1.start(ctx))
 	require.NoError(t, auth2.start(ctx))
 
+	// Replace configured addresses with port set to 0 with the actual port
+	// number so they are stable across hard restarts.
+	auth1Config.Auth.ListenAddr = auth1.authAddr(t)
+	auth2Config.Auth.ListenAddr = auth2.authAddr(t)
+
 	log.Debug("TestHSMMigrate: Starting load balancer")
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
 		auth1.authAddr(t),
 		auth2.authAddr(t),
 	)
@@ -509,12 +510,11 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, proxy.start(ctx))
 
 	testClient := func(t *testing.T) {
-		testAdminClient(t, auth2Config.DataDir, auth2.authAddrString(t))
+		testAdminClient(t, auth1Config.DataDir, lb.Addr().String())
 	}
 	testClient(t)
 
 	// Phase 1: migrate auth1 to HSM
-	lb.RemoveBackend(auth1.authAddr(t))
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
 	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
@@ -561,7 +561,7 @@ func TestHSMMigrate(t *testing.T) {
 		},
 	}
 
-	// do a full rotation
+	// Do a full rotation to get HSM keys for auth1 into the CA.
 	for _, stage := range stages {
 		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
 		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
@@ -572,11 +572,7 @@ func TestHSMMigrate(t *testing.T) {
 		stage.verify(t)
 	}
 
-	// Safe to send traffic to new auth1 again
-	lb.AddBackend(auth1.authAddr(t))
-
 	// Phase 2: migrate auth2 to HSM
-	lb.RemoveBackend(auth2.authAddr(t))
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
 	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
@@ -588,10 +584,10 @@ func TestHSMMigrate(t *testing.T) {
 
 	testClient(t)
 
-	// do a full rotation
+	// Do another full rotation to get HSM keys for auth2 into the CA.
 	for _, stage := range stages {
 		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
+		require.NoError(t, auth2.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -599,7 +595,5 @@ func TestHSMMigrate(t *testing.T) {
 		stage.verify(t)
 	}
 
-	// Safe to send traffic to new auth2 again
-	lb.AddBackend(auth2.authAddr(t))
 	testClient(t)
 }

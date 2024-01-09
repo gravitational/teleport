@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -154,6 +155,7 @@ func TestBackends(t *testing.T) {
 			require.NoError(t, err, trace.DebugReport(err))
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
+			require.Equal(t, backendDesc.expectedKeyType, keyType(key))
 
 			// delete the key when we're done with it
 			t.Cleanup(func() { require.NoError(t, backend.deleteKey(ctx, key)) })
@@ -258,12 +260,15 @@ func TestManager(t *testing.T) {
 
 		sshKeyPair, err := manager.NewSSHKeyPair(ctx)
 		require.NoError(t, err)
+		require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
 
 		tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
 		require.NoError(t, err)
+		require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
 
 		jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
 		require.NoError(t, err)
+		require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
 		// Test a CA with multiple active keypairs. Each element of ActiveKeys
 		// includes a keypair generated above and a PKCS11 keypair with a
@@ -292,17 +297,17 @@ func TestManager(t *testing.T) {
 		// signer.
 		sshSigner, err := manager.GetSSHSigner(ctx, ca)
 		require.NoError(t, err, trace.DebugReport(err))
-		require.NotNil(t, sshSigner)
+		require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
 
 		tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
 		require.NoError(t, err)
-		require.NotNil(t, tlsCert)
-		require.NotEqual(t, testPKCS11TLSKeyPair.Cert, tlsCert)
-		require.NotNil(t, tlsSigner)
+		require.Equal(t, tlsKeyPair.Cert, tlsCert)
 
 		jwtSigner, err := manager.GetJWTSigner(ctx, ca)
 		require.NoError(t, err, trace.DebugReport(err))
-		require.NotNil(t, jwtSigner)
+		pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
+		require.NoError(t, err)
+		require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
 
 		// Test what happens when the CA has only raw keys, which will be the
 		// initial state when migrating from software to a HSM/KMS backend.
@@ -385,6 +390,7 @@ type backendDesc struct {
 	name                string
 	config              Config
 	backend             backend
+	expectedKeyType     types.PrivateKeyType
 	unusedRawKey        []byte
 	deletionDoesNothing bool
 }
@@ -420,10 +426,11 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
-			name:         "softhsm",
-			config:       config,
-			backend:      backend,
-			unusedRawKey: unusedPKCS11Key,
+			name:            "softhsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
 		})
 	}
 
@@ -440,10 +447,11 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
-			name:         "yubihsm",
-			config:       config,
-			backend:      backend,
-			unusedRawKey: unusedPKCS11Key,
+			name:            "yubihsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
 		})
 	}
 
@@ -459,10 +467,11 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
-			name:         "yubihsm",
-			config:       config,
-			backend:      backend,
-			unusedRawKey: unusedPKCS11Key,
+			name:            "yubihsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
 		})
 	}
 
@@ -477,9 +486,10 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
-			name:    "gcp_kms",
-			config:  config,
-			backend: backend,
+			name:            "gcp_kms",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_GCP_KMS,
 			unusedRawKey: gcpKMSKeyID{
 				keyVersionName: gcpKMSKeyring + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
 			}.marshal(),
@@ -498,9 +508,10 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	fakeGCPKMSBackend, err := newGCPKMSKeyStore(ctx, &fakeGCPKMSConfig.GCPKMS, logger)
 	require.NoError(t, err)
 	backends = append(backends, &backendDesc{
-		name:    "fake_gcp_kms",
-		config:  fakeGCPKMSConfig,
-		backend: fakeGCPKMSBackend,
+		name:            "fake_gcp_kms",
+		config:          fakeGCPKMSConfig,
+		backend:         fakeGCPKMSBackend,
+		expectedKeyType: types.PrivateKeyType_GCP_KMS,
 		unusedRawKey: gcpKMSKeyID{
 			keyVersionName: "test-keyring/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
 		}.marshal(),
@@ -519,9 +530,10 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
-			name:    "aws_kms",
-			config:  config,
-			backend: backend,
+			name:            "aws_kms",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_AWS_KMS,
 			unusedRawKey: awsKMSKeyID{
 				arn: arn.ARN{
 					Partition: "aws",
@@ -553,9 +565,10 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, logger)
 	require.NoError(t, err)
 	backends = append(backends, &backendDesc{
-		name:    "fake_aws_kms",
-		config:  fakeAWSKMSConfig,
-		backend: fakeAWSKMSBackend,
+		name:            "fake_aws_kms",
+		config:          fakeAWSKMSConfig,
+		backend:         fakeAWSKMSBackend,
+		expectedKeyType: types.PrivateKeyType_AWS_KMS,
 		unusedRawKey: awsKMSKeyID{
 			arn: arn.ARN{
 				Partition: "aws",

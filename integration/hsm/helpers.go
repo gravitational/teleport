@@ -21,7 +21,6 @@ package hsm
 import (
 	"context"
 	"net"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -268,9 +267,6 @@ func newAuthConfig(t *testing.T, log utils.Logger) *servicecfg.Config {
 }
 
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger) *servicecfg.Config {
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
-
 	config := servicecfg.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
 	config.CachePolicy.Enabled = true
@@ -287,8 +283,8 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log utils.Logger) *ser
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.DisableWebService = true
 	config.Proxy.DisableReverseTunnel = true
-	config.Proxy.SSHAddr.Addr = net.JoinHostPort(hostName, "0")
-	config.Proxy.WebAddr.Addr = net.JoinHostPort(hostName, "0")
+	config.Proxy.SSHAddr.Addr = net.JoinHostPort("localhost", "0")
+	config.Proxy.WebAddr.Addr = net.JoinHostPort("localhost", "0")
 
 	return config
 }
