@@ -171,7 +171,7 @@ func testDatabaseLogin(t *testing.T) {
 		// and defaults to be databaseName if not set.
 		dbSelectors []string
 		// extraLoginOptions is a list of extra options used for login like
-		// `--db-role`.
+		// `--db-roles`.
 		extraLoginOptions     []string
 		expectActiveRoute     tlsca.RouteToDatabase
 		expectCertsLen        int
@@ -303,7 +303,7 @@ func testDatabaseLogin(t *testing.T) {
 		{
 			name:              "select db role",
 			databaseName:      "mysql-autouser",
-			extraLoginOptions: []string{"--db-role", "reader"},
+			extraLoginOptions: []string{"--db-roles", "reader"},
 			expectActiveRoute: tlsca.RouteToDatabase{
 				ServiceName: "mysql-autouser",
 				Protocol:    "mysql",
@@ -793,7 +793,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 			cliConf := &CLIConf{
 				DatabaseUser:  tc.databaseUserName,
 				DatabaseName:  tc.databaseName,
-				DatabaseRoles: tc.databaseRoles,
+				DatabaseRoles: strings.Join(tc.databaseRoles, ","),
 			}
 			got, err := dbInfoHasChanged(cliConf, certPath)
 			require.NoError(t, err)
