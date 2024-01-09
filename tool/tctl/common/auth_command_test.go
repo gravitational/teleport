@@ -97,7 +97,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 						// This is the address that will be used by the client to call
 						// the proxy ping endpoint. This is not the address that will be
 						// used in the kubeconfig server address.
-						PublicAddr: mustGetHost(t, pingTestServer.URL),
+						PublicAddrs: []string{mustGetHost(t, pingTestServer.URL)},
 					},
 				},
 			},
@@ -132,7 +132,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 						Name: "proxy",
 					},
 					Spec: types.ServerSpecV2{
-						PublicAddr: "proxy-from-api.example.com:3080",
+						PublicAddrs: []string{"proxy-from-api.example.com:3080"},
 					},
 				},
 			},
