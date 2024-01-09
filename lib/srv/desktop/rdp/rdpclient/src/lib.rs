@@ -636,10 +636,12 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn cgo_handle_rdp_channel_ids(
+    fn cgo_handle_rdp_connection_initialized(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
+        screen_width: u16,
+        screen_height: u16,
     ) -> CGOErrCode;
     fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,

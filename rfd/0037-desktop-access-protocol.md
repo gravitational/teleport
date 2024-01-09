@@ -283,14 +283,22 @@ Some messages passed to the TDP client via a FastPath Frame warrant a response, 
 At the time of writing this message is used to send responses to RemoteFX frames, which occasionaly demand such, but in theory it can be used to carry
 any raw RDP response message intended to be written directly into the TDP server-side's RDP connection.
 
-#### 31 - RDP Channel IDs
+#### 31 - RDP Connection Initialized
+
+This message is sent from the server to the browser when a connection
+is initialized. It contains data that the browser needs in order to
+correctly handle the session.
 
 ```
-| message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+| message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
 ```
 
-During the RDP connection sequence the client and server negotiate channel IDs for the I/O and user channels, which are used in the RemoteFX
-response frames (see message type 30, above) . This message is sent by the TDP server to the TDP client so that such response frames can be
-properly formulated.
+During the RDP connection sequence the client and server negotiate channel IDs
+for the I/O and user channels, which are used in the RemoteFX response frames
+(see message type 30, above) . This message is sent by the TDP server to the TDP
+client so that such response frames can be properly formulated.
 
 See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+
+In addition, this message also contains the screen resolution that the server agreed upon
+(you don't always get the resolution that you requested).
