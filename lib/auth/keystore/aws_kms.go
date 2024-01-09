@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
@@ -44,6 +46,10 @@ import (
 const (
 	awskmsPrefix  = "awskms:"
 	clusterTagKey = "TeleportCluster"
+
+	pendingKeyBaseRetryInterval = time.Second / 2
+	pendingKeyMaxRetryInterval  = 4 * time.Second
+	pendingKeyTimeout           = 30 * time.Second
 )
 
 // AWSKMSConfig holds configuration parameters specific to AWS KMS keystores.
@@ -139,7 +145,7 @@ func (a *awsKMSKeystore) generateRSA(ctx context.Context, opts ...RSAKeyOption) 
 		return nil, nil, trace.Errorf("KeyMetadata of generated key is nil")
 	}
 	keyARN := aws.StringValue(output.KeyMetadata.Arn)
-	signer, err := newAWSKMSSigner(a.kms, keyARN)
+	signer, err := a.newSigner(ctx, keyARN)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -157,7 +163,7 @@ func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newAWSKMSSignerWithPublicKey(a.kms, keyID.arn, publicKey)
+	return a.newSignerWithPublicKey(ctx, keyID.arn, publicKey)
 }
 
 type awsKMSSigner struct {
@@ -166,25 +172,73 @@ type awsKMSSigner struct {
 	kms    kmsiface.KMSAPI
 }
 
-func newAWSKMSSigner(kmsapi kmsiface.KMSAPI, keyARN string) (*awsKMSSigner, error) {
-	output, err := kmsapi.GetPublicKey(&kms.GetPublicKeyInput{
-		KeyId: aws.String(keyARN),
+func (a *awsKMSKeystore) newSigner(ctx context.Context, keyARN string) (*awsKMSSigner, error) {
+	pubkeyDER, err := a.getPublicKeyDER(ctx, keyARN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(pubkeyDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "unexpected error parsing public key der")
+	}
+	return a.newSignerWithPublicKey(ctx, keyARN, pub)
+}
+
+func (a *awsKMSKeystore) getPublicKeyDER(ctx context.Context, keyARN string) ([]byte, error) {
+	// KMS is eventually-consistent, and this is called immediately after the
+	// key has been recreated, so a few retries may be necessary.
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  pendingKeyBaseRetryInterval,
+		Driver: retryutils.NewExponentialDriver(pendingKeyBaseRetryInterval),
+		Max:    pendingKeyMaxRetryInterval,
+		Jitter: retryutils.NewHalfJitter(),
+		Clock:  a.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pub, err := x509.ParsePKIXPublicKey(output.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "unexpected error parsing public key der")
+	ctx, cancel := context.WithTimeout(ctx, pendingKeyTimeout)
+	defer cancel()
+	timeout := a.clock.NewTimer(pendingKeyTimeout)
+	defer timeout.Stop()
+	for {
+		output, err := a.kms.GetPublicKeyWithContext(ctx, &kms.GetPublicKeyInput{
+			KeyId: aws.String(keyARN),
+		})
+		if err == nil {
+			return output.PublicKey, nil
+		}
+
+		// Check if the error is one of the two expected eventual consistency
+		// error types
+		// https://docs.aws.amazon.com/kms/latest/developerguide/programming-eventual-consistency.html
+		var (
+			notFound     *kms.NotFoundException
+			invalidState *kms.InvalidStateException
+		)
+		if !errors.As(err, &notFound) && !errors.As(err, &invalidState) {
+			return nil, trace.Wrap(err, "unexpected error fetching AWS KMS public key")
+		}
+
+		startedWaiting := a.clock.Now()
+		select {
+		case t := <-retry.After():
+			a.logger.Debugf("Failed to fetch public key for %q, retrying after waiting %v", keyARN, t.Sub(startedWaiting))
+			retry.Inc()
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case <-timeout.Chan():
+			return nil, trace.Errorf("timed out waiting for AWS KMS public key")
+		}
 	}
-	return newAWSKMSSignerWithPublicKey(kmsapi, keyARN, pub)
 }
 
-func newAWSKMSSignerWithPublicKey(kmsapi kmsiface.KMSAPI, keyARN string, publicKey crypto.PublicKey) (*awsKMSSigner, error) {
+func (a *awsKMSKeystore) newSignerWithPublicKey(ctx context.Context, keyARN string, publicKey crypto.PublicKey) (*awsKMSSigner, error) {
 	return &awsKMSSigner{
 		keyARN: keyARN,
 		pub:    publicKey,
-		kms:    kmsapi,
+		kms:    a.kms,
 	}, nil
 }
 
@@ -364,7 +418,8 @@ func (a *awsKMSKeystore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	for _, keyARN := range keysToDelete {
 		a.logger.WithField("key_arn", keyARN).Info("Deleting unused AWS KMS key.")
 		if _, err := a.kms.ScheduleKeyDeletion(&kms.ScheduleKeyDeletionInput{
-			KeyId: aws.String(keyARN),
+			KeyId:               aws.String(keyARN),
+			PendingWindowInDays: aws.Int64(7),
 		}); err != nil {
 			return trace.Wrap(err, "failed to schedule AWS KMS key %q for deletion", keyARN)
 		}
