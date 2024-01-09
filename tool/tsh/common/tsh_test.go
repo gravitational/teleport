@@ -3828,7 +3828,10 @@ func TestSerializeDatabases(t *testing.T) {
         "domain": "",
         "spn": ""
       },
-      "mongo_atlas": {}
+      "mongo_atlas": {},
+      "cassandra": {
+        "cert_auth": false        
+      }
     },
     "status": {
       "mysql": {},
