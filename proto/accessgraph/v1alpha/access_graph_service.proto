@@ -130,6 +130,10 @@ message EventsStreamResponse {}
 // RegisterRequest is the request for Register.
 message RegisterRequest {
   bytes host_ca_pem = 1;
+
+  // ClusterName is the self-submitted name of the Teleport cluster (usually a FQDN).
+  // This may not uniquely identify the cluster, and is only used to make identification easier for debugging purposes.
+  string cluster_name = 2;
 }
 
 // RegisterResponse is the response for Register.
