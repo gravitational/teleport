@@ -196,10 +196,6 @@ describe('test EnrollRdsDatabase.tsx', () => {
     await screen.findByText(/define a discovery group name/i);
     // There should be no talbe rendered.
     expect(screen.queryByText(/rds-1/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Next')).toBeDisabled();
-
-    // Enable next button
-    act(() => screen.getByTestId('confirm').click());
 
     act(() => screen.getByText('Next').click());
     await screen.findByText(/Creating Auto Discovery Config/i);
