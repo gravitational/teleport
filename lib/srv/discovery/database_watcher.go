@@ -140,7 +140,7 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 	err := s.AccessPoint.CreateDatabase(ctx, database)
 	// If the database already exists but has an empty discovery group, update it.
 	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
-		ctx, func() (types.ResourceWithLabels, error) {
+		func() (types.ResourceWithLabels, error) {
 			return s.AccessPoint.GetDatabase(ctx, database.GetName())
 		}) {
 		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
@@ -163,18 +163,6 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 		s.Log.WithError(err).Debug("Error emitting usage event.")
 	}
 	return nil
-}
-
-func (s *Server) updatesEmptyDiscoveryGroup(ctx context.Context, getter func() (types.ResourceWithLabels, error)) bool {
-	if s.DiscoveryGroup == "" {
-		return false
-	}
-	old, err := getter()
-	if err != nil {
-		return false
-	}
-	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
-	return oldDiscoveryGroup == ""
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, database, _ types.Database) error {

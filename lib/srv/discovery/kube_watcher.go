@@ -115,7 +115,7 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
 	// If the kube already exists but has an empty discovery group, update it.
 	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
-		ctx, func() (types.ResourceWithLabels, error) {
+		func() (types.ResourceWithLabels, error) {
 			return s.AccessPoint.GetKubernetesCluster(ctx, kubeCluster.GetName())
 		}) {
 		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
