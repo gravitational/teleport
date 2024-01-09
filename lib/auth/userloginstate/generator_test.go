@@ -209,6 +209,7 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "owner-role1", "owner-role2"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, ownerUser,
 				map[string]string{
 					userloginstate.OriginalRolesAndTraitsSet: "true",
@@ -237,6 +238,7 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: newAccessListMembers(t, clock, "1", ownerUser),
 			roles:   []string{"orole1", "owner-role1", "owner-role2", "role1"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, ownerUser,
 				map[string]string{
 					userloginstate.OriginalRolesAndTraitsSet: "true",

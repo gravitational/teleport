@@ -141,7 +141,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		}
 	}
 
-	if len(accessList.Spec.OwnershipRequires.Traits) > 0 {
+	if len(accessList.Spec.OwnerGrants.Traits) > 0 {
 		if ownerGrants == nil {
 			ownerGrants = &accesslistv1.AccessListGrants{}
 		}
