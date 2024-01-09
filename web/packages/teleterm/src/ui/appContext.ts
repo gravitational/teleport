@@ -21,11 +21,6 @@ import {
   ElectronGlobals,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import {
-  ReloginRequest,
-  SendNotificationRequest,
-  SendPendingHeadlessAuthenticationRequest,
-} from 'teleterm/services/tshdEvents';
 import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -49,6 +44,7 @@ import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
 import { CommandLauncher } from './commandLauncher';
+import { createTshdEventsContextBridgeService } from './tshdEvents';
 
 export default class AppContext implements IAppContext {
   private logger: Logger;
@@ -165,45 +161,13 @@ export default class AppContext implements IAppContext {
   }
 
   async pullInitialState(): Promise<void> {
-    this.setUpTshdEventService();
+    this.setupTshdEventContextBridgeService(
+      createTshdEventsContextBridgeService(this)
+    );
+
     this.subscribeToDeepLinkLaunch();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
-  }
-
-  private setUpTshdEventService() {
-    this.setupTshdEventContextBridgeService({
-      relogin: async ({ request, onRequestCancelled }) => {
-        await this.reloginService.relogin(
-          request as ReloginRequest,
-          onRequestCancelled
-        );
-        return {};
-      },
-
-      sendNotification: async ({ request }) => {
-        this.tshdNotificationsService.sendNotification(
-          request as SendNotificationRequest
-        );
-
-        return {};
-      },
-
-      sendPendingHeadlessAuthentication: async ({
-        request,
-        onRequestCancelled,
-      }) => {
-        await this.headlessAuthenticationService.sendPendingHeadlessAuthentication(
-          request as SendPendingHeadlessAuthenticationRequest,
-          onRequestCancelled
-        );
-        return {};
-      },
-
-      promptMFA: async () => {
-        throw new Error('Not implemented yet');
-      },
-    });
   }
 
   private subscribeToDeepLinkLaunch() {
