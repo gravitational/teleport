@@ -195,10 +195,10 @@ To build `tsh` with `libfido`:
   make build/tsh FIDO2=dynamic
   ```
 
-  * On a Mac, with `libfido` and `openssl 1.1` installed via `homebrew`
+  * On a Mac, with `libfido` and `openssl 3` installed via `homebrew`
 
     ```shell
-    export PKG_CONFIG_PATH="$(brew --prefix openssl@1.1)/lib/pkgconfig"
+    export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
     make build/tsh FIDO2=dynamic
     ```
 
