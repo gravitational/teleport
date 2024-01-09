@@ -21,8 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
@@ -66,7 +66,8 @@ func ReceivePlaybackActions(
 
 	for {
 		var action actionMessage
-		if err := websocket.JSON.Receive(ws, &action); err != nil {
+
+		if err := ws.ReadJSON(&action); err != nil {
 			// Connection close errors are expected if the user closes the tab.
 			// Only log unexpected errors to avoid cluttering the logs.
 			if !utils.IsOKNetworkError(err) {
@@ -116,12 +117,13 @@ func PlayRecording(
 						msg = []byte(`"internal server error"`)
 					}
 					//lint:ignore QF1012 this write needs to happen in a single operation
-					if _, err := ws.Write([]byte(fmt.Sprintf(`{"message":"error", "errorText":%s}`, string(msg)))); err != nil {
+					bytes := []byte(fmt.Sprintf(`{"message":"error", "errorText":%s}`, string(msg)))
+					if err := ws.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
 						log.Errorf("failed to write error message: %v", err)
 					}
 					return
 				}
-				if _, err := ws.Write([]byte(`{"message":"end"}`)); err != nil {
+				if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"end"}`)); err != nil {
 					log.Errorf("failed to write end message: %v", err)
 				}
 				return
@@ -135,10 +137,10 @@ func PlayRecording(
 			msg, err := utils.FastMarshal(evt)
 			if err != nil {
 				log.Errorf("failed to marshal desktop event: %v", err)
-				ws.Write([]byte(`{"message":"error","errorText":"server error"}`))
+				ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error","errorText":"server error"}`))
 				return
 			}
-			if _, err := ws.Write(msg); err != nil {
+			if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 				// Connection close errors are expected if the user closes the tab.
 				// Only log unexpected errors to avoid cluttering the logs.
 				if !utils.IsOKNetworkError(err) {
