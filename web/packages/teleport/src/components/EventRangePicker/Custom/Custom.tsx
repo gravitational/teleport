@@ -23,45 +23,56 @@ import 'react-day-picker/dist/style.css';
 
 import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 
+/**
+ * Allows user to select any range "from" (no limit)
+ * to "to" (no later than "today").
+ *
+ * @param currentRange is used to initially render the Calendar:
+ *   - if fields are undefined, the Calendar will render with
+ *     today's month with today's date bolded
+ *   - if fields are defined, the Calendar will render with the
+ *     provided dates with the range highlighted
+ */
 export const CustomRange = forwardRef<
   HTMLDivElement,
   {
-    from: Date;
-    to: Date;
+    currentRange: DateRange;
     onChange(from: Date, to: Date): void;
   }
->(({ from, to, onChange }, ref) => {
-  const [range, setRange] = useState<DateRange | undefined>();
+>(({ currentRange, onChange }, ref) => {
+  const [newRange, setNewRange] = useState<DateRange | undefined>();
 
   function handleDayClick(selectedDay: Date) {
+    // Don't let select date past today.
     if (isAfter(selectedDay, endOfDay(new Date()))) {
       return;
     }
 
-    if (isSameDay(range ? range.from : from, selectedDay)) {
+    // Don't do anything if `selected day` == `selected from`
+    if (newRange?.from && isSameDay(newRange.from, selectedDay)) {
       return;
     }
 
-    let newRange;
-    if (!range) {
-      // reset the range once a user starts a new selection
-      newRange = addToRange(selectedDay, { from: undefined, to: undefined });
+    let range;
+    if (!newRange) {
+      // Start
+      range = addToRange(selectedDay, { from: undefined, to: undefined });
     } else {
-      newRange = addToRange(selectedDay, { from: range.from, to: range.to });
+      range = addToRange(selectedDay, { from: newRange.from, to: newRange.to });
     }
 
-    if (newRange.from) {
-      newRange.from = startOfDay(newRange.from);
+    if (range.from) {
+      range.from = startOfDay(range.from);
     }
 
-    if (newRange.to) {
-      newRange.to = endOfDay(newRange.to);
+    if (range.to) {
+      range.to = endOfDay(range.to);
     }
 
-    setRange(newRange);
+    setNewRange(range);
 
-    if (newRange.from && newRange.to) {
-      onChange(newRange.from, newRange.to);
+    if (range.from && range.to) {
+      onChange(range.from, range.to);
     }
   }
 
@@ -70,11 +81,11 @@ export const CustomRange = forwardRef<
       <DayPicker
         mode="range"
         numberOfMonths={2}
-        defaultMonth={from}
+        defaultMonth={currentRange.from}
         disabled={{
           after: new Date(),
         }}
-        selected={range || { from, to }}
+        selected={newRange || currentRange}
         onDayClick={handleDayClick}
       />
     </StyledDateRange>

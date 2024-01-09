@@ -77,8 +77,7 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
         open={isPickerOpen}
       >
         <CustomRange
-          from={range.from}
-          to={range.to}
+          currentRange={{ from: range.from, to: range.to }}
           onChange={onSetCustomRange}
           ref={dayPickerRef}
         />
