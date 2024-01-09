@@ -16,51 +16,7 @@ authenticate to external services.
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
   Reference](./saml-reference.mdx) before proceeding.
-- User with preset `editor` role. We recommend creating a dedicated role to manage
-Service Provider.
-
-  <Admonition type="tip" title="Recommended">
-  <Details title="Create SAML IdP Service Provider role" closed>
-  First, ensure you are logged into Teleport as a user that has permissions
-  to read and modify `saml_idp_service_provider` objects. The default `editor` role
-  has access to this already, but in case you are using a more customized configuration,
-  create a role called `sp-manager.yaml` with the following contents:
-
-  ```yaml
-  kind: role
-  metadata:
-    name: sp-manager
-  spec:
-    allow:
-      rules:
-      - resources:
-        - saml_idp_service_provider
-        verbs:
-        - list
-        - create
-        - read
-        - update
-        - delete
-  version: v7
-  ```
-
-  Create the role with `tctl`:
-
-  ```code
-  $ tctl create sp-manager.yaml
-  role 'saml-idp-service-provider-manager' has been created
-  ```
-
-  Add the role to your user. Replace `teleport-admin` with your user name:
-
-  ```code
-  $ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
-  jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
-  User teleport-admin has been updated:
-    New roles: auditor,editor,access,sp-manager
-  ```
-  </Details>
-  </Admonition>
+- User with permission to create Service Provider resource. The preset `editor` role has this permission.
 - Test SAML application, also known as SAML Service Provider (SP). For this guide, we'll be using 
 [samltest.id](https://samltest.id/) to create a test consumer of Teleport's SAML IdP.
 
@@ -166,3 +122,47 @@ This has verified service provider initiated SSO. To verify identity provider in
 SSO, navigate to `https://<proxy-address>/enterprise/saml-idp/login/samltest-id`,
 where `samltest-id` is the friendly name of the service provider object created earlier.
 You should be redirected to the same successful login page seen earlier.
+
+
+## Optional: Creating dedicated role to manage Service Provider
+
+For production, we recommend creating a dedicated role to manage Service Provider.
+
+To create dedicated role, first, ensure you are logged into Teleport as a user that has
+permissions to read and modify `saml_idp_service_provider` objects. The default `editor` role
+has access to this already, but in case you are using a more customized configuration,
+create a role called `sp-manager.yaml` with the following contents:
+
+```yaml
+kind: role
+metadata:
+  name: sp-manager
+spec:
+  allow:
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+version: v7
+```
+
+Create the role with `tctl`:
+
+```code
+$ tctl create sp-manager.yaml
+role 'saml-idp-service-provider-manager' has been created
+```
+
+Add the role to your user. Replace `teleport-admin` with your user name:
+
+```code
+$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
+jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
+User teleport-admin has been updated:
+  New roles: auditor,editor,access,sp-manager
+```
