@@ -226,6 +226,10 @@ type CommandLineFlags struct {
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
 	IntegrationConfExternalAuditStorageArguments IntegrationConfExternalAuditStorage
+
+	// IntegrationConfTAGAWSSync contains the arguments of
+	// `teleport integration configure aws-tag-sync` command
+	IntegrationConfTAGAWSSyncArguments IntegrationConfTAGAWSSync
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -280,6 +284,13 @@ type IntegrationConfAWSOIDCIdP struct {
 type IntegrationConfListDatabasesIAM struct {
 	// Region is the AWS Region used to set up the client.
 	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfTAGAWSSync contains the arguments of
+// `teleport integration configure aws-tag-sync` command.
+type IntegrationConfTAGAWSSync struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
 }

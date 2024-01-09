@@ -476,6 +476,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Region)
 	integrationConfEKSCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Role)
 
+	integrationConfTAGSyncCmd := integrationConfigureCmd.Command("aws-tag-sync", "Adds required IAM permissions for syncing data into TAG service.")
+	integrationConfTAGSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfTAGAWSSyncArguments.Role)
+
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
 	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Cluster)
@@ -601,6 +604,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfEKSCmd.FullCommand():
 		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
+	case integrationConfTAGSyncCmd.FullCommand():
+		err = onIntegrationConfTAGSync(ccf.IntegrationConfTAGAWSSyncArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
 		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
 	case integrationConfListDatabasesCmd.FullCommand():
@@ -980,6 +985,24 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 
 	err = awsoidc.ConfigureEICEIAM(ctx, iamClient, awsoidc.EICEIAMConfigureRequest{
 		Region:          params.Region,
+		IntegrationRole: params.Role,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onIntegrationConfTAGSync(params config.IntegrationConfTAGAWSSync) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewTAGIAMConfigureClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureTAGSyncIAM(ctx, iamClient, awsoidc.TAGAWSIAMConfigureRequest{
 		IntegrationRole: params.Role,
 	})
 	if err != nil {
