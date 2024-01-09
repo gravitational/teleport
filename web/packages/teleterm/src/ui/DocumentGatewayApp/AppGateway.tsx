@@ -40,13 +40,14 @@ export function AppGateway(props: {
   const formRef = useRef<HTMLFormElement>();
   const cliCommandPreview = props.gateway.gatewayCliCommand.preview;
 
+  const { changePort } = props;
   const handleChangePort = useMemo(() => {
     return debounce((value: string) => {
       if (formRef.current.reportValidity()) {
-        props.changePort(value);
+        changePort(value);
       }
     }, 1000);
-  }, [props.changePort]);
+  }, [changePort]);
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">

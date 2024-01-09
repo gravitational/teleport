@@ -83,16 +83,21 @@ export function DocumentGatewayApp(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [changePortAttempt, changePort] = useAsync(async (port: string) => {
-    const updatedGateway = await ctx.clustersService.setGatewayLocalPort(
-      doc.gatewayUri,
-      port
-    );
+  const [changePortAttempt, changePort] = useAsync(
+    useCallback(
+      async (port: string) => {
+        const updatedGateway = await ctx.clustersService.setGatewayLocalPort(
+          doc.gatewayUri,
+          port
+        );
 
-    documentsService.update(doc.uri, {
-      port: updatedGateway.localPort,
-    });
-  });
+        documentsService.update(doc.uri, {
+          port: updatedGateway.localPort,
+        });
+      },
+      [ctx.clustersService, doc.gatewayUri, doc.uri, documentsService]
+    )
+  );
 
   return (
     <Document visible={props.visible}>
