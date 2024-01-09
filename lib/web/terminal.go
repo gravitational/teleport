@@ -96,9 +96,9 @@ type TerminalRequest struct {
 	ParticipantMode types.SessionParticipantMode `json:"mode"`
 }
 
-// AuthProvider is a subset of the full Auth API.
-type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+// UserAuthClient is a subset of the Auth API that performs
+// operations on behalf of the user so that the correct RBAC is applied.
+type UserAuthClient interface {
 	GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
@@ -125,8 +125,8 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 				"session_id":    cfg.SessionData.ID.String(),
 			}),
 			ctx:                cfg.SessionCtx,
-			authProvider:       cfg.AuthProvider,
-			localAuthProvider:  cfg.LocalAuthProvider,
+			userAuthClient:     cfg.UserAuthClient,
+			localAccessPoint:   cfg.LocalAccessPoint,
 			sessionData:        cfg.SessionData,
 			keepAliveInterval:  cfg.KeepAliveInterval,
 			proxyHostPort:      cfg.ProxyHostPort,
@@ -151,11 +151,14 @@ type TerminalHandlerConfig struct {
 	Term session.TerminalParams
 	// SessionCtx is the context for the users web session.
 	SessionCtx *SessionContext
-	// AuthProvider is used to fetch nodes and sessions from the backend.
-	AuthProvider AuthProvider
-	// LocalAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	LocalAuthProvider agentless.AuthProvider
+	// UserAuthClient is used to fetch nodes and sessions from the backend.
+	UserAuthClient UserAuthClient
+	// LocalAccessPoint is the subset of the Proxy cache required to
+	// look up information from the local cluster. This should not
+	// be used for anything that requires RBAC on behalf of the user.
+	// Requests that should be made on behalf of the user should
+	// use [UserAuthClient].
+	LocalAccessPoint localAccessPoint
 	// DisplayLogin is the login name to display in the UI.
 	DisplayLogin string
 	// SessionData is the data to send to the client on the initial session creation.
@@ -209,12 +212,12 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
 	}
 
-	if t.AuthProvider == nil {
-		return trace.BadParameter("AuthProvider must be provided")
+	if t.UserAuthClient == nil {
+		return trace.BadParameter("UserAuthClient must be provided")
 	}
 
-	if t.LocalAuthProvider == nil {
-		return trace.BadParameter("LocalAuthProvider must be provided")
+	if t.LocalAccessPoint == nil {
+		return trace.BadParameter("localAccessPoint must be provided")
 	}
 
 	if t.SessionCtx == nil {
@@ -244,8 +247,8 @@ type sshBaseHandler struct {
 	log *logrus.Entry
 	// ctx is a web session context for the currently logged-in user.
 	ctx *SessionContext
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
+	// userAuthClient is used to fetch nodes and sessions from the backend via the users' identity.
+	userAuthClient UserAuthClient
 	// proxyHostPort is the address of the server to connect to.
 	proxyHostPort string
 	// proxyPublicAddr is the public web proxy address.
@@ -260,11 +263,22 @@ type sshBaseHandler struct {
 	router *proxy.Router
 	// tracer creates spans
 	tracer oteltrace.Tracer
-	// localAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	localAuthProvider agentless.AuthProvider
+	// localAccessPoint is the subset of the Proxy cache required to
+	// look up information from the local cluster. This should not
+	// be used for anything that requires RBAC on behalf of the user.
+	// Requests that should be made on behalf of the user should
+	// use [UserAuthClient].
+	localAccessPoint localAccessPoint
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
+}
+
+// localAccessPoint is a subset of the cache used to look up
+// various cluster details.
+type localAccessPoint interface {
+	GetUser(ctx context.Context, username string, withSecrets bool) (types.User, error)
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 }
 
 // TerminalHandler connects together an SSH session with a web-based
@@ -333,43 +347,60 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sessionMetadataResponse []byte
+	t.handler(ws, r)
+}
+
+func (t *TerminalHandler) writeSessionData(ctx context.Context) error {
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionMetadata,
+	}
+
+	sessionDataTemp := t.sessionData
 
 	// If the displayLogin is set then use it in the session metadata instead of the
 	// login name used in the SSH connection. This is specifically for the use case
 	// when joining a session to avoid displaying "-teleport-internal-join" as the username.
 	if t.displayLogin != "" {
-		sessionDataTemp := t.sessionData
 		sessionDataTemp.Login = t.displayLogin
-		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		if err != nil {
+			t.sendError("unable to marshal session response", err, t.stream.ws)
+			return trace.Wrap(err)
+		}
+		envelope.Payload = string(sessionMetadataResponse)
 	} else {
-		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
-	}
+		// The Proxy cache is used to retrieve the server and resolve the hostname here instead
+		// of the user auth client to avoid a round trip to the Auth server. This would normally
+		// not be ok since this bypasses user RBAC, however, since at this point we have already
+		// established a connection to the target host via the user identity, the user MUST have
+		// access to the target host.
+		server, err := t.localAccessPoint.GetNode(ctx, apidefaults.Namespace, sessionDataTemp.ServerID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		sessionDataTemp.ServerHostname = server.GetHostname()
 
-	if err != nil {
-		t.sendError("unable to marshal session response", err, ws)
-		return
-	}
-
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketSessionMetadata,
-		Payload: string(sessionMetadataResponse),
+		sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+		if err != nil {
+			t.sendError("unable to marshal session response", err, t.stream.ws)
+			return trace.Wrap(err)
+		}
+		envelope.Payload = string(sessionMetadataResponse)
 	}
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		t.sendError("unable to marshal session data event for web client", err, ws)
-		return
+		t.sendError("unable to marshal session data event for web client", err, t.stream.ws)
+		return trace.Wrap(err)
 	}
 
-	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	if err != nil {
-		t.sendError("unable to write message to socket", err, ws)
-		return
+	if err := t.stream.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+		t.sendError("unable to write message to socket", err, t.stream.ws)
+		return trace.Wrap(err)
 	}
 
-	t.handler(ws, r)
+	return nil
 }
 
 // Close the websocket stream.
@@ -405,7 +436,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
-	t.stream = NewTerminalStream(ctx, ws, t.log)
+	t.stream = NewTerminalStream(ctx, TerminalStreamConfig{WS: ws, Logger: t.log})
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -515,7 +546,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 
 // issueSessionMFACerts performs the mfa ceremony to retrieve new certs that can be
 // used to access nodes which require per-session mfa. The ceremony is performed directly
-// to make use of the authProvider already established for the session instead of leveraging
+// to make use of the userAuthClient already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
 func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *WSStream) ([]ssh.AuthMethod, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
@@ -559,7 +590,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	}
 
 	key, _, err = client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
-		CurrentAuthClient: t.authProvider,
+		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
 		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 			span.AddEvent("prompting user with mfa challenge")
@@ -631,7 +662,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer := agentless.SignerFromSSHCertificate(cert, t.localAuthProvider, tc.SiteName, tc.Username)
+	signer := agentless.SignerFromSSHCertificate(cert, t.localAccessPoint, tc.SiteName, tc.Username)
 
 	type clientRes struct {
 		clt *client.NodeClient
@@ -751,11 +782,15 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 	defer nc.Close()
 
+	if err := t.writeSessionData(ctx); err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failure sending session data")
+	}
+
 	var beforeStart func(io.Writer)
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.authProvider, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
@@ -968,20 +1003,45 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 	return w
 }
 
+// TerminalStreamConfig contains dependencies of a TerminalStream.
+type TerminalStreamConfig struct {
+	// The websocket to operate over. Required.
+	WS WSConn
+	// A logger to emit log messages. Optional.
+	Logger logrus.FieldLogger
+	// A custom set of handlers to process messages received
+	// over the websocket. Optional.
+	Handlers map[string]WSHandlerFunc
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws WSConn, log logrus.FieldLogger) *TerminalStream {
+func NewTerminalStream(ctx context.Context, cfg TerminalStreamConfig) *TerminalStream {
 	t := &TerminalStream{
 		sessionReadyC: make(chan struct{}),
 	}
 
-	handlers := map[string]WSHandlerFunc{
-		defaults.WebsocketResize:               t.handleWindowResize,
-		defaults.WebsocketFileTransferRequest:  t.handleFileTransferRequest,
-		defaults.WebsocketFileTransferDecision: t.handleFileTransferDecision,
+	if cfg.Handlers == nil {
+		cfg.Handlers = map[string]WSHandlerFunc{}
 	}
 
-	t.WSStream = NewWStream(ctx, ws, log, handlers)
+	if _, ok := cfg.Handlers[defaults.WebsocketResize]; !ok {
+		cfg.Handlers[defaults.WebsocketResize] = t.handleWindowResize
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferRequest]; !ok {
+		cfg.Handlers[defaults.WebsocketFileTransferRequest] = t.handleFileTransferRequest
+	}
+
+	if _, ok := cfg.Handlers[defaults.WebsocketFileTransferDecision]; !ok {
+		cfg.Handlers[defaults.WebsocketFileTransferDecision] = t.handleFileTransferDecision
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = utils.NewLogger()
+	}
+
+	t.WSStream = NewWStream(ctx, cfg.WS, cfg.Logger, cfg.Handlers)
 
 	return t
 }

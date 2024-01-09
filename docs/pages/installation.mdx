@@ -352,8 +352,8 @@ from a trusted CA, e.g., Let's Encrypt.
 
 ## Amazon EC2
 
-We provide pre-built `amd64` Amazon Linux 2023 based EC2 AMIs with Teleport
-pre-installed.
+We provide pre-built `amd64` and `arm64` Amazon Linux 2023 based EC2 AMIs with
+Teleport pre-installed.
 
 These images are primarily intended for deploying a Teleport cluster using our
 [reference Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform).
@@ -367,14 +367,19 @@ the Teleport installation by setting configuration variables in the
 `/etc/teleport.d/conf` file on the EC2 instance. See the [Starter Cluster Configuration Template](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/data.tpl)
 for a list of the available configuration options.
 
-The image names all include the build timestamp (shown as `$TIMESTAMP` in the table
-below), and are tagged for easier searching.
+The image names all include the build timestamp (shown as `$TIMESTAMP` in the
+table below), and are tagged for easier searching.
 
-| Image name | Edition | FIPS support | AMI Tags | Owner Account ID |
+| Image name | Edition | Architecture | FIPS support | AMI Tags |
 | - | - | - | - | - |
-| `teleport-oss-(=teleport.version=)-$TIMESTAMP` | OSS | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` | 146628656107 |
-| `teleport-ent-(=teleport.version=)-$TIMESTAMP` | Enterprise | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` | 146628656107 |
-| `teleport-ent-(=teleport.version=)-fips-$TIMESTAMP` | Enterprise | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` | 146628656107 |
+| `teleport-oss-(=teleport.version=)-x86_64-$TIMESTAMP` | OSS | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-oss-(=teleport.version=)-arm64-$TIMESTAMP` | OSS | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-x86_64-$TIMESTAMP` | Enterprise | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-arm64-$TIMESTAMP` | Enterprise | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-x86_64-fips-$TIMESTAMP` | Enterprise | amd64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
+| `teleport-ent-(=teleport.version=)-arm64-fips-$TIMESTAMP` | Enterprise | arm64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
+
+These AMIs are owned by AWS account ID `146628656107`.
 
 All images are based on Amazon Linux 2023 and have been hardened using the
 Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening

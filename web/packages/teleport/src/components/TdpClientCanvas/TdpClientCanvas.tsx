@@ -33,7 +33,7 @@ export default function TdpClientCanvas(props: Props) {
   const {
     client,
     clientShouldConnect = false,
-    clientScreenSpec,
+    clientScreenSpecToRequest,
     clientOnPngFrame,
     clientOnBmpFrame,
     clientOnClipboardData,
@@ -321,7 +321,7 @@ export default function TdpClientCanvas(props: Props) {
   // Call init after all listeners have been registered
   useEffect(() => {
     if (client && clientShouldConnect) {
-      client.connect(clientScreenSpec);
+      client.connect(clientScreenSpecToRequest);
       return () => {
         client.shutdown();
       };
@@ -336,9 +336,9 @@ export type Props = {
   // clientShouldConnect determines whether the TdpClientCanvas
   // will try to connect to the server.
   clientShouldConnect?: boolean;
-  // clientScreenSpec will be passed to client.connect() if
+  // clientScreenSpecToRequest will be passed to client.connect() if
   // clientShouldConnect is true.
-  clientScreenSpec?: ClientScreenSpec;
+  clientScreenSpecToRequest?: ClientScreenSpec;
   clientOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame

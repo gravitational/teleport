@@ -5,7 +5,7 @@ data "aws_route53_zone" "proxy" {
 }
 
 // Route53 record connects proxy network load balancer
-// letsencrypt
+// Let's Encrypt
 resource "aws_route53_record" "proxy" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = var.route53_domain
@@ -20,7 +20,7 @@ resource "aws_route53_record" "proxy" {
 }
 
 // Route53 record connects proxy network load balancer with wildcard
-// letsencrypt
+// Let's Encrypt
 resource "aws_route53_record" "proxy_wildcard" {
   zone_id = data.aws_route53_zone.proxy.zone_id
   name    = "*.${var.route53_domain}"

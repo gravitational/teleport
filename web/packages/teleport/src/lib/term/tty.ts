@@ -181,6 +181,7 @@ class Tty extends EventEmitterWebAuthnSender {
     try {
       const uintArray = new Uint8Array(ev.data);
       const msg = this._proto.decode(uintArray);
+
       switch (msg.type) {
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);

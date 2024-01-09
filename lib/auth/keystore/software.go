@@ -62,15 +62,19 @@ func (s *softwareKeyStore) generateRSA(ctx context.Context, _ ...RSAKeyOption) (
 	if err != nil {
 		return nil, nil, err
 	}
-	signer, err := s.getSigner(ctx, priv)
+	signer, err := s.getSignerWithoutPublicKey(ctx, priv)
 	if err != nil {
 		return nil, nil, err
 	}
 	return priv, signer, trace.Wrap(err)
 }
 
-// GetSigner returns a crypto.Signer for the given pem-encoded private key.
-func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+// getSigner returns a crypto.Signer for the given pem-encoded private key.
+func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	return s.getSignerWithoutPublicKey(ctx, rawKey)
+}
+
+func (s *softwareKeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	signer, err := utils.ParsePrivateKeyPEM(rawKey)
 	return signer, trace.Wrap(err)
 }

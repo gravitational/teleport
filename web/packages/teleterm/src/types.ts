@@ -33,44 +33,79 @@ export type {
 };
 
 /**
- * SubscribeToTshdEvent is a type of the subscribeToTshdEvent function which gets exposed to the
- * renderer through the context bridge.
+ * TshdEventContextBridgeService is the part of the tshd events service running in the browser. It
+ * is a version of ITshdEventsServiceServer with properties mapped to values that can be passed
+ * through the context bridge.
  *
- * A typical implementation of a gRPC service looks something like this:
+ * The tshd events gRPC service itself is set up in preload.ts. A typical implementation of a
+ * handler for an RPC called "foo" of ITshdEventsServiceServer looks something like this:
  *
- *     {
- *       nameOfTheRpc: (call, callback) => {
- *         call.onCancelled(() => { … })
- *         const request = call.request.toObject()
- *         // Do something with the request fields…
- *       }
- *     }
+ * {
+ *   foo: (call, callback) => {
+ *     const result = processRequest(call.request)
+ *     callback(null, new api.FooResponse().setBar(result.bar))
+ *   }
+ * }
  *
- * subscribeToTshdEvent lets you add a listener that's going to be called every time a client makes
- * a particular RPC to the tshd events service. The listener receives the request converted to a
- * simple JS object since classes cannot be passed through the context bridge.
+ * However, we want the actual logic of tshd event handlers to interact with UI elements in the app.
+ * This means that the gRPC handlers need to run in the browser context, which in turns means that
+ * the gRPC handlers need to call functions that cross the context bridge.
  *
- * The SubscribeToTshdEvent type expresses all of this so that our subscribeToTshdEvent can stay
- * type safe.
+ * grpc-js expects that `call.request` and the second argument to `callback` are class instances.
+ * Unfortunately, class instances cannot be passed through the context bridge. This means that we
+ * have to cast them to simple objects first.
+ *
+ * This means that the gRPC handler on the preload.ts side needs to do something like this:
+ *
+ * {
+ *   foo: (call, callback) => {
+ *     const result = processRequestInBrowser(call.request.toObject())
+ *     callback(null, new api.FooResponse().setBar(result.bar))
+ *   }
+ * }
+ *
+ * …so that the implementation of TshdEventContextBridgeService can look like this:
+ *
+ * {
+ *   foo: async ({ request, onCancelled }) => {
+ *     doSomething(request)
+ *     return { bar: 1234 }
+ *   }
+ * }
+ *
+ * The functions always need to return something, even if technically the handler is not going to
+ * utilize the returned object. This helps with keeping type safety in cases where the handler
+ * actually uses the returned object.
  */
-export type SubscribeToTshdEvent = <
-  RpcName extends keyof ITshdEventsServiceServer,
-  RpcHandler extends ITshdEventsServiceServer[RpcName],
-  RpcHandlerServerCall extends Parameters<RpcHandler>[0],
-  RpcHandlerRequestObject extends ReturnType<
-    RpcHandlerServerCall['request']['toObject']
-  >
->(
-  eventName: RpcName,
-  listener: (eventData: {
-    request: RpcHandlerRequestObject;
-    onCancelled: (callback: () => void) => void;
-  }) => void | Promise<void>
-) => void;
+export type TshdEventContextBridgeService = {
+  [RpcName in keyof ITshdEventsServiceServer]: (args: {
+    /**
+     * request is the result of calling call.request.toObject() in a gRPC handler.
+     */
+    request: ReturnType<
+      Parameters<ITshdEventsServiceServer[RpcName]>[0]['request']['toObject']
+    >;
+    /**
+     * onRequestCancelled sets up a callback that is called when the request gets canceled by the
+     * client (tshd in this case).
+     */
+    onRequestCancelled: (callback: () => void) => void;
+  }) => Promise<
+    // The following type maps to the object version of the response type expected as the second
+    // argument to the callback function in a gRPC handler.
+    ReturnType<
+      Parameters<
+        Parameters<ITshdEventsServiceServer[RpcName]>[1]
+      >[1]['toObject']
+    >
+  >;
+};
 
 export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;
   readonly tshClient: TshClient;
   readonly ptyServiceClient: PtyServiceClient;
-  readonly subscribeToTshdEvent: SubscribeToTshdEvent;
+  readonly setupTshdEventContextBridgeService: (
+    listener: TshdEventContextBridgeService
+  ) => void;
 };

@@ -658,9 +658,19 @@ postStart:
 
 # Resources to request for the teleport container
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+#
+# DANGER: Setting CPU limits is an anti-pattern and harmful in most cases.
+# Unless you enabled [the Static CPU management policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy),
+# a multithreaded workload with CPU limits will very likely not behave the way
+# you expect when approaching its CPU limit.
+#
+# Teleport will become unstable once throttling starts. We recommend not to set CPU limits.
+# See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for technical details.
 resources: {}
 #  requests:
 #    cpu: "1"
+#    memory: "2Gi"
+#  limits:
 #    memory: "2Gi"
 
 # Security context to add to the container

@@ -40,7 +40,14 @@ const TraceLevel = slog.LevelDebug - 1
 // SlogTextHandler is a [slog.Handler] that outputs messages in a textual
 // manner as configured by the Teleport configuration.
 type SlogTextHandler struct {
-	cfg       SlogTextHandlerConfig
+	cfg SlogTextHandlerConfig
+	// withCaller indicates whether the location the log was emitted from
+	// should be included in the output message.
+	withCaller bool
+	// withTimestamp indicates whether the times that the log was emitted at
+	// should be included in the output message.
+	withTimestamp bool
+	// component is the Teleport subcomponent that emitted the log.
 	component string
 	// preformatted data from previous calls to WithGroup and WithAttrs.
 	preformatted []byte
@@ -72,29 +79,34 @@ type SlogTextHandlerConfig struct {
 	EnableColors bool
 	// Padding to use for various components.
 	Padding int
-	// WithCaller indicates whether the source of the log should be
-	// included in output.
-	WithCaller bool
+	// ConfiguredFields are fields explicitly set by users to be included in
+	// the output message. If there are any entries configured, they will be honored.
+	// If empty, the default fields will be populated and included in the output.
+	ConfiguredFields []string
 	// ReplaceAttr is called to rewrite each non-group attribute before
 	// it is logged.
 	ReplaceAttr func(groups []string, a slog.Attr) slog.Attr
 }
 
 // NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
-func NewSlogTextHandler(w io.Writer, cfg *SlogTextHandlerConfig) *SlogTextHandler {
-	if cfg == nil {
-		cfg = &SlogTextHandlerConfig{}
-	}
-
+func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
 	if cfg.Padding == 0 {
 		cfg.Padding = trace.DefaultComponentPadding
 	}
 
-	return &SlogTextHandler{
-		cfg: *cfg,
-		out: w,
-		mu:  &sync.Mutex{},
+	handler := SlogTextHandler{
+		cfg:           cfg,
+		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, callerField),
+		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, timestampField),
+		out:           w,
+		mu:            &sync.Mutex{},
 	}
+
+	if handler.cfg.ConfiguredFields == nil {
+		handler.cfg.ConfiguredFields = defaultFormatFields
+	}
+
+	return &handler
 }
 
 // Enabled returns whether the provided level will be included in output.
@@ -132,18 +144,39 @@ func (s *SlogTextHandler) appendAttr(buf []byte, a slog.Attr) []byte {
 			break
 		}
 
+		if a.Key == trace.ComponentFields {
+			switch fields := a.Value.Any().(type) {
+			case map[string]any:
+				for k, v := range fields {
+					buf = s.appendAttr(buf, slog.Any(k, v))
+				}
+			case logrus.Fields:
+				for k, v := range fields {
+					buf = s.appendAttr(buf, slog.Any(k, v))
+				}
+			}
+		}
+
 		if needsQuoting(value) {
-			if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == "caller" || a.Key == slog.MessageKey {
-				buf = fmt.Append(buf, " ")
+			if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
+				if len(buf) > 0 {
+					buf = fmt.Append(buf, " ")
+				}
 			} else {
-				buf = fmt.Appendf(buf, " %s%s:", s.groupPrefix, a.Key)
+				if len(buf) > 0 {
+					buf = fmt.Append(buf, " ")
+				}
+				buf = fmt.Appendf(buf, "%s%s:", s.groupPrefix, a.Key)
 			}
 			buf = strconv.AppendQuote(buf, value)
 			break
 		}
 
-		if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == "caller" || a.Key == slog.MessageKey {
-			buf = fmt.Appendf(buf, " %s", a.Value.String())
+		if a.Key == trace.Component || a.Key == slog.LevelKey || a.Key == callerField || a.Key == slog.MessageKey {
+			if len(buf) > 0 {
+				buf = fmt.Append(buf, " ")
+			}
+			buf = fmt.Appendf(buf, "%s", a.Value.String())
 			break
 		}
 
@@ -222,7 +255,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 	buf := newBuffer()
 	defer buf.Free()
 
-	if !r.Time.IsZero() {
+	if s.withTimestamp && !r.Time.IsZero() {
 		if s.cfg.ReplaceAttr != nil {
 			*buf = s.appendAttr(*buf, slog.Time(slog.TimeKey, r.Time))
 		} else {
@@ -230,44 +263,79 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 
-	var color int
-	var level string
-	switch r.Level {
-	case TraceLevel:
-		level = "TRACE"
-		color = gray
-	case slog.LevelDebug:
-		level = "DEBUG"
-		color = gray
-	case slog.LevelInfo:
-		level = "INFO"
-		color = blue
-	case slog.LevelWarn:
-		level = "WARN"
-		color = yellow
-	case slog.LevelError:
-		level = "ERROR"
-		color = red
-	case slog.LevelError + 1:
-		level = "FATAL"
-		color = red
-	default:
-		color = blue
-		level = r.Level.String()
-	}
+	// Processing fields in this manner allows users to
+	// configure the level and component position in the output.
+	// This matches the behavior of the original logrus. All other
+	// fields location in the output message are static.
+	for _, field := range s.cfg.ConfiguredFields {
+		switch field {
+		case levelField:
+			var color int
+			var level string
+			switch r.Level {
+			case TraceLevel:
+				level = "TRACE"
+				color = gray
+			case slog.LevelDebug:
+				level = "DEBUG"
+				color = gray
+			case slog.LevelInfo:
+				level = "INFO"
+				color = blue
+			case slog.LevelWarn:
+				level = "WARN"
+				color = yellow
+			case slog.LevelError:
+				level = "ERROR"
+				color = red
+			case slog.LevelError + 1:
+				level = "FATAL"
+				color = red
+			default:
+				color = blue
+				level = r.Level.String()
+			}
 
-	if !s.cfg.EnableColors {
-		color = noColor
-	}
+			if !s.cfg.EnableColors {
+				color = noColor
+			}
 
-	level = padMax(level, trace.DefaultLevelPadding)
-	if color == noColor {
-		*buf = s.appendAttr(*buf, slog.String(slog.LevelKey, level))
-	} else {
-		*buf = fmt.Appendf(*buf, " \u001B[%dm%s\u001B[0m", color, level)
-	}
+			level = padMax(level, trace.DefaultLevelPadding)
+			if color == noColor {
+				*buf = s.appendAttr(*buf, slog.String(slog.LevelKey, level))
+			} else {
+				*buf = fmt.Appendf(*buf, " \u001B[%dm%s\u001B[0m", color, level)
+			}
+		case componentField:
+			// If a component is provided with the attributes, it should be used instead of
+			// the component set on the handler. Note that if there are multiple components
+			// specified in the arguments, the one with the lowest index is used and the others are ignored.
+			// In the example below, the resulting component in the message output would be "alpaca".
+			//
+			//	logger := logger.With(trace.Component, "fish")
+			//	logger.InfoContext(ctx, "llama llama llama", trace.Component, "alpaca", "foo", 123, trace.Component, "shark")
+			component := s.component
+			r.Attrs(func(attr slog.Attr) bool {
+				if attr.Key == trace.Component {
+					component = fmt.Sprintf("[%v]", attr.Value)
+					component = strings.ToUpper(padMax(component, s.cfg.Padding))
+					if component[len(component)-1] != ' ' {
+						component = component[:len(component)-1] + "]"
+					}
 
-	*buf = s.appendAttr(*buf, slog.String(trace.Component, s.component))
+					return false
+				}
+
+				return true
+			})
+
+			*buf = s.appendAttr(*buf, slog.String(trace.Component, component))
+		default:
+			if _, ok := knownFormatFields[field]; !ok {
+				return trace.BadParameter("invalid log format key: %v", field)
+			}
+		}
+	}
 
 	*buf = s.appendAttr(*buf, slog.String(slog.MessageKey, r.Message))
 
@@ -282,12 +350,17 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 
 		r.Attrs(func(a slog.Attr) bool {
+			// Skip adding any component attrs since they are processed above.
+			if a.Key == trace.Component {
+				return true
+			}
+
 			*buf = s.appendAttr(*buf, a)
 			return true
 		})
 	}
 
-	if r.PC != 0 && s.cfg.WithCaller {
+	if r.PC != 0 && s.withCaller {
 		fs := runtime.CallersFrames([]uintptr{r.PC})
 		f, _ := fs.Next()
 
@@ -377,6 +450,20 @@ func (s *SlogTextHandler) WithGroup(name string) slog.Handler {
 	return &s2
 }
 
+// SlogJSONHandlerConfig allow the SlogJSONHandler functionality
+// to be tweaked.
+type SlogJSONHandlerConfig struct {
+	// Level is the minimum record level that will be logged.
+	Level slog.Leveler
+	// ConfiguredFields are fields explicitly set by users to be included in
+	// the output message. If there are any entries configured, they will be honored.
+	// If empty, the default fields will be populated and included in the output.
+	ConfiguredFields []string
+	// ReplaceAttr is called to rewrite each non-group attribute before
+	// it is logged.
+	ReplaceAttr func(groups []string, a slog.Attr) slog.Attr
+}
+
 // SlogJSONHandler is a [slog.Handler] that outputs messages in a json
 // format per the config file.
 type SlogJSONHandler struct {
@@ -384,15 +471,23 @@ type SlogJSONHandler struct {
 }
 
 // NewSlogJSONHandler creates a SlogJSONHandler that outputs to w.
-func NewSlogJSONHandler(w io.Writer, level slog.Leveler) *SlogJSONHandler {
+func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler {
+	withCaller := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, callerField)
+	withComponent := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, componentField)
+	withTimestamp := len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, timestampField)
+
 	return &SlogJSONHandler{
 		JSONHandler: slog.NewJSONHandler(w, &slog.HandlerOptions{
 			AddSource: true,
-			Level:     level,
+			Level:     cfg.Level,
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 				switch a.Key {
 				case trace.Component:
-					a.Key = "component"
+					if !withComponent {
+						return slog.Attr{}
+					}
+
+					a.Key = componentField
 				case slog.LevelKey:
 					var level string
 					switch lvl := a.Value.Any().(slog.Level); lvl {
@@ -414,18 +509,26 @@ func NewSlogJSONHandler(w io.Writer, level slog.Leveler) *SlogJSONHandler {
 
 					a.Value = slog.StringValue(level)
 				case slog.TimeKey:
+					if !withTimestamp {
+						return slog.Attr{}
+					}
+
 					t := a.Value.Time()
 					if t.IsZero() {
 						return a
 					}
 
-					a.Key = "timestamp"
+					a.Key = timestampField
 					a.Value = slog.StringValue(t.Format(time.RFC3339))
 				case slog.MessageKey:
-					a.Key = "message"
+					a.Key = messageField
 				case slog.SourceKey:
+					if !withCaller {
+						return slog.Attr{}
+					}
+
 					file, line := getCaller(a)
-					a = slog.String("caller", fmt.Sprintf("%s:%d", file, line))
+					a = slog.String(callerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
 				return a

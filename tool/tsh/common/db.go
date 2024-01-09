@@ -96,7 +96,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, accessChecker, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
 
 func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
@@ -232,7 +232,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+		printDatabasesWithClusters(cf, dbListings, active)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabasesAllClusters(dbListings, format)
 		if err != nil {
@@ -1669,7 +1669,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	var checker services.AccessChecker
 	var sb strings.Builder
 	verbose := true
-	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
+	showDatabasesAsText(cf, &sb, matchedDBs, activeDBs, checker, verbose)
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()

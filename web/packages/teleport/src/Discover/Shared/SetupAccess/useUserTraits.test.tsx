@@ -26,55 +26,50 @@ import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import cfg from 'teleport/config';
 import { userEventService } from 'teleport/services/userEvent';
+import {
+  defaultDiscoverContext,
+  defaultResourceSpec,
+} from 'teleport/Discover/Fixtures/fixtures';
+import TeleportContext from 'teleport/teleportContext';
 
 import { ResourceKind } from '../ResourceKind';
 
 import { useUserTraits } from './useUserTraits';
 
 import type {
-  AgentMeta,
   DbMeta,
+  DiscoverContextState,
   KubeMeta,
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
 
 describe('onProceed correctly deduplicates, removes static traits, updates meta, and calls updateUser', () => {
-  const ctx = createTeleportContext();
-  jest.spyOn(ctx.userService, 'fetchUser').mockResolvedValue(getMockUser());
-  jest.spyOn(ctx.userService, 'updateUser').mockResolvedValue(null);
-  jest.spyOn(ctx.userService, 'reloadUser').mockResolvedValue(null);
+  const teleCtx = createTeleportContext();
+  jest.spyOn(teleCtx.userService, 'fetchUser').mockResolvedValue(getMockUser());
+  jest.spyOn(teleCtx.userService, 'updateUser').mockResolvedValue(null);
+  jest.spyOn(teleCtx.userService, 'reloadUser').mockResolvedValue(null);
   jest
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(null as never); // return value does not matter but required by ts
-
-  let wrapper;
-
-  beforeEach(() => {
-    wrapper = ({ children }) => (
-      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={[]}>
-            <DiscoverProvider>{children}</DiscoverProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </MemoryRouter>
-    );
-  });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   test('kubernetes', async () => {
-    const props = {
-      agentMeta: getMeta(ResourceKind.Kubernetes) as AgentMeta,
-      updateAgentMeta: jest.fn(x => x),
-      nextStep: () => null,
-      resourceSpec: { kind: ResourceKind.Kubernetes } as any,
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Kubernetes),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(ResourceKind.Kubernetes),
     };
+    const spyUpdateAgentMeta = jest
+      .spyOn(discoverCtx, 'updateAgentMeta')
+      .mockImplementation(x => x);
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
     });
 
     await waitFor(() =>
@@ -118,7 +113,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     };
 
     await waitFor(() => {
-      expect(ctx.userService.fetchUser).toHaveBeenCalledTimes(1);
+      expect(teleCtx.userService.fetchUser).toHaveBeenCalledTimes(1);
     });
 
     act(() => {
@@ -126,18 +121,18 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() => {
-      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
     });
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(ctx.userService.updateUser).toHaveBeenCalledWith({
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
       ...mockUser,
       traits: { ...mockUser.traits, ...expected },
     });
 
     // Test that updating meta correctly updated the dynamic traits.
-    const updatedMeta = props.updateAgentMeta.mock.results[0].value as KubeMeta;
+    const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as KubeMeta;
     expect(updatedMeta.kube.users).toStrictEqual([
       ...staticTraits.kubeUsers,
       ...expected.kubeUsers,
@@ -149,15 +144,19 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
   });
 
   test('database', async () => {
-    const props = {
-      agentMeta: getMeta(ResourceKind.Database) as AgentMeta,
-      updateAgentMeta: jest.fn(x => x),
-      nextStep: () => null,
-      resourceSpec: { kind: ResourceKind.Database } as any,
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Database),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(ResourceKind.Database),
     };
+    const spyUpdateAgentMeta = jest
+      .spyOn(discoverCtx, 'updateAgentMeta')
+      .mockImplementation(x => x);
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
     });
 
     await waitFor(() =>
@@ -205,18 +204,18 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() => {
-      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
     });
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(ctx.userService.updateUser).toHaveBeenCalledWith({
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
       ...mockUser,
       traits: { ...mockUser.traits, ...expected },
     });
 
     // Test that updating meta correctly updated the dynamic traits.
-    const updatedMeta = props.updateAgentMeta.mock.results[0].value as DbMeta;
+    const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as DbMeta;
     expect(updatedMeta.db.users).toStrictEqual([
       ...staticTraits.databaseUsers,
       ...expected.databaseUsers,
@@ -227,16 +226,90 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     ]);
   });
 
-  test('node', async () => {
-    const props = {
-      agentMeta: getMeta(ResourceKind.Server) as AgentMeta,
-      updateAgentMeta: jest.fn(x => x),
-      nextStep: () => null,
-      resourceSpec: { kind: ResourceKind.Server } as any,
+  test('database with auto discover preserves existing + new dynamic traits', async () => {
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Database),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(ResourceKind.Database),
+      autoDiscovery: {
+        config: { name: '', discoveryGroup: '', aws: [] },
+        requiredVpcsAndSubnets: {},
+      },
     };
 
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
+    });
+
+    await waitFor(() =>
+      expect(result.current.dynamicTraits.databaseNames).toHaveLength(2)
+    );
+
+    expect(result.current.dynamicTraits.databaseUsers).toHaveLength(2);
+
+    // Should not be setting statics.
+    expect(result.current.staticTraits.databaseNames).toHaveLength(0);
+    expect(result.current.staticTraits.databaseUsers).toHaveLength(0);
+
+    const addedTraitsOpts = {
+      databaseNames: [
+        {
+          isFixed: true,
+          label: 'banana',
+          value: 'banana',
+        },
+        {
+          isFixed: true,
+          label: 'carrot',
+          value: 'carrot',
+        },
+      ],
+      databaseUsers: [
+        {
+          isFixed: false,
+          label: 'apple',
+          value: 'apple',
+        },
+      ],
+    };
+
+    act(() => {
+      result.current.onProceed(addedTraitsOpts);
+    });
+
+    await waitFor(() => {
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
+    });
+
+    // Test that we are updating the user with the correct traits.
+    const mockUser = getMockUser();
+    const { databaseUsers, databaseNames } = result.current.dynamicTraits;
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
+      ...mockUser,
+      traits: {
+        ...result.current.dynamicTraits,
+        databaseNames: [...databaseNames, 'banana', 'carrot'],
+        databaseUsers: [...databaseUsers, 'apple'],
+      },
+    });
+  });
+
+  test('node', async () => {
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(ResourceKind.Server),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(ResourceKind.Server),
+    };
+    const spyUpdateAgentMeta = jest
+      .spyOn(discoverCtx, 'updateAgentMeta')
+      .mockImplementation(x => x);
+
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
     });
 
     await waitFor(() =>
@@ -276,18 +349,18 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     });
 
     await waitFor(() => {
-      expect(ctx.userService.reloadUser).toHaveBeenCalledTimes(1);
+      expect(teleCtx.userService.reloadUser).toHaveBeenCalledTimes(1);
     });
 
     // Test that we are updating the user with the correct traits.
     const mockUser = getMockUser();
-    expect(ctx.userService.updateUser).toHaveBeenCalledWith({
+    expect(teleCtx.userService.updateUser).toHaveBeenCalledWith({
       ...mockUser,
       traits: { ...mockUser.traits, ...expected },
     });
 
     // Test that updating meta correctly updated the dynamic traits.
-    const updatedMeta = props.updateAgentMeta.mock.results[0].value as NodeMeta;
+    const updatedMeta = spyUpdateAgentMeta.mock.results[0].value as NodeMeta;
     expect(updatedMeta.node.sshLogins).toStrictEqual([
       ...staticTraits.logins,
       ...expected.logins,
@@ -304,31 +377,26 @@ describe('static and dynamic traits are correctly separated and correctly create
     ${ResourceKind.Database}   | ${'databaseNames'}
     ${ResourceKind.Database}   | ${'databaseUsers'}
   `('$traitName', async ({ resourceKind, traitName }) => {
-    const ctx = createTeleportContext();
-    jest.spyOn(ctx.userService, 'fetchUser').mockResolvedValue(getMockUser());
+    const teleCtx = createTeleportContext();
+    jest
+      .spyOn(teleCtx.userService, 'fetchUser')
+      .mockResolvedValue(getMockUser());
 
-    const props = {
-      agentMeta: getMeta(resourceKind) as AgentMeta,
-      updateAgentMeta: () => null,
-      nextStep: () => null,
-      resourceSpec: { kind: resourceKind } as any,
+    const discoverCtx = defaultDiscoverContext({
+      resourceSpec: defaultResourceSpec(resourceKind),
+    });
+    discoverCtx.agentMeta = {
+      ...discoverCtx.agentMeta,
+      ...getMeta(resourceKind),
     };
 
-    const wrapper = ({ children }) => (
-      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={[]}>
-            <DiscoverProvider>{children}</DiscoverProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </MemoryRouter>
-    );
-
-    const { result } = renderHook(() => useUserTraits(props), {
-      wrapper,
+    const { result } = renderHook(() => useUserTraits(), {
+      wrapper: wrapperFn(discoverCtx, teleCtx),
     });
 
-    await waitFor(() => expect(ctx.userService.fetchUser).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(teleCtx.userService.fetchUser).toHaveBeenCalled()
+    );
 
     // Test correct making of dynamic traits.
     const dynamicTraits = result.current.dynamicTraits;
@@ -452,4 +520,19 @@ function getMeta(resource: ResourceKind) {
         },
       } as DbMeta;
   }
+}
+
+function wrapperFn(
+  discoverCtx: DiscoverContextState,
+  teleportCtx: TeleportContext
+) {
+  return ({ children }) => (
+    <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+      <ContextProvider ctx={teleportCtx}>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
+        </FeaturesContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
 }

@@ -167,9 +167,9 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
 name = "bindgen"
-version = "0.66.1"
+version = "0.68.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b84e06fc203107bfbad243f4aba2af864eb7db3b1cf46ea0a023b0b433d2a7"
+checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
 dependencies = [
  "bitflags 2.4.1",
  "cexpr",
@@ -235,9 +235,9 @@ dependencies = [
 
 [[package]]
 name = "boring"
-version = "3.1.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ae1aba472e42d3cf45ac6d0a6c8fc3ddf743871209e1b40229aed9fbdf48ece"
+checksum = "92667e5967bf826198f88dd3e43616973f8902769a6151616a65be1289a3c531"
 dependencies = [
  "bitflags 2.4.1",
  "boring-sys",
@@ -248,9 +248,9 @@ dependencies = [
 
 [[package]]
 name = "boring-sys"
-version = "3.1.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ceced5be0047c7c48d77599535fd7f0a81c1b0f0a1e97e7eece24c45022bb481"
+checksum = "f04f5e0e2dc8315f68251391a4ac6da54793525c01d0206b10732b71139768cd"
 dependencies = [
  "bindgen",
  "cmake",
@@ -2730,15 +2730,15 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.8.1"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ef1adac450ad7f4b3c28589471ade84f25f731a7a0fe30d71dfa9f60fd808e5"
+checksum = "01ce4141aa927a6d1bd34a041795abd0db1cccba5d5f24b009f694bdf3a1f3fa"
 dependencies = [
  "cfg-if",
  "fastrand",
  "redox_syscall 0.4.1",
  "rustix",
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2852,12 +2852,13 @@ dependencies = [
 
 [[package]]
 name = "tokio-boring"
-version = "3.1.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "961385cffda2112d02c6e17169965ed604b9953078f2ec55740b8cf7b55c122e"
+checksum = "db2ca4142b3d45b579a45fc171a04d2f8dde1f5ff76290fd395286bcc5f82f4b"
 dependencies = [
  "boring",
  "boring-sys",
+ "once_cell",
  "tokio",
 ]
 

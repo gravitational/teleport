@@ -16,9 +16,9 @@ pub mod global;
 
 use crate::rdpdr::tdp;
 use crate::{
-    cgo_handle_fastpath_pdu, cgo_handle_rdp_channel_ids, cgo_handle_remote_copy, ssl, CGOErrCode,
-    CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CGOSyncKeys,
-    CgoHandle,
+    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_initialized, cgo_handle_remote_copy, ssl,
+    CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
+    CGOSyncKeys, CgoHandle,
 };
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
@@ -173,10 +173,12 @@ impl Client {
 
         // Register the RDP channels with the browser client.
         unsafe {
-            ClientResult::from(cgo_handle_rdp_channel_ids(
+            ClientResult::from(cgo_handle_rdp_connection_initialized(
                 cgo_handle,
                 connection_result.io_channel_id,
                 connection_result.user_channel_id,
+                connection_result.desktop_size.width,
+                connection_result.desktop_size.height,
             ))
         }?;
 

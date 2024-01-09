@@ -4,6 +4,8 @@ teleport:
   address: "teleport.example.com:443"
   # Secret containing a Teleport identity document
   identityFromSecret: teleport-plugin-jira-identity
+  # Path within the secret containing the identity file.
+  identitySecretPath: identity
 
 jira:
   url: "https://[my-jira].atlassian.net"      # URL of the Jira instance

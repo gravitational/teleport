@@ -25,6 +25,7 @@ import {
   connectToServer,
   connectToDatabase,
   connectToKube,
+  connectToApp,
 } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -86,6 +87,18 @@ export function ConnectKubeActionButton(props: {
       { uri: props.kube.uri },
       { origin: 'resource_table' }
     );
+  }
+
+  return (
+    <ButtonBorder size="small" onClick={connect}>
+      Connect
+    </ButtonBorder>
+  );
+}
+
+export function ConnectAppActionButton(): React.JSX.Element {
+  function connect(): void {
+    connectToApp();
   }
 
   return (
