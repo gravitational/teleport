@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
@@ -269,6 +271,24 @@ const (
 	atlasAuthSessionToken = "atlas-session-token"
 )
 
+type fakeTokenSource struct {
+	token string
+	exp   time.Time
+}
+
+func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
+	return &oauth2.Token{
+		Expiry:      f.exp,
+		AccessToken: f.token,
+	}, nil
+}
+
+var (
+	spannerTokenSource oauth2.TokenSource = &fakeTokenSource{
+		token: "cloud-spanner-auth-token",
+	}
+)
+
 // GetRDSAuthToken generates RDS/Aurora auth token.
 func (a *testAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating RDS auth token for %v.", sessionCtx)
@@ -297,6 +317,12 @@ func (a *testAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *common.Sess
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
 	return cloudSQLAuthToken, nil
+}
+
+// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
+func (a *testAuth) GetSpannerTokenSource(ctx context.Context, sessionCtx *common.Session) (oauth2.TokenSource, error) {
+	a.WithField("session", sessionCtx).Infof("Generating Cloud Spanner auth token source")
+	return spannerTokenSource, nil
 }
 
 // GetCloudSQLPassword generates Cloud SQL user password.

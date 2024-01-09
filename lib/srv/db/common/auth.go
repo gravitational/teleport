@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
-	gcpcredentialspb "cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
@@ -42,6 +42,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/impersonate"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -79,6 +81,8 @@ type Auth interface {
 	GetMemoryDBToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
+	// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
+	GetSpannerTokenSource(ctx context.Context, sessionCtx *Session) (oauth2.TokenSource, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
 	GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetAzureAccessToken generates Azure database access token.
@@ -302,36 +306,55 @@ Make sure that IAM role %q has permissions to generate credentials. Here is a sa
 // GetCloudSQLAuthToken returns authorization token that will be used as a
 // password when connecting to Cloud SQL databases.
 func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
-	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	//   https://developers.google.com/identity/protocols/oauth2/scopes#sqladmin
+	scopes := []string{
+		"https://www.googleapis.com/auth/sqlservice.admin",
+	}
+	ts, err := a.getGoogleCloudTokenSource(ctx, sessionCtx, scopes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx)
-
-	serviceAccountName := sessionCtx.DatabaseUser
-	if !strings.HasSuffix(serviceAccountName, ".gserviceaccount.com") {
-		serviceAccountName = serviceAccountName + ".gserviceaccount.com"
-	}
-	resp, err := gcpIAM.GenerateAccessToken(ctx,
-		&gcpcredentialspb.GenerateAccessTokenRequest{
-			// From GenerateAccessToken docs:
-			//
-			// The resource name of the service account for which the credentials
-			// are requested, in the following format:
-			//   projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
-			Name: fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccountName),
-			// From GenerateAccessToken docs:
-			//
-			// Code to identify the scopes to be included in the OAuth 2.0 access
-			// token:
-			//   https://developers.google.com/identity/protocols/oauth2/scopes
-			//   https://developers.google.com/identity/protocols/oauth2/scopes#sqladmin
-			Scope: []string{
-				"https://www.googleapis.com/auth/sqlservice.admin",
-			},
-		})
+	tok, err := ts.Token()
 	if err != nil {
-		return "", trace.AccessDenied(`Could not generate GCP IAM auth token:
+		return "", trace.Wrap(err)
+	}
+	return tok.AccessToken, nil
+}
+
+// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
+func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, sessionCtx *Session) (oauth2.TokenSource, error) {
+	// https://developers.google.com/identity/protocols/oauth2/scopes#spanner
+	scopes := []string{
+		"https://www.googleapis.com/auth/spanner.admin",
+		"https://www.googleapis.com/auth/spanner.data",
+	}
+	return a.getGoogleCloudTokenSource(ctx, sessionCtx, scopes)
+}
+
+// tokenSourceWrapper wraps an [oauth2.TokenSource] and logs each time the
+// token is refreshed.
+type tokenSourceWrapper struct {
+	oauth2.TokenSource
+
+	log       logrus.FieldLogger
+	lastToken *oauth2.Token
+	mu        sync.Mutex
+}
+
+// Token returns a token or an error.
+// Token must be safe for concurrent use by multiple goroutines.
+// The returned Token must not be modified.
+func (l *tokenSourceWrapper) Token() (*oauth2.Token, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	tok, err := l.TokenSource.Token()
+	if err != nil || l.lastToken == nil || l.lastToken != tok {
+		l.log.Debug("Generating GCP IAM auth token")
+	}
+	l.lastToken = tok
+	if err != nil {
+		return nil, trace.AccessDenied(`Could not generate GCP IAM auth token:
 
   %v
 
@@ -339,7 +362,29 @@ Make sure Teleport db service has "Service Account Token Creator" GCP IAM role,
 or "iam.serviceAccounts.getAccessToken" IAM permission.
 `, err)
 	}
-	return resp.AccessToken, nil
+	return tok, trace.Wrap(err)
+}
+
+func (a *dbAuth) getGoogleCloudTokenSource(ctx context.Context, sessionCtx *Session, scopes []string) (*tokenSourceWrapper, error) {
+	serviceAccountName := sessionCtx.DatabaseUser
+	if !strings.HasSuffix(serviceAccountName, ".gserviceaccount.com") {
+		serviceAccountName = serviceAccountName + ".gserviceaccount.com"
+	}
+	cfg := impersonate.CredentialsConfig{
+		// The service account to impersonate.
+		TargetPrincipal: serviceAccountName,
+		Scopes:          scopes,
+		// Lifetime is intentionally omitted here to enable automatic token
+		// refresh.
+	}
+	ts, err := impersonate.CredentialsTokenSource(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &tokenSourceWrapper{
+		log:         a.cfg.Log.WithField("session", sessionCtx),
+		TokenSource: ts,
+	}, nil
 }
 
 // GetCloudSQLPassword updates the specified database user's password to a
@@ -691,6 +736,9 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 
 	case types.DatabaseTypeOpenSearch:
 		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
+		return true
+	case types.DatabaseTypeSpanner:
+		// Spanner is hosted on GCP.
 		return true
 	}
 	return false

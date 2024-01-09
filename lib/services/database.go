@@ -252,7 +252,7 @@ func needsADValidation(db types.Database) bool {
 // needsURIValidation returns whether a database URI needs to be validated.
 func needsURIValidation(db types.Database) bool {
 	switch db.GetProtocol() {
-	case defaults.ProtocolCassandra, defaults.ProtocolDynamoDB:
+	case defaults.ProtocolCassandra, defaults.ProtocolDynamoDB, defaults.ProtocolSpanner:
 		// cloud hosted Cassandra doesn't require URI validation.
 		return db.GetAWS().Region == "" || db.GetAWS().AccountID == ""
 	default:

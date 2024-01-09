@@ -255,6 +255,8 @@ export const eventCodes = {
   ACCESS_LIST_MEMBER_DELETE_FAILURE: 'TAL007E',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST: 'TAL008I',
   ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE: 'TAL008E',
+  SPANNER_RPC: 'TSPN001I',
+  SPANNER_RPC_DENIED: 'TSPN001W',
 } as const;
 
 /**
@@ -1410,6 +1412,22 @@ export type RawEvents = {
     {
       access_list_name: string;
       updated_by: string;
+    }
+  >;
+  [eventCodes.SPANNER_RPC]: RawEvent<
+    typeof eventCodes.SPANNER_RPC,
+    {
+      procedure: string;
+      db_service: string;
+      db_name: string;
+    }
+  >;
+  [eventCodes.SPANNER_RPC_DENIED]: RawEvent<
+    typeof eventCodes.SPANNER_RPC_DENIED,
+    {
+      procedure: string;
+      db_service: string;
+      db_name: string;
     }
   >;
 };

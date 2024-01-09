@@ -292,6 +292,17 @@ func onDatabaseLogin(cf *CLIConf) error {
 	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
 }
 
+// protocolSupportsInteractiveMode checks if DB Protocol integration support
+// client interactive mode that is needed for the tsh db connect flow.
+func protocolSupportsInteractiveMode(dbProtocol string) bool {
+	switch dbProtocol {
+	case defaults.ProtocolDynamoDB,
+		defaults.ProtocolSpanner:
+		return false
+	}
+	return true
+}
+
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo) error {
 	log.Debugf("Fetching database access certificate for %s on cluster %v.", dbInfo.RouteToDatabase, tc.SiteName)
 
@@ -1470,7 +1481,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolDynamoDB,
 		defaults.ProtocolSQLServer,
 		defaults.ProtocolCassandra,
-		defaults.ProtocolOracle:
+		defaults.ProtocolOracle,
+		defaults.ProtocolSpanner:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
@@ -1564,10 +1576,7 @@ func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, route tlsca.RouteToDatabase) 
 // getDbCmdAlternatives is a helper func that returns alternative tsh commands for connecting to a database.
 func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []string {
 	var alts []string
-	switch route.Protocol {
-	case defaults.ProtocolDynamoDB:
-		// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
-	default:
+	if protocolSupportsInteractiveMode(route.Protocol) {
 		// prefer displaying the connect command as the first suggested command alternative.
 		alts = append(alts, formatDatabaseConnectCommand(clusterFlag, route))
 	}

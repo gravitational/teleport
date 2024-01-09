@@ -63,6 +63,9 @@ const (
 	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
 	ProtocolDynamoDB Protocol = "teleport-dynamodb"
 
+	// ProtocolSpanner is TLS ALPN protocol value used to indicate Google Spanner (gRPC) Protocol.
+	ProtocolSpanner Protocol = "teleport-spanner"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -167,6 +170,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolOpenSearch, nil
 	case defaults.ProtocolDynamoDB:
 		return ProtocolDynamoDB, nil
+	case defaults.ProtocolSpanner:
+		return ProtocolSpanner, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -188,6 +193,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolElasticsearch,
 		ProtocolOpenSearch,
 		ProtocolDynamoDB,
+		ProtocolSpanner,
 	}
 
 	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
@@ -208,6 +214,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
+	ProtocolSpanner,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

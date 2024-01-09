@@ -327,6 +327,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessListMemberDelete{}
 	case AccessListMemberDeleteAllForAccessListEvent:
 		e = &events.AccessListMemberDeleteAllForAccessList{}
+	case DatabaseSessionSpannerRPCEvent:
+		e = &events.SpannerRPC{}
+
 	case UnknownEvent:
 		e = &events.Unknown{}
 

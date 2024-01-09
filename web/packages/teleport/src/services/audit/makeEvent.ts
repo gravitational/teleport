@@ -1543,6 +1543,18 @@ export const formatters: Formatters = {
     format: ({ access_list_name, updated_by }) =>
       `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
   },
+  [eventCodes.SPANNER_RPC]: {
+    type: 'db.session.spanner.rpc',
+    desc: 'Spanner RPC Request',
+    format: ({ user, procedure, db_name, db_service }) =>
+      `User [${user}] called [${procedure}] in database [${db_name}] on [${db_service}]`
+  },
+  [eventCodes.SPANNER_RPC_DENIED]: {
+    type: 'db.session.spanner.rpc',
+    desc: 'Spanner RPC Request Denied',
+    format: ({ user, procedure, db_name, db_service }) =>
+      `User [${user}] was denied access to call [${procedure}] in database [${db_name}] on [${db_service}]`
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

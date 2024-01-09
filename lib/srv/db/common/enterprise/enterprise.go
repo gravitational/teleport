@@ -26,7 +26,8 @@ import (
 // ProtocolValidation checks if protocol is supported for current build.
 func ProtocolValidation(dbProtocol string) error {
 	switch dbProtocol {
-	case defaults.ProtocolOracle:
+	case defaults.ProtocolOracle,
+		defaults.ProtocolSpanner:
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.BadParameter("%s database protocol is only available with an enterprise license", dbProtocol)
 		}

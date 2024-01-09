@@ -21,9 +21,16 @@ import (
 const (
 	// gcpEndpointSuffix is hostname suffix used to determine if hostname is a GCP endpoint
 	gcpEndpointSuffix = ".googleapis.com"
+
+	SpannerEndpoint = "spanner" + gcpEndpointSuffix + ":443"
 )
 
 // IsGCPEndpoint returns true if hostname is a GCP endpoint
 func IsGCPEndpoint(hostname string) bool {
 	return strings.HasSuffix(hostname, gcpEndpointSuffix)
+}
+
+// IsSpannerEndpoint returns true if the input URI is the Spanner API endpoint.
+func IsSpannerEndpoint(uri string) bool {
+	return strings.Contains(uri, SpannerEndpoint)
 }

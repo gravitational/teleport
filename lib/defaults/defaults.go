@@ -467,6 +467,8 @@ const (
 	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
+	// ProtocolSpanner is the GCP Spanner database protocol.
+	ProtocolSpanner = "spanner"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -483,6 +485,7 @@ var DatabaseProtocols = []string{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
+	ProtocolSpanner,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -513,6 +516,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Cassandra"
 	case ProtocolDynamoDB:
 		return "DynamoDB"
+	case ProtocolSpanner:
+		return "GCP Spanner"
 	default:
 		// Unknown protocol. Return original string.
 		return p
