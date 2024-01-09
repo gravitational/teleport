@@ -2105,7 +2105,19 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetAppSession(ctx, req)
+	sess, err := rg.reader.GetAppSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetSnowflakeSession gets Snowflake web session.
@@ -2118,7 +2130,20 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSnowflakeSession(ctx, req)
+
+	sess, err := rg.reader.GetSnowflakeSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
@@ -2131,7 +2156,20 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSAMLIdPSession(ctx, req)
+
+	sess, err := rg.reader.GetSAMLIdPSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -2183,7 +2221,20 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.Get(ctx, req)
+
+	sess, err := rg.reader.Get(ctx, req)
+
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+	return sess, trace.Wrap(err)
 }
 
 // GetWebToken gets a web token.
