@@ -28,6 +28,9 @@ export async function connectToApp(
   target: App,
   telemetry: { origin: DocumentOrigin }
 ): Promise<void> {
+  //TODO(gzdunek): Add regular dialogs for connecting to unsupported apps (non HTTP/TCP)
+  // that will explain that the user can connect via tsh/Web UI to them.
+  // These dialogs should provide instructions, just like those in the Web UI for database access.
   if (target.samlApp) {
     alert('SAML apps are supported only in Web UI.');
     return;
