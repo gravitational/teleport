@@ -360,6 +360,9 @@ type Config struct {
 
 	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
@@ -3974,10 +3977,6 @@ func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) e
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
-	if tc.PIVSlot != "" {
-		return trace.BadParameter("Private key in specified slot %q does not meet the private key policy requirement %q.", tc.PIVSlot, policy)
-	}
-
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
 	return nil
@@ -4206,11 +4205,12 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:    sshLogin,
-		ConnectorID: connectorID,
-		Protocol:    protocol,
-		BindAddr:    tc.BindAddr,
-		Browser:     tc.Browser,
+		SSHLogin:     sshLogin,
+		ConnectorID:  connectorID,
+		Protocol:     protocol,
+		BindAddr:     tc.BindAddr,
+		CallbackAddr: tc.CallbackAddr,
+		Browser:      tc.Browser,
 	}, nil)
 	return response, trace.Wrap(err)
 }

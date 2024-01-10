@@ -22,8 +22,9 @@ import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
+import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
+
 import { CliCommand } from './CliCommand';
-import { ConfigFieldInput, PortFieldInput } from './common';
 import { DocumentGatewayProps } from './DocumentGateway';
 
 type OnlineDocumentGatewayProps = Pick<

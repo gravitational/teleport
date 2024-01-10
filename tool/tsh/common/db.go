@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -324,6 +325,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Protocol:    dbInfo.Protocol,
 					Username:    dbInfo.Username,
 					Database:    dbInfo.Database,
+					Roles:       dbInfo.Roles,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 			})
@@ -331,6 +333,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+
 		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
 			return trace.Wrap(err)
 		}
@@ -351,6 +354,13 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(dbInfo.Roles) > 0 {
+		if route, ok := findActiveDatabase(dbInfo.ServiceName, profile.Databases); ok && len(route.Roles) == 0 {
+			fmt.Fprintf(cf.Stdout(), "Warning. Selected db roles %v are not issued by the Teleport Cluster and all assigned database roles will be used instead. This is likely due to your Teleport Cluster running an older version that doesn't support this feature.\n\n", dbInfo.Roles)
+		}
+	}
+
 	// Update the database-specific connection profile file.
 	err = dbprofile.Add(cf.Context, tc, dbInfo.RouteToDatabase, *profile)
 	return trace.Wrap(err)
@@ -839,6 +849,13 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	return info, nil
 }
 
+func requestedDatabaseRoles(cf *CLIConf) []string {
+	if cf.DatabaseRoles == "" {
+		return nil
+	}
+	return strings.Split(cf.DatabaseRoles, ",")
+}
+
 // checkAndSetDefaults checks the db route, applies cli flags, and sets defaults.
 func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient) error {
 	if d.ServiceName == "" {
@@ -849,6 +866,9 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	}
 	if cf.DatabaseName != "" {
 		d.Database = cf.DatabaseName
+	}
+	if dbRoles := requestedDatabaseRoles(cf); len(dbRoles) > 0 {
+		d.Roles = dbRoles
 	}
 	db, err := d.GetDatabase(cf.Context, tc)
 	if err != nil {
@@ -1261,7 +1281,8 @@ func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
 func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
-	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
+	dbRoles := requestedDatabaseRoles(cf)
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" && len(dbRoles) == 0 {
 		return false, nil
 	}
 
@@ -1284,6 +1305,11 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 	}
 	if cf.DatabaseName != "" && cf.DatabaseName != identity.RouteToDatabase.Database {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
+		return true, nil
+	}
+
+	if !apiutils.ContainSameUniqueElements(dbRoles, identity.RouteToDatabase.Roles) {
+		log.Debugf("Will reissue database certificate for database roles %v (was %v)", dbRoles, identity.RouteToDatabase.Roles)
 		return true, nil
 	}
 	return false, nil

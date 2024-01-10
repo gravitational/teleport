@@ -229,6 +229,8 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
+	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
 	return cluster, clusterClient, nil
 }

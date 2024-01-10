@@ -444,7 +444,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri | uri.AppUri,
+    targetUri: uri.GatewayTargetUri,
     targetUser: string
   ) {
     let found: Gateway;

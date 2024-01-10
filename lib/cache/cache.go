@@ -96,6 +96,21 @@ func isHighVolumeResource(kind string) bool {
 	return ok
 }
 
+// makeAllKnownCAsFilter makes a filter that matches all known CA types.
+// This should be installed by default on every CA watcher, unless a filter is
+// otherwise specified, to avoid complicated server-side hacks if/when we add
+// a new CA type.
+// This is different from a nil/empty filter in that all the CA types that the
+// client knows about will be returned rather than all the CA types that the
+// server knows about.
+func makeAllKnownCAsFilter() types.CertAuthorityFilter {
+	filter := make(types.CertAuthorityFilter, len(types.CertAuthTypes))
+	for _, t := range types.CertAuthTypes {
+		filter[t] = types.Wildcard
+	}
+	return filter
+}
+
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
@@ -164,7 +179,7 @@ func ForAuth(cfg Config) Config {
 func ForProxy(cfg Config) Config {
 	cfg.target = "proxy"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -221,7 +236,7 @@ func ForProxy(cfg Config) Config {
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -253,7 +268,7 @@ func ForRemoteProxy(cfg Config) Config {
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -313,7 +328,7 @@ func ForNode(cfg Config) Config {
 func ForKubernetes(cfg Config) Config {
 	cfg.target = "kube"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -333,7 +348,7 @@ func ForKubernetes(cfg Config) Config {
 func ForApps(cfg Config) Config {
 	cfg.target = "apps"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -355,7 +370,7 @@ func ForApps(cfg Config) Config {
 func ForDatabases(cfg Config) Config {
 	cfg.target = "db"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -377,7 +392,7 @@ func ForDatabases(cfg Config) Config {
 func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -397,7 +412,7 @@ func ForWindowsDesktop(cfg Config) Config {
 func ForDiscovery(cfg Config) Config {
 	cfg.target = "discovery"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
@@ -417,7 +432,7 @@ func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindClusterName},
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindUser},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -2262,7 +2277,19 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetAppSession(ctx, req)
+	sess, err := rg.reader.GetAppSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetSnowflakeSession gets Snowflake web session.
@@ -2275,7 +2302,20 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSnowflakeSession(ctx, req)
+
+	sess, err := rg.reader.GetSnowflakeSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
@@ -2288,7 +2328,20 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSAMLIdPSession(ctx, req)
+
+	sess, err := rg.reader.GetSAMLIdPSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -2340,7 +2393,20 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.Get(ctx, req)
+
+	sess, err := rg.reader.Get(ctx, req)
+
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+	return sess, trace.Wrap(err)
 }
 
 // GetWebToken gets a web token.

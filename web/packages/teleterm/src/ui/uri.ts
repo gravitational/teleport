@@ -67,6 +67,7 @@ export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
+export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
 
 /*
  * Document URIs

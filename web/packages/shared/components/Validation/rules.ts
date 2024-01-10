@@ -60,10 +60,10 @@ const requiredToken: Rule = value => () => {
 };
 
 const requiredPassword: Rule = value => () => {
-  if (!value || value.length < 6) {
+  if (!value || value.length < 12) {
     return {
       valid: false,
-      message: 'Enter at least 6 characters',
+      message: 'Enter at least 12 characters',
     };
   }
 

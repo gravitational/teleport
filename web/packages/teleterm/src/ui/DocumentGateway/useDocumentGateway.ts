@@ -25,6 +25,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
+import { Gateway } from 'teleterm/services/tshd/types';
 import { isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
 export function useGateway(doc: types.DocumentGateway) {
@@ -42,15 +43,22 @@ export function useGateway(doc: types.DocumentGateway) {
   const connected = !!gateway;
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
-    const gw = await retryWithRelogin(ctx, doc.targetUri, () =>
-      ctx.clustersService.createGateway({
-        targetUri: doc.targetUri,
-        port: port,
-        user: doc.targetUser,
-        subresource_name: doc.targetSubresourceName,
-      })
-    );
+    workspaceDocumentsService.update(doc.uri, { status: 'connecting' });
+    let gw: Gateway;
 
+    try {
+      gw = await retryWithRelogin(ctx, doc.targetUri, () =>
+        ctx.clustersService.createGateway({
+          targetUri: doc.targetUri,
+          port: port,
+          user: doc.targetUser,
+          subresource_name: doc.targetSubresourceName,
+        })
+      );
+    } catch (error) {
+      workspaceDocumentsService.update(doc.uri, { status: 'error' });
+      throw error;
+    }
     workspaceDocumentsService.update(doc.uri, {
       gatewayUri: gw.uri,
       // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
@@ -60,6 +68,7 @@ export function useGateway(doc: types.DocumentGateway) {
       // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
       // same port number.
       port: gw.localPort,
+      status: 'connected',
     });
     if (isDatabaseUri(doc.targetUri)) {
       ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
