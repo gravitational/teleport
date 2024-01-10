@@ -1691,7 +1691,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 			err = <-party.closeC
 
-			if _, errLeave := session.leave(party.ID); err != nil {
+			if _, errLeave := session.leave(party.ID); errLeave != nil {
 				f.log.WithError(errLeave).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
 			}
 
