@@ -1168,10 +1168,9 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := []struct {
-		name        string
-		wantErr     bool
-		forRecovery bool
-		getRequest  func() *proto.CreateAccountRecoveryCodesRequest
+		name       string
+		wantErr    bool
+		getRequest func() *proto.CreateAccountRecoveryCodesRequest
 	}{
 		{
 			name:    "invalid token type",
@@ -1207,8 +1206,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			},
 		},
 		{
-			name:        "recovery approved token",
-			forRecovery: true,
+			name: "recovery approved token",
 			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
 				token, err := srv.Auth().createRecoveryToken(ctx, "llama@example.com", UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
@@ -1247,12 +1245,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 				// Check token is deleted after success.
 				_, err = srv.Auth().GetUserToken(ctx, req.TokenID)
-				switch {
-				case c.forRecovery:
-					require.True(t, trace.IsNotFound(err))
-				default:
-					require.NoError(t, err)
-				}
+				require.True(t, trace.IsNotFound(err))
 			}
 		})
 	}
