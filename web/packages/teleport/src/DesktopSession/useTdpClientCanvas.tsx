@@ -200,11 +200,7 @@ export default function useTdpClientCanvas(props: Props) {
    * @param keyArg The key to check the state of. Valid values can be found [here](https://www.w3.org/TR/uievents-key/#keys-modifier)
    */
   const getModifierState = (e: KeyboardEvent, keyArg: string): ButtonState => {
-    let state = ButtonState.UP;
-    if (e.getModifierState(keyArg)) {
-      state = ButtonState.DOWN;
-    }
-    return state;
+    return e.getModifierState(keyArg) ? ButtonState.DOWN : ButtonState.UP;
   };
 
   const getSyncKeys = (e: KeyboardEvent): SyncKeys => {
