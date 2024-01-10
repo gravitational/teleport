@@ -212,7 +212,7 @@ func TestSessions(t *testing.T) {
 	ctx := context.Background()
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
@@ -263,7 +263,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, s.a.CreateRemoteCluster(leaf))
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	// Try to login as an unknown user.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
@@ -528,7 +528,7 @@ func TestUserLock(t *testing.T) {
 	ctx := context.Background()
 
 	username := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
@@ -556,7 +556,7 @@ func TestUserLock(t *testing.T) {
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 			Username: username,
-			Pass:     &PassCreds{Password: []byte("wrong pass")},
+			Pass:     &PassCreds{Password: []byte("wrong password")},
 		})
 		require.Error(t, err)
 	}
@@ -1069,7 +1069,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	ctx := context.Background()
 
 	const username = "llama"
-	const pass = "secret!!1!"
+	const pass = "secret!!1!!!"
 
 	// Use a >1 list of principals.
 	// This is enough to cause ordering issues between the TLS and SSH principal
@@ -1210,9 +1210,9 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	authServer := testServer.Auth()
 	ctx := context.Background()
 
-	const pass1 = "secret!!1!"
-	const pass2 = "secret!!2!"
-	const pass3 = "secret!!3!"
+	const pass1 = "secret!!1!!!"
+	const pass2 = "secret!!2!!!"
+	const pass3 = "secret!!3!!!"
 
 	// Prepare a few distinct users.
 	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
@@ -1659,7 +1659,7 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	const pinnedUser = "pinnedUser"
 	const unpinnedUser = "unpinnedUser"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	// Create the user without IP pinning
 	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)

@@ -356,8 +356,8 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 
 	// Create user.
 	const user = "llama"
-	const password = "password"
-	env.proxies[0].createUser(ctx, t, user, "root", "password", "" /* otpSecret */, nil /* roles */)
+	const password = "password1234"
+	env.proxies[0].createUser(ctx, t, user, "root", "password1234", "" /* otpSecret */, nil /* roles */)
 
 	// Register device.
 	clt, err := env.server.NewClient(auth.TestUser(user))

@@ -92,7 +92,7 @@ import (
 )
 
 const (
-	mockHeadlessPassword = "password"
+	mockHeadlessPassword = "password1234"
 	staticToken          = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
