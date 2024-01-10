@@ -13,15 +13,6 @@ state: draft
 
 ## What
 
-This RFD proposes improvements to the management of fleets of Machine ID Bots.
-These improvements are mostly targetted at on-prem deployments, where the
-delegated join methods are not available.
-
-The improvements are two-fold:
-
-- Allowing a single join token to be used to join a number of hosts.
-- Providing a way to track individual bot instances.
-
 Terminology:
 
 - Bot: An identity within Teleport intended for use by machines as opposed to
@@ -29,6 +20,18 @@ Terminology:
 - `tbot`: The Teleport binary that acts as aBot and generates credentials for
   consumption by client applications.
 - Bot instance: A single instance of `tbot` running on a host.
+
+This RFD proposes improvements to the management of fleets of Machine ID Bots.
+These improvements are mostly targetted at on-prem deployments, where the
+delegated join methods are not available.
+
+The improvements will focus on three points:
+
+- To allow multiple Bot instances to be associated with a single Bot when using
+  the `token` join method.
+- To allow multiple Bot instances to be joined using a single join token when
+  using the `token` join method.
+- Providing a way to track and monitor Bot instances.
 
 ## Why
 
@@ -128,10 +131,10 @@ with this would be ideal and would mean this integrates with security reports.
 ### BotInstance Resource
 
 With a persistent identifier for a Bot instance established, we can now track
-information about a specific Bot server-side. In addition to providing a way
-to store a generation counter per instance, this could yield other benefits:
+information about a specific Bot instance server-side. In addition to providing
+a way to store a generation counter per instance, this yields other benefits:
 
-- Allow Bot instances to be viewed within the UI and CLI.
+- Allows Bot instances to be viewed within the UI and CLI.
 - Allowing Bot instances to submit basic self-reported information about itself
   and its host, e.g:
   - `tbot` version
@@ -213,17 +216,17 @@ message BotInstanceStatus {
 }
 ```
 
+#### Recording Authentication Data
+
 Specific edge-cases to handle:
 
-- BotInstance is deleted but renewal/heartbeat is received
-  - Reject renewals/heartbeats, trigger `tbot` to exit and suggest reset, OR
+- BotInstance does not exist but renewal is received
+  - Reject renewals, trigger `tbot` to exit and suggest reset, OR
   - Create a BotInstance and continue as normal. Warn/Error log.
 - Join method/token changes:
-  - Reject renewals/heartbeats, trigger `tbot` to exit and suggest reset, OR
+  - Reject renewals, trigger `tbot` to exit and suggest reset, OR
   - Emit warning and continue.
   - Consider case where linked Bot changes
-
-#### Recording Authentication Data
 
 #### Recording Heartbeat Data
 
@@ -240,7 +243,11 @@ Cons:
   e.g generation counter and last join metadata. So we'd still need to update 
   the join/renew RPCs to support this. However, no changes would need to be
   made to the RPC message.
-- Information within the Heartbeat could come from different instances in time.
+- Information within the Heartbeat could come from different instances in time. 
+
+Specific edge-cases to handle:
+
+- BotInstance does not exist but heartbeat is received
 
 ##### Alternative: Submit Heartbeat data on Join/Renew
 
@@ -273,6 +280,9 @@ No longer consumed on join.
 `tctl bot instances list --bot <bot name>`
 
 Additionally, `tctl rm`/`tctl get` should be able to operate on BotInstance.
+
+There is no requirement for it to be possible to create or update a BotInstance
+with `tctl`.
 
 ### Implementation
 
