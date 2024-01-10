@@ -147,9 +147,9 @@ describe('all recovery flows should show correct screens', () => {
     const newConfirmPasswordField =
       screen.getByPlaceholderText('Confirm Password');
 
-    fireEvent.change(newPasswordField, { target: { value: 'password123' } });
+    fireEvent.change(newPasswordField, { target: { value: 'password1234' } });
     fireEvent.change(newConfirmPasswordField, {
-      target: { value: 'password123' },
+      target: { value: 'password1234' },
     });
 
     fireEvent.click(screen.getByText('Continue'));
@@ -160,7 +160,7 @@ describe('all recovery flows should show correct screens', () => {
         RecoveryService.prototype.setNewTotpDeviceOrPassword
       ).toHaveBeenCalledWith({
         tokenId: approvedToken.id,
-        password: 'password123',
+        password: 'password1234',
       });
     });
 
@@ -211,7 +211,7 @@ describe('all recovery flows should show correct screens', () => {
 
     const passwordField = screen.getByPlaceholderText('Password');
 
-    fireEvent.change(passwordField, { target: { value: 'password123' } });
+    fireEvent.change(passwordField, { target: { value: 'password1234' } });
 
     fireEvent.click(screen.getByText('Continue'));
     act(() => mockHistory.push(route2NewDeviceWithApprovedToken));
@@ -219,7 +219,7 @@ describe('all recovery flows should show correct screens', () => {
     expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
       tokenId: startToken.id,
       username: startToken.username,
-      password: 'password123',
+      password: 'password1234',
     });
 
     await waitFor(() => {

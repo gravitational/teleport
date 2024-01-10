@@ -270,7 +270,7 @@ type authWebPack struct {
 }
 
 func (s *webSuite) testPassword() string {
-	return "abc123"
+	return "abc123def456"
 }
 
 func (s *webSuite) testOtpSecret() string {
