@@ -75,6 +75,14 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		}
 	}
 
+	var ownerGrants accesslist.Grants
+	if msg.Spec.OwnerGrants != nil {
+		ownerGrants.Roles = msg.Spec.OwnerGrants.Roles
+		if msg.Spec.OwnerGrants.Traits != nil {
+			ownerGrants.Traits = traitv1.FromProto(msg.Spec.OwnerGrants.Traits)
+		}
+	}
+
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
@@ -98,6 +106,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
+		OwnerGrants: ownerGrants,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,6 +132,21 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Description:      owner.Description,
 			IneligibleStatus: ineligibleStatus,
 		}
+	}
+
+	var ownerGrants *accesslistv1.AccessListGrants
+	if len(accessList.Spec.OwnerGrants.Roles) > 0 {
+		ownerGrants = &accesslistv1.AccessListGrants{
+			Roles: accessList.Spec.OwnerGrants.Roles,
+		}
+	}
+
+	if len(accessList.Spec.OwnerGrants.Traits) > 0 {
+		if ownerGrants == nil {
+			ownerGrants = &accesslistv1.AccessListGrants{}
+		}
+
+		ownerGrants.Traits = traitv1.ToProto(accessList.Spec.OwnerGrants.Traits)
 	}
 
 	return &accesslistv1.AccessList{
@@ -155,6 +179,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Roles:  accessList.Spec.Grants.Roles,
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
+			OwnerGrants: ownerGrants,
 		},
 	}
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
@@ -191,23 +192,28 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	for _, accessList := range accessLists {
-		// Check that the user meets the access list requirements.
-		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err != nil {
-			continue
+		if err := services.IsAccessListOwner(identity, accessList); err == nil {
+			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
 		}
 
-		state.Spec.Roles = append(state.Spec.Roles, accessList.Spec.Grants.Roles...)
-
-		if state.Spec.Traits == nil && len(accessList.Spec.Grants.Traits) > 0 {
-			state.Spec.Traits = map[string][]string{}
-		}
-
-		for k, values := range accessList.Spec.Grants.Traits {
-			state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
+		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
+			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state)
 		}
 	}
 
 	return nil
+}
+
+func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState) {
+	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
+
+	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
+		state.Spec.Traits = map[string][]string{}
+	}
+
+	for k, values := range grants.Traits {
+		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
+	}
 }
 
 // postProcess will perform cleanup to the user login state after its generation.

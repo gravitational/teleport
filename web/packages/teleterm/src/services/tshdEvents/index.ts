@@ -45,6 +45,10 @@ export interface CannotProxyGatewayConnection
   targetUri: uri.DatabaseUri;
 }
 
+export type PromptMfaRequest = api.PromptMFARequest.AsObject & {
+  rootClusterUri: uri.RootClusterUri;
+};
+
 export interface SendPendingHeadlessAuthenticationRequest
   extends api.SendPendingHeadlessAuthenticationRequest.AsObject {
   rootClusterUri: uri.RootClusterUri;
@@ -209,9 +213,21 @@ function createService(logger: Logger): {
           return;
         }
 
-        callback(error, null);
+        let responseErr = error;
+        // TODO(ravicious): This is just an example of how cross-context errors can be signalled.
+        // A more elaborate implementation should use a TypeScript assertion function
+        // (isCrossContextError) and them somehow automatically build common gRPC status errors.
+        // https://github.com/gravitational/teleport.e/issues/853
+        // https://github.com/gravitational/teleport/issues/30753
+        if (error['isCrossContextError'] && error['name'] === 'AbortError') {
+          responseErr = new grpc.StatusBuilder()
+            .withCode(grpc.status.ABORTED)
+            .withDetails(error['message']);
+        }
 
-        logger.error(`replied with error to ${rpcName}`, error);
+        callback(responseErr, null);
+
+        logger.error(`replied with error to ${rpcName}`, responseErr);
       }
     );
   }
@@ -236,9 +252,10 @@ function createService(logger: Logger): {
         () => new api.SendPendingHeadlessAuthenticationResponse()
       ),
 
-    promptMFA: () => {
-      // TODO (joerger): Handle MFA prompt with totp/webauthn modal.
-      logger.info('Received prompt mfa request');
+    promptMFA: (call, callback) => {
+      processEvent('promptMFA', call, callback, response =>
+        new api.PromptMFAResponse().setTotpCode(response.totpCode)
+      );
     },
   };
 

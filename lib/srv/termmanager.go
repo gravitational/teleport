@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -223,7 +224,9 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			buf := make([]byte, 1024)
 			n, err := r.Read(buf)
 			if err != nil {
-				log.Warnf("Failed to read from remote terminal: %v", err)
+				if !errors.Is(err, io.EOF) {
+					log.Warnf("Failed to read from remote terminal: %v", err)
+				}
 				// Let term manager decide how to handle broken party readers.
 				if g.OnReadError != nil {
 					g.OnReadError(name, err)
