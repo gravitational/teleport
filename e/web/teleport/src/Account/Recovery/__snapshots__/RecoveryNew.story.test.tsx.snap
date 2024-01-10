@@ -1,0 +1,523 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render screen for first timer recovery tab in account settings 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding: 8px;
+  line-height: 0;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 8px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.c9 {
+  box-sizing: border-box;
+  line-height: 0;
+}
+
+.c10 {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #B29DFF;
+}
+
+.c11:active {
+  background: #C5B6FF;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c3 {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.c1 {
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+}
+
+.c2 {
+  padding: 24px;
+}
+
+.c2:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+}
+
+<div
+  class="c0 c1"
+>
+  <div
+    class="c0 c2"
+  >
+    <div
+      class="c0 c3"
+    >
+      <div
+        class="c4"
+      >
+        <span
+          class="c5 icon icon-shieldcheck"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M16.2803 10.2803C16.5732 9.98744 16.5732 9.51256 16.2803 9.21967C15.9874 8.92678 15.5126 8.92678 15.2197 9.21967L10.5 13.9393L8.78033 12.2197C8.48744 11.9268 8.01256 11.9268 7.71967 12.2197C7.42678 12.5126 7.42678 12.9874 7.71967 13.2803L9.96967 15.5303C10.2626 15.8232 10.7374 15.8232 11.0303 15.5303L16.2803 10.2803Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M4.5 3.75C4.10217 3.75 3.72064 3.90804 3.43934 4.18934C3.15804 4.47064 3 4.85217 3 5.25V10.7616C3 19.1829 10.1444 21.9611 11.5298 22.4204C11.8348 22.5244 12.1656 22.5244 12.4706 22.4203C13.8537 21.9599 21 19.1792 21 10.7597V5.25C21 4.85218 20.842 4.47065 20.5607 4.18934C20.2794 3.90804 19.8978 3.75 19.5 3.75H4.5ZM4.5 5.25L19.5 5.25V10.7597C19.5 18.1058 13.3064 20.5606 12 20.996C10.6965 20.5635 4.5 18.112 4.5 10.7616L4.5 5.25Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </div>
+      <div
+        class="c6"
+      >
+        <div
+          class="c7"
+        >
+          Generate Recovery Codes
+        </div>
+        <div
+          class="c8"
+          color="rgba(255, 255, 255, 0.72)"
+        >
+          Recovery codes are one-time use passcodes. You can use each code once if you lose your second factor authenticator or password. You haven’t generated any codes yet. Please generate them now and store them in a safe offline place.
+        </div>
+      </div>
+      <div
+        class="c9"
+        style="visibility: hidden;"
+      />
+      <div
+        class="c10"
+      >
+        <button
+          class="c11"
+          kind="primary"
+        >
+          Generate recovery codes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render screen for recovery tab for users without a valid email as username 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding: 8px;
+  line-height: 0;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 8px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.c9 {
+  box-sizing: border-box;
+  line-height: 0;
+}
+
+.c10 {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c3 {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.c1 {
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+}
+
+.c2 {
+  padding: 24px;
+}
+
+.c2:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+}
+
+<div
+  class="c0 c1"
+>
+  <div
+    class="c0 c2"
+  >
+    <div
+      class="c0 c3"
+    >
+      <div
+        class="c4"
+      >
+        <span
+          class="c5 icon icon-shieldcheck"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M16.2803 10.2803C16.5732 9.98744 16.5732 9.51256 16.2803 9.21967C15.9874 8.92678 15.5126 8.92678 15.2197 9.21967L10.5 13.9393L8.78033 12.2197C8.48744 11.9268 8.01256 11.9268 7.71967 12.2197C7.42678 12.5126 7.42678 12.9874 7.71967 13.2803L9.96967 15.5303C10.2626 15.8232 10.7374 15.8232 11.0303 15.5303L16.2803 10.2803Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M4.5 3.75C4.10217 3.75 3.72064 3.90804 3.43934 4.18934C3.15804 4.47064 3 4.85217 3 5.25V10.7616C3 19.1829 10.1444 21.9611 11.5298 22.4204C11.8348 22.5244 12.1656 22.5244 12.4706 22.4203C13.8537 21.9599 21 19.1792 21 10.7597V5.25C21 4.85218 20.842 4.47065 20.5607 4.18934C20.2794 3.90804 19.8978 3.75 19.5 3.75H4.5ZM4.5 5.25L19.5 5.25V10.7597C19.5 18.1058 13.3064 20.5606 12 20.996C10.6965 20.5635 4.5 18.112 4.5 10.7616L4.5 5.25Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </div>
+      <div
+        class="c6"
+      >
+        <div
+          class="c7"
+        >
+          Generate Recovery Codes
+        </div>
+        <div
+          class="c8"
+          color="rgba(255, 255, 255, 0.72)"
+        >
+          Account recovery is only available for local users with a valid email as their username.
+        </div>
+      </div>
+      <div
+        class="c9"
+        style="visibility: hidden;"
+      />
+      <div
+        class="c10"
+      />
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render screen for recovery tab in account settings 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding: 8px;
+  line-height: 0;
+  background-color: rgba(255,255,255,0.07);
+  border-radius: 8px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.c9 {
+  box-sizing: border-box;
+  line-height: 0;
+}
+
+.c10 {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #B29DFF;
+}
+
+.c11:active {
+  background: #C5B6FF;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+}
+
+.c8 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  color: rgba(255,255,255,0.72);
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  font-size: 16px;
+  margin: 0px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c5 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c3 {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.c1 {
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 4px;
+}
+
+.c2 {
+  padding: 24px;
+}
+
+.c2:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+}
+
+<div
+  class="c0 c1"
+>
+  <div
+    class="c0 c2"
+  >
+    <div
+      class="c0 c3"
+    >
+      <div
+        class="c4"
+      >
+        <span
+          class="c5 icon icon-shieldcheck"
+        >
+          <svg
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
+            <path
+              d="M16.2803 10.2803C16.5732 9.98744 16.5732 9.51256 16.2803 9.21967C15.9874 8.92678 15.5126 8.92678 15.2197 9.21967L10.5 13.9393L8.78033 12.2197C8.48744 11.9268 8.01256 11.9268 7.71967 12.2197C7.42678 12.5126 7.42678 12.9874 7.71967 13.2803L9.96967 15.5303C10.2626 15.8232 10.7374 15.8232 11.0303 15.5303L16.2803 10.2803Z"
+            />
+            <path
+              clip-rule="evenodd"
+              d="M4.5 3.75C4.10217 3.75 3.72064 3.90804 3.43934 4.18934C3.15804 4.47064 3 4.85217 3 5.25V10.7616C3 19.1829 10.1444 21.9611 11.5298 22.4204C11.8348 22.5244 12.1656 22.5244 12.4706 22.4203C13.8537 21.9599 21 19.1792 21 10.7597V5.25C21 4.85218 20.842 4.47065 20.5607 4.18934C20.2794 3.90804 19.8978 3.75 19.5 3.75H4.5ZM4.5 5.25L19.5 5.25V10.7597C19.5 18.1058 13.3064 20.5606 12 20.996C10.6965 20.5635 4.5 18.112 4.5 10.7616L4.5 5.25Z"
+              fill-rule="evenodd"
+            />
+          </svg>
+        </span>
+      </div>
+      <div
+        class="c6"
+      >
+        <div
+          class="c7"
+        >
+          Generate New Recovery Codes
+        </div>
+        <div
+          class="c8"
+          color="rgba(255, 255, 255, 0.72)"
+        >
+          When you generate new recovery codes, your old ones will no longer work. Please make sure to save the new codes in a safe offline place. You can use each code once if you lose your second factor authenticator or password.
+        </div>
+      </div>
+      <div
+        class="c9"
+        style="visibility: hidden;"
+      />
+      <div
+        class="c10"
+      >
+        <button
+          class="c11"
+          kind="primary"
+        >
+          Generate new recovery codes
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    class="c0 c2"
+  >
+    <div
+      class="c12"
+      font-size="3"
+    >
+      Recovery codes were last generated on:
+       
+      <span
+        class="c13"
+      >
+        10/9/2020
+      </span>
+    </div>
+  </div>
+</div>
+`;

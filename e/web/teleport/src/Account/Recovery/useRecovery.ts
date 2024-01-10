@@ -4,7 +4,10 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { isValidEmail } from 'e-teleport/validations/email';
 
-export default function useRecovery(ctx: TeleportContextE) {
+export default function useRecovery(
+  ctx: TeleportContextE,
+  onError?: (statusText: string) => void
+) {
   const [token, setToken] = useState('');
   const [createdDate, setCreatedDate] = useState<Date | undefined>();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
@@ -33,11 +36,15 @@ export default function useRecovery(ctx: TeleportContextE) {
   }
 
   function fetchCreatedDate() {
-    run(() =>
-      ctx.recoveryService
-        .fetchRecoveryCodesMetadata()
-        .then(metadata => setCreatedDate(metadata.createdDate))
-    );
+    run(async () => {
+      try {
+        const metadata = await ctx.recoveryService.fetchRecoveryCodesMetadata();
+        setCreatedDate(metadata.createdDate);
+      } catch (e) {
+        onError?.(e.message);
+        throw e;
+      }
+    });
   }
 
   useEffect(() => fetchCreatedDate(), []);
