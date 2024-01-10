@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -83,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -358,6 +360,9 @@ type Config struct {
 
 	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
@@ -1589,7 +1594,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 // if per session mfa is required, after completing the mfa ceremony. In the event that both
 // fail the error from the connection attempt with the already provisioned certificates will
 // be returned. The client from whichever attempt succeeds first will be returned.
-func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (_ *NodeClient, err error) {
 	node := nodeName(targetNode{addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1600,7 +1605,15 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			attribute.String("node", node),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			// The error is unwrapped here so that the error reported is any underlying
+			// error and not a trace.TraceErr.
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -1621,7 +1634,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	directCtx, directCancel := context.WithCancel(ctx)
 	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
-		ctx, span := tc.Tracer.Start(
+		connectCtx, span := tc.Tracer.Start(
 			directCtx,
 			"teleportClient/connectToNode",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -1632,7 +1645,10 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		)
 		defer span.End()
 
-		// try connecting to the node with the certs we already have
+		// Try connecting to the node with the certs we already have. Note that the different context being provided
+		// here is intentional. The underlying stream backing the connection will run for the duration of the session
+		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
+		// parent context is used.
 		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
 			directResultC <- clientRes{err: err}
@@ -1640,7 +1656,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		}
 
 		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
+		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
 			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
@@ -1989,8 +2005,8 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	return trace.Wrap(err)
 }
 
-// Play replays the recorded session
-func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string) (err error) {
+// Play replays the recorded session.
+func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed float64) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Play",
@@ -2001,140 +2017,142 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	)
 	defer span.End()
 
-	var sessionEvents []events.EventFields
-	var stream []byte
-	if namespace == "" {
-		return trace.BadParameter(auth.MissingNamespaceError)
-	}
-	sid, err := session.ParseID(sessionID)
-	if err != nil {
-		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
-	}
-	// connect to the auth server (site) who made the recording
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	site := proxyClient.CurrentCluster()
+	return playSession(ctx, sessionID, speed, proxyClient.CurrentCluster())
+}
 
-	// request events for that session (to get timing data)
-	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0)
+const (
+	keyCtrlC = 3
+	keyCtrlD = 4
+	keySpace = 32
+	keyLeft  = 68
+	keyRight = 67
+	keyUp    = 65
+	keyDown  = 66
+)
+
+func playSession(ctx context.Context, sessionID string, speed float64, streamer player.Streamer) error {
+	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Return an error if it is a desktop session and check to see if this is not a Kube or SSH session
-	if len(sessionEvents) > 0 {
-		switch typ := sessionEvents[0].GetType(); typ {
-		case events.WindowsDesktopSessionStartEvent:
-			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
-			message := "Desktop sessions cannot be viewed with tsh." +
-				" Please use the browser to play this session." +
-				" Click on the URL to view the session in the browser:"
-			return trace.BadParameter("%s\n%s", message, url)
-		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
-			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
-				" To play entries for Application and Database you must use the json or yaml format."+
-				" \nEx: tsh play -f json %s", sid)
-		case events.SessionStartEvent:
-			// proceed without error
-		default:
-			return trace.BadParameter("unknown session type %q", typ)
-		}
+	term, err := terminal.New(os.Stdin, os.Stdout, os.Stderr)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	defer term.Close()
 
-	// read the stream into a buffer:
-	for {
-		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
+	// configure terminal for direct unbuffered echo-less input
+	if term.IsAttached() {
+		err := term.InitRaw(true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if len(tmp) == 0 {
-			break
+	}
+
+	term.Clear() // clear screen between runs:
+	term.SetCursorPos(1, 1)
+
+	player, err := player.New(&player.Config{
+		SessionID: *sid,
+		Streamer:  streamer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	player.SetSpeed(speed)
+	if err := player.Play(); err != nil {
+		return trace.Wrap(err)
+	}
+	playing := true
+
+	// playback control goroutine
+	const skipDuration = 10 * time.Second
+	go func() {
+		var key [1]byte
+		for {
+			_, err := term.Stdin().Read(key[:])
+			if err != nil {
+				return
+			}
+			switch key[0] {
+			case keyCtrlC, keyCtrlD:
+				player.Close()
+				return
+			case keySpace:
+				if playing {
+					player.Pause()
+				} else {
+					player.Play()
+				}
+				playing = !playing
+			case keyLeft, keyDown:
+				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
+				player.SetPos(max(current-skipDuration, 0)) // rewind
+				term.Clear()
+				term.SetCursorPos(1, 1)
+			case keyRight, keyUp:
+				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
+				player.SetPos(current + skipDuration) // advance forward
+			}
 		}
-		stream = append(stream, tmp...)
-	}
+	}()
 
-	return playSession(sessionEvents, stream)
-}
-
-func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/GetSessionEvents",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("session", sessionID),
-		),
-	)
-	defer span.End()
-
-	if namespace == "" {
-		return nil, trace.BadParameter(auth.MissingNamespaceError)
-	}
-	sid, err := session.ParseID(sessionID)
-	if err != nil {
-		return nil, trace.BadParameter("%q is not a valid session ID (must be GUID)", sid)
-	}
-	// connect to the auth server (site) who made the recording
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	site := proxyClient.CurrentCluster()
-
-	events, err := site.GetSessionEvents(namespace, *sid, 0)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events, nil
-}
-
-// PlayFile plays the recorded session from a tar file
-func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
-	var sessionEvents []events.EventFields
-	var stream []byte
-	protoReader := events.NewProtoReader(tarFile)
-	playbackDir, err := os.MkdirTemp("", "playback")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer os.RemoveAll(playbackDir)
-	w, err := events.WriteForSSHPlayback(ctx, session.ID(sid), protoReader, playbackDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessionEvents, err = w.SessionEvents()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Return errors if this is desktop, app, db or unknown session.
-	if len(sessionEvents) > 0 {
-		switch typ := sessionEvents[0].GetType(); typ {
-		case events.WindowsDesktopSessionStartEvent:
-			message := "Desktop sessions cannot be viewed with tsh." +
-				" Please use the browser to play this session or use tsh recordings export to get a video download."
-			return trace.BadParameter("%s", message)
-		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
-			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
-				" To play entries for Application and Database you must use the json or yaml format."+
-				"\nEx: tsh play -f json %s", sid)
-		case events.SessionStartEvent:
-			// proceed without error
+	var lastTime time.Time
+	for evt := range player.C() {
+		switch evt := evt.(type) {
+		case *apievents.WindowsDesktopSessionStart:
+			// TODO(zmb3): restore the playback URL
+			message := "Desktop sessions cannot be played with tsh play." +
+				" Export the recording to video with tsh recordings export" +
+				" or view the recording in your web browser."
+			return trace.BadParameter(message)
+		case *apievents.AppSessionStart, *apievents.DatabaseSessionStart, *apievents.AppSessionChunk:
+			return trace.BadParameter("Interactive session replay is only supported for SSH and Kubernetes sessions." +
+				" To play app or database sessions, specify --format=json or --format=yaml.")
+		case *apievents.Resize:
+			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
+				continue
+			}
+		case *apievents.SessionStart:
+			if err := setTermSize(term.Stdout(), evt.TerminalSize); err != nil {
+				continue
+			}
+		case *apievents.SessionPrint:
+			term.Stdout().Write(evt.Data)
+			if evt.Time != lastTime {
+				term.SetWindowTitle(evt.Time.Format(time.Stamp))
+			}
+			lastTime = evt.Time
 		default:
-			return trace.BadParameter("unknown session type %q", typ)
+			continue
 		}
 	}
-	stream, err = w.SessionChunks()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	return playSession(sessionEvents, stream)
+	return nil
+}
+
+func setTermSize(w io.Writer, size string) error {
+	width, height, ok := strings.Cut(size, ":")
+	if !ok {
+		return trace.Errorf("invalid terminal size %q", size)
+	}
+	// resize terminal window by sending control sequence:
+	_, err := fmt.Fprintf(w, "\x1b[8;%s;%st", height, width)
+	return err
+}
+
+// PlayFile plays the recorded session from a file.
+func PlayFile(ctx context.Context, filename, sid string, speed float64) error {
+	streamer := &playFromFileStreamer{filename: filename}
+	return playSession(ctx, sid, speed, streamer)
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP
@@ -2916,7 +2934,7 @@ func formatConnectToProxyErr(err error) error {
 
 // ConnectToCluster will dial the auth and proxy server and return a ClusterClient when
 // successful.
-func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient, error) {
+func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClient, err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToCluster",
@@ -2926,7 +2944,15 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			// The error is unwrapped here so that the error reported is any underlying
+			// error and not a trace.TraceErr.
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	cfg, err := tc.generateClientConfig(ctx)
 	if err != nil {
@@ -3951,10 +3977,6 @@ func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) e
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
-	if tc.PIVSlot != "" {
-		return trace.BadParameter("Private key in specified slot %q does not meet the private key policy requirement %q.", tc.PIVSlot, policy)
-	}
-
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
 	return nil
@@ -4183,11 +4205,12 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:    sshLogin,
-		ConnectorID: connectorID,
-		Protocol:    protocol,
-		BindAddr:    tc.BindAddr,
-		Browser:     tc.Browser,
+		SSHLogin:     sshLogin,
+		ConnectorID:  connectorID,
+		Protocol:     protocol,
+		BindAddr:     tc.BindAddr,
+		CallbackAddr: tc.CallbackAddr,
+		Browser:      tc.Browser,
 	}, nil)
 	return response, trace.Wrap(err)
 }
@@ -5011,73 +5034,6 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // FedRAMP/FIPS 140-2 mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
-}
-
-// playSession plays session in the terminal
-func playSession(sessionEvents []events.EventFields, stream []byte) error {
-	term, err := terminal.New(nil, nil, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer term.Close()
-
-	// configure terminal for direct unbuffered echo-less input:
-	if term.IsAttached() {
-		err := term.InitRaw(true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	player := newSessionPlayer(sessionEvents, stream, term)
-	errorCh := make(chan error)
-	// keys:
-	const (
-		keyCtrlC = 3
-		keyCtrlD = 4
-		keySpace = 32
-		keyLeft  = 68
-		keyRight = 67
-		keyUp    = 65
-		keyDown  = 66
-	)
-	// playback control goroutine
-	go func() {
-		defer player.EndPlayback()
-		var key [1]byte
-		for {
-			_, err := term.Stdin().Read(key[:])
-			if err != nil {
-				errorCh <- err
-				return
-			}
-			switch key[0] {
-			// Ctrl+C or Ctrl+D
-			case keyCtrlC, keyCtrlD:
-				return
-			// Space key
-			case keySpace:
-				player.TogglePause()
-			// <- arrow
-			case keyLeft, keyDown:
-				player.Rewind()
-			// -> arrow
-			case keyRight, keyUp:
-				player.Forward()
-			}
-		}
-	}()
-	// player starts playing in its own goroutine
-	player.Play()
-	// wait for keypresses loop to end
-	select {
-	case <-player.stopC:
-		fmt.Println("\n\nend of session playback")
-		return nil
-	case err := <-errorCh:
-		return trace.Wrap(err)
-	}
 }
 
 func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {

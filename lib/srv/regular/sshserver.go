@@ -1311,22 +1311,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	channelType := nch.ChannelType()
 	if s.proxyMode {
 		switch channelType {
-		// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-		// are supported. Accepting the channel indicates to clients that they may wrap their
-		// ssh payload with tracing context.
-		case tracessh.TracingChannel:
-			ch, _, err := nch.Accept()
-			if err != nil {
-				s.Logger.Warnf("Unable to accept channel: %v", err)
-				if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-					s.Logger.Warnf("Failed to reject channel: %v", err)
-				}
-				return
-			}
-			if err := ch.Close(); err != nil {
-				s.Logger.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-			}
-			return
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
 		case teleport.ChanDirectTCPIP:
@@ -1364,22 +1348,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	switch channelType {
-	// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-	// are supported. Accepting the channel indicates to clients that they may wrap their
-	// ssh payload with tracing context.
-	case tracessh.TracingChannel:
-		ch, _, err := nch.Accept()
-		if err != nil {
-			if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
-				s.Logger.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
-			}
-			return
-		}
-
-		if err := ch.Close(); err != nil {
-			s.Logger.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-		}
-		return
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -1694,8 +1662,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return nil
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
@@ -1732,8 +1698,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if serverContext.JoinOnly {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return nil
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 		case sshutils.ShellRequest:
@@ -1772,8 +1736,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		}
 	}
 	switch req.Type {
-	case tracessh.TracingRequest:
-		return nil
 	case sshutils.ExecRequest:
 		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			return trace.Wrap(err)
@@ -2192,11 +2154,18 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
 	}
 
+	if s.proxyMode {
+		switch {
+		case strings.HasPrefix(r.Name, "proxy:"):
+			return parseProxySubsys(r.Name, s, ctx)
+		case strings.HasPrefix(r.Name, "proxysites"):
+			return parseProxySitesSubsys(r.Name, s)
+		default:
+			return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
+		}
+	}
+
 	switch {
-	case s.proxyMode && strings.HasPrefix(r.Name, "proxy:"):
-		return parseProxySubsys(r.Name, s, ctx)
-	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
-		return parseProxySitesSubsys(r.Name, s)
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil

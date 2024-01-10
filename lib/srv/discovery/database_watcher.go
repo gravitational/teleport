@@ -146,7 +146,7 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 	// the resource.
 	// TODO(tigrato): DELETE on 15.0.0
 	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onDatabaseUpdate(ctx, database))
+		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -168,7 +168,7 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 	return nil
 }
 
-func (s *Server) onDatabaseUpdate(ctx context.Context, database types.Database) error {
+func (s *Server) onDatabaseUpdate(ctx context.Context, database, _ types.Database) error {
 	s.Log.Debugf("Updating database %s.", database.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateDatabase(ctx, database))
 }

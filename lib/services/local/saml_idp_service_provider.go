@@ -21,8 +21,6 @@ package local
 import (
 	"context"
 	"encoding/xml"
-	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -125,8 +123,19 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		}
 	}
 
-	if err := validateSAMLIdPServiceProvider(sp); err != nil {
-		return trace.Wrap(err)
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	// ensure any filtering related issues get logged
+	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
+		s.log.Warnf("Entity descriptor for SAML IdP service provider %q may be malformed: %v", sp.GetEntityID(), err)
 	}
 
 	// embed attribute mapping in entity descriptor
@@ -155,8 +164,19 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := validateSAMLIdPServiceProvider(sp); err != nil {
-		return trace.Wrap(err)
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	// ensure any filtering related issues get logged
+	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
+		s.log.Warnf("Entity descriptor for SAML IdP service provider %q may be malformed: %v", sp.GetEntityID(), err)
 	}
 
 	// embed attribute mapping in entity descriptor
@@ -216,34 +236,6 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 		}
 		if nextToken == "" {
 			break
-		}
-	}
-
-	return nil
-}
-
-// validateSAMLIdPServiceProvider ensures that the entity ID in the entity descriptor is the same as the entity ID
-// in the [types.SAMLIdPServiceProvider] and that all AssertionConsumerServices defined are valid HTTPS endpoints.
-func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
-	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-	if err != nil {
-		switch {
-		case errors.Is(err, io.EOF):
-			return trace.BadParameter("missing entity descriptor: %s", err.Error())
-		default:
-			return trace.BadParameter(err.Error())
-		}
-	}
-
-	if ed.EntityID != sp.GetEntityID() {
-		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
-	}
-
-	for _, descriptor := range ed.SPSSODescriptors {
-		for _, acs := range descriptor.AssertionConsumerServices {
-			if err := services.ValidateAssertionConsumerServicesEndpoint(acs.Location); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 

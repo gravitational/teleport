@@ -91,6 +91,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					Procname: "foo3",
 				}),
 			},
@@ -113,6 +116,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
@@ -137,6 +143,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
 						Code: libevents.DatabaseSessionQueryCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					DatabaseQuery: "\nselect 'foo' as 'bar'\n        ",
 					Status: events.Status{
@@ -174,6 +183,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionQueryEvent,
 						Code: libevents.DatabaseSessionQueryCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					DatabaseQuery: "select 'foo' as 'bar'",
 					Status: events.Status{
 						Success: true,
@@ -199,6 +211,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
@@ -228,6 +243,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
 				}),
@@ -242,6 +260,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select 1"},
 					Procname:   "Sp_ExecuteSql",
@@ -258,6 +279,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
 				}),
@@ -272,6 +296,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select 1"},
 					Procname:   "Sp_ExecuteSql",

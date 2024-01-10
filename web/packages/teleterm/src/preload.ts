@@ -66,11 +66,13 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     credentials.shared,
     runtimeSettings
   );
-  const { subscribeToTshdEvent, resolvedAddress: tshdEventsServerAddress } =
-    await createTshdEventsServer(
-      runtimeSettings.tshdEvents.requestedNetworkAddress,
-      credentials.tshdEvents
-    );
+  const {
+    setupTshdEventContextBridgeService,
+    resolvedAddress: tshdEventsServerAddress,
+  } = await createTshdEventsServer(
+    runtimeSettings.tshdEvents.requestedNetworkAddress,
+    credentials.tshdEvents
+  );
 
   // Here we send to tshd the address of the tshd events server that we just created. This makes
   // tshd prepare a client for the server.
@@ -84,7 +86,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient,
     tshClient,
     ptyServiceClient,
-    subscribeToTshdEvent,
+    setupTshdEventContextBridgeService,
   };
 }
 

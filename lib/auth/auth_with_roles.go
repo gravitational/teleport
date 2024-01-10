@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -35,7 +34,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -2790,6 +2788,17 @@ func isRoleImpersonation(req proto.UserCertsRequest) bool {
 	return req.UseRoleRequests || len(req.RoleRequests) > 0
 }
 
+// getBotName returns the name of the bot embedded in the user metadata, if any.
+// For non-bot users, returns "".
+func getBotName(user types.User) string {
+	name, ok := user.GetLabel(types.BotLabel)
+	if ok {
+		return name
+	}
+
+	return ""
+}
+
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	authPref, err := a.authServer.GetAuthPreference(ctx)
@@ -2901,6 +2910,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// of the current session. This prevents a user renewing their
 			// own certificates indefinitely to avoid re-authenticating.
 			req.Expires = sessionExpires
+		}
+	}
+
+	// If the user is not a user cert renewal (impersonation, etc.), this is an
+	// admin action and requires MFA.
+	if req.Username != a.context.User.GetName() {
+		// Admin action MFA is not used to create mfa verified certs.
+		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -3023,6 +3041,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
+		botName:                getBotName(user),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -3133,7 +3152,49 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangeUserAuthentication(ctx, req)
+	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
+	isPasswordless := req.NewMFARegisterResponse != nil && len(req.NewPassword) == 0
+	if isPasswordless && modules.GetModules().Features().Cloud {
+		if err := a.trySettingConnectorNameToPasswordless(ctx); err != nil {
+			log.WithError(err).Error("Failed to set passwordless as connector name.")
+		}
+	}
+
+	return resp, nil
+}
+
+// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
+// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
+func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Context) error {
+	users, err := a.authServer.GetUsers(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only set the connector name on the first user registration.
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Don't overwrite an existing connector name.
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+	return trace.Wrap(a.authServer.SetAuthPreference(ctx, authPreference))
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -3938,18 +3999,6 @@ func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) err
 		}
 	}
 
-	// Note: passing a.authServer.GetInventoryStatus here intentionally bypasses
-	// the authz checks in a.GetInventoryStatus, for these reasons:
-	// - We don't actually return the inventory status result, we're only using
-	//   it internally to check for a misconfiguration and return a generic error.
-	// - We don't want to require users to have new permissions to call UpsertRole.
-	// - GetInventoryStatus currently only supports builtin roles.
-	// - This user already has UpsertRole permissions and could give themselves
-	//   arbitrary permissions if they wanted to.
-	if err := checkInventorySupportsRole(ctx, role, api.Version, a.authServer.GetInventoryStatus); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
@@ -4038,94 +4087,6 @@ func checkRoleFeatureSupport(role types.Role) error {
 	default:
 		return nil
 	}
-}
-
-type inventoryGetter func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
-
-// checkInventorySupportsRole returns an error if any connected servers found in
-// the inventory do not support some features enabled in [role]. This is only a
-// best-effort check meant to prevent common user errors, since some unsupported
-// servers may not be connected to this auth, or they may connect later.
-func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersion string, getInventory inventoryGetter) error {
-	minRequiredVersion, msg, err := minRequiredVersionForRole(role)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if safeToSkipInventoryCheck(*semver.New(authVersion), minRequiredVersion) {
-		return nil
-	}
-
-	inventoryStatus, err := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, hello := range inventoryStatus.Connected {
-		version, err := semver.NewVersion(hello.Version)
-		if err != nil {
-			log.Warnf("Connected server %q has unparseable version %q", hello.ServerID, hello.Version)
-			continue
-		}
-		if version.LessThan(minRequiredVersion) {
-			return trace.BadParameter(msg)
-		}
-	}
-	return nil
-}
-
-func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) {
-	// DELETE IN 15.0.0
-	// The label expression checks can be deleted in 15.0.0 since all servers
-	// that don't support label expressions are on 13.x or older. If no other
-	// feature checks have been added at that time, checkInventorySupportsRole
-	// can be deleted entirely.
-	for _, kind := range types.LabelMatcherKinds {
-		for _, rct := range []types.RoleConditionType{types.Allow, types.Deny} {
-			labelMatchers, err := role.GetLabelMatchers(rct, kind)
-			if err != nil {
-				return semver.Version{}, "", trace.Wrap(err)
-			}
-			if len(labelMatchers.Expression) != 0 {
-				return minSupportedLabelExpressionVersion, fmt.Sprintf(
-					"one or more connected servers is running a Teleport version "+
-						"older than %s which does not support the label expressions used "+
-						"in this role.", minSupportedLabelExpressionVersion), nil
-			}
-		}
-	}
-	// Return the zero version to indicate all server versions are supported.
-	return semver.Version{}, "", nil
-}
-
-// safeToSkipInventoryCheck returns true if all possible versions *less than*
-// [minRequiredVersion] are more than one major version behind [authVersion].
-//
-// In this case, any servers older than [minRequiredVersion] are already
-// unsupported and shouldn't be connected, so it's safe to skip the inventory
-// check as an optimization.
-//
-// This also covers the case where minRequiredVersionForRole returned
-// the zero version.
-//
-// Examples:
-// - (15.x.x, 13.1.1) -> true (anything older than 13.1.1 is >1 major behind v15)
-// - (14.x.x, 13.1.1) -> false (13.0.9 is within one major of v14)
-// - (14.x.x, 13.0.0) -> true (anything older than 13.0.0 is >1 major behind v14)
-func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bool {
-	return authVersion.Major > roundToNextMajor(minRequiredVersion)
-}
-
-// roundToNextMajor returns the next major version that is *not less than* [v].
-//
-// Examples:
-// - 13.1.1 -> 14.0.0
-// - 13.0.0 -> 13.0.0
-// - 13.0.0-alpha -> 13.0.0
-func roundToNextMajor(v semver.Version) int64 {
-	if (semver.Version{Major: v.Major}).LessThan(v) {
-		return v.Major + 1
-	}
-	return v.Major
 }
 
 // GetRole returns role by name
@@ -4299,6 +4260,10 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// check that the given RequireMFAType is supported in this build.
 	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -4324,6 +4289,10 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4363,6 +4332,10 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		}
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	tst, err := newNetConfig.GetTunnelStrategyType()
 	if err != nil {
 		return trace.Wrap(err)
@@ -4391,6 +4364,10 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		}
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 }
 
@@ -4417,6 +4394,10 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		}
 	}
 
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
 }
 
@@ -4434,6 +4415,10 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
@@ -5328,6 +5313,11 @@ func (a *ServerWithRoles) SetNetworkRestrictions(ctx context.Context, nr types.N
 	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetNetworkRestrictions(ctx, nr)
 }
 
@@ -5336,6 +5326,11 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteNetworkRestrictions(ctx)
 }
 
@@ -6359,6 +6354,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 			},
 			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 				ServiceProviderEntityID: sp.GetEntityID(),
+				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
 			},
 		}); emitErr != nil {
 			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
@@ -6396,6 +6392,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 			},
 			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 				ServiceProviderEntityID: sp.GetEntityID(),
+				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
 			},
 		}); emitErr != nil {
 			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
@@ -6412,6 +6409,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
+}
+
+func typesAttrMapToEventAttrMap(attributeMapping []*types.SAMLAttributeMapping) map[string]string {
+	amap := make(map[string]string, len(attributeMapping))
+	for _, attribute := range attributeMapping {
+		amap[attribute.Name] = attribute.Value
+	}
+	return amap
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
@@ -6973,7 +6978,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

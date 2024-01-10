@@ -58,12 +58,6 @@ import (
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = apiruntime.NewScheme()
 
-// MaxTimeDiff is used when writing tests comparing times. Timestamps suffer
-// from being serialized/deserialized with different precisions, the final value
-// might be a bit different from the initial one. If the difference is less than
-// MaxTimeDiff, we consider the values equal.
-const MaxTimeDiff = 2 * time.Millisecond
-
 func init() {
 	utilruntime.Must(core.AddToScheme(scheme))
 	utilruntime.Must(resourcesv1.AddToScheme(scheme))

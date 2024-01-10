@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type testConfigFiles struct {
@@ -2894,6 +2893,41 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "AWS DynamoDB with session tags",
+			inFlags: CommandLineFlags{
+				DatabaseName:             "ddb",
+				DatabaseProtocol:         defaults.ProtocolDynamoDB,
+				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
+				DatabaseAWSSessionTags:   "database_name=hello,something=else",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: servicecfg.DatabaseAWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
+					SessionTags: map[string]string{
+						"database_name": "hello",
+						"something":     "else",
+					},
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: servicecfg.DatabaseTLS{
+					Mode: servicecfg.VerifyFull,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2909,62 +2943,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 			}
-		})
-	}
-}
-
-func TestTextFormatter(t *testing.T) {
-	tests := []struct {
-		comment      string
-		formatConfig []string
-		assertErr    require.ErrorAssertionFunc
-	}{
-		{
-			comment:      "invalid key (does not exist)",
-			formatConfig: []string{"level", "invalid key"},
-			assertErr:    require.Error,
-		},
-		{
-			comment:      "valid keys and formatting",
-			formatConfig: []string{"level", "component", "timestamp"},
-			assertErr:    require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &logutils.TextFormatter{
-				ExtraFields: tt.formatConfig,
-			}
-			tt.assertErr(t, formatter.CheckAndSetDefaults())
-		})
-	}
-}
-
-func TestJSONFormatter(t *testing.T) {
-	tests := []struct {
-		comment     string
-		extraFields []string
-		assertErr   require.ErrorAssertionFunc
-	}{
-		{
-			comment:     "invalid key (does not exist)",
-			extraFields: []string{"level", "invalid key"},
-			assertErr:   require.Error,
-		},
-		{
-			comment:     "valid keys and formatting",
-			extraFields: []string{"level", "caller", "component", "timestamp"},
-			assertErr:   require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &logutils.JSONFormatter{
-				ExtraFields: tt.extraFields,
-			}
-			tt.assertErr(t, formatter.CheckAndSetDefaults())
 		})
 	}
 }

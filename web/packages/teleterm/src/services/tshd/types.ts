@@ -29,6 +29,7 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
 import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
@@ -37,6 +38,7 @@ import apiService, {
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
+import apiAccessList from 'gen-proto-js/teleport/accesslist/v1/accesslist_pb';
 
 import * as uri from 'teleterm/ui/uri';
 
@@ -53,6 +55,10 @@ export interface Kube extends apiKube.Kube.AsObject {
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
   subKind: NodeSubKind;
+}
+
+export interface App extends apiApp.App.AsObject {
+  uri: uri.AppUri;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
@@ -81,6 +87,7 @@ export type GatewayCLICommand = apiGateway.GatewayCLICommand.AsObject;
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
 export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
+export type AccessList = apiAccessList.AccessList.AsObject;
 
 export interface GetServersResponse
   extends apiService.GetServersResponse.AsObject {
@@ -294,6 +301,14 @@ export type TshClient = {
     params: apiService.UpdateUserPreferencesRequest.AsObject,
     abortSignal?: TshAbortSignal
   ) => Promise<UserPreferences>;
+  getSuggestedAccessLists: (
+    params: apiService.GetSuggestedAccessListsRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<AccessList[]>;
+  promoteAccessRequest: (
+    params: PromoteAccessRequestParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<AccessRequest>;
 };
 
 export type TshAbortController = {
@@ -327,7 +342,7 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri | uri.KubeUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri | uri.AppUri;
   port?: string;
   user: string;
   subresource_name?: string;
@@ -403,9 +418,14 @@ export type UnifiedResourceResponse =
       kind: 'database';
       resource: Database;
     }
-  | { kind: 'kube'; resource: Kube };
+  | { kind: 'kube'; resource: Kube }
+  | { kind: 'app'; resource: App };
 
 export type UserPreferences = apiService.UserPreferences.AsObject;
+export type PromoteAccessRequestParams =
+  apiService.PromoteAccessRequestRequest.AsObject & {
+    rootClusterUri: uri.RootClusterUri;
+  };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

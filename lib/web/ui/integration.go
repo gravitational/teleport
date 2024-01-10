@@ -191,6 +191,49 @@ type AWSOIDCDeployServiceResponse struct {
 	ServiceDashboardURL string `json:"serviceDashboardUrl"`
 }
 
+// AWSOIDCDeployDatabaseServiceRequest contains the required fields to perform a DeployService request.
+// Each deployed DatabaseService will be proxying the resources that match the following labels:
+// -region: <Region>
+// -account-id: <AccountID>
+// -vpc-id: <Deployments[].VPCID>
+type AWSOIDCDeployDatabaseServiceRequest struct {
+	// Region is the AWS Region for the Service.
+	Region string `json:"region"`
+
+	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
+	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
+	// This can be either the ARN or the short name of the AWS Role.
+	TaskRoleARN string `json:"taskRoleArn"`
+
+	// Deployments is a list of Services to be deployed.
+	// If the target deployment already exists, the deployment is skipped.
+	Deployments []DeployDatabaseServiceDeployment `json:"deployments"`
+}
+
+// DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
+type DeployDatabaseServiceDeployment struct {
+	// VPCID is the VPCID where the service is going to be deployed.
+	VPCID string `json:"vpcId"`
+
+	// SubnetIDs are the subnets for the network configuration.
+	// They must belong to the VPCID above.
+	SubnetIDs []string `json:"subnetIds"`
+
+	// SecurityGroups are the SecurityGroup IDs to associate with this particular deployment.
+	// If empty, the default security group for the VPC is going to be used.
+	SecurityGroups []string `json:"securityGroups"`
+}
+
+// AWSOIDCDeployServiceDatabaseResponse contains links to the ECS Cluster Dashboard where the current status for each Service is displayed.
+type AWSOIDCDeployDatabaseServiceResponse struct {
+	// ClusterARN is the Amazon ECS Cluster ARN where the Services were started.
+	ClusterARN string `json:"clusterArn"`
+
+	// ClusterDashboardURL is the URL for the Cluster Dashbord.
+	// Users can open this link and see which Services are running.
+	ClusterDashboardURL string `json:"clusterDashboardUrl"`
+}
+
 // AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
 type AWSOIDCListEC2Request struct {
 	// Region is the AWS Region.
@@ -229,6 +272,21 @@ type AWSOIDCListSecurityGroupsResponse struct {
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
 	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCRequiredVPCSRequest is a request to get required (missing) VPC's and its subnets.
+type AWSOIDCRequiredVPCSRequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// AccountID is the AWS Account ID.
+	AccountID string `json:"accountId"`
+}
+
+// AWSOIDCRequiredVPCSResponse returns a list of required VPC's and its subnets.
+type AWSOIDCRequiredVPCSResponse struct {
+	// VPCMapOfSubnets is a map of vpc ids and its subnets.
+	// Will be empty if no vpc's are required.
+	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
 }
 
 // AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.

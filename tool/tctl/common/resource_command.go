@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
@@ -972,6 +973,18 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	// try filtering the entity descriptor. if it can't be filtered down to a useable looking state, reject
+	// the creation attempt.
+	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
+		return trace.Wrap(err)
+	}
+
 	serviceProviderName := sp.GetName()
 
 	exists := false
@@ -1184,6 +1197,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
+		types.KindNetworkRestrictions,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")

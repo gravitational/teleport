@@ -142,6 +142,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		SAMLIdPServiceProviders: cfg.Services,
 		UserGroups:              cfg.Services,
 		Okta:                    cfg.Services.OktaClient(),
+		AccessLists:             cfg.Services.AccessListClient(),
 		SecReports:              cfg.Services.SecReportsClient(),
 		UserLoginStates:         cfg.Services.UserLoginStateClient(),
 		Integrations:            cfg.Services,

@@ -10,7 +10,8 @@
 # Credentials generated with `tctl auth sign`.
 #
 # When using --format=file:
-# identity = "/var/lib/teleport/plugins/discord/auth_id"    # Identity file
+# identity = "/var/lib/teleport/plugins/discord/identity"    # Identity file
+# refresh_identity = true                                    # Refresh identity file on a periodic basis.
 #
 # When using --format=tls:
 # client_key = "/var/lib/teleport/plugins/discord/auth.key" # Teleport TLS secret key

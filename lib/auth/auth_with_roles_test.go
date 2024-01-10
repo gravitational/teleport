@@ -31,7 +31,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -44,12 +43,12 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -78,6 +77,13 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 	require.NoError(t, err)
 	client, err := srv.NewClient(TestUser(u.username))
 	require.NoError(t, err)
+
+	// GenerateUserCerts requires MFA.
+	client.SetMFAPromptConstructor(func(po ...mfa.PromptOpt) mfa.Prompt {
+		return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return u.webDev.SolveAuthn(chal)
+		})
+	})
 
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -1726,8 +1732,9 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	require.Empty(t, searchEvents)
 }
 
-// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
-func TestGetSessionEvents(t *testing.T) {
+// TestStreamSessionEvents ensures that when a user streams a session's events
+// a "session recording access" event is emitted.
+func TestStreamSessionEvents(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestTLSServer(t)
@@ -1740,12 +1747,14 @@ func TestGetSessionEvents(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.GetSessionEvents(apidefaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+	clt.StreamSessionEvents(ctx, session.ID("44c6cea8-362f-11ea-83aa-125400432324"), 0)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
-	ctx := context.Background()
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       srv.Clock().Now().Add(-time.Hour),
 		To:         srv.Clock().Now().Add(time.Hour),
@@ -1813,6 +1822,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
 	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
+	authContext.AdminActionAuthorized = true
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
@@ -6376,153 +6386,6 @@ func createSessionTestUsers(t *testing.T, authServer *Server) (string, string, s
 	})
 	require.NoError(t, err)
 	return "alice", "bob", "admin"
-}
-
-func TestCheckInventorySupportsRole(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	emptyRole, err := types.NewRole("empty", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	roleWithLabelExpressions, err := types.NewRole("expressions", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			NodeLabelsExpression: `contains(user.spec.traits["allow-env"], labels["env"])`,
-		},
-	})
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		desc                   string
-		role                   types.Role
-		authVersion            string
-		inventoryVersions      []string
-		assertErr              require.ErrorAssertionFunc
-		expectNoInventoryCheck bool
-	}{
-		{
-			desc:                   "basic",
-			role:                   emptyRole,
-			authVersion:            api.Version,
-			inventoryVersions:      []string{"12.1.2", "13.0.0", api.Version},
-			assertErr:              require.NoError,
-			expectNoInventoryCheck: true,
-		},
-		{
-			desc:              "label expressions supported",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.0.0-dev",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.2.3"},
-			assertErr:         require.NoError,
-		},
-		{
-			desc:              "unparseable server version doesn't break UpsertRole",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.0.0-dev",
-			inventoryVersions: []string{"Not a version"},
-			assertErr:         require.NoError,
-		},
-		{
-			desc:              "block upsert with unsupported nodes in v13",
-			role:              roleWithLabelExpressions,
-			authVersion:       "13.2.3",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-				require.ErrorContains(t, err, "does not support the label expressions used in this role")
-			},
-		},
-		{
-			desc:              "block upsert with unsupported nodes in v14",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.1.2",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-				require.ErrorContains(t, err, "does not support the label expressions used in this role")
-			},
-		},
-		{
-			desc:                   "skip inventory check in 15",
-			role:                   roleWithLabelExpressions,
-			authVersion:            "15.0.0-dev",
-			inventoryVersions:      []string{"14.0.0", "15.0.0"},
-			assertErr:              require.NoError,
-			expectNoInventoryCheck: true,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			getInventory := func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-				if tc.expectNoInventoryCheck {
-					require.Fail(t, "getInventory called when the inventory check should have been skipped")
-				}
-
-				hellos := make([]proto.UpstreamInventoryHello, 0, len(tc.inventoryVersions))
-				for _, v := range tc.inventoryVersions {
-					hellos = append(hellos, proto.UpstreamInventoryHello{
-						Version: v,
-					})
-				}
-				return proto.InventoryStatusSummary{
-					Connected: hellos,
-				}, nil
-			}
-
-			err := checkInventorySupportsRole(ctx, tc.role, tc.authVersion, getInventory)
-			tc.assertErr(t, err)
-		})
-	}
-}
-
-func TestSafeToSkipInventoryCheck(t *testing.T) {
-	for _, tc := range []struct {
-		desc               string
-		authVersion        string
-		minRequiredVersion string
-		safeToSkip         bool
-	}{
-		{
-			desc:               "auth two majors ahead of required minor release",
-			authVersion:        "15.0.0",
-			minRequiredVersion: "13.1.0",
-			safeToSkip:         true,
-		},
-		{
-			desc:               "auth within one major of required minor release",
-			authVersion:        "14.0.0",
-			minRequiredVersion: "13.1.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "auth one major greater than required major release",
-			authVersion:        "14.0.0",
-			minRequiredVersion: "13.0.0",
-			safeToSkip:         true, // anything older than 13.0.0 is >1 major behind 14.0.0
-		},
-		{
-			desc:               "auth within one major of required major release",
-			authVersion:        "13.3.12",
-			minRequiredVersion: "13.0.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "matching releases",
-			authVersion:        "13.2.0",
-			minRequiredVersion: "13.2.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "skip for zero version",
-			authVersion:        "13.2.0",
-			minRequiredVersion: "0.0.0",
-			safeToSkip:         true,
-		},
-	} {
-		require.Equal(t, tc.safeToSkip,
-			safeToSkipInventoryCheck(*semver.New(tc.authVersion), *semver.New(tc.minRequiredVersion)))
-	}
 }
 
 func TestCreateAccessRequest(t *testing.T) {

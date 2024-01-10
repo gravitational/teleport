@@ -168,6 +168,8 @@ type CommandLineFlags struct {
 	DatabaseAWSElastiCacheGroupID string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
+	// DatabaseAWSSessionTags is the AWS STS session tags.
+	DatabaseAWSSessionTags string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -209,6 +211,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfEKSIAMArguments contains the arguments of
+	// `teleport integration configure eks-iam` command
+	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
+
 	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
 	// `teleport integration configure awsoidc-idp` command
 	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
@@ -240,6 +246,15 @@ type IntegrationConfDeployServiceIAM struct {
 // IntegrationConfEICEIAM contains the arguments of
 // `teleport integration configure eice-iam` command
 type IntegrationConfEICEIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfEKSIAM contains the arguments of
+// `teleport integration configure eks-iam` command
+type IntegrationConfEKSIAM struct {
 	// Region is the AWS Region used to set up the client.
 	Region string
 	// Role is the AWS Role associated with the Integration
@@ -679,18 +694,22 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = os.Stdout
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
-		// TODO(tross): add slog support for syslog.
-		hook, err := utils.CreateSyslogHook()
+		w = os.Stderr
+		sw, err := utils.NewSyslogWriter()
 		if err != nil {
-			// syslog is not available
 			logger.Errorf("Failed to switch logging to syslog: %v.", err)
-			w = os.Stderr
 			break
 		}
+
+		hook, err := utils.NewSyslogHook(sw)
+		if err != nil {
+			logger.Errorf("Failed to switch logging to syslog: %v.", err)
+			break
+		}
+
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
-		// ... and disable stderr:
-		w = io.Discard
+		w = sw
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(loggerConfig.Output)
@@ -721,7 +740,17 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	sharedWriter := logutils.NewSharedWriter(w)
+	configuredFields, err := logutils.ValidateFields(loggerConfig.Format.ExtraFields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If syslog output has been configured and is supported by the operating system,
+	// then the shared writer is not needed because the syslog writer is already
+	// protected with a mutex.
+	if len(logger.Hooks) == 0 {
+		w = logutils.NewSharedWriter(w)
+	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
@@ -729,7 +758,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "text":
 		enableColors := trace.IsTerminal(os.Stderr)
 		formatter := &logutils.TextFormatter{
-			ExtraFields:  loggerConfig.Format.ExtraFields,
+			ExtraFields:  configuredFields,
 			EnableColors: enableColors,
 		}
 
@@ -737,18 +766,24 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
-		logger.SetOutput(sharedWriter)
 		logger.SetFormatter(formatter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
 
-		slogLogger = slog.New(logutils.NewSlogTextHandler(sharedWriter, &logutils.SlogTextHandlerConfig{
-			Level:        level,
-			EnableColors: enableColors,
-			WithCaller:   true,
+		slogLogger = slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
+			Level:            level,
+			EnableColors:     enableColors,
+			ConfiguredFields: configuredFields,
 		}))
 		slog.SetDefault(slogLogger)
 	case "json":
 		formatter := &logutils.JSONFormatter{
-			ExtraFields: loggerConfig.Format.ExtraFields,
+			ExtraFields: configuredFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -756,9 +791,18 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		}
 
 		logger.SetFormatter(formatter)
-		logger.SetOutput(sharedWriter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
 
-		slogLogger = slog.New(logutils.NewSlogJSONHandler(sharedWriter, level))
+		slogLogger = slog.New(logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
+			Level:            level,
+			ConfiguredFields: configuredFields,
+		}))
 		slog.SetDefault(slogLogger)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
@@ -949,10 +993,19 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
 			return trace.BadParameter("cannot set both pkcs11 and gcp_kms in file config")
 		}
+		if fc.Auth.CAKeyParams.AWSKMS != nil {
+			return trace.BadParameter("cannot set both pkcs11 and aws_kms in file config")
+		}
 		return trace.Wrap(applyPKCS11Config(fc.Auth.CAKeyParams.PKCS11, cfg))
 	}
 	if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
+		if fc.Auth.CAKeyParams.AWSKMS != nil {
+			return trace.BadParameter("cannot set both gpc_kms and aws_kms in file config")
+		}
 		return trace.Wrap(applyGoogleCloudKMSConfig(fc.Auth.CAKeyParams.GoogleCloudKMS, cfg))
+	}
+	if fc.Auth.CAKeyParams.AWSKMS != nil {
+		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
 	return nil
 }
@@ -1016,6 +1069,18 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 		return trace.BadParameter("must set protection_level in ca_key_params.gcp_kms")
 	}
 	cfg.Auth.KeyStore.GCPKMS.ProtectionLevel = kmsConfig.ProtectionLevel
+	return nil
+}
+
+func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
+	if kmsConfig.Account == "" {
+		return trace.BadParameter("must set account in ca_key_params.aws_kms")
+	}
+	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
+	if kmsConfig.Region == "" {
+		return trace.BadParameter("must set region in ca_key_params.aws_kms")
+	}
+	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
 	return nil
 }
 
@@ -1697,6 +1762,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
 				ExternalID:    database.AWS.ExternalID,
 				Region:        database.AWS.Region,
+				SessionTags:   database.AWS.SessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -2261,6 +2327,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+		var sessionTags map[string]string
+		if clf.DatabaseAWSSessionTags != "" {
+			var err error
+			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2279,6 +2353,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				AccountID:     clf.DatabaseAWSAccountID,
 				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
 				ExternalID:    clf.DatabaseAWSExternalID,
+				SessionTags:   sessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

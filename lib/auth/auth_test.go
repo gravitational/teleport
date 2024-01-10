@@ -2121,7 +2121,7 @@ func TestNewWebSession(t *testing.T) {
 		LoginTime:  p.a.clock.Now().UTC(),
 		SessionTTL: apidefaults.CertDuration,
 	}
-	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(req.SessionTTL, BearerTokenTTL)
 
 	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)
@@ -3338,4 +3338,26 @@ func TestInstallerCRUD(t *testing.T) {
 	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestGetTokens(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
+
+	_, _, err := CreateUserAndRole(s.a, "username", []string{"username"}, nil)
+	require.NoError(t, err)
+	_, err = s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+		Name: "username",
+		TTL:  time.Minute,
+		Type: UserTokenTypeResetPasswordInvite,
+	})
+	require.NoError(t, err)
+
+	for _, role := range types.LocalServiceMappings() {
+		generateTestToken(ctx, t, types.SystemRoles{role}, s.a.GetClock().Now().Add(time.Minute*30), s.a)
+	}
+
+	_, err = s.a.GetTokens(ctx)
+	require.NoError(t, err)
 }
