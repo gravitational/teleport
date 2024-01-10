@@ -83,15 +83,6 @@ func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Reque
 		RecoverType:  recoverType,
 	})
 	if err != nil {
-		if err.Error() == auth.MaxFailedAttemptsFromStartRecoveryErrMsg {
-			if _, emailErr := client.SendAccountLocked(r.Context(), &v1.SendAccountLockedRequest{
-				Email:     req.Username,
-				IpAddr:    p.getIPAddress(r),
-				UserAgent: r.UserAgent(),
-			}); emailErr != nil {
-				p.Log.WithError(trail.FromGRPC(emailErr)).Warnf("Failed to email user %v that their account got locked.", req.Username)
-			}
-		}
 		p.Log.WithError(err).Warnf("Start account recovery denied for user %q.", req.Username)
 		return nil, trace.AccessDenied("invalid username or recovery code")
 	}
@@ -154,15 +145,6 @@ func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Requ
 
 	token, err := p.h.GetProxyClient().VerifyAccountRecovery(r.Context(), protoReq)
 	if err != nil {
-		if err.Error() == auth.MaxFailedAttemptsFromVerifyRecoveryErrMsg {
-			if _, emailErr := client.SendAccountLocked(r.Context(), &v1.SendAccountLockedRequest{
-				Email:     req.Username,
-				IpAddr:    p.getIPAddress(r),
-				UserAgent: r.UserAgent(),
-			}); emailErr != nil {
-				p.Log.WithError(trail.FromGRPC(emailErr)).Warnf("Failed to email user %v that their account got locked.", req.Username)
-			}
-		}
 		return nil, trace.Wrap(err)
 	}
 
