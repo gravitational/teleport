@@ -196,6 +196,7 @@ func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChe
 	}
 }
 
+// MakeEKSClusters creates EKS objects for the web UI.
 func MakeEKSClusters(clusters []awsoidc.EKSCluster) []EKSCluster {
 	uiEKSClusters := make([]EKSCluster, 0, len(clusters))
 
