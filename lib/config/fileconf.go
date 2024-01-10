@@ -1719,6 +1719,8 @@ type Database struct {
 	AdminUser DatabaseAdminUser `yaml:"admin_user"`
 	// Oracle is Database Oracle settings
 	Oracle DatabaseOracle `yaml:"oracle,omitempty"`
+	// Cassandra are additional database options.
+	Cassandra DatabaseCassandra `yaml:"cassandra,omitempty"`
 }
 
 // DatabaseAdminUser describes database privileged user for auto-provisioning.
@@ -1771,6 +1773,13 @@ type DatabaseMySQL struct {
 type DatabaseOracle struct {
 	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+}
+
+// DatabaseCassandra are additional Cassandra database options.
+type DatabaseCassandra struct {
+	// CertAuth indidicates if the database is using certificate based
+	// authentication.
+	CertAuth bool `yaml:"cert_auth,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.

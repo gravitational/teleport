@@ -757,6 +757,16 @@ client_encryption_options:
    keyfile: /path/to/{{.output}}.key
    truststore:  /path/to/{{.output}}.cas
    require_client_auth: True
+
+If you have Scylla version 5.4.0 or newer, you can activate x509 certificate
+authentication by including the following in your scylla.yaml configuration
+file. It is also noted that if this feature is utilized, only certificates
+issued by Teleport can be used for authentication.
+
+authenticator: com.scylladb.auth.CertificateAuthenticator
+auth_certificate_role_queries:
+    - source: SUBJECT
+      query: CN=(.+)
 `))
 )
 
