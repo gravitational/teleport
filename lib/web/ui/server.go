@@ -160,11 +160,11 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
 type EKSCluster struct {
-	Name        string  `json:"name"`
-	Region      string  `json:"region"`
-	Labels      []Label `json:"labels"`
-	ExtraLabels []Label `json:"extraLabels"`
-	Status      string  `json:"status"`
+	Name       string  `json:"name"`
+	Region     string  `json:"region"`
+	Labels     []Label `json:"labels"`
+	JoinLabels []Label `json:"joinLabels"`
+	Status     string  `json:"status"`
 }
 
 // KubeCluster describes a kube cluster.
@@ -202,11 +202,11 @@ func MakeEKSClusters(clusters []awsoidc.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:        cluster.Name,
-			Region:      cluster.Region,
-			Labels:      makeLabels(cluster.Labels),
-			ExtraLabels: makeLabels(cluster.ExtraLabels),
-			Status:      cluster.Status,
+			Name:       cluster.Name,
+			Region:     cluster.Region,
+			Labels:     makeLabels(cluster.Labels),
+			JoinLabels: makeLabels(cluster.JoinLabels),
+			Status:     cluster.Status,
 		})
 	}
 	return uiEKSClusters

@@ -63,9 +63,9 @@ type EKSCluster struct {
 	// Labels are labels of a EKS cluster.
 	Labels map[string]string
 
-	// ExtraLabels are additional Teleport labels that should be injected into kube agent
+	// JoinLabels are Teleport labels that should be injected into kube agent
 	// if the cluster will be enrolled into Teleport (agent installed on it).
-	ExtraLabels map[string]string
+	JoinLabels map[string]string
 
 	// Status is a current status of an EKS cluster in AWS.
 	Status string
@@ -156,11 +156,11 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 			}
 
 			ret.Clusters = append(ret.Clusters, EKSCluster{
-				Name:        aws.ToString(eksClusterInfo.Cluster.Name),
-				Region:      req.Region,
-				Labels:      eksClusterInfo.Cluster.Tags,
-				ExtraLabels: extraLabels,
-				Status:      strings.ToLower(string(eksClusterInfo.Cluster.Status)),
+				Name:       aws.ToString(eksClusterInfo.Cluster.Name),
+				Region:     req.Region,
+				Labels:     eksClusterInfo.Cluster.Tags,
+				JoinLabels: extraLabels,
+				Status:     strings.ToLower(string(eksClusterInfo.Cluster.Status)),
 			})
 			return nil
 		})

@@ -160,7 +160,7 @@ func TestListEKSClusters(t *testing.T) {
 					Name:   "EKS",
 					Region: region,
 					Labels: map[string]string{"label": "value"},
-					ExtraLabels: map[string]string{
+					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
@@ -191,7 +191,7 @@ func TestListEKSClusters(t *testing.T) {
 					Name:   "EKS",
 					Region: region,
 					Labels: map[string]string{"label": "value"},
-					ExtraLabels: map[string]string{
+					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
@@ -202,7 +202,7 @@ func TestListEKSClusters(t *testing.T) {
 					Name:   "EKS2",
 					Region: region,
 					Labels: map[string]string{"label2": "value2"},
-					ExtraLabels: map[string]string{
+					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
@@ -233,7 +233,7 @@ func TestListEKSClusters(t *testing.T) {
 					Name:   "EKS",
 					Region: region,
 					Labels: map[string]string{"label": "value"},
-					ExtraLabels: map[string]string{
+					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
 						"region":             "us-east-1",
 						"teleport.dev/cloud": "AWS",
