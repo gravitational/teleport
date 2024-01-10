@@ -69,8 +69,9 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) error {
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     user.GetRoles(),
+		Connector:          connectorName,
+		Roles:              user.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
@@ -111,8 +112,9 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) error {
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     user.GetRoles(),
+		Connector:          connectorName,
+		Roles:              user.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
@@ -229,6 +231,7 @@ func (a *Server) DeleteUser(ctx context.Context, user string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}

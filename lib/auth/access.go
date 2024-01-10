@@ -46,6 +46,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -132,6 +133,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role delete event.")
 	}
