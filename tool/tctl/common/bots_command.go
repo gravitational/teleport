@@ -56,7 +56,7 @@ type BotsCommand struct {
 	botRoles string
 	tokenID  string
 	tokenTTL time.Duration
-	addRole  string
+	addRoles string
 
 	allowedLogins []string
 	addLogins     string
@@ -96,9 +96,9 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.botsUpdate = bots.Command("update", "Update an existing bot.")
 	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
 	c.botsUpdate.Flag("set-roles", "A comma-separated list of roles to replace.").StringVar(&c.botRoles)
-	c.botsUpdate.Flag("add-role", "A comma-separated list of roles to add to an existing bot.").StringVar(&c.addRole)
+	c.botsUpdate.Flag("add-roles", "A comma-separated list of roles to add to an existing bot.").StringVar(&c.addRoles)
 	c.botsUpdate.Flag("set-logins", "A comma-separated list of allowed logins to replace").StringVar(&c.setLogins)
-	c.botsUpdate.Flag("add-login", "A comma-separated list of logins to add to an existing bot.").StringVar(&c.addLogins)
+	c.botsUpdate.Flag("add-logins", "A comma-separated list of logins to add to an existing bot.").StringVar(&c.addLogins)
 }
 
 // TryRun attempts to run subcommands.
@@ -571,8 +571,8 @@ func (c *BotsCommand) updateBotRole(ctx context.Context, client auth.ClientI) er
 		desiredRoles = setUnion(currentRoles)
 	}
 
-	if c.addRole != "" {
-		desiredRoles = setUnion(desiredRoles, arrayToSet(splitEntries(c.addRole)))
+	if c.addRoles != "" {
+		desiredRoles = setUnion(desiredRoles, arrayToSet(splitEntries(c.addRoles)))
 	}
 
 	log.Infof("Desired roles for bot %q:  %+v", c.botName, setToArray(desiredRoles))
@@ -601,7 +601,7 @@ func (c *BotsCommand) updateBotRole(ctx context.Context, client auth.ClientI) er
 func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error {
 	changes := false
 
-	if len(c.allowedLogins) > 0 || len(c.addLogins) > 0 {
+	if c.setLogins != "" || c.addLogins != "" {
 		if err := c.updateBotUser(ctx, client); err != nil {
 			return trace.Wrap(err)
 		}
@@ -609,7 +609,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error 
 		changes = true
 	}
 
-	if c.botRoles != "" || c.addRole != "" {
+	if c.botRoles != "" || c.addRoles != "" {
 		if err := c.updateBotRole(ctx, client); err != nil {
 			return trace.Wrap(err)
 		}
@@ -619,6 +619,8 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error 
 
 	if changes {
 		log.Infof("Bot %q has been updated. Roles will take affect on its next renewal.", c.botName)
+	} else {
+		log.Infof("No changes requested. Specify one or more flags.")
 	}
 
 	return nil
