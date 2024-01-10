@@ -112,9 +112,7 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 		return nil, trace.Wrap(err)
 	}
 
-	listEKSClusters := &eks.ListClustersInput{
-		Include: nil,
-	}
+	listEKSClusters := &eks.ListClustersInput{}
 	if req.NextToken != "" {
 		listEKSClusters.NextToken = &req.NextToken
 	}
