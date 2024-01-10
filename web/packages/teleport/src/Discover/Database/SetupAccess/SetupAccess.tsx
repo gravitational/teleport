@@ -397,7 +397,7 @@ function DbEngineInstructions({
                 bash={false}
                 lines={[
                   {
-                    text: "GRANT ALL ON ` % `.* TO 'YOUR_USERNAME'@'%';",
+                    text: "GRANT ALL ON `%`.* TO 'YOUR_USERNAME'@'%';",
                   },
                 ]}
               />
