@@ -34,7 +34,7 @@ func NewAppCLICommand(g gateway.Gateway) (*exec.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if g.Protocol() == types.ProtocolTCP {
+	if g.Protocol() == types.ApplicationProtocolTCP {
 		return exec.Command(""), nil
 	}
 

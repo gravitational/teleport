@@ -80,7 +80,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, cfg *Config, listener net.Li
 }
 
 func alpnProtocolForApp(protocol string) alpncommon.Protocol {
-	if protocol == types.ProtocolTCP {
+	if protocol == types.ApplicationProtocolTCP {
 		return alpncommon.ProtocolTCP
 	}
 	return alpncommon.ProtocolHTTP

@@ -47,13 +47,13 @@ func TestNewAppCLICommand(t *testing.T) {
 	}{
 		{
 			name:         "TCP app",
-			protocol:     types.ProtocolTCP,
+			protocol:     types.ApplicationProtocolTCP,
 			generatedUrl: "tcp://localhost:8888",
 			output:       "",
 		},
 		{
 			name:         "HTTP app",
-			protocol:     types.ProtocolHTTP,
+			protocol:     types.ApplicationProtocolHTTP,
 			generatedUrl: "http://localhost:8888",
 			output:       "curl http://localhost:8888",
 		},

@@ -1176,6 +1176,8 @@ const (
 )
 
 const (
-	ProtocolHTTP = "HTTP"
-	ProtocolTCP  = "TCP"
+	// ApplicationProtocolHTTP is the HTTP (Web) apps protocol
+	ApplicationProtocolHTTP = "HTTP"
+	// ApplicationProtocolTCP is the TCP apps protocol.
+	ApplicationProtocolTCP = "TCP"
 )
