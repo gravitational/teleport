@@ -34,7 +34,7 @@ export async function connectToApp(
   }
 
   if (target.awsConsole) {
-    alert('AWS apps are supported only in Web UI.');
+    alert('AWS apps are supported in Web UI and tsh.');
     return;
   }
 
