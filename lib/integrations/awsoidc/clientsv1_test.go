@@ -97,7 +97,7 @@ func TestNewSessionV1(t *testing.T) {
 			name:        "not found error when integration is missing",
 			region:      "us-dummy-1",
 			integration: "not-found",
-			expectedErr: notFounCheck,
+			expectedErr: notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

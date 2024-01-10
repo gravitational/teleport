@@ -19,7 +19,6 @@
 package keystore
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -189,12 +188,12 @@ func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...RSAKeyOption) 
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
-func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer, err := g.newKmsSigner(ctx, keyID)
+	signer, err := g.newKmsSignerWithPublicKey(ctx, keyID, publicKey)
 	return signer, trace.Wrap(err)
 }
 
@@ -354,14 +353,18 @@ func (g *gcpKMSKeyStore) newKmsSigner(ctx context.Context, keyID gcpKMSKeyID) (*
 	}
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "unexpected error parsing public key pem")
+		return nil, trace.Wrap(err, "unexpected error parsing public key PEM")
 	}
 
+	return g.newKmsSignerWithPublicKey(ctx, keyID, pub)
+}
+
+func (g *gcpKMSKeyStore) newKmsSignerWithPublicKey(ctx context.Context, keyID gcpKMSKeyID, publicKey crypto.PublicKey) (*kmsSigner, error) {
 	return &kmsSigner{
 		ctx:    ctx,
 		g:      g,
 		keyID:  keyID,
-		public: pub,
+		public: publicKey,
 	}, nil
 }
 
@@ -399,10 +402,7 @@ type gcpKMSKeyID struct {
 }
 
 func (g gcpKMSKeyID) marshal() []byte {
-	var buf bytes.Buffer
-	buf.WriteString(gcpkmsPrefix)
-	buf.WriteString(g.keyVersionName)
-	return buf.Bytes()
+	return []byte(gcpkmsPrefix + g.keyVersionName)
 }
 
 func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {

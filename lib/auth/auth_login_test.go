@@ -760,7 +760,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 
 	// Create user and initial WebAuthn device (MFA).
 	const user = "llama"
-	const password = "p@ssw0rd"
+	const password = "p@ssw0rd1234"
 	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"}, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(user, []byte(password)))

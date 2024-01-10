@@ -13,6 +13,18 @@ be able to run Teleport in FedRAMP/FIPS mode on ARM64.
 
 Teleport 15 now provides hardened AWS AMIs on ARM64.
 
+#### Streaming session playback
+
+Prior to Teleport 15, `tsh play` and the web UI would download the entire
+session recording before starting playback. As a result, playback of large
+recordings could be slow to start, and may fail to play at all in the browser.
+
+In Teleport 15, session recordings are streamed from the auth server, allowing
+playback to start before the entire session is downloaded and unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
 ### Breaking changes and deprecations
 
 #### RDP engine requires RemoteFX
@@ -53,17 +65,6 @@ rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
 
-#### `tsh play` now streams PTY playback
-
-Prior to Teleport 15, `tsh play` would download the entire session recording
-before starting playback. As a result, playback of large recordings could be
-slow to start. In Teleport 15 session recordings are streamed from the auth
-server, allowing playback to start before the entire session is downloaded and
-unpacked.
-
-Additionally, `tsh play` now supports a `--speed` flag for adjusting the
-playback speed.
-
 #### `drop` host user creation mode
 
 The `drop` host user creation mode has been removed in Teleport 15. It is replaced
@@ -71,7 +72,7 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
-##### Packages no longer published to legacy Debian and RPM repos
+#### Packages no longer published to legacy Debian and RPM repos
 
 `deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
 Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
@@ -166,6 +167,25 @@ the Windows NTAuth store has been removed. It is not necessary for Teleport to
 perform this step since it must be done by an administrator at installation
 time. As a result, Teleport's service account can use more restrictive
 permissions.
+
+#### Example AWS cluster deployments updated
+
+The AWS terraform examples for Teleport clusters have been updated to use the
+newer hardened Amazon Linux 2023 AMIs. Additionally, the default architecture
+and instance type has been changed to ARM64/Graviton.
+
+As a result of this modernization, the legacy monitoring stack configuration
+used with the legacy AMIs has been removed.
+
+### Other changes
+
+#### Increased password length
+
+The minimum password length has been increased to 12 characters.
+
+#### Increased account lockout interval
+
+The account lockout interval has been increased to 30 minutes.
 
 ## 14.0.0 (09/20/23)
 
