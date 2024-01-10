@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -154,6 +155,10 @@ type Config struct {
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
 	clock clockwork.Clock
+
+	// jitter is a function which applies random jitter to a duration.
+	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
+	jitter retryutils.Jitter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -227,6 +232,9 @@ kubernetes matchers are present.`)
 	}
 
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
+
+	c.jitter = retryutils.NewSeventhJitter()
+
 	return nil
 }
 
@@ -719,6 +727,16 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	return nil
 }
 
+// existingEICENodes returns all the EICE Nodes
+func (s *Server) existingEICENodes() []types.Server {
+	return s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+		labels := n.GetAllLabels()
+		_, accountOK := labels[types.AWSAccountIDLabel]
+		_, instanceOK := labels[types.AWSInstanceIDLabel]
+		return accountOK && instanceOK && n.GetSubKind() == types.SubKindOpenSSHEICENode
+	})
+}
+
 func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
 	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
@@ -780,12 +798,6 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(marco): support AWS SSM Client backed by an integration
-	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -795,11 +807,77 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// instances.Rotation is true whenever the instances received need
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
-	if !instances.Rotation {
+	//
+	// Integration/EICE Nodes don't have heartbeat.
+	// Those Nodes must not be filtered, so that we can extend their expiration and sync labels.
+	if !instances.Rotation && instances.Integration == "" {
 		s.filterExistingEC2Nodes(instances)
 	}
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
+	}
+
+	switch {
+	case instances.Integration != "":
+		s.handleEC2UsingEICE(instances)
+	default:
+		if err := s.handleEC2RemoteInstallation(instances); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+
+	return nil
+}
+
+// handleEC2UsingEICE creates a Teleport Node (EICE subkind) from the instances list.
+func (s *Server) handleEC2UsingEICE(instances *server.EC2Instances) {
+	awsInfo := &types.AWSInfo{
+		AccountID:   instances.AccountID,
+		Region:      instances.Region,
+		Integration: instances.Integration,
+	}
+
+	existingEICENodes := s.existingEICENodes()
+
+	// Add EC2 Instances using EICE method
+	for _, ec2Instance := range instances.Instances {
+		eiceNode, err := services.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
+		if err != nil {
+			s.Log.WithError(err).WithField("instance_id", ec2Instance.InstanceID).Warn("Error converting to Teleport EICE Node")
+			continue
+		}
+		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))
+		eiceNode.SetExpiry(eiceNodeExpiration)
+
+		// Does the node exist already?
+		for _, existingEICENode := range existingEICENodes {
+			match := types.MatchLabels(existingEICENode, map[string]string{
+				types.AWSAccountIDLabel:  instances.AccountID,
+				types.AWSInstanceIDLabel: ec2Instance.InstanceID,
+			})
+			if match {
+				// Re-use the same Name so that `UpsertNode` replaces the node.
+				eiceNode.SetName(existingEICENode.GetName())
+				break
+			}
+		}
+
+		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
+			s.Log.WithError(err).WithField("instance_id", ec2Instance.InstanceID).Warn("Error upserting as Node")
+			continue
+		}
+	}
+}
+
+func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
+	// TODO(gavin): support assume_role_arn for ec2.
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region, cloud.WithAmbientCredentials())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
@@ -815,9 +893,6 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
-	}
-	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
 	}
 	return nil
 }
