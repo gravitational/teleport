@@ -56,13 +56,17 @@ type BotsCommand struct {
 	botRoles string
 	tokenID  string
 	tokenTTL time.Duration
+	addRole  string
 
 	allowedLogins []string
+	addLogins     string
+	setLogins     string
 
 	botsList   *kingpin.CmdClause
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
 	botsLock   *kingpin.CmdClause
+	botsUpdate *kingpin.CmdClause
 }
 
 // Initialize sets up the "tctl bots" command.
@@ -88,6 +92,13 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
+
+	c.botsUpdate = bots.Command("update", "Update an existing bot.")
+	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
+	c.botsUpdate.Flag("set-roles", "A comma-separated list of roles to replace.").StringVar(&c.botRoles)
+	c.botsUpdate.Flag("add-role", "A comma-separated list of roles to add to an existing bot.").StringVar(&c.addRole)
+	c.botsUpdate.Flag("set-logins", "A comma-separated list of allowed logins to replace").StringVar(&c.setLogins)
+	c.botsUpdate.Flag("add-login", "A comma-separated list of logins to add to an existing bot.").StringVar(&c.addLogins)
 }
 
 // TryRun attempts to run subcommands.
@@ -101,6 +112,8 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		err = c.RemoveBot(ctx, client)
 	case c.botsLock.FullCommand():
 		err = c.LockBot(ctx, client)
+	case c.botsUpdate.FullCommand():
+		err = c.UpdateBot(ctx, client)
 	default:
 		return false, nil
 	}
@@ -228,7 +241,7 @@ Please note:
 
 // TODO(noah): DELETE IN 16.0.0
 func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) error {
-	roles := splitRoles(c.botRoles)
+	roles := splitEntries(c.botRoles)
 	if len(roles) == 0 {
 		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
@@ -298,7 +311,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		}
 	}
 
-	roles := splitRoles(c.botRoles)
+	roles := splitEntries(c.botRoles)
 	if len(roles) == 0 {
 		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
@@ -483,7 +496,137 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-func splitRoles(flag string) []string {
+// updateBotUser applies updates to a bot user that were specified in the CLI
+// arguments.
+func (c *BotsCommand) updateBotUser(ctx context.Context, client auth.ClientI) error {
+	resource := machineidv1.BotResourceName(c.botName)
+	user, err := client.GetUser(ctx, resource, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	traits := user.GetTraits()
+	if traits == nil {
+		traits = map[string][]string{}
+	}
+
+	var currentLogins map[string]struct{}
+	if logins, exists := traits[constants.TraitLogins]; exists {
+		currentLogins = arrayToSet(logins)
+	} else {
+		currentLogins = map[string]struct{}{}
+	}
+
+	var desiredLogins map[string]struct{}
+	if c.setLogins != "" {
+		desiredLogins = arrayToSet(splitEntries(c.setLogins))
+	} else {
+		desiredLogins = setUnion(currentLogins)
+	}
+
+	addLogins := splitEntries(c.addLogins)
+	if len(addLogins) > 0 {
+		desiredLogins = setUnion(desiredLogins, arrayToSet(addLogins))
+	}
+
+	log.Infof("Desired logins for bot %q: %+v", c.botName, setToArray(desiredLogins))
+	if setsEqual(currentLogins, desiredLogins) {
+		log.Infof("Desired logins match existing set, will not update bot user")
+		return nil
+	}
+
+	if len(desiredLogins) == 0 {
+		delete(traits, constants.TraitLogins)
+		log.Infof("Removing logins trait from bot user")
+	} else {
+		traits[constants.TraitLogins] = setToArray(desiredLogins)
+	}
+	user.SetTraits(traits)
+
+	if _, err := client.UpdateUser(ctx, user); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// updateBotRole performs any updates to a bot's role that were specified in the
+// CLI arguments.
+func (c *BotsCommand) updateBotRole(ctx context.Context, client auth.ClientI) error {
+	resource := machineidv1.BotResourceName(c.botName)
+	role, err := client.GetRole(ctx, resource)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	allowCond := role.GetImpersonateConditions(types.Allow)
+	currentRoles := arrayToSet(allowCond.Roles)
+
+	log.Infof("Existing roles for bot %q: %+v", c.botName, setToArray(currentRoles))
+
+	var desiredRoles map[string]struct{}
+	if c.botRoles != "" {
+		desiredRoles = arrayToSet(splitEntries(c.botRoles))
+	} else {
+		desiredRoles = setUnion(currentRoles)
+	}
+
+	if c.addRole != "" {
+		desiredRoles = setUnion(desiredRoles, arrayToSet(splitEntries(c.addRole)))
+	}
+
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, setToArray(desiredRoles))
+	if setsEqual(currentRoles, desiredRoles) {
+		log.Infof("Desired roles match existing roles, will not update bot role")
+		return nil
+	}
+
+	// Validate roles (server does not do this yet).
+	for roleName := range desiredRoles {
+		if _, err := client.GetRole(ctx, roleName); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	allowCond.Roles = setToArray(desiredRoles)
+	role.SetImpersonateConditions(types.Allow, allowCond)
+
+	if _, err := client.UpdateRole(ctx, role); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// UpdateBot performs various updates to existing bot users and roles.
+func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error {
+	changes := false
+
+	if len(c.allowedLogins) > 0 || len(c.addLogins) > 0 {
+		if err := c.updateBotUser(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+
+		changes = true
+	}
+
+	if c.botRoles != "" || c.addRole != "" {
+		if err := c.updateBotRole(ctx, client); err != nil {
+			return trace.Wrap(err)
+		}
+
+		changes = true
+	}
+
+	if changes {
+		log.Infof("Bot %q has been updated. Roles will take affect on its next renewal.", c.botName)
+	}
+
+	return nil
+}
+
+// splitEntries splits a comma separated string into an array of entries,
+// ignoring empty or whitespace-only elements.
+func splitEntries(flag string) []string {
 	var roles []string
 	for _, s := range strings.Split(flag, ",") {
 		s = strings.TrimSpace(s)
@@ -493,4 +636,53 @@ func splitRoles(flag string) []string {
 		roles = append(roles, s)
 	}
 	return roles
+}
+
+// setsEqual determines if two sets contain the same keys.
+func setsEqual[T comparable](a map[T]struct{}, b map[T]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for k := range a {
+		if _, ok := b[k]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+// setToArray converts a set to an array
+func setToArray[T comparable](m map[T]struct{}) []T {
+	var ret []T
+	for entry := range m {
+		ret = append(ret, entry)
+	}
+
+	return ret
+}
+
+// arrayToSet converts an array to a set, removing duplicates
+func arrayToSet[T comparable](arr []T) map[T]struct{} {
+	ret := make(map[T]struct{})
+
+	for _, entry := range arr {
+		ret[entry] = struct{}{}
+	}
+
+	return ret
+}
+
+// setUnion returns a new set containing a union of all provided sets. If only
+// one set is given, it is effectively shallow copied.
+func setUnion[T comparable](sets ...map[T]struct{}) map[T]struct{} {
+	ret := make(map[T]struct{})
+	for _, set := range sets {
+		for key := range set {
+			ret[key] = struct{}{}
+		}
+	}
+
+	return ret
 }
