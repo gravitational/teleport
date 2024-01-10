@@ -234,6 +234,7 @@ func testDatabaseLogin(t *testing.T) {
 				ServiceName: "snowflake",
 				Protocol:    "snowflake",
 				Username:    "admin",
+				Database:    "default",
 			},
 			expectCertsLen:        1,
 			expectErrForConfigCmd: true, // "tsh db config" not supported for Snowflake.
