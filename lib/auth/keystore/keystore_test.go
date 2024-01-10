@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -317,8 +318,13 @@ func TestKeyStore(t *testing.T) {
 					Cluster:    "test-cluster",
 					AWSAccount: "123456789012",
 					AWSRegion:  "us-west-2",
-					KMS:        newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
-					clock:      clock,
+					CloudClients: &cloud.TestCloudClients{
+						KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+						STS: &fakeAWSSTSClient{
+							account: "123456789012",
+						},
+					},
+					clock: clock,
 				},
 			},
 			shouldSkip: func() bool {
