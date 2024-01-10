@@ -146,21 +146,22 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 
 			if err != nil {
 				ret.ClusterFetchingErrors[clusterName] = err
-			} else {
-				extraLabels, err := getExtraEKSLabels(eksClusterInfo.Cluster)
-				if err != nil {
-					ret.ClusterFetchingErrors[clusterName] = err
-					return nil
-				}
-
-				ret.Clusters = append(ret.Clusters, EKSCluster{
-					Name:        aws.ToString(eksClusterInfo.Cluster.Name),
-					Region:      req.Region,
-					Labels:      eksClusterInfo.Cluster.Tags,
-					ExtraLabels: extraLabels,
-					Status:      strings.ToLower(string(eksClusterInfo.Cluster.Status)),
-				})
+				return nil
 			}
+
+			extraLabels, err := getExtraEKSLabels(eksClusterInfo.Cluster)
+			if err != nil {
+				ret.ClusterFetchingErrors[clusterName] = err
+				return nil
+			}
+
+			ret.Clusters = append(ret.Clusters, EKSCluster{
+				Name:        aws.ToString(eksClusterInfo.Cluster.Name),
+				Region:      req.Region,
+				Labels:      eksClusterInfo.Cluster.Tags,
+				ExtraLabels: extraLabels,
+				Status:      strings.ToLower(string(eksClusterInfo.Cluster.Status)),
+			})
 			return nil
 		})
 	}
