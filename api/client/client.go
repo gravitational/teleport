@@ -4342,6 +4342,20 @@ func (c *Client) RotateCertAuthority(ctx context.Context, rr types.RotateRequest
 	return trace.Wrap(err)
 }
 
+// RotateExternalCertAuthority rotates the provided cert authority.
+func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	_, err := c.TrustClient().RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return trace.Wrap(err)
+}
+
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
 	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{
