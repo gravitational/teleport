@@ -38,6 +38,7 @@ export function getResourceUri(
     case 'doc.gateway':
     case 'doc.gateway_cli_client':
     case 'doc.gateway_kube':
+      return document.targetUri;
     case 'doc.terminal_tsh_node':
       return isDocumentTshNodeWithServerId(document)
         ? document.serverUri
