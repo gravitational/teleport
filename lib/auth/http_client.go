@@ -338,12 +338,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// RotateCertAuthority starts or restarts certificate authority rotation process.
-func (c *HTTPClient) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
-	_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
-	return trace.Wrap(err)
-}
-
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is used to update only public keys and certificates of the
 // the certificate authorities of trusted clusters.
