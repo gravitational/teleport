@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1034,6 +1036,26 @@ func TestIsUserFunctions(t *testing.T) {
 		t.Run(test.funcName+"/"+test.scenario, func(t *testing.T) {
 			got := test.isUserFunc(test.authCtx)
 			assert.Equal(t, test.want, got, "%s mismatch", test.funcName)
+		})
+	}
+}
+
+func TestConnectionMetadata(t *testing.T) {
+	for name, test := range map[string]struct {
+		ctx                        context.Context
+		expectedConnectionMetadata apievents.ConnectionMetadata
+	}{
+		"with client address": {
+			ctx:                        ContextWithClientSrcAddr(context.Background(), &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0), Port: 1234}),
+			expectedConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: "10.255.0.0:1234"},
+		},
+		"empty client address": {
+			ctx:                        context.Background(),
+			expectedConnectionMetadata: apievents.ConnectionMetadata{},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Empty(t, cmp.Diff(test.expectedConnectionMetadata, ConnectionMetadata(test.ctx)))
 		})
 	}
 }
