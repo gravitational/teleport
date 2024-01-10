@@ -58,8 +58,7 @@ const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
 const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account'));
-const AccountNew = lazy(() => import('./Account/AccountNew'));
+const Account = lazy(() => import('./Account/AccountNew'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
 const Support = lazy(() => import('./Support'));
@@ -638,10 +637,7 @@ export class FeatureAccount implements TeleportFeature {
   route = {
     title: 'Account Settings',
     path: cfg.routes.account,
-    component:
-      localStorage.getItem('enableNewAccountSettingsScreen') == 'true'
-        ? AccountNew
-        : Account,
+    component: Account,
   };
 
   hasAccess() {
