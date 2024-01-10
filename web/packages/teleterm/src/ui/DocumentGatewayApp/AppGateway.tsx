@@ -79,8 +79,8 @@ export function AppGateway(props: {
         <CliCommand
           cliCommand={cliCommandPreview}
           isLoading={props.changePortAttempt.status === 'processing'}
-          runButtonText="Copy"
-          onRun={() => copyToClipboard(cliCommandPreview)}
+          buttonText="Copy"
+          onButtonClick={() => copyToClipboard(cliCommandPreview)}
         />
       )}
       {props.changePortAttempt.status === 'error' && (

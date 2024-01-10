@@ -22,16 +22,16 @@ import { fade } from 'design/theme/utils/colorManipulator';
 
 interface CliCommandProps {
   cliCommand: string;
-  onRun(): void;
+  onButtonClick(): void;
   isLoading: boolean;
-  runButtonText?: string;
+  buttonText?: string;
 }
 
 export function CliCommand({
   cliCommand,
-  onRun,
+  onButtonClick,
   isLoading,
-  runButtonText = 'Run',
+  buttonText = 'Run',
 }: CliCommandProps) {
   const [shouldDisplayIsLoading, setShouldDisplayIsLoading] = useState(false);
 
@@ -89,7 +89,7 @@ export function CliCommand({
         )}
       </Flex>
       <ButtonPrimary
-        onClick={onRun}
+        onClick={onButtonClick}
         disabled={shouldDisplayIsLoading}
         css={`
           max-width: 48px;
@@ -99,7 +99,7 @@ export function CliCommand({
           font-size: 10px;
         `}
       >
-        {runButtonText}
+        {buttonText}
       </ButtonPrimary>
     </Flex>
   );
