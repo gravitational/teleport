@@ -46,11 +46,8 @@ func TestResumableConnPipe(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
 			makePipe := func() (c1 net.Conn, c2 net.Conn, stop func(), err error) {
-				r1 := &ResumableConn{}
-				r1.cond.L = &r1.mu
-
-				r2 := &ResumableConn{}
-				r2.cond.L = &r2.mu
+				r1 := newResumableConn(nil, nil)
+				r2 := newResumableConn(nil, nil)
 
 				var p1, p2 net.Conn
 				if tc.syncPipe {
@@ -100,12 +97,10 @@ func TestResumableConn(t *testing.T) {
 func testResumableConn(t *testing.T, syncPipe bool) {
 	require := require.New(t)
 
-	r1 := &ResumableConn{}
-	r1.cond.L = &r1.mu
+	r1 := newResumableConn(nil, nil)
 	defer r1.Close()
 
-	r2 := &ResumableConn{}
-	r2.cond.L = &r2.mu
+	r2 := newResumableConn(nil, nil)
 	defer r2.Close()
 
 	var p1, p2 net.Conn

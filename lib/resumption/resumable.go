@@ -31,6 +31,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 )
 
+func newResumableConn(localAddr, remoteAddr net.Addr) *ResumableConn {
+	r := new(ResumableConn)
+	r.cond.L = &r.mu
+	r.localAddr = localAddr
+	r.remoteAddr = remoteAddr
+	return r
+}
+
 type ResumableConn struct {
 	managedConn
 
@@ -50,7 +58,6 @@ func (r *ResumableConn) waitForDetachLocked() {
 var _ net.Conn = (*ResumableConn)(nil)
 
 const (
-	idleTimeout      = 3 * time.Minute
 	graceTimeout     = 5 * time.Second
 	handshakeTimeout = 30 * time.Second
 )
