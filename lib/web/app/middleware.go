@@ -26,10 +26,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
