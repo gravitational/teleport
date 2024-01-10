@@ -50,7 +50,7 @@ export function AppGateway(props: {
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
-      <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
+      <Flex justifyContent="space-between" mb="3" flexWrap="wrap" gap={2}>
         <Text typography="h3">App Connection</Text>
         {props.disconnectAttempt.status === 'error' && (
           <Alert>
@@ -61,9 +61,6 @@ export function AppGateway(props: {
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <Text typography="h4" mb={1}>
-        Local app proxy
-      </Text>
       <Flex as="form" ref={formRef}>
         <Validation>
           <PortFieldInput
