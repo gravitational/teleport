@@ -13,11 +13,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -228,13 +230,20 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/cluster", h.WithClusterAuth(p.externalAuditStorageDeleteCluster))
 	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalAuditStorageDeleteDraft))
 
+	// the billing summary API is available for cloud users
+	// as well as self-hosted dashboards for usage-based customers
+	isDashboard := services.IsDashboard(p.h.ClusterFeatures)
+	isUsageBasedEnterprise := p.h.ClusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_EUB
+	if p.h.ClusterFeatures.GetCloud() || (isDashboard && isUsageBasedEnterprise) {
+		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
+	}
+
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
 		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
 		h.PUT("/enterprise/cloud/card", p.withCloudAuth(p.updateCardHandle))
 		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
 		h.DELETE("/enterprise/cloud/billing", p.withCloudAuth(p.cancelSubscriptionHandle))
-		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
 		h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.getNonBillableUsageSummaryHandle))
 		h.GET("/enterprise/cloud/payments-invoices", p.withCloudAuth(p.getPaymentsInvoicesInformationHandle))
 		h.GET("/enterprise/cloud/invoice-settings", p.withCloudAuth(p.getInvoiceSettingsInformationHandle))
