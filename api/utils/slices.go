@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -80,4 +81,21 @@ func DeduplicateAny[T any](in []T, compare func(T, T) bool) []T {
 		}
 	}
 	return out
+}
+
+// ContainSameUniqueElements returns true if the input slices contain the same
+// unique elements. Ordering and duplicates are ignored.
+func ContainSameUniqueElements[S ~[]E, E comparable](s1, s2 S) bool {
+	s1Dedup := Deduplicate(s1)
+	s2Dedup := Deduplicate(s2)
+
+	if len(s1Dedup) != len(s2Dedup) {
+		return false
+	}
+	for i := range s1Dedup {
+		if !slices.Contains(s2Dedup, s1Dedup[i]) {
+			return false
+		}
+	}
+	return true
 }

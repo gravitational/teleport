@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/square/go-jose.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
@@ -191,8 +191,10 @@ const (
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
 
-	// MinPasswordLength is minimum password length
-	MinPasswordLength = 6
+	// MinPasswordLength is minimum password length.
+	// PCI DSS v4.0 control 8.3.6 requires a minimum password length of 12 characters.
+	// NIST SP 800-63B section 5.1.1.1 requires a minimum password length of 8 characters.
+	MinPasswordLength = 12
 
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
@@ -236,8 +238,9 @@ const (
 	MaxAccountRecoveryAttempts = 3
 
 	// AccountLockInterval defines a time interval during which a user account
-	// is locked after MaxLoginAttempts
-	AccountLockInterval = 20 * time.Minute
+	// is locked after MaxLoginAttempts.
+	// PCI DSS v4.0 control 8.3.4 requires a minimum lockout duration of 30 minutes.
+	AccountLockInterval = 30 * time.Minute
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30

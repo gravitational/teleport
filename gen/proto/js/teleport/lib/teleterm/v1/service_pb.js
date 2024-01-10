@@ -19,6 +19,8 @@ var teleport_accesslist_v1_accesslist_pb = require('../../../../teleport/accessl
 goog.object.extend(proto, teleport_accesslist_v1_accesslist_pb);
 var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/lib/teleterm/v1/access_request_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_access_request_pb);
+var teleport_lib_teleterm_v1_app_pb = require('../../../../teleport/lib/teleterm/v1/app_pb.js');
+goog.object.extend(proto, teleport_lib_teleterm_v1_app_pb);
 var teleport_lib_teleterm_v1_auth_settings_pb = require('../../../../teleport/lib/teleterm/v1/auth_settings_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_auth_settings_pb);
 var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/teleterm/v1/cluster_pb.js');
@@ -13449,7 +13451,7 @@ proto.teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.prototype.setNextKey
  * @private {!Array<!Array<number>>}
  * @const
  */
-proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_ = [[1,2,3]];
+proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_ = [[1,2,3,4]];
 
 /**
  * @enum {number}
@@ -13458,7 +13460,8 @@ proto.teleport.lib.teleterm.v1.PaginatedResource.ResourceCase = {
   RESOURCE_NOT_SET: 0,
   DATABASE: 1,
   SERVER: 2,
-  KUBE: 3
+  KUBE: 3,
+  APP: 4
 };
 
 /**
@@ -13501,7 +13504,8 @@ proto.teleport.lib.teleterm.v1.PaginatedResource.toObject = function(includeInst
   var f, obj = {
     database: (f = msg.getDatabase()) && teleport_lib_teleterm_v1_database_pb.Database.toObject(includeInstance, f),
     server: (f = msg.getServer()) && teleport_lib_teleterm_v1_server_pb.Server.toObject(includeInstance, f),
-    kube: (f = msg.getKube()) && teleport_lib_teleterm_v1_kube_pb.Kube.toObject(includeInstance, f)
+    kube: (f = msg.getKube()) && teleport_lib_teleterm_v1_kube_pb.Kube.toObject(includeInstance, f),
+    app: (f = msg.getApp()) && teleport_lib_teleterm_v1_app_pb.App.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13552,6 +13556,11 @@ proto.teleport.lib.teleterm.v1.PaginatedResource.deserializeBinaryFromReader = f
       var value = new teleport_lib_teleterm_v1_kube_pb.Kube;
       reader.readMessage(value,teleport_lib_teleterm_v1_kube_pb.Kube.deserializeBinaryFromReader);
       msg.setKube(value);
+      break;
+    case 4:
+      var value = new teleport_lib_teleterm_v1_app_pb.App;
+      reader.readMessage(value,teleport_lib_teleterm_v1_app_pb.App.deserializeBinaryFromReader);
+      msg.setApp(value);
       break;
     default:
       reader.skipField();
@@ -13604,6 +13613,14 @@ proto.teleport.lib.teleterm.v1.PaginatedResource.serializeBinaryToWriter = funct
       3,
       f,
       teleport_lib_teleterm_v1_kube_pb.Kube.serializeBinaryToWriter
+    );
+  }
+  f = message.getApp();
+  if (f != null) {
+    writer.writeMessage(
+      4,
+      f,
+      teleport_lib_teleterm_v1_app_pb.App.serializeBinaryToWriter
     );
   }
 };
@@ -13717,6 +13734,43 @@ proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.clearKube = function(
  */
 proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.hasKube = function() {
   return jspb.Message.getField(this, 3) != null;
+};
+
+
+/**
+ * optional App app = 4;
+ * @return {?proto.teleport.lib.teleterm.v1.App}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.getApp = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.App} */ (
+    jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_app_pb.App, 4));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.App|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+*/
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.setApp = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 4, proto.teleport.lib.teleterm.v1.PaginatedResource.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.PaginatedResource} returns this
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.clearApp = function() {
+  return this.setApp(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.PaginatedResource.prototype.hasApp = function() {
+  return jspb.Message.getField(this, 4) != null;
 };
 
 

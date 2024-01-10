@@ -24,8 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -42,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -174,8 +171,6 @@ type Router struct {
 	siteGetter     SiteGetter
 	tracer         oteltrace.Tracer
 	serverResolver serverResolverFn
-	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
-	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -191,14 +186,13 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:           cfg.ClusterName,
-		log:                   cfg.Log,
-		clusterGetter:         cfg.RemoteClusterGetter,
-		localSite:             localSite,
-		siteGetter:            cfg.SiteGetter,
-		tracer:                cfg.TracerProvider.Tracer("Router"),
-		serverResolver:        cfg.serverResolver,
-		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
+		clusterName:    cfg.ClusterName,
+		log:            cfg.Log,
+		clusterGetter:  cfg.RemoteClusterGetter,
+		localSite:      localSite,
+		siteGetter:     cfg.SiteGetter,
+		tracer:         cfg.TracerProvider.Tracer("Router"),
+		serverResolver: cfg.serverResolver,
 	}, nil
 }
 
@@ -289,15 +283,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		}
 
 	} else {
-		if !r.permitUnlistedDialing {
-			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
-		}
-		if port == "" || port == "0" {
-			port = strconv.Itoa(defaults.SSHServerListenPort)
-		}
-
-		serverAddr = net.JoinHostPort(host, port)
-		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
+		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
 	conn, err := site.Dial(reversetunnelclient.DialParams{

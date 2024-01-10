@@ -169,6 +169,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
 	}
@@ -195,6 +196,7 @@ func (a *Server) createGithubConnector(ctx context.Context, connector types.Gith
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
 	}
@@ -221,6 +223,7 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
 	}
@@ -375,6 +378,7 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector delete event.")
 	}
@@ -443,7 +447,8 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
-		Method: events.LoginMethodGithub,
+		Method:             events.LoginMethodGithub,
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}
 
 	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
@@ -649,7 +654,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to query GitHub user info")
 	}
-	teamsResp, err := ghClient.getTeams()
+	teamsResp, err := ghClient.getTeams(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to query GitHub user teams")
 	}
@@ -990,7 +995,7 @@ type orgResponse struct {
 }
 
 // getTeams retrieves a list of teams authenticated user belongs to.
-func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
+func (c *githubAPIClient) getTeams(ctx context.Context) ([]teamResponse, error) {
 	var result []teamResponse
 
 	bytes, nextPage, err := c.get("user/teams")
@@ -1029,6 +1034,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 					Success: false,
 					Error:   warningMessage,
 				},
+				ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit GitHub login failure event.")
 			}

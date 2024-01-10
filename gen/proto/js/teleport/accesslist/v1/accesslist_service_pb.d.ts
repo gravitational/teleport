@@ -281,6 +281,58 @@ export namespace ListAccessListMembersResponse {
     }
 }
 
+export class ListAllAccessListMembersRequest extends jspb.Message { 
+    getPageSize(): number;
+    setPageSize(value: number): ListAllAccessListMembersRequest;
+
+    getPageToken(): string;
+    setPageToken(value: string): ListAllAccessListMembersRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListAllAccessListMembersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListAllAccessListMembersRequest): ListAllAccessListMembersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListAllAccessListMembersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListAllAccessListMembersRequest;
+    static deserializeBinaryFromReader(message: ListAllAccessListMembersRequest, reader: jspb.BinaryReader): ListAllAccessListMembersRequest;
+}
+
+export namespace ListAllAccessListMembersRequest {
+    export type AsObject = {
+        pageSize: number,
+        pageToken: string,
+    }
+}
+
+export class ListAllAccessListMembersResponse extends jspb.Message { 
+    clearMembersList(): void;
+    getMembersList(): Array<teleport_accesslist_v1_accesslist_pb.Member>;
+    setMembersList(value: Array<teleport_accesslist_v1_accesslist_pb.Member>): ListAllAccessListMembersResponse;
+    addMembers(value?: teleport_accesslist_v1_accesslist_pb.Member, index?: number): teleport_accesslist_v1_accesslist_pb.Member;
+
+    getNextPageToken(): string;
+    setNextPageToken(value: string): ListAllAccessListMembersResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListAllAccessListMembersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListAllAccessListMembersResponse): ListAllAccessListMembersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListAllAccessListMembersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListAllAccessListMembersResponse;
+    static deserializeBinaryFromReader(message: ListAllAccessListMembersResponse, reader: jspb.BinaryReader): ListAllAccessListMembersResponse;
+}
+
+export namespace ListAllAccessListMembersResponse {
+    export type AsObject = {
+        membersList: Array<teleport_accesslist_v1_accesslist_pb.Member.AsObject>,
+        nextPageToken: string,
+    }
+}
+
 export class UpsertAccessListWithMembersRequest extends jspb.Message { 
 
     hasAccessList(): boolean;
@@ -503,6 +555,58 @@ export class ListAccessListReviewsResponse extends jspb.Message {
 }
 
 export namespace ListAccessListReviewsResponse {
+    export type AsObject = {
+        reviewsList: Array<teleport_accesslist_v1_accesslist_pb.Review.AsObject>,
+        nextToken: string,
+    }
+}
+
+export class ListAllAccessListReviewsRequest extends jspb.Message { 
+    getPageSize(): number;
+    setPageSize(value: number): ListAllAccessListReviewsRequest;
+
+    getNextToken(): string;
+    setNextToken(value: string): ListAllAccessListReviewsRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListAllAccessListReviewsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListAllAccessListReviewsRequest): ListAllAccessListReviewsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListAllAccessListReviewsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListAllAccessListReviewsRequest;
+    static deserializeBinaryFromReader(message: ListAllAccessListReviewsRequest, reader: jspb.BinaryReader): ListAllAccessListReviewsRequest;
+}
+
+export namespace ListAllAccessListReviewsRequest {
+    export type AsObject = {
+        pageSize: number,
+        nextToken: string,
+    }
+}
+
+export class ListAllAccessListReviewsResponse extends jspb.Message { 
+    clearReviewsList(): void;
+    getReviewsList(): Array<teleport_accesslist_v1_accesslist_pb.Review>;
+    setReviewsList(value: Array<teleport_accesslist_v1_accesslist_pb.Review>): ListAllAccessListReviewsResponse;
+    addReviews(value?: teleport_accesslist_v1_accesslist_pb.Review, index?: number): teleport_accesslist_v1_accesslist_pb.Review;
+
+    getNextToken(): string;
+    setNextToken(value: string): ListAllAccessListReviewsResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListAllAccessListReviewsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListAllAccessListReviewsResponse): ListAllAccessListReviewsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListAllAccessListReviewsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListAllAccessListReviewsResponse;
+    static deserializeBinaryFromReader(message: ListAllAccessListReviewsResponse, reader: jspb.BinaryReader): ListAllAccessListReviewsResponse;
+}
+
+export namespace ListAllAccessListReviewsResponse {
     export type AsObject = {
         reviewsList: Array<teleport_accesslist_v1_accesslist_pb.Review.AsObject>,
         nextToken: string,

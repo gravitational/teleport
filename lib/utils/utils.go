@@ -176,11 +176,14 @@ func ClickableURL(in string) string {
 		return in
 	}
 	ip := net.ParseIP(host)
-	// if address is not an IP, unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// If address is not an IP address, return it unchanged.
+	if ip == nil && out.Host != "" {
+		return out.String()
+	}
+	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
 	// replace with localhost that is clickable
 	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
 		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
-		return out.String()
 	}
 	return out.String()
 }

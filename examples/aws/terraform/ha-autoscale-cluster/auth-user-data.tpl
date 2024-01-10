@@ -9,7 +9,6 @@ TELEPORT_DOMAIN_ADMIN_EMAIL=${email}
 TELEPORT_DOMAIN_NAME=${domain_name}
 TELEPORT_DYNAMO_TABLE_NAME=${dynamo_table_name}
 TELEPORT_DYNAMO_EVENTS_TABLE_NAME=${dynamo_events_table_name}
-TELEPORT_INFLUXDB_ADDRESS=${influxdb_addr}
 TELEPORT_LICENSE_PATH=${license_path}
 TELEPORT_LOCKS_TABLE_NAME=${locks_table_name}
 TELEPORT_S3_BUCKET=${s3_bucket}
