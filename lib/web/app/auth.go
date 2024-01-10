@@ -21,7 +21,6 @@ package app
 import (
 	"crypto/subtle"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
 
@@ -62,7 +61,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// and in the request "state" query param.
 		secretToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debugf("Failed to generate token required for app auth exchange")
+			h.log.WithError(err).Debug("Failed to generate token required for app auth exchange")
 			return trace.AccessDenied("access denied")
 		}
 
@@ -74,7 +73,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// different token value eg: launch app in multiple tabs in quick succession
 		cookieIdentifier, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debugf("Failed to generate an UID for the app auth state cookie")
+			h.log.WithError(err).Debug("Failed to generate an UID for the app auth state cookie")
 			return trace.AccessDenied("access denied")
 		}
 
@@ -98,19 +97,14 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 
 	nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 	if err != nil {
-		h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
+		h.log.WithError(err).Debug("Failed to create a random nonce for the app redirection HTML inline script")
 		return trace.AccessDenied("access denied")
 	}
 	SetRedirectPageHeaders(w.Header(), nonce)
 
 	// Serving the HTML page.
-	appRedirectTemplate, err := template.New("index").Parse(appRedirectHTML)
-	if err != nil {
-		h.log.WithError(err).Debugf("Failed parsing appRedirectHTML string")
-		return trace.AccessDenied("access denied")
-	}
 	if err := appRedirectTemplate.Execute(w, nonce); err != nil {
-		h.log.WithError(err).Debugf("Failed executing appRedirect template")
+		h.log.WithError(err).Debug("Failed executing appRedirect template")
 		return trace.AccessDenied("access denied")
 	}
 	return nil
@@ -123,7 +117,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	httplib.SetNoCacheHeaders(w.Header())
 	var req fragmentRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
-		h.log.Warn("Failed to decode JSON from request body")
+		h.log.WithError(err).Debug("Failed to decode JSON from request body")
 		return trace.AccessDenied("access denied")
 	}
 
@@ -165,11 +159,11 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		SessionID: req.CookieValue,
 	})
 	if err != nil {
-		h.log.Warn("Request failed: session does not exist.")
+		h.log.WithError(err).Warn("Request failed: session does not exist.")
 		return trace.AccessDenied("access denied")
 	}
 	if err := checkSubjectToken(req.SubjectCookieValue, ws); err != nil {
-		h.log.Warnf("Request failed: %v.", err)
+		h.log.WithError(err).Warn("Request failed")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       err.Error(),
@@ -320,9 +314,11 @@ type emitErrorEventFields struct {
 func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitErrorEventFields) {
 	// Attempt to delete app session.
 	if f.sessionID != "" {
-		_ = h.c.AuthClient.DeleteAppSession(r.Context(), types.DeleteAppSessionRequest{
+		if err := h.c.AuthClient.DeleteAppSession(r.Context(), types.DeleteAppSessionRequest{
 			SessionID: f.sessionID,
-		})
+		}); err != nil {
+			h.log.WithError(err).Warn("Failed to delete app session after failing authentication")
+		}
 	}
 
 	event := &apievents.AuthAttempt{

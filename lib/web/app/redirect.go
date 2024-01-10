@@ -63,6 +63,8 @@ func MetaRedirect(w http.ResponseWriter, redirectURL string) error {
 	return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
 }
 
+var appRedirectTemplate = template.Must(template.New("index").Parse(appRedirectHTML))
+
 const appRedirectHTML = `
 <!DOCTYPE html>
 <html lang="en">

@@ -70,11 +70,12 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
-	// The application launcher can only generate browser sessions (based on
-	// Cookies). Given this, we should only redirect to it when this format is
-	// already in use.
-	if p.stateToken == "" && !HasSession(r) {
-		return trace.BadParameter("redirecting to launcher when using client certificate is not valid")
+	if p.stateToken == "" && !HasSessionCookie(r) {
+		// Reaching this block means the application was accessed through the CLI (eg: tsh app login)
+		// and there was a forwarding error and we could not renew the app web session.
+		// Since we can't redirect the user to the app launcher from the CLI,
+		// we just return an error instead.
+		return trace.BadParameter("redirecting to launcher when using client certificate, is not allowed")
 	}
 
 	if h.c.WebPublicAddr == "" {
@@ -211,9 +212,18 @@ type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
 type launcherURLParams struct {
+	// clusterName is the cluster within which this application is running.
 	clusterName string
-	publicAddr  string
-	stateToken  string
-	arn         string
-	path        string
+	// publicAddr is the public address of this application.
+	publicAddr string
+	// arn is the AWS role name, defined only when accessing AWS management console.
+	arn string
+	// stateToken if defined means initiating an app access auth exchange.
+	stateToken string
+	// path is the application URL path.
+	// It is only defined if an application was accessed without the web launcher
+	// (e.g: clicking on a bookmarked URL).
+	// This field is used to preserve the original requested path through
+	// the app access authentication redirections.
+	path string
 }

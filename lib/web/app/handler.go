@@ -517,8 +517,8 @@ func HasFragment(r *http.Request) bool {
 	return r.URL.Path == "/x-teleport-auth"
 }
 
-// HasSession checks if an application specific cookie exists.
-func HasSession(r *http.Request) bool {
+// HasSessionCookie checks if an application specific cookie exists.
+func HasSessionCookie(r *http.Request) bool {
 	_, err := r.Cookie(CookieName)
 	return err == nil
 }

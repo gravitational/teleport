@@ -325,7 +325,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -536,7 +536,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			httplib.SetNoCacheHeaders(w.Header())
 
 			// DELETE IN 17.0: Delete the first if block. Keep the else case.
-			// Kept for backwards compatability.
+			// Kept for backwards compatibility.
 			//
 			// This case only adds an additional CSP `content-src` value of the
 			// app URL which allows requesting to the app domain required by
