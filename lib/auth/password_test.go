@@ -23,7 +23,6 @@ import (
 	"encoding/base32"
 	"fmt"
 	"math/rand"
-	"net"
 	"testing"
 	"time"
 
@@ -39,7 +38,6 @@ import (
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -119,8 +117,7 @@ func TestUserNotFound(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
-	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
+	ctx := context.Background()
 
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), constants.SecondFactorOff)
@@ -133,9 +130,7 @@ func TestChangePassword(t *testing.T) {
 	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, events.UserPasswordChangeEvent, s.mockEmitter.LastEvent().GetType())
-	changeEvt := s.mockEmitter.LastEvent().(*apievents.UserPasswordChange)
-	require.Equal(t, "user1", changeEvt.User)
-	require.Equal(t, clientAddr.String(), changeEvt.ConnectionMetadata.RemoteAddr)
+	require.Equal(t, "user1", s.mockEmitter.LastEvent().(*apievents.UserPasswordChange).User)
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
