@@ -31,10 +31,10 @@ The Teleport webapp, may redirect the user to the login screen first before load
 
 The `AppLauncher.tsx` conducts the initial app authn flow and does the following:
 
-1. It navigates to app route `/x-teleport-auth` that initiates the Oauth like `state` exchange
-2. `/x-teleport-auth` responds by redirecting user back to `AppLauncher.tsx` with a query param `state`, a query param that preserves the originally requested URL path & query, and a short lived `state` cookie
-3. It creates an application web session
-4. It navigates back to app route `/x-teleport-auth` passing the `state`, the originally requested URL path & query, and the app session response via URL params
+1. `AppLauncher.tsx` navigates to app route `/x-teleport-auth` that initiates the Oauth like `state` exchange
+2. `/x-teleport-auth` responds by redirecting user back to `AppLauncher.tsx` with a query param `state` (a query param that preserves the originally requested URL path & query) and with a short lived `state` cookie
+3. `AppLauncher.tsx` makes a request to create an application web session
+4. Lastly, `AppLauncher.tsx` navigates back to app route `/x-teleport-auth` passing the `state`, the originally requested URL path & query, and the application web session response via URL params
 
 OAuth like `state` exchange pattern is used to protect the app route `/x-teleport-auth` from CSRF. The authn flow uses two HTTP methods:
 
