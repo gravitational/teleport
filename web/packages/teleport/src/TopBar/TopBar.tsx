@@ -223,6 +223,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           <CustomLogo />
         ) : (
           <Image
+            data-testid="teleport-logo"
             src={theme.type === 'dark' ? logoDark : logoLight}
             alt="teleport logo"
             css={`
