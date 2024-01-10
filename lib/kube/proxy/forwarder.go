@@ -1684,7 +1684,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 			f.setSession(session.id, session)
 			// When Teleport attaches the original session creator terminal streams to the
-			// session, we don't wan't to emmit session.join event since it won't be required.
+			// session, we don't want to emit session.join event since it won't be required.
 			if err = session.join(party, false /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
