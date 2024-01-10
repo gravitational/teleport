@@ -467,7 +467,7 @@ type session struct {
 	participants map[rsession.ID]*party
 
 	io       *TermManager
-	inWriter io.Writer
+	inWriter io.WriteCloser
 
 	term Terminal
 
@@ -648,6 +648,11 @@ func (s *session) Stop() {
 	s.log.Info("Stopping session")
 
 	// Close io copy loops
+	if s.inWriter != nil {
+		if err := s.inWriter.Close(); err != nil {
+			s.log.WithError(err).Debug("Failed to close session writer")
+		}
+	}
 	s.io.Close()
 
 	// Make sure that the terminal has been closed
