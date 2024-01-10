@@ -63,7 +63,7 @@ sequenceDiagram
     participant Web Handler
     participant App Handler
     end
-    participant Auth Service
+    participant Auth Server
     alt Directly navigating to application
     Note left of Browser: User copy pastes app URL into browser <br/>https://dumper.localhost:3080
     Browser->>App Handler: Proxy determines requesting an application and builds a redirect URL to AppLauncher.tsx
@@ -78,8 +78,8 @@ sequenceDiagram
     App Handler->>Browser: REDIRECT /web/launch/dumper.localhost/cluster-name/dumper.localhost?state=<TOKEN><br>set cookie with the same <TOKEN>
     Note left of Browser: Back at AppLauncher.tsx
     Browser->>Web Handler: POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, plubic_addr: dumper.localhost, cluster_name: cluster-name}
-    Web Handler->>Auth Service: CreateAppSession
-    Auth Service->>Web Handler: Returns created session
+    Web Handler->>Auth Server: CreateAppSession
+    Auth Server->>Web Handler: Returns created session
     Web Handler->>Browser: Returns with the app <SESSION_BEARER_TOKEN> and <SESSION_ID> as JSON response
     Note left of Browser: AppLauncher.tsx navigates back to app authn route with:<br>https://dumper.localhost:3080/<br>x-teleport-auth?<br>state=<TOKEN><br>&subject=<SESSION_BEARER_TOKEN><br>&path=<ORIGINAL_PATH_QUERY><br>#35;value=<SESSION_ID>
     Browser->>App Handler: GET dumper.localhost:3080/x-teleport-auth?state=<TOKEN>&subject=<SESSION_BEARER_TOKEN>#35;value=<SESSION_ID>
