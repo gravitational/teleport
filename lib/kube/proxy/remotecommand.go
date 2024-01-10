@@ -234,22 +234,20 @@ func (s *remoteCommandProxy) options() remotecommand.StreamOptions {
 	return opts
 }
 
-func (s *remoteCommandProxy) sendStatus(err error) (returnErr error) {
+func (s *remoteCommandProxy) sendStatus(err error) error {
 	if err == nil {
-		returnErr = s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
+		return s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
 			Status: metav1.StatusSuccess,
 		}})
-		return
 	}
 	var statusErr *apierrors.StatusError
 	if errors.As(err, &statusErr) {
-		returnErr = s.writeStatus(statusErr)
-		return
+		return s.writeStatus(statusErr)
 	}
 	var exitErr utilexec.ExitError
 	if errors.As(err, &exitErr) && exitErr.Exited() {
 		rc := exitErr.ExitStatus()
-		returnErr = s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
+		return s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
 			Status: metav1.StatusFailure,
 			Reason: remotecommandconsts.NonZeroExitCodeReason,
 			Details: &metav1.StatusDetails{
@@ -262,7 +260,6 @@ func (s *remoteCommandProxy) sendStatus(err error) (returnErr error) {
 			},
 			Message: fmt.Sprintf("command terminated with non-zero exit code: %v", exitErr),
 		}})
-		return
 	}
 	// kubernetes client-go errorDecoderV4 parses the metav1.Status and returns the `fmt.Errorf(status.Message)` for every case except
 	// errors with reason =  NonZeroExitCodeReason for which it returns an exec.CodeExitError.
@@ -270,7 +267,7 @@ func (s *remoteCommandProxy) sendStatus(err error) (returnErr error) {
 	// to the status.Message. This happens because the error is sent after the connection was upgraded to a bidirectional stream.
 	// This hack is here to recreate the forbidden message and return it back to the user terminal
 	if strings.Contains(err.Error(), "is forbidden:") {
-		returnErr = s.writeStatus(&apierrors.StatusError{
+		return s.writeStatus(&apierrors.StatusError{
 			ErrStatus: metav1.Status{
 				Status:  metav1.StatusFailure,
 				Code:    http.StatusForbidden,
@@ -278,16 +275,12 @@ func (s *remoteCommandProxy) sendStatus(err error) (returnErr error) {
 				Message: err.Error(),
 			},
 		})
-		return
 	} else if isSessionTerminatedError(err) {
-		returnErr = s.writeStatus(sessionTerminatedByModeratorErr)
-		return
+		return s.writeStatus(sessionTerminatedByModeratorErr)
 	}
 
 	err = trace.BadParameter("error executing command in container: %v", err)
-	returnErr = s.writeStatus(apierrors.NewInternalError(err))
-
-	return
+	return s.writeStatus(apierrors.NewInternalError(err))
 }
 
 // streamAndReply holds both a Stream and a channel that is closed when the stream's reply frame is
