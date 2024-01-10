@@ -21,9 +21,10 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
-import { OfflineDocumentGateway } from 'teleterm/ui/DocumentGateway/OfflineDocumentGateway';
 
 import { useDocumentGateway } from '../DocumentGateway/useDocumentGateway';
+
+import { OfflineGateway } from '../components/OfflineGateway';
 
 import { AppGateway } from './AppGateway';
 
@@ -53,11 +54,11 @@ export function DocumentGatewayApp(props: {
   return (
     <Document visible={props.visible}>
       {!connected ? (
-        // TODO(gzdunek): This is a temporary screen.
-        //  Replace with `OfflineGateway` from https://github.com/gravitational/teleport/pull/36324
-        <OfflineDocumentGateway
+        <OfflineGateway
           connectAttempt={connectAttempt}
-          defaultPort={props.doc.port}
+          gatewayKind="app"
+          targetName={props.doc.targetName}
+          gatewayPort={{ isSupported: true, defaultPort: props.doc.port }}
           reconnect={reconnect}
         />
       ) : (
