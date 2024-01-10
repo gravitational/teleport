@@ -21,7 +21,7 @@ import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 
-import { getPlatformType } from 'design/platform';
+import { Platform, getPlatform } from 'design/platform';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import {
@@ -225,8 +225,10 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
-  const { isMac } = getPlatformType();
+  const isMac = getPlatform() === Platform.macOS;
   /**
+   * Special handler for the CapsLock key.
+   *
    * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
    * as either a single DOWN or single UP, with DOWN corresponding to
    * "CapsLock on" and UP to "CapsLock off". On MacOS Firefox, it always
@@ -237,35 +239,37 @@ export default function useTdpClientCanvas(props: Props) {
    * The remote Windows machine also treats CapsLock like a normal key, and
    * expects a DOWN-UP whenever it's pressed.
    */
-  const handleCapsLock = (
+  const handleCapsLock = (cli: TdpClient, state: ButtonState) => {
+    if (isMac) {
+      // On Mac, every UP or DOWN given to us by the browser corresponds
+      // to a DOWN + UP on the remote machine.
+      cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
+      cli.sendKeyboardInput('CapsLock', ButtonState.UP);
+    } else {
+      // On Windows or Linux, we just pass the event through normally to the server.
+      cli.sendKeyboardInput('CapsLock', state);
+    }
+  };
+
+  /**
+   * Handles a keyboard event.
+   */
+  const handleKeyboardEvent = (
     cli: TdpClient,
     e: KeyboardEvent,
     state: ButtonState
-  ): boolean => {
+  ) => {
     if (e.code === 'CapsLock') {
-      if (isMac) {
-        // On Mac, every UP or DOWN given to us by the browser corresponds
-        // to a DOWN + UP on the remote machine.
-        cli.sendKeyboardInput(e.code, ButtonState.DOWN);
-        cli.sendKeyboardInput(e.code, ButtonState.UP);
-      } else {
-        // On Windows or Linux, we just pass the event through normally to the server.
-        cli.sendKeyboardInput(e.code, state);
-      }
-
-      // Return true to let caller know that we've handled the event.
-      return true;
+      handleCapsLock(cli, state);
+      return;
     }
-
-    // Return false to let caller know that we haven't handled the event.
-    return false;
+    cli.sendKeyboardInput(e.code, state);
   };
 
   const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
     handleSyncBeforeNextKey(cli, e);
-    if (handleCapsLock(cli, e, ButtonState.DOWN)) return;
-    cli.sendKeyboardInput(e.code, ButtonState.DOWN);
+    handleKeyboardEvent(cli, e, ButtonState.DOWN);
 
     // The key codes in the if clause below are those that have been empirically determined not
     // to count as transient activation events. According to the documentation, a keydown for
@@ -287,8 +291,7 @@ export default function useTdpClientCanvas(props: Props) {
   const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
     handleSyncBeforeNextKey(cli, e);
-    if (handleCapsLock(cli, e, ButtonState.UP)) return;
-    cli.sendKeyboardInput(e.code, ButtonState.UP);
+    handleKeyboardEvent(cli, e, ButtonState.UP);
   };
 
   const canvasOnFocusOut = () => {
